@@ -1,0 +1,528 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IpFieldMapper</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.mapper</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IpFieldMapper (org.elasticsearch.index.mapper)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">IpFieldMapper$Builder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 13)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">IpFieldMapper$TypeParser</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    10%
+  </span>
+  <span class="absValue">
+    (2/ 20)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (1/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    6.1%
+  </span>
+  <span class="absValue">
+    (2/ 33)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.mapper;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.document.InetAddressPoint;
+<i>23</i>&nbsp;import org.apache.lucene.document.SortedSetDocValuesField;
+<i>24</i>&nbsp;import org.apache.lucene.document.StoredField;
+<i>25</i>&nbsp;import org.apache.lucene.index.IndexOptions;
+<i>26</i>&nbsp;import org.apache.lucene.index.IndexableField;
+<i>27</i>&nbsp;import org.apache.lucene.index.SortedSetDocValues;
+<i>28</i>&nbsp;import org.apache.lucene.index.Term;
+<i>29</i>&nbsp;import org.apache.lucene.search.DocValuesFieldExistsQuery;
+<i>30</i>&nbsp;import org.apache.lucene.search.MatchNoDocsQuery;
+<i>31</i>&nbsp;import org.apache.lucene.search.Query;
+<i>32</i>&nbsp;import org.apache.lucene.search.TermQuery;
+<i>33</i>&nbsp;import org.apache.lucene.util.ArrayUtil;
+<i>34</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>35</i>&nbsp;import org.elasticsearch.common.Explicit;
+<i>36</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>37</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>38</i>&nbsp;import org.elasticsearch.common.network.InetAddresses;
+<i>39</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>40</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>41</i>&nbsp;import org.elasticsearch.common.xcontent.support.XContentMapValues;
+<i>42</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>43</i>&nbsp;import org.elasticsearch.index.fielddata.ScriptDocValues;
+<i>44</i>&nbsp;import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+<i>45</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>46</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;import java.io.IOException;
+<i>49</i>&nbsp;import java.net.InetAddress;
+<i>50</i>&nbsp;import java.time.ZoneId;
+<i>51</i>&nbsp;import java.util.Arrays;
+<i>52</i>&nbsp;import java.util.Iterator;
+<i>53</i>&nbsp;import java.util.List;
+<i>54</i>&nbsp;import java.util.Map;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;/** A {@link FieldMapper} for ip addresses. */
+<i>57</i>&nbsp;public class IpFieldMapper extends FieldMapper {
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    public static final String CONTENT_TYPE = &quot;ip&quot;;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    public static class Defaults {
+<i>62</i>&nbsp;        public static final Explicit&lt;Boolean&gt; IGNORE_MALFORMED = new Explicit&lt;&gt;(false, false);
+<i>63</i>&nbsp;    }
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    public static class Builder extends FieldMapper.Builder&lt;Builder, IpFieldMapper&gt; {
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;        private Boolean ignoreMalformed;
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;        public Builder(String name) {
+<b class="nc"><i>70</i>&nbsp;            super(name, new IpFieldType(), new IpFieldType());</b>
+<b class="nc"><i>71</i>&nbsp;            builder = this;</b>
+<b class="nc"><i>72</i>&nbsp;        }</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;        public Builder ignoreMalformed(boolean ignoreMalformed) {
+<b class="nc"><i>75</i>&nbsp;            this.ignoreMalformed = ignoreMalformed;</b>
+<b class="nc"><i>76</i>&nbsp;            return builder;</b>
+<i>77</i>&nbsp;        }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;        protected Explicit&lt;Boolean&gt; ignoreMalformed(BuilderContext context) {
+<b class="nc"><i>80</i>&nbsp;            if (ignoreMalformed != null) {</b>
+<b class="nc"><i>81</i>&nbsp;                return new Explicit&lt;&gt;(ignoreMalformed, true);</b>
+<i>82</i>&nbsp;            }
+<b class="nc"><i>83</i>&nbsp;            if (context.indexSettings() != null) {</b>
+<b class="nc"><i>84</i>&nbsp;                return new Explicit&lt;&gt;(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);</b>
+<i>85</i>&nbsp;            }
+<b class="nc"><i>86</i>&nbsp;            return Defaults.IGNORE_MALFORMED;</b>
+<i>87</i>&nbsp;        }
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;        @Override
+<i>90</i>&nbsp;        public IpFieldMapper build(BuilderContext context) {
+<b class="nc"><i>91</i>&nbsp;            setupFieldType(context);</b>
+<b class="nc"><i>92</i>&nbsp;            return new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),</b>
+<b class="nc"><i>93</i>&nbsp;                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);</b>
+<i>94</i>&nbsp;        }
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    public static class TypeParser implements Mapper.TypeParser {
+<i>98</i>&nbsp;
+<b class="fc"><i>99</i>&nbsp;        public TypeParser() {</b>
+<b class="fc"><i>100</i>&nbsp;        }</b>
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;        @Override
+<i>103</i>&nbsp;        public Mapper.Builder&lt;?,?&gt; parse(String name, Map&lt;String, Object&gt; node, ParserContext parserContext) throws MapperParsingException {
+<b class="nc"><i>104</i>&nbsp;            Builder builder = new Builder(name);</b>
+<b class="nc"><i>105</i>&nbsp;            TypeParsers.parseField(builder, name, node, parserContext);</b>
+<b class="nc"><i>106</i>&nbsp;            for (Iterator&lt;Map.Entry&lt;String, Object&gt;&gt; iterator = node.entrySet().iterator(); iterator.hasNext();) {</b>
+<b class="nc"><i>107</i>&nbsp;                Map.Entry&lt;String, Object&gt; entry = iterator.next();</b>
+<b class="nc"><i>108</i>&nbsp;                String propName = entry.getKey();</b>
+<b class="nc"><i>109</i>&nbsp;                Object propNode = entry.getValue();</b>
+<b class="nc"><i>110</i>&nbsp;                if (propName.equals(&quot;null_value&quot;)) {</b>
+<b class="nc"><i>111</i>&nbsp;                    if (propNode == null) {</b>
+<b class="nc"><i>112</i>&nbsp;                        throw new MapperParsingException(&quot;Property [null_value] cannot be null.&quot;);</b>
+<i>113</i>&nbsp;                    }
+<b class="nc"><i>114</i>&nbsp;                    builder.nullValue(InetAddresses.forString(propNode.toString()));</b>
+<b class="nc"><i>115</i>&nbsp;                    iterator.remove();</b>
+<b class="nc"><i>116</i>&nbsp;                } else if (propName.equals(&quot;ignore_malformed&quot;)) {</b>
+<b class="nc"><i>117</i>&nbsp;                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + &quot;.ignore_malformed&quot;));</b>
+<b class="nc"><i>118</i>&nbsp;                    iterator.remove();</b>
+<b class="nc"><i>119</i>&nbsp;                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {</b>
+<b class="nc"><i>120</i>&nbsp;                    iterator.remove();</b>
+<i>121</i>&nbsp;                }
+<b class="nc"><i>122</i>&nbsp;            }</b>
+<b class="nc"><i>123</i>&nbsp;            return builder;</b>
+<i>124</i>&nbsp;        }
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    public static final class IpFieldType extends SimpleMappedFieldType {
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;        public IpFieldType() {
+<i>130</i>&nbsp;            super();
+<i>131</i>&nbsp;            setTokenized(false);
+<i>132</i>&nbsp;            setHasDocValues(true);
+<i>133</i>&nbsp;        }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        IpFieldType(IpFieldType other) {
+<i>136</i>&nbsp;            super(other);
+<i>137</i>&nbsp;        }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;        @Override
+<i>140</i>&nbsp;        public MappedFieldType clone() {
+<i>141</i>&nbsp;            return new IpFieldType(this);
+<i>142</i>&nbsp;        }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;        @Override
+<i>145</i>&nbsp;        public String typeName() {
+<i>146</i>&nbsp;            return CONTENT_TYPE;
+<i>147</i>&nbsp;        }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;        private InetAddress parse(Object value) {
+<i>150</i>&nbsp;            if (value instanceof InetAddress) {
+<i>151</i>&nbsp;                return (InetAddress) value;
+<i>152</i>&nbsp;            } else {
+<i>153</i>&nbsp;                if (value instanceof BytesRef) {
+<i>154</i>&nbsp;                    value = ((BytesRef) value).utf8ToString();
+<i>155</i>&nbsp;                }
+<i>156</i>&nbsp;                return InetAddresses.forString(value.toString());
+<i>157</i>&nbsp;            }
+<i>158</i>&nbsp;        }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;        @Override
+<i>161</i>&nbsp;        public Query existsQuery(QueryShardContext context) {
+<i>162</i>&nbsp;            if (hasDocValues()) {
+<i>163</i>&nbsp;                return new DocValuesFieldExistsQuery(name());
+<i>164</i>&nbsp;            } else {
+<i>165</i>&nbsp;                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+<i>166</i>&nbsp;            }
+<i>167</i>&nbsp;        }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;        @Override
+<i>170</i>&nbsp;        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+<i>171</i>&nbsp;            failIfNotIndexed();
+<i>172</i>&nbsp;            if (value instanceof InetAddress) {
+<i>173</i>&nbsp;                return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
+<i>174</i>&nbsp;            } else {
+<i>175</i>&nbsp;                if (value instanceof BytesRef) {
+<i>176</i>&nbsp;                    value = ((BytesRef) value).utf8ToString();
+<i>177</i>&nbsp;                }
+<i>178</i>&nbsp;                String term = value.toString();
+<i>179</i>&nbsp;                if (term.contains(&quot;/&quot;)) {
+<i>180</i>&nbsp;                    final Tuple&lt;InetAddress, Integer&gt; cidr = InetAddresses.parseCidr(term);
+<i>181</i>&nbsp;                    return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+<i>182</i>&nbsp;                }
+<i>183</i>&nbsp;                InetAddress address = InetAddresses.forString(term);
+<i>184</i>&nbsp;                return InetAddressPoint.newExactQuery(name(), address);
+<i>185</i>&nbsp;            }
+<i>186</i>&nbsp;        }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;        @Override
+<i>189</i>&nbsp;        public Query termsQuery(List&lt;?&gt; values, QueryShardContext context) {
+<i>190</i>&nbsp;            InetAddress[] addresses = new InetAddress[values.size()];
+<i>191</i>&nbsp;            int i = 0;
+<i>192</i>&nbsp;            for (Object value : values) {
+<i>193</i>&nbsp;                InetAddress address;
+<i>194</i>&nbsp;                if (value instanceof InetAddress) {
+<i>195</i>&nbsp;                    address = (InetAddress) value;
+<i>196</i>&nbsp;                } else {
+<i>197</i>&nbsp;                    if (value instanceof BytesRef) {
+<i>198</i>&nbsp;                        value = ((BytesRef) value).utf8ToString();
+<i>199</i>&nbsp;                    }
+<i>200</i>&nbsp;                    if (value.toString().contains(&quot;/&quot;)) {
+<i>201</i>&nbsp;                        // the `terms` query contains some prefix queries, so we cannot create a set query
+<i>202</i>&nbsp;                        // and need to fall back to a disjunction of `term` queries
+<i>203</i>&nbsp;                        return super.termsQuery(values, context);
+<i>204</i>&nbsp;                    }
+<i>205</i>&nbsp;                    address = InetAddresses.forString(value.toString());
+<i>206</i>&nbsp;                }
+<i>207</i>&nbsp;                addresses[i++] = address;
+<i>208</i>&nbsp;            }
+<i>209</i>&nbsp;            return InetAddressPoint.newSetQuery(name(), addresses);
+<i>210</i>&nbsp;        }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        @Override
+<i>213</i>&nbsp;        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+<i>214</i>&nbsp;            failIfNotIndexed();
+<i>215</i>&nbsp;            InetAddress lower;
+<i>216</i>&nbsp;            if (lowerTerm == null) {
+<i>217</i>&nbsp;                lower = InetAddressPoint.MIN_VALUE;
+<i>218</i>&nbsp;            } else {
+<i>219</i>&nbsp;                lower = parse(lowerTerm);
+<i>220</i>&nbsp;                if (includeLower == false) {
+<i>221</i>&nbsp;                    if (lower.equals(InetAddressPoint.MAX_VALUE)) {
+<i>222</i>&nbsp;                        return new MatchNoDocsQuery();
+<i>223</i>&nbsp;                    }
+<i>224</i>&nbsp;                    lower = InetAddressPoint.nextUp(lower);
+<i>225</i>&nbsp;                }
+<i>226</i>&nbsp;            }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;            InetAddress upper;
+<i>229</i>&nbsp;            if (upperTerm == null) {
+<i>230</i>&nbsp;                upper = InetAddressPoint.MAX_VALUE;
+<i>231</i>&nbsp;            } else {
+<i>232</i>&nbsp;                upper = parse(upperTerm);
+<i>233</i>&nbsp;                if (includeUpper == false) {
+<i>234</i>&nbsp;                    if (upper.equals(InetAddressPoint.MIN_VALUE)) {
+<i>235</i>&nbsp;                        return new MatchNoDocsQuery();
+<i>236</i>&nbsp;                    }
+<i>237</i>&nbsp;                    upper = InetAddressPoint.nextDown(upper);
+<i>238</i>&nbsp;                }
+<i>239</i>&nbsp;            }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;            return InetAddressPoint.newRangeQuery(name(), lower, upper);
+<i>242</i>&nbsp;        }
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;        public static final class IpScriptDocValues extends ScriptDocValues&lt;String&gt; {
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;            private final SortedSetDocValues in;
+<i>247</i>&nbsp;            private long[] ords = new long[0];
+<i>248</i>&nbsp;            private int count;
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;            public IpScriptDocValues(SortedSetDocValues in) {
+<i>251</i>&nbsp;                this.in = in;
+<i>252</i>&nbsp;            }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;            @Override
+<i>255</i>&nbsp;            public void setNextDocId(int docId) throws IOException {
+<i>256</i>&nbsp;                count = 0;
+<i>257</i>&nbsp;                if (in.advanceExact(docId)) {
+<i>258</i>&nbsp;                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+<i>259</i>&nbsp;                        ords = ArrayUtil.grow(ords, count + 1);
+<i>260</i>&nbsp;                        ords[count++] = ord;
+<i>261</i>&nbsp;                    }
+<i>262</i>&nbsp;                }
+<i>263</i>&nbsp;            }
+<i>264</i>&nbsp;
+<i>265</i>&nbsp;            public String getValue() {
+<i>266</i>&nbsp;                if (count == 0) {
+<i>267</i>&nbsp;                    return null;
+<i>268</i>&nbsp;                } else {
+<i>269</i>&nbsp;                    return get(0);
+<i>270</i>&nbsp;                }
+<i>271</i>&nbsp;            }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;            @Override
+<i>274</i>&nbsp;            public String get(int index) {
+<i>275</i>&nbsp;                try {
+<i>276</i>&nbsp;                    BytesRef encoded = in.lookupOrd(ords[index]);
+<i>277</i>&nbsp;                    InetAddress address = InetAddressPoint.decode(
+<i>278</i>&nbsp;                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+<i>279</i>&nbsp;                    return InetAddresses.toAddrString(address);
+<i>280</i>&nbsp;                } catch (IOException e) {
+<i>281</i>&nbsp;                    throw new RuntimeException(e);
+<i>282</i>&nbsp;                }
+<i>283</i>&nbsp;            }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;            @Override
+<i>286</i>&nbsp;            public int size() {
+<i>287</i>&nbsp;                return count;
+<i>288</i>&nbsp;            }
+<i>289</i>&nbsp;        }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;        @Override
+<i>292</i>&nbsp;        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+<i>293</i>&nbsp;            failIfNoDocValues();
+<i>294</i>&nbsp;            return new DocValuesIndexFieldData.Builder().scriptFunction(IpScriptDocValues::new);
+<i>295</i>&nbsp;        }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;        @Override
+<i>298</i>&nbsp;        public Object valueForDisplay(Object value) {
+<i>299</i>&nbsp;            if (value == null) {
+<i>300</i>&nbsp;                return null;
+<i>301</i>&nbsp;            }
+<i>302</i>&nbsp;            return DocValueFormat.IP.format((BytesRef) value);
+<i>303</i>&nbsp;        }
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;        @Override
+<i>306</i>&nbsp;        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+<i>307</i>&nbsp;            if (format != null) {
+<i>308</i>&nbsp;                throw new IllegalArgumentException(&quot;Field [&quot; + name() + &quot;] of type [&quot; + typeName() + &quot;] does not support custom formats&quot;);
+<i>309</i>&nbsp;            }
+<i>310</i>&nbsp;            if (timeZone != null) {
+<i>311</i>&nbsp;                throw new IllegalArgumentException(&quot;Field [&quot; + name() + &quot;] of type [&quot; + typeName()
+<i>312</i>&nbsp;                    + &quot;] does not support custom time zones&quot;);
+<i>313</i>&nbsp;            }
+<i>314</i>&nbsp;            return DocValueFormat.IP;
+<i>315</i>&nbsp;        }
+<i>316</i>&nbsp;    }
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;    private Explicit&lt;Boolean&gt; ignoreMalformed;
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    private IpFieldMapper(
+<i>321</i>&nbsp;            String simpleName,
+<i>322</i>&nbsp;            MappedFieldType fieldType,
+<i>323</i>&nbsp;            MappedFieldType defaultFieldType,
+<i>324</i>&nbsp;            Explicit&lt;Boolean&gt; ignoreMalformed,
+<i>325</i>&nbsp;            Settings indexSettings,
+<i>326</i>&nbsp;            MultiFields multiFields,
+<i>327</i>&nbsp;            CopyTo copyTo) {
+<i>328</i>&nbsp;        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+<i>329</i>&nbsp;        this.ignoreMalformed = ignoreMalformed;
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    @Override
+<i>333</i>&nbsp;    public IpFieldType fieldType() {
+<i>334</i>&nbsp;        return (IpFieldType) super.fieldType();
+<i>335</i>&nbsp;    }
+<i>336</i>&nbsp;
+<i>337</i>&nbsp;    @Override
+<i>338</i>&nbsp;    protected String contentType() {
+<i>339</i>&nbsp;        return fieldType.typeName();
+<i>340</i>&nbsp;    }
+<i>341</i>&nbsp;
+<i>342</i>&nbsp;    @Override
+<i>343</i>&nbsp;    protected IpFieldMapper clone() {
+<i>344</i>&nbsp;        return (IpFieldMapper) super.clone();
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    @Override
+<i>348</i>&nbsp;    protected void parseCreateField(ParseContext context, List&lt;IndexableField&gt; fields) throws IOException {
+<i>349</i>&nbsp;        Object addressAsObject;
+<i>350</i>&nbsp;        if (context.externalValueSet()) {
+<i>351</i>&nbsp;            addressAsObject = context.externalValue();
+<i>352</i>&nbsp;        } else {
+<i>353</i>&nbsp;            addressAsObject = context.parser().textOrNull();
+<i>354</i>&nbsp;        }
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;        if (addressAsObject == null) {
+<i>357</i>&nbsp;            addressAsObject = fieldType().nullValue();
+<i>358</i>&nbsp;        }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;        if (addressAsObject == null) {
+<i>361</i>&nbsp;            return;
+<i>362</i>&nbsp;        }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;        String addressAsString = addressAsObject.toString();
+<i>365</i>&nbsp;        InetAddress address;
+<i>366</i>&nbsp;        if (addressAsObject instanceof InetAddress) {
+<i>367</i>&nbsp;            address = (InetAddress) addressAsObject;
+<i>368</i>&nbsp;        } else {
+<i>369</i>&nbsp;            try {
+<i>370</i>&nbsp;                address = InetAddresses.forString(addressAsString);
+<i>371</i>&nbsp;            } catch (IllegalArgumentException e) {
+<i>372</i>&nbsp;                if (ignoreMalformed.value()) {
+<i>373</i>&nbsp;                    context.addIgnoredField(fieldType.name());
+<i>374</i>&nbsp;                    return;
+<i>375</i>&nbsp;                } else {
+<i>376</i>&nbsp;                    throw e;
+<i>377</i>&nbsp;                }
+<i>378</i>&nbsp;            }
+<i>379</i>&nbsp;        }
+<i>380</i>&nbsp;
+<i>381</i>&nbsp;        if (fieldType().indexOptions() != IndexOptions.NONE) {
+<i>382</i>&nbsp;            fields.add(new InetAddressPoint(fieldType().name(), address));
+<i>383</i>&nbsp;        }
+<i>384</i>&nbsp;        if (fieldType().hasDocValues()) {
+<i>385</i>&nbsp;            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+<i>386</i>&nbsp;        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
+<i>387</i>&nbsp;            createFieldNamesField(context, fields);
+<i>388</i>&nbsp;        }
+<i>389</i>&nbsp;        if (fieldType().stored()) {
+<i>390</i>&nbsp;            fields.add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+<i>391</i>&nbsp;        }
+<i>392</i>&nbsp;    }
+<i>393</i>&nbsp;
+<i>394</i>&nbsp;    @Override
+<i>395</i>&nbsp;    protected void doMerge(Mapper mergeWith) {
+<i>396</i>&nbsp;        super.doMerge(mergeWith);
+<i>397</i>&nbsp;        IpFieldMapper other = (IpFieldMapper) mergeWith;
+<i>398</i>&nbsp;        if (other.ignoreMalformed.explicit()) {
+<i>399</i>&nbsp;            this.ignoreMalformed = other.ignoreMalformed;
+<i>400</i>&nbsp;        }
+<i>401</i>&nbsp;    }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;    @Override
+<i>404</i>&nbsp;    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+<i>405</i>&nbsp;        super.doXContentBody(builder, includeDefaults, params);
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;        if (includeDefaults || fieldType().nullValue() != null) {
+<i>408</i>&nbsp;            Object nullValue = fieldType().nullValue();
+<i>409</i>&nbsp;            if (nullValue != null) {
+<i>410</i>&nbsp;                nullValue = InetAddresses.toAddrString((InetAddress) nullValue);
+<i>411</i>&nbsp;            }
+<i>412</i>&nbsp;            builder.field(&quot;null_value&quot;, nullValue);
+<i>413</i>&nbsp;        }
+<i>414</i>&nbsp;
+<i>415</i>&nbsp;        if (includeDefaults || ignoreMalformed.explicit()) {
+<i>416</i>&nbsp;            builder.field(&quot;ignore_malformed&quot;, ignoreMalformed.value());
+<i>417</i>&nbsp;        }
+<i>418</i>&nbsp;    }
+<i>419</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

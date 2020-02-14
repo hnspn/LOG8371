@@ -1,0 +1,722 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GeoJson</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.geo</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GeoJson (org.elasticsearch.common.geo)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GeoJson</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.6%
+  </span>
+  <span class="absValue">
+    (4/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.6%
+  </span>
+  <span class="absValue">
+    (17/ 109)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">GeoJson$CoordinateNode</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 97)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    14.3%
+  </span>
+  <span class="absValue">
+    (4/ 28)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8.3%
+  </span>
+  <span class="absValue">
+    (17/ 206)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.geo;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>23</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>24</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>25</i>&nbsp;import org.elasticsearch.common.geo.parsers.ShapeParser;
+<i>26</i>&nbsp;import org.elasticsearch.common.unit.DistanceUnit;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.XContentSubParser;
+<i>34</i>&nbsp;import org.elasticsearch.geometry.Circle;
+<i>35</i>&nbsp;import org.elasticsearch.geometry.Geometry;
+<i>36</i>&nbsp;import org.elasticsearch.geometry.GeometryCollection;
+<i>37</i>&nbsp;import org.elasticsearch.geometry.GeometryVisitor;
+<i>38</i>&nbsp;import org.elasticsearch.geometry.Line;
+<i>39</i>&nbsp;import org.elasticsearch.geometry.LinearRing;
+<i>40</i>&nbsp;import org.elasticsearch.geometry.MultiLine;
+<i>41</i>&nbsp;import org.elasticsearch.geometry.MultiPoint;
+<i>42</i>&nbsp;import org.elasticsearch.geometry.MultiPolygon;
+<i>43</i>&nbsp;import org.elasticsearch.geometry.Point;
+<i>44</i>&nbsp;import org.elasticsearch.geometry.Polygon;
+<i>45</i>&nbsp;import org.elasticsearch.geometry.Rectangle;
+<i>46</i>&nbsp;import org.elasticsearch.geometry.ShapeType;
+<i>47</i>&nbsp;import org.elasticsearch.geometry.utils.GeometryValidator;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import java.io.IOException;
+<i>50</i>&nbsp;import java.util.ArrayList;
+<i>51</i>&nbsp;import java.util.List;
+<i>52</i>&nbsp;import java.util.Locale;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+<i>55</i>&nbsp;import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;/**
+<i>58</i>&nbsp; * Utility class for converting libs/geo shapes to and from GeoJson
+<i>59</i>&nbsp; */
+<b class="nc"><i>60</i>&nbsp;public final class GeoJson {</b>
+<i>61</i>&nbsp;
+<b class="fc"><i>62</i>&nbsp;    private static final ParseField FIELD_TYPE = new ParseField(&quot;type&quot;);</b>
+<b class="fc"><i>63</i>&nbsp;    private static final ParseField FIELD_COORDINATES = new ParseField(&quot;coordinates&quot;);</b>
+<b class="fc"><i>64</i>&nbsp;    private static final ParseField FIELD_GEOMETRIES = new ParseField(&quot;geometries&quot;);</b>
+<b class="fc"><i>65</i>&nbsp;    private static final ParseField FIELD_ORIENTATION = new ParseField(&quot;orientation&quot;);</b>
+<b class="fc"><i>66</i>&nbsp;    private static final ParseField FIELD_RADIUS = new ParseField(&quot;radius&quot;);</b>
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    private final boolean rightOrientation;
+<i>69</i>&nbsp;    private final boolean coerce;
+<i>70</i>&nbsp;    private final GeometryValidator validator;
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    public GeoJson(boolean rightOrientation, boolean coerce, GeometryValidator validator) {</b>
+<b class="fc"><i>73</i>&nbsp;        this.rightOrientation = rightOrientation;</b>
+<b class="fc"><i>74</i>&nbsp;        this.coerce = coerce;</b>
+<b class="fc"><i>75</i>&nbsp;        this.validator = validator;</b>
+<b class="fc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    public Geometry fromXContent(XContentParser parser)
+<i>79</i>&nbsp;        throws IOException {
+<b class="nc"><i>80</i>&nbsp;        try (XContentSubParser subParser = new XContentSubParser(parser)) {</b>
+<b class="nc"><i>81</i>&nbsp;            Geometry geometry = PARSER.apply(subParser, this);</b>
+<b class="nc"><i>82</i>&nbsp;            validator.validate(geometry);</b>
+<b class="nc"><i>83</i>&nbsp;            return geometry;</b>
+<b class="nc"><i>84</i>&nbsp;        }</b>
+<i>85</i>&nbsp;    }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    public static XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+<b class="nc"><i>88</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>89</i>&nbsp;        builder.field(FIELD_TYPE.getPreferredName(), getGeoJsonName(geometry));</b>
+<b class="nc"><i>90</i>&nbsp;        geometry.visit(new GeometryVisitor&lt;XContentBuilder, IOException&gt;() {</b>
+<i>91</i>&nbsp;            @Override
+<i>92</i>&nbsp;            public XContentBuilder visit(Circle circle) throws IOException {
+<i>93</i>&nbsp;                builder.field(FIELD_RADIUS.getPreferredName(), DistanceUnit.METERS.toString(circle.getRadiusMeters()));
+<i>94</i>&nbsp;                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>95</i>&nbsp;                return coordinatesToXContent(circle.getY(), circle.getX(), circle.getZ());
+<i>96</i>&nbsp;            }
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;            @Override
+<i>99</i>&nbsp;            public XContentBuilder visit(GeometryCollection&lt;?&gt; collection) throws IOException {
+<i>100</i>&nbsp;                builder.startArray(FIELD_GEOMETRIES.getPreferredName());
+<i>101</i>&nbsp;                for (Geometry g : collection) {
+<i>102</i>&nbsp;                    toXContent(g, builder, params);
+<i>103</i>&nbsp;                }
+<i>104</i>&nbsp;                return builder.endArray();
+<i>105</i>&nbsp;            }
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;            @Override
+<i>108</i>&nbsp;            public XContentBuilder visit(Line line) throws IOException {
+<i>109</i>&nbsp;                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>110</i>&nbsp;                return coordinatesToXContent(line);
+<i>111</i>&nbsp;            }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;            @Override
+<i>114</i>&nbsp;            public XContentBuilder visit(LinearRing ring) {
+<i>115</i>&nbsp;                throw new UnsupportedOperationException(&quot;linearRing cannot be serialized using GeoJson&quot;);
+<i>116</i>&nbsp;            }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;            @Override
+<i>119</i>&nbsp;            public XContentBuilder visit(MultiLine multiLine) throws IOException {
+<i>120</i>&nbsp;                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>121</i>&nbsp;                builder.startArray();
+<i>122</i>&nbsp;                for (int i = 0; i &lt; multiLine.size(); i++) {
+<i>123</i>&nbsp;                    coordinatesToXContent(multiLine.get(i));
+<i>124</i>&nbsp;                }
+<i>125</i>&nbsp;                return builder.endArray();
+<i>126</i>&nbsp;            }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;            @Override
+<i>129</i>&nbsp;            public XContentBuilder visit(MultiPoint multiPoint) throws IOException {
+<i>130</i>&nbsp;                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>131</i>&nbsp;                for (int i = 0; i &lt; multiPoint.size(); i++) {
+<i>132</i>&nbsp;                    Point p = multiPoint.get(i);
+<i>133</i>&nbsp;                    builder.startArray().value(p.getX()).value(p.getY());
+<i>134</i>&nbsp;                    if (p.hasZ()) {
+<i>135</i>&nbsp;                        builder.value(p.getZ());
+<i>136</i>&nbsp;                    }
+<i>137</i>&nbsp;                    builder.endArray();
+<i>138</i>&nbsp;                }
+<i>139</i>&nbsp;                return builder.endArray();
+<i>140</i>&nbsp;            }
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;            @Override
+<i>143</i>&nbsp;            public XContentBuilder visit(MultiPolygon multiPolygon) throws IOException {
+<i>144</i>&nbsp;                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>145</i>&nbsp;                for (int i = 0; i &lt; multiPolygon.size(); i++) {
+<i>146</i>&nbsp;                    builder.startArray();
+<i>147</i>&nbsp;                    coordinatesToXContent(multiPolygon.get(i));
+<i>148</i>&nbsp;                    builder.endArray();
+<i>149</i>&nbsp;                }
+<i>150</i>&nbsp;                return builder.endArray();
+<i>151</i>&nbsp;            }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;            @Override
+<i>154</i>&nbsp;            public XContentBuilder visit(Point point) throws IOException {
+<i>155</i>&nbsp;                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>156</i>&nbsp;                return coordinatesToXContent(point.getY(), point.getX(), point.getZ());
+<i>157</i>&nbsp;            }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;            @Override
+<i>160</i>&nbsp;            public XContentBuilder visit(Polygon polygon) throws IOException {
+<i>161</i>&nbsp;                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>162</i>&nbsp;                coordinatesToXContent(polygon.getPolygon());
+<i>163</i>&nbsp;                for (int i = 0; i &lt; polygon.getNumberOfHoles(); i++) {
+<i>164</i>&nbsp;                    coordinatesToXContent(polygon.getHole(i));
+<i>165</i>&nbsp;                }
+<i>166</i>&nbsp;                return builder.endArray();
+<i>167</i>&nbsp;            }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;            @Override
+<i>170</i>&nbsp;            public XContentBuilder visit(Rectangle rectangle) throws IOException {
+<i>171</i>&nbsp;                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+<i>172</i>&nbsp;                coordinatesToXContent(rectangle.getMaxY(), rectangle.getMinX(), rectangle.getMinZ()); // top left
+<i>173</i>&nbsp;                coordinatesToXContent(rectangle.getMinY(), rectangle.getMaxX(), rectangle.getMaxZ()); // bottom right
+<i>174</i>&nbsp;                return builder.endArray();
+<i>175</i>&nbsp;            }
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;            private XContentBuilder coordinatesToXContent(double lat, double lon, double alt) throws IOException {
+<i>178</i>&nbsp;                builder.startArray().value(lon).value(lat);
+<i>179</i>&nbsp;                if (Double.isNaN(alt) == false) {
+<i>180</i>&nbsp;                    builder.value(alt);
+<i>181</i>&nbsp;                }
+<i>182</i>&nbsp;                return builder.endArray();
+<i>183</i>&nbsp;            }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;            private XContentBuilder coordinatesToXContent(Line line) throws IOException {
+<i>186</i>&nbsp;                builder.startArray();
+<i>187</i>&nbsp;                for (int i = 0; i &lt; line.length(); i++) {
+<i>188</i>&nbsp;                    builder.startArray().value(line.getX(i)).value(line.getY(i));
+<i>189</i>&nbsp;                    if (line.hasZ()) {
+<i>190</i>&nbsp;                        builder.value(line.getZ(i));
+<i>191</i>&nbsp;                    }
+<i>192</i>&nbsp;                    builder.endArray();
+<i>193</i>&nbsp;                }
+<i>194</i>&nbsp;                return builder.endArray();
+<i>195</i>&nbsp;            }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;            private XContentBuilder coordinatesToXContent(Polygon polygon) throws IOException {
+<i>198</i>&nbsp;                coordinatesToXContent(polygon.getPolygon());
+<i>199</i>&nbsp;                for (int i = 0; i &lt; polygon.getNumberOfHoles(); i++) {
+<i>200</i>&nbsp;                    coordinatesToXContent(polygon.getHole(i));
+<i>201</i>&nbsp;                }
+<i>202</i>&nbsp;                return builder;
+<i>203</i>&nbsp;            }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;        });
+<b class="nc"><i>206</i>&nbsp;        return builder.endObject();</b>
+<i>207</i>&nbsp;    }
+<i>208</i>&nbsp;
+<b class="fc"><i>209</i>&nbsp;    private static ConstructingObjectParser&lt;Geometry, GeoJson&gt; PARSER =</b>
+<i>210</i>&nbsp;        new ConstructingObjectParser&lt;&gt;(&quot;geojson&quot;, true, (a, c) -&gt; {
+<b class="nc"><i>211</i>&nbsp;            String type = (String) a[0];</b>
+<b class="nc"><i>212</i>&nbsp;            CoordinateNode coordinates = (CoordinateNode) a[1];</b>
+<b class="nc"><i>213</i>&nbsp;            @SuppressWarnings(&quot;unchecked&quot;) List&lt;Geometry&gt; geometries = (List&lt;Geometry&gt;) a[2];</b>
+<b class="nc"><i>214</i>&nbsp;            Boolean orientation = orientationFromString((String) a[3]);</b>
+<b class="nc"><i>215</i>&nbsp;            DistanceUnit.Distance radius = (DistanceUnit.Distance) a[4];</b>
+<b class="nc"><i>216</i>&nbsp;            return createGeometry(type, geometries, coordinates, orientation, c.rightOrientation, c.coerce, radius);</b>
+<i>217</i>&nbsp;        });
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    static {
+<b class="fc"><i>220</i>&nbsp;        PARSER.declareString(constructorArg(), FIELD_TYPE);</b>
+<b class="fc"><i>221</i>&nbsp;        PARSER.declareField(optionalConstructorArg(), (p, c) -&gt; parseCoordinates(p), FIELD_COORDINATES,</b>
+<i>222</i>&nbsp;            ObjectParser.ValueType.VALUE_ARRAY);
+<b class="fc"><i>223</i>&nbsp;        PARSER.declareObjectArray(optionalConstructorArg(), PARSER, FIELD_GEOMETRIES);</b>
+<b class="fc"><i>224</i>&nbsp;        PARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);</b>
+<b class="fc"><i>225</i>&nbsp;        PARSER.declareField(optionalConstructorArg(), p -&gt; DistanceUnit.Distance.parseDistance(p.text()), FIELD_RADIUS,</b>
+<i>226</i>&nbsp;            ObjectParser.ValueType.STRING);
+<b class="fc"><i>227</i>&nbsp;    }</b>
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    private static Geometry createGeometry(String type, List&lt;Geometry&gt; geometries, CoordinateNode coordinates, Boolean orientation,
+<i>230</i>&nbsp;                                           boolean defaultOrientation, boolean coerce, DistanceUnit.Distance radius) {
+<i>231</i>&nbsp;        ShapeType shapeType;
+<b class="nc"><i>232</i>&nbsp;        if (&quot;bbox&quot;.equalsIgnoreCase(type)) {</b>
+<b class="nc"><i>233</i>&nbsp;            shapeType = ShapeType.ENVELOPE;</b>
+<i>234</i>&nbsp;        } else {
+<b class="nc"><i>235</i>&nbsp;            shapeType = ShapeType.forName(type);</b>
+<i>236</i>&nbsp;        }
+<b class="nc"><i>237</i>&nbsp;        if (shapeType == ShapeType.GEOMETRYCOLLECTION) {</b>
+<b class="nc"><i>238</i>&nbsp;            if (geometries == null) {</b>
+<b class="nc"><i>239</i>&nbsp;                throw new ElasticsearchParseException(&quot;geometries not included&quot;);</b>
+<i>240</i>&nbsp;            }
+<b class="nc"><i>241</i>&nbsp;            if (coordinates != null) {</b>
+<b class="nc"><i>242</i>&nbsp;                throw new ElasticsearchParseException(&quot;parameter coordinates is not supported for type &quot; + type);</b>
+<i>243</i>&nbsp;            }
+<b class="nc"><i>244</i>&nbsp;            verifyNulls(type, null, orientation, radius);</b>
+<b class="nc"><i>245</i>&nbsp;            return new GeometryCollection&lt;&gt;(geometries);</b>
+<i>246</i>&nbsp;        }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;        // We expect to have coordinates for all the rest
+<b class="nc"><i>249</i>&nbsp;        if (coordinates == null) {</b>
+<b class="nc"><i>250</i>&nbsp;            throw new ElasticsearchParseException(&quot;coordinates not included&quot;);</b>
+<i>251</i>&nbsp;        }
+<i>252</i>&nbsp;
+<b class="nc"><i>253</i>&nbsp;        switch (shapeType) {</b>
+<i>254</i>&nbsp;            case CIRCLE:
+<b class="nc"><i>255</i>&nbsp;                if (radius == null) {</b>
+<b class="nc"><i>256</i>&nbsp;                    throw new ElasticsearchParseException(&quot;radius is not specified&quot;);</b>
+<i>257</i>&nbsp;                }
+<b class="nc"><i>258</i>&nbsp;                verifyNulls(type, geometries, orientation, null);</b>
+<b class="nc"><i>259</i>&nbsp;                Point point = coordinates.asPoint();</b>
+<b class="nc"><i>260</i>&nbsp;                return new Circle(point.getX(), point.getY(), point.getZ(), radius.convert(DistanceUnit.METERS).value);</b>
+<i>261</i>&nbsp;            case POINT:
+<b class="nc"><i>262</i>&nbsp;                verifyNulls(type, geometries, orientation, radius);</b>
+<b class="nc"><i>263</i>&nbsp;                return coordinates.asPoint();</b>
+<i>264</i>&nbsp;            case MULTIPOINT:
+<b class="nc"><i>265</i>&nbsp;                verifyNulls(type, geometries, orientation, radius);</b>
+<b class="nc"><i>266</i>&nbsp;                return coordinates.asMultiPoint();</b>
+<i>267</i>&nbsp;            case LINESTRING:
+<b class="nc"><i>268</i>&nbsp;                verifyNulls(type, geometries, orientation, radius);</b>
+<b class="nc"><i>269</i>&nbsp;                return coordinates.asLineString(coerce);</b>
+<i>270</i>&nbsp;            case MULTILINESTRING:
+<b class="nc"><i>271</i>&nbsp;                verifyNulls(type, geometries, orientation, radius);</b>
+<b class="nc"><i>272</i>&nbsp;                return coordinates.asMultiLineString(coerce);</b>
+<i>273</i>&nbsp;            case POLYGON:
+<b class="nc"><i>274</i>&nbsp;                verifyNulls(type, geometries, null, radius);</b>
+<i>275</i>&nbsp;                // handle possible null in orientation
+<b class="nc"><i>276</i>&nbsp;                return coordinates.asPolygon(orientation != null ? orientation : defaultOrientation, coerce);</b>
+<i>277</i>&nbsp;            case MULTIPOLYGON:
+<b class="nc"><i>278</i>&nbsp;                verifyNulls(type, geometries, null, radius);</b>
+<i>279</i>&nbsp;                // handle possible null in orientation
+<b class="nc"><i>280</i>&nbsp;                return coordinates.asMultiPolygon(orientation != null ? orientation : defaultOrientation, coerce);</b>
+<i>281</i>&nbsp;            case ENVELOPE:
+<b class="nc"><i>282</i>&nbsp;                verifyNulls(type, geometries, orientation, radius);</b>
+<b class="nc"><i>283</i>&nbsp;                return coordinates.asRectangle();</b>
+<i>284</i>&nbsp;            default:
+<b class="nc"><i>285</i>&nbsp;                throw new ElasticsearchParseException(&quot;unsuppoted shape type &quot; + type);</b>
+<i>286</i>&nbsp;        }
+<i>287</i>&nbsp;    }
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;    /**
+<i>290</i>&nbsp;     * Checks that all passed parameters except type are null, generates corresponding error messages if they are not
+<i>291</i>&nbsp;     */
+<i>292</i>&nbsp;    private static void verifyNulls(String type, List&lt;Geometry&gt; geometries, Boolean orientation, DistanceUnit.Distance radius) {
+<b class="nc"><i>293</i>&nbsp;        if (geometries != null) {</b>
+<b class="nc"><i>294</i>&nbsp;            throw new ElasticsearchParseException(&quot;parameter geometries is not supported for type &quot; + type);</b>
+<i>295</i>&nbsp;        }
+<b class="nc"><i>296</i>&nbsp;        if (orientation != null) {</b>
+<b class="nc"><i>297</i>&nbsp;            throw new ElasticsearchParseException(&quot;parameter orientation is not supported for type &quot; + type);</b>
+<i>298</i>&nbsp;        }
+<b class="nc"><i>299</i>&nbsp;        if (radius != null) {</b>
+<b class="nc"><i>300</i>&nbsp;            throw new ElasticsearchParseException(&quot;parameter radius is not supported for type &quot; + type);</b>
+<i>301</i>&nbsp;        }
+<b class="nc"><i>302</i>&nbsp;    }</b>
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;    /**
+<i>305</i>&nbsp;     * Recursive method which parses the arrays of coordinates used to define
+<i>306</i>&nbsp;     * Shapes
+<i>307</i>&nbsp;     */
+<i>308</i>&nbsp;    private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
+<b class="nc"><i>309</i>&nbsp;        XContentParser.Token token = parser.nextToken();</b>
+<i>310</i>&nbsp;        // Base cases
+<b class="nc"><i>311</i>&nbsp;        if (token != XContentParser.Token.START_ARRAY &amp;&amp;</b>
+<i>312</i>&nbsp;            token != XContentParser.Token.END_ARRAY &amp;&amp;
+<i>313</i>&nbsp;            token != XContentParser.Token.VALUE_NULL) {
+<b class="nc"><i>314</i>&nbsp;            return new CoordinateNode(parseCoordinate(parser));</b>
+<b class="nc"><i>315</i>&nbsp;        } else if (token == XContentParser.Token.VALUE_NULL) {</b>
+<b class="nc"><i>316</i>&nbsp;            throw new IllegalArgumentException(&quot;coordinates cannot contain NULL values)&quot;);</b>
+<i>317</i>&nbsp;        }
+<i>318</i>&nbsp;
+<b class="nc"><i>319</i>&nbsp;        List&lt;CoordinateNode&gt; nodes = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>320</i>&nbsp;        while (token != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>321</i>&nbsp;            CoordinateNode node = parseCoordinates(parser);</b>
+<b class="nc"><i>322</i>&nbsp;            if (nodes.isEmpty() == false &amp;&amp; nodes.get(0).numDimensions() != node.numDimensions()) {</b>
+<b class="nc"><i>323</i>&nbsp;                throw new ElasticsearchParseException(&quot;Exception parsing coordinates: number of dimensions do not match&quot;);</b>
+<i>324</i>&nbsp;            }
+<b class="nc"><i>325</i>&nbsp;            nodes.add(node);</b>
+<b class="nc"><i>326</i>&nbsp;            token = parser.nextToken();</b>
+<b class="nc"><i>327</i>&nbsp;        }</b>
+<i>328</i>&nbsp;
+<b class="nc"><i>329</i>&nbsp;        return new CoordinateNode(nodes);</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    /**
+<i>333</i>&nbsp;     * Parser a singe set of 2 or 3 coordinates
+<i>334</i>&nbsp;     */
+<i>335</i>&nbsp;    private static Point parseCoordinate(XContentParser parser) throws IOException {
+<i>336</i>&nbsp;        // Add support for coerce here
+<b class="nc"><i>337</i>&nbsp;        if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {</b>
+<b class="nc"><i>338</i>&nbsp;            throw new ElasticsearchParseException(&quot;geo coordinates must be numbers&quot;);</b>
+<i>339</i>&nbsp;        }
+<b class="nc"><i>340</i>&nbsp;        double lon = parser.doubleValue();</b>
+<b class="nc"><i>341</i>&nbsp;        if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {</b>
+<b class="nc"><i>342</i>&nbsp;            throw new ElasticsearchParseException(&quot;geo coordinates must be numbers&quot;);</b>
+<i>343</i>&nbsp;        }
+<b class="nc"><i>344</i>&nbsp;        double lat = parser.doubleValue();</b>
+<b class="nc"><i>345</i>&nbsp;        XContentParser.Token token = parser.nextToken();</b>
+<i>346</i>&nbsp;        // alt (for storing purposes only - future use includes 3d shapes)
+<b class="nc"><i>347</i>&nbsp;        double alt = Double.NaN;</b>
+<b class="nc"><i>348</i>&nbsp;        if (token == XContentParser.Token.VALUE_NUMBER) {</b>
+<b class="nc"><i>349</i>&nbsp;            alt = parser.doubleValue();</b>
+<b class="nc"><i>350</i>&nbsp;            parser.nextToken();</b>
+<i>351</i>&nbsp;        }
+<i>352</i>&nbsp;        // do not support &gt; 3 dimensions
+<b class="nc"><i>353</i>&nbsp;        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {</b>
+<b class="nc"><i>354</i>&nbsp;            throw new ElasticsearchParseException(&quot;geo coordinates greater than 3 dimensions are not supported&quot;);</b>
+<i>355</i>&nbsp;        }
+<b class="nc"><i>356</i>&nbsp;        return new Point(lon, lat, alt);</b>
+<i>357</i>&nbsp;    }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;    /**
+<i>360</i>&nbsp;     * Returns true for right orientation and false for left
+<i>361</i>&nbsp;     */
+<i>362</i>&nbsp;    private static Boolean orientationFromString(String orientation) {
+<b class="nc"><i>363</i>&nbsp;        if (orientation == null) {</b>
+<b class="nc"><i>364</i>&nbsp;            return null;</b>
+<i>365</i>&nbsp;        }
+<b class="nc"><i>366</i>&nbsp;        orientation = orientation.toLowerCase(Locale.ROOT);</b>
+<b class="nc"><i>367</i>&nbsp;        switch (orientation) {</b>
+<i>368</i>&nbsp;            case &quot;right&quot;:
+<i>369</i>&nbsp;            case &quot;counterclockwise&quot;:
+<i>370</i>&nbsp;            case &quot;ccw&quot;:
+<b class="nc"><i>371</i>&nbsp;                return true;</b>
+<i>372</i>&nbsp;            case &quot;left&quot;:
+<i>373</i>&nbsp;            case &quot;clockwise&quot;:
+<i>374</i>&nbsp;            case &quot;cw&quot;:
+<b class="nc"><i>375</i>&nbsp;                return false;</b>
+<i>376</i>&nbsp;            default:
+<b class="nc"><i>377</i>&nbsp;                throw new IllegalArgumentException(&quot;Unknown orientation [&quot; + orientation + &quot;]&quot;);</b>
+<i>378</i>&nbsp;        }
+<i>379</i>&nbsp;    }
+<i>380</i>&nbsp;
+<i>381</i>&nbsp;    public static String getGeoJsonName(Geometry geometry) {
+<b class="nc"><i>382</i>&nbsp;        return geometry.visit(new GeometryVisitor&lt;String, RuntimeException&gt;() {</b>
+<i>383</i>&nbsp;            @Override
+<i>384</i>&nbsp;            public String visit(Circle circle) {
+<i>385</i>&nbsp;                return &quot;circle&quot;;
+<i>386</i>&nbsp;            }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;            @Override
+<i>389</i>&nbsp;            public String visit(GeometryCollection&lt;?&gt; collection) {
+<i>390</i>&nbsp;                return &quot;geometrycollection&quot;;
+<i>391</i>&nbsp;            }
+<i>392</i>&nbsp;
+<i>393</i>&nbsp;            @Override
+<i>394</i>&nbsp;            public String visit(Line line) {
+<i>395</i>&nbsp;                return &quot;linestring&quot;;
+<i>396</i>&nbsp;            }
+<i>397</i>&nbsp;
+<i>398</i>&nbsp;            @Override
+<i>399</i>&nbsp;            public String visit(LinearRing ring) {
+<i>400</i>&nbsp;                throw new UnsupportedOperationException(&quot;line ring cannot be serialized using GeoJson&quot;);
+<i>401</i>&nbsp;            }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;            @Override
+<i>404</i>&nbsp;            public String visit(MultiLine multiLine) {
+<i>405</i>&nbsp;                return &quot;multilinestring&quot;;
+<i>406</i>&nbsp;            }
+<i>407</i>&nbsp;
+<i>408</i>&nbsp;            @Override
+<i>409</i>&nbsp;            public String visit(MultiPoint multiPoint) {
+<i>410</i>&nbsp;                return &quot;multipoint&quot;;
+<i>411</i>&nbsp;            }
+<i>412</i>&nbsp;
+<i>413</i>&nbsp;            @Override
+<i>414</i>&nbsp;            public String visit(MultiPolygon multiPolygon) {
+<i>415</i>&nbsp;                return &quot;multipolygon&quot;;
+<i>416</i>&nbsp;            }
+<i>417</i>&nbsp;
+<i>418</i>&nbsp;            @Override
+<i>419</i>&nbsp;            public String visit(Point point) {
+<i>420</i>&nbsp;                return &quot;point&quot;;
+<i>421</i>&nbsp;            }
+<i>422</i>&nbsp;
+<i>423</i>&nbsp;            @Override
+<i>424</i>&nbsp;            public String visit(Polygon polygon) {
+<i>425</i>&nbsp;                return &quot;polygon&quot;;
+<i>426</i>&nbsp;            }
+<i>427</i>&nbsp;
+<i>428</i>&nbsp;            @Override
+<i>429</i>&nbsp;            public String visit(Rectangle rectangle) {
+<i>430</i>&nbsp;                return &quot;envelope&quot;;
+<i>431</i>&nbsp;            }
+<i>432</i>&nbsp;        });
+<i>433</i>&nbsp;    }
+<i>434</i>&nbsp;
+<i>435</i>&nbsp;    private static class CoordinateNode implements ToXContentObject {
+<i>436</i>&nbsp;        public final Point coordinate;
+<i>437</i>&nbsp;        public final List&lt;CoordinateNode&gt; children;
+<i>438</i>&nbsp;
+<i>439</i>&nbsp;        /**
+<i>440</i>&nbsp;         * Creates a new leaf CoordinateNode
+<i>441</i>&nbsp;         *
+<i>442</i>&nbsp;         * @param coordinate Coordinate for the Node
+<i>443</i>&nbsp;         */
+<b class="nc"><i>444</i>&nbsp;        CoordinateNode(Point coordinate) {</b>
+<b class="nc"><i>445</i>&nbsp;            this.coordinate = coordinate;</b>
+<b class="nc"><i>446</i>&nbsp;            this.children = null;</b>
+<b class="nc"><i>447</i>&nbsp;        }</b>
+<i>448</i>&nbsp;
+<i>449</i>&nbsp;        /**
+<i>450</i>&nbsp;         * Creates a new parent CoordinateNode
+<i>451</i>&nbsp;         *
+<i>452</i>&nbsp;         * @param children Children of the Node
+<i>453</i>&nbsp;         */
+<b class="nc"><i>454</i>&nbsp;        CoordinateNode(List&lt;CoordinateNode&gt; children) {</b>
+<b class="nc"><i>455</i>&nbsp;            this.children = children;</b>
+<b class="nc"><i>456</i>&nbsp;            this.coordinate = null;</b>
+<b class="nc"><i>457</i>&nbsp;        }</b>
+<i>458</i>&nbsp;
+<i>459</i>&nbsp;        public boolean isEmpty() {
+<b class="nc"><i>460</i>&nbsp;            return (coordinate == null &amp;&amp; (children == null || children.isEmpty()));</b>
+<i>461</i>&nbsp;        }
+<i>462</i>&nbsp;
+<i>463</i>&nbsp;        protected int numDimensions() {
+<b class="nc"><i>464</i>&nbsp;            if (isEmpty()) {</b>
+<b class="nc"><i>465</i>&nbsp;                throw new ElasticsearchException(&quot;attempting to get number of dimensions on an empty coordinate node&quot;);</b>
+<i>466</i>&nbsp;            }
+<b class="nc"><i>467</i>&nbsp;            if (coordinate != null) {</b>
+<b class="nc"><i>468</i>&nbsp;                return coordinate.hasZ() ? 3 : 2;</b>
+<i>469</i>&nbsp;            }
+<b class="nc"><i>470</i>&nbsp;            return children.get(0).numDimensions();</b>
+<i>471</i>&nbsp;        }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;        public Point asPoint() {
+<b class="nc"><i>474</i>&nbsp;            if (children != null) {</b>
+<b class="nc"><i>475</i>&nbsp;                throw new ElasticsearchException(&quot;expected a single points but got a list&quot;);</b>
+<i>476</i>&nbsp;            }
+<b class="nc"><i>477</i>&nbsp;            return coordinate;</b>
+<i>478</i>&nbsp;        }
+<i>479</i>&nbsp;
+<i>480</i>&nbsp;        public MultiPoint asMultiPoint() {
+<b class="nc"><i>481</i>&nbsp;            if (coordinate != null) {</b>
+<b class="nc"><i>482</i>&nbsp;                throw new ElasticsearchException(&quot;expected a list of points but got a point&quot;);</b>
+<i>483</i>&nbsp;            }
+<b class="nc"><i>484</i>&nbsp;            List&lt;Point&gt; points = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>485</i>&nbsp;            for (CoordinateNode node : children) {</b>
+<b class="nc"><i>486</i>&nbsp;                points.add(node.asPoint());</b>
+<b class="nc"><i>487</i>&nbsp;            }</b>
+<b class="nc"><i>488</i>&nbsp;            return new MultiPoint(points);</b>
+<i>489</i>&nbsp;        }
+<i>490</i>&nbsp;
+<i>491</i>&nbsp;        private double[][] asLineComponents(boolean orientation, boolean coerce, boolean close) {
+<b class="nc"><i>492</i>&nbsp;            if (coordinate != null) {</b>
+<b class="nc"><i>493</i>&nbsp;                throw new ElasticsearchException(&quot;expected a list of points but got a point&quot;);</b>
+<i>494</i>&nbsp;            }
+<i>495</i>&nbsp;
+<b class="nc"><i>496</i>&nbsp;            if (children.size() &lt; 2) {</b>
+<b class="nc"><i>497</i>&nbsp;                throw new ElasticsearchException(&quot;not enough points to build a line&quot;);</b>
+<i>498</i>&nbsp;            }
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;            boolean needsClosing;
+<i>501</i>&nbsp;            int resultSize;
+<b class="nc"><i>502</i>&nbsp;            if (close &amp;&amp; coerce &amp;&amp; children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint()) == false) {</b>
+<b class="nc"><i>503</i>&nbsp;                needsClosing = true;</b>
+<b class="nc"><i>504</i>&nbsp;                resultSize = children.size() + 1;</b>
+<i>505</i>&nbsp;            } else {
+<b class="nc"><i>506</i>&nbsp;                needsClosing = false;</b>
+<b class="nc"><i>507</i>&nbsp;                resultSize = children.size();</b>
+<i>508</i>&nbsp;            }
+<i>509</i>&nbsp;
+<b class="nc"><i>510</i>&nbsp;            double[] lats = new double[resultSize];</b>
+<b class="nc"><i>511</i>&nbsp;            double[] lons = new double[resultSize];</b>
+<b class="nc"><i>512</i>&nbsp;            double[] alts = numDimensions() == 3 ? new double[resultSize] : null;</b>
+<b class="nc"><i>513</i>&nbsp;            int i = orientation ? 0 : lats.length - 1;</b>
+<b class="nc"><i>514</i>&nbsp;            for (CoordinateNode node : children) {</b>
+<b class="nc"><i>515</i>&nbsp;                Point point = node.asPoint();</b>
+<b class="nc"><i>516</i>&nbsp;                lats[i] = point.getY();</b>
+<b class="nc"><i>517</i>&nbsp;                lons[i] = point.getX();</b>
+<b class="nc"><i>518</i>&nbsp;                if (alts != null) {</b>
+<b class="nc"><i>519</i>&nbsp;                    alts[i] = point.getZ();</b>
+<i>520</i>&nbsp;                }
+<b class="nc"><i>521</i>&nbsp;                i = orientation ? i + 1 : i - 1;</b>
+<b class="nc"><i>522</i>&nbsp;            }</b>
+<b class="nc"><i>523</i>&nbsp;            if (needsClosing) {</b>
+<b class="nc"><i>524</i>&nbsp;                lats[resultSize - 1] = lats[0];</b>
+<b class="nc"><i>525</i>&nbsp;                lons[resultSize - 1] = lons[0];</b>
+<b class="nc"><i>526</i>&nbsp;                if (alts != null) {</b>
+<b class="nc"><i>527</i>&nbsp;                    alts[resultSize - 1] = alts[0];</b>
+<i>528</i>&nbsp;                }
+<i>529</i>&nbsp;            }
+<b class="nc"><i>530</i>&nbsp;            double[][] components = new double[3][];</b>
+<b class="nc"><i>531</i>&nbsp;            components[0] = lats;</b>
+<b class="nc"><i>532</i>&nbsp;            components[1] = lons;</b>
+<b class="nc"><i>533</i>&nbsp;            components[2] = alts;</b>
+<b class="nc"><i>534</i>&nbsp;            return components;</b>
+<i>535</i>&nbsp;        }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;        public Line asLineString(boolean coerce) {
+<b class="nc"><i>538</i>&nbsp;            double[][] components = asLineComponents(true, coerce, false);</b>
+<b class="nc"><i>539</i>&nbsp;            return new Line(components[1], components[0], components[2]);</b>
+<i>540</i>&nbsp;        }
+<i>541</i>&nbsp;
+<i>542</i>&nbsp;        public LinearRing asLinearRing(boolean orientation, boolean coerce) {
+<b class="nc"><i>543</i>&nbsp;            double[][] components = asLineComponents(orientation, coerce, true);</b>
+<b class="nc"><i>544</i>&nbsp;            return new LinearRing(components[1], components[0], components[2]);</b>
+<i>545</i>&nbsp;        }
+<i>546</i>&nbsp;
+<i>547</i>&nbsp;        public MultiLine asMultiLineString(boolean coerce) {
+<b class="nc"><i>548</i>&nbsp;            if (coordinate != null) {</b>
+<b class="nc"><i>549</i>&nbsp;                throw new ElasticsearchException(&quot;expected a list of points but got a point&quot;);</b>
+<i>550</i>&nbsp;            }
+<b class="nc"><i>551</i>&nbsp;            List&lt;Line&gt; lines = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>552</i>&nbsp;            for (CoordinateNode node : children) {</b>
+<b class="nc"><i>553</i>&nbsp;                lines.add(node.asLineString(coerce));</b>
+<b class="nc"><i>554</i>&nbsp;            }</b>
+<b class="nc"><i>555</i>&nbsp;            return new MultiLine(lines);</b>
+<i>556</i>&nbsp;        }
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;
+<i>559</i>&nbsp;        public Polygon asPolygon(boolean orientation, boolean coerce) {
+<b class="nc"><i>560</i>&nbsp;            if (coordinate != null) {</b>
+<b class="nc"><i>561</i>&nbsp;                throw new ElasticsearchException(&quot;expected a list of points but got a point&quot;);</b>
+<i>562</i>&nbsp;            }
+<b class="nc"><i>563</i>&nbsp;            List&lt;LinearRing&gt; lines = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>564</i>&nbsp;            for (CoordinateNode node : children) {</b>
+<b class="nc"><i>565</i>&nbsp;                lines.add(node.asLinearRing(orientation, coerce));</b>
+<b class="nc"><i>566</i>&nbsp;            }</b>
+<b class="nc"><i>567</i>&nbsp;            if (lines.size() == 1) {</b>
+<b class="nc"><i>568</i>&nbsp;                return new Polygon(lines.get(0));</b>
+<i>569</i>&nbsp;            } else {
+<b class="nc"><i>570</i>&nbsp;                LinearRing shell = lines.remove(0);</b>
+<b class="nc"><i>571</i>&nbsp;                return new Polygon(shell, lines);</b>
+<i>572</i>&nbsp;            }
+<i>573</i>&nbsp;        }
+<i>574</i>&nbsp;
+<i>575</i>&nbsp;        public MultiPolygon asMultiPolygon(boolean orientation, boolean coerce) {
+<b class="nc"><i>576</i>&nbsp;            if (coordinate != null) {</b>
+<b class="nc"><i>577</i>&nbsp;                throw new ElasticsearchException(&quot;expected a list of points but got a point&quot;);</b>
+<i>578</i>&nbsp;            }
+<b class="nc"><i>579</i>&nbsp;            List&lt;Polygon&gt; polygons = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>580</i>&nbsp;            for (CoordinateNode node : children) {</b>
+<b class="nc"><i>581</i>&nbsp;                polygons.add(node.asPolygon(orientation, coerce));</b>
+<b class="nc"><i>582</i>&nbsp;            }</b>
+<b class="nc"><i>583</i>&nbsp;            return new MultiPolygon(polygons);</b>
+<i>584</i>&nbsp;        }
+<i>585</i>&nbsp;
+<i>586</i>&nbsp;        public Rectangle asRectangle() {
+<b class="nc"><i>587</i>&nbsp;            if (children.size() != 2) {</b>
+<b class="nc"><i>588</i>&nbsp;                throw new ElasticsearchParseException(</b>
+<i>589</i>&nbsp;                    &quot;invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates&quot;,
+<b class="nc"><i>590</i>&nbsp;                    children.size(), ShapeType.ENVELOPE);</b>
+<i>591</i>&nbsp;            }
+<i>592</i>&nbsp;            // verify coordinate bounds, correct if necessary
+<b class="nc"><i>593</i>&nbsp;            Point uL = children.get(0).coordinate;</b>
+<b class="nc"><i>594</i>&nbsp;            Point lR = children.get(1).coordinate;</b>
+<b class="nc"><i>595</i>&nbsp;            return new Rectangle(uL.getX(), lR.getX(), uL.getY(), lR.getY());</b>
+<i>596</i>&nbsp;        }
+<i>597</i>&nbsp;
+<i>598</i>&nbsp;        @Override
+<i>599</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>600</i>&nbsp;            if (children == null) {</b>
+<b class="nc"><i>601</i>&nbsp;                builder.startArray().value(coordinate.getX()).value(coordinate.getY()).endArray();</b>
+<i>602</i>&nbsp;            } else {
+<b class="nc"><i>603</i>&nbsp;                builder.startArray();</b>
+<b class="nc"><i>604</i>&nbsp;                for (CoordinateNode child : children) {</b>
+<b class="nc"><i>605</i>&nbsp;                    child.toXContent(builder, params);</b>
+<b class="nc"><i>606</i>&nbsp;                }</b>
+<b class="nc"><i>607</i>&nbsp;                builder.endArray();</b>
+<i>608</i>&nbsp;            }
+<b class="nc"><i>609</i>&nbsp;            return builder;</b>
+<i>610</i>&nbsp;        }
+<i>611</i>&nbsp;    }
+<i>612</i>&nbsp;
+<i>613</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

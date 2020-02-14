@@ -1,0 +1,190 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PriorityComparator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PriorityComparator (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PriorityComparator</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (2/ 16)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PriorityComparator$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    42.9%
+  </span>
+  <span class="absValue">
+    (3/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.8%
+  </span>
+  <span class="absValue">
+    (3/ 19)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>25</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>26</i>&nbsp;import org.elasticsearch.index.Index;
+<i>27</i>&nbsp;
+<i>28</i>&nbsp;import java.util.Comparator;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;/**
+<i>31</i>&nbsp; * A comparator that compares ShardRouting based on it&#39;s indexes priority (index.priority),
+<i>32</i>&nbsp; * it&#39;s creation date (index.creation_date), or eventually by it&#39;s index name in reverse order.
+<i>33</i>&nbsp; * We try to recover first shards from an index with the highest priority, if that&#39;s the same
+<i>34</i>&nbsp; * we try to compare the timestamp the index is created and pick the newer first (time-based indices,
+<i>35</i>&nbsp; * here the newer indices matter more). If even that is the same, we compare the index name which is useful
+<i>36</i>&nbsp; * if the date is baked into the index name. ie logstash-2015.05.03.
+<i>37</i>&nbsp; */
+<b class="fc"><i>38</i>&nbsp;public abstract class PriorityComparator implements Comparator&lt;ShardRouting&gt; {</b>
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    @Override
+<i>41</i>&nbsp;    public final int compare(ShardRouting o1, ShardRouting o2) {
+<b class="nc"><i>42</i>&nbsp;        final String o1Index = o1.getIndexName();</b>
+<b class="nc"><i>43</i>&nbsp;        final String o2Index = o2.getIndexName();</b>
+<b class="nc"><i>44</i>&nbsp;        int cmp = 0;</b>
+<b class="nc"><i>45</i>&nbsp;        if (o1Index.equals(o2Index) == false) {</b>
+<b class="nc"><i>46</i>&nbsp;            final Settings settingsO1 = getIndexSettings(o1.index());</b>
+<b class="nc"><i>47</i>&nbsp;            final Settings settingsO2 = getIndexSettings(o2.index());</b>
+<b class="nc"><i>48</i>&nbsp;            cmp = Long.compare(priority(settingsO2), priority(settingsO1));</b>
+<b class="nc"><i>49</i>&nbsp;            if (cmp == 0) {</b>
+<b class="nc"><i>50</i>&nbsp;                cmp = Long.compare(timeCreated(settingsO2), timeCreated(settingsO1));</b>
+<b class="nc"><i>51</i>&nbsp;                if (cmp == 0) {</b>
+<b class="nc"><i>52</i>&nbsp;                    cmp = o2Index.compareTo(o1Index);</b>
+<i>53</i>&nbsp;                }
+<i>54</i>&nbsp;            }
+<i>55</i>&nbsp;        }
+<b class="nc"><i>56</i>&nbsp;        return cmp;</b>
+<i>57</i>&nbsp;    }
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    private static int priority(Settings settings) {
+<b class="nc"><i>60</i>&nbsp;        return IndexMetaData.INDEX_PRIORITY_SETTING.get(settings);</b>
+<i>61</i>&nbsp;    }
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    private static long timeCreated(Settings settings) {
+<b class="nc"><i>64</i>&nbsp;        return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1L);</b>
+<i>65</i>&nbsp;    }
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    protected abstract Settings getIndexSettings(Index index);
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    /**
+<i>70</i>&nbsp;     * Returns a PriorityComparator that uses the RoutingAllocation index metadata to access the index setting per index.
+<i>71</i>&nbsp;     */
+<i>72</i>&nbsp;    public static PriorityComparator getAllocationComparator(final RoutingAllocation allocation) {
+<b class="fc"><i>73</i>&nbsp;        return new PriorityComparator() {</b>
+<i>74</i>&nbsp;            @Override
+<i>75</i>&nbsp;            protected Settings getIndexSettings(Index index) {
+<b class="nc"><i>76</i>&nbsp;                IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(index);</b>
+<b class="nc"><i>77</i>&nbsp;                return indexMetaData.getSettings();</b>
+<i>78</i>&nbsp;            }
+<i>79</i>&nbsp;        };
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

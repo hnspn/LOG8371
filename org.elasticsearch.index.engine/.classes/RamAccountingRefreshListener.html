@@ -1,0 +1,164 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RamAccountingRefreshListener</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RamAccountingRefreshListener (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RamAccountingRefreshListener</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.1%
+  </span>
+  <span class="absValue">
+    (8/ 19)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.engine;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>23</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>24</i>&nbsp;import org.apache.lucene.index.SegmentReader;
+<i>25</i>&nbsp;import org.elasticsearch.common.breaker.CircuitBreaker;
+<i>26</i>&nbsp;import org.elasticsearch.common.lucene.Lucene;
+<i>27</i>&nbsp;import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+<i>28</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.util.Collections;
+<i>31</i>&nbsp;import java.util.HashSet;
+<i>32</i>&nbsp;import java.util.List;
+<i>33</i>&nbsp;import java.util.Set;
+<i>34</i>&nbsp;import java.util.function.BiConsumer;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * A refresh listener that tracks the amount of memory used by segments in the accounting circuit breaker.
+<i>38</i>&nbsp; */
+<i>39</i>&nbsp;final class RamAccountingRefreshListener implements BiConsumer&lt;ElasticsearchDirectoryReader, ElasticsearchDirectoryReader&gt; {
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;    private final CircuitBreakerService breakerService;
+<i>42</i>&nbsp;
+<b class="fc"><i>43</i>&nbsp;    RamAccountingRefreshListener(CircuitBreakerService breakerService) {</b>
+<b class="fc"><i>44</i>&nbsp;        this.breakerService = breakerService;</b>
+<b class="fc"><i>45</i>&nbsp;    }</b>
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    @Override
+<i>48</i>&nbsp;    public void accept(ElasticsearchDirectoryReader reader, ElasticsearchDirectoryReader previousReader) {
+<b class="fc"><i>49</i>&nbsp;        final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;        // Construct a list of the previous segment readers, we only want to track memory used
+<i>52</i>&nbsp;        // by new readers, so these will be exempted from the circuit breaking accounting.
+<i>53</i>&nbsp;        //
+<i>54</i>&nbsp;        // The Core CacheKey is used as the key for the set so that deletions still keep the correct
+<i>55</i>&nbsp;        // accounting, as using the Reader or Reader&#39;s CacheKey causes incorrect accounting.
+<i>56</i>&nbsp;        final Set&lt;IndexReader.CacheKey&gt; prevReaders;
+<b class="fc"><i>57</i>&nbsp;        if (previousReader == null) {</b>
+<b class="fc"><i>58</i>&nbsp;            prevReaders = Collections.emptySet();</b>
+<i>59</i>&nbsp;        } else {
+<b class="nc"><i>60</i>&nbsp;            final List&lt;LeafReaderContext&gt; previousReaderLeaves = previousReader.leaves();</b>
+<b class="nc"><i>61</i>&nbsp;            prevReaders = new HashSet&lt;&gt;(previousReaderLeaves.size());</b>
+<b class="nc"><i>62</i>&nbsp;            for (LeafReaderContext lrc : previousReaderLeaves) {</b>
+<b class="nc"><i>63</i>&nbsp;                prevReaders.add(Lucene.segmentReader(lrc.reader()).getCoreCacheHelper().getKey());</b>
+<b class="nc"><i>64</i>&nbsp;            }</b>
+<i>65</i>&nbsp;        }
+<i>66</i>&nbsp;
+<b class="fc"><i>67</i>&nbsp;        for (LeafReaderContext lrc : reader.leaves()) {</b>
+<b class="nc"><i>68</i>&nbsp;            final SegmentReader segmentReader = Lucene.segmentReader(lrc.reader());</b>
+<i>69</i>&nbsp;            // don&#39;t add the segment&#39;s memory unless it is not referenced by the previous reader
+<i>70</i>&nbsp;            // (only new segments)
+<b class="nc"><i>71</i>&nbsp;            if (prevReaders.contains(segmentReader.getCoreCacheHelper().getKey()) == false) {</b>
+<b class="nc"><i>72</i>&nbsp;                final long ramBytesUsed = segmentReader.ramBytesUsed();</b>
+<i>73</i>&nbsp;                // add the segment memory to the breaker (non-breaking)
+<b class="nc"><i>74</i>&nbsp;                breaker.addWithoutBreaking(ramBytesUsed);</b>
+<i>75</i>&nbsp;                // and register a listener for when the segment is closed to decrement the
+<i>76</i>&nbsp;                // breaker accounting
+<b class="nc"><i>77</i>&nbsp;                segmentReader.getCoreCacheHelper().addClosedListener(k -&gt; breaker.addWithoutBreaking(-ramBytesUsed));</b>
+<i>78</i>&nbsp;            }
+<b class="nc"><i>79</i>&nbsp;        }</b>
+<b class="fc"><i>80</i>&nbsp;    }</b>
+<i>81</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

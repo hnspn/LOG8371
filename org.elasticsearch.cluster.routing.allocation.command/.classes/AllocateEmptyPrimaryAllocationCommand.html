@@ -1,0 +1,234 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AllocateEmptyPrimaryAllocationCommand</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation.command</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AllocateEmptyPrimaryAllocationCommand (org.elasticsearch.cluster.routing.allocation.command)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AllocateEmptyPrimaryAllocationCommand</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (1/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    4.8%
+  </span>
+  <span class="absValue">
+    (2/ 42)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation.command;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNodes;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.UnassignedInfo;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+<i>32</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>33</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>36</i>&nbsp;import org.elasticsearch.index.IndexNotFoundException;
+<i>37</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>38</i>&nbsp;import org.elasticsearch.index.shard.ShardNotFoundException;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import java.io.IOException;
+<i>41</i>&nbsp;import java.util.Collections;
+<i>42</i>&nbsp;import java.util.Optional;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;/**
+<i>45</i>&nbsp; * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
+<i>46</i>&nbsp; * Allocation deciders are ignored.
+<i>47</i>&nbsp; */
+<b class="nc"><i>48</i>&nbsp;public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocationCommand {</b>
+<i>49</i>&nbsp;    public static final String NAME = &quot;allocate_empty_primary&quot;;
+<b class="fc"><i>50</i>&nbsp;    public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);</b>
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;    private static final ObjectParser&lt;Builder, Void&gt; EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);</b>
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    /**
+<i>55</i>&nbsp;     * Creates a new {@link AllocateEmptyPrimaryAllocationCommand}
+<i>56</i>&nbsp;     *
+<i>57</i>&nbsp;     * @param shardId        {@link ShardId} of the shard to assign
+<i>58</i>&nbsp;     * @param node           node id of the node to assign the shard to
+<i>59</i>&nbsp;     * @param acceptDataLoss whether the user agrees to data loss
+<i>60</i>&nbsp;     */
+<i>61</i>&nbsp;    public AllocateEmptyPrimaryAllocationCommand(String index, int shardId, String node, boolean acceptDataLoss) {
+<b class="nc"><i>62</i>&nbsp;        super(index, shardId, node, acceptDataLoss);</b>
+<b class="nc"><i>63</i>&nbsp;    }</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    /**
+<i>66</i>&nbsp;     * Read from a stream.
+<i>67</i>&nbsp;     */
+<i>68</i>&nbsp;    public AllocateEmptyPrimaryAllocationCommand(StreamInput in) throws IOException {
+<b class="nc"><i>69</i>&nbsp;        super(in);</b>
+<b class="nc"><i>70</i>&nbsp;    }</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    @Override
+<i>73</i>&nbsp;    public String name() {
+<b class="nc"><i>74</i>&nbsp;        return NAME;</b>
+<i>75</i>&nbsp;    }
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    @Override
+<i>78</i>&nbsp;    public Optional&lt;String&gt; getMessage() {
+<b class="nc"><i>79</i>&nbsp;        return Optional.of(&quot;allocated an empty primary for [&quot; + index + &quot;][&quot; + shardId + &quot;] on node [&quot; + node + &quot;] from user command&quot;);</b>
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    public static AllocateEmptyPrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>83</i>&nbsp;        return new Builder().parse(parser).build();</b>
+<i>84</i>&nbsp;    }
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    public static class Builder extends BasePrimaryAllocationCommand.Builder&lt;AllocateEmptyPrimaryAllocationCommand&gt; {
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;        @Override
+<i>89</i>&nbsp;        public Builder parse(XContentParser parser) throws IOException {
+<i>90</i>&nbsp;            return EMPTY_PRIMARY_PARSER.parse(parser, this, null);
+<i>91</i>&nbsp;        }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;        @Override
+<i>94</i>&nbsp;        public AllocateEmptyPrimaryAllocationCommand build() {
+<i>95</i>&nbsp;            validate();
+<i>96</i>&nbsp;            return new AllocateEmptyPrimaryAllocationCommand(index, shard, node, acceptDataLoss);
+<i>97</i>&nbsp;        }
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    @Override
+<i>101</i>&nbsp;    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
+<i>102</i>&nbsp;        final DiscoveryNode discoNode;
+<i>103</i>&nbsp;        try {
+<b class="nc"><i>104</i>&nbsp;            discoNode = allocation.nodes().resolveNode(node);</b>
+<b class="nc"><i>105</i>&nbsp;        } catch (IllegalArgumentException e) {</b>
+<b class="nc"><i>106</i>&nbsp;            return explainOrThrowRejectedCommand(explain, allocation, e);</b>
+<b class="nc"><i>107</i>&nbsp;        }</b>
+<b class="nc"><i>108</i>&nbsp;        final RoutingNodes routingNodes = allocation.routingNodes();</b>
+<b class="nc"><i>109</i>&nbsp;        RoutingNode routingNode = routingNodes.node(discoNode.getId());</b>
+<b class="nc"><i>110</i>&nbsp;        if (routingNode == null) {</b>
+<b class="nc"><i>111</i>&nbsp;            return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);</b>
+<i>112</i>&nbsp;        }
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;        try {
+<b class="nc"><i>115</i>&nbsp;            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();</b>
+<b class="nc"><i>116</i>&nbsp;        } catch (IndexNotFoundException | ShardNotFoundException e) {</b>
+<b class="nc"><i>117</i>&nbsp;            return explainOrThrowRejectedCommand(explain, allocation, e);</b>
+<b class="nc"><i>118</i>&nbsp;        }</b>
+<i>119</i>&nbsp;
+<b class="nc"><i>120</i>&nbsp;        ShardRouting shardRouting = null;</b>
+<b class="nc"><i>121</i>&nbsp;        for (ShardRouting shard : allocation.routingNodes().unassigned()) {</b>
+<b class="nc"><i>122</i>&nbsp;            if (shard.getIndexName().equals(index) &amp;&amp; shard.getId() == shardId &amp;&amp; shard.primary()) {</b>
+<b class="nc"><i>123</i>&nbsp;                shardRouting = shard;</b>
+<b class="nc"><i>124</i>&nbsp;                break;</b>
+<i>125</i>&nbsp;            }
+<b class="nc"><i>126</i>&nbsp;        }</b>
+<b class="nc"><i>127</i>&nbsp;        if (shardRouting == null) {</b>
+<b class="nc"><i>128</i>&nbsp;            return explainOrThrowRejectedCommand(explain, allocation, &quot;primary [&quot; + index + &quot;][&quot; + shardId + &quot;] is already assigned&quot;);</b>
+<i>129</i>&nbsp;        }
+<i>130</i>&nbsp;
+<b class="nc"><i>131</i>&nbsp;        if (shardRouting.recoverySource().getType() != RecoverySource.Type.EMPTY_STORE &amp;&amp; acceptDataLoss == false) {</b>
+<b class="nc"><i>132</i>&nbsp;            String dataLossWarning = &quot;allocating an empty primary for [&quot; + index + &quot;][&quot; + shardId +</b>
+<i>133</i>&nbsp;                &quot;] can result in data loss. Please confirm by setting the accept_data_loss parameter to true&quot;;
+<b class="nc"><i>134</i>&nbsp;            return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);</b>
+<i>135</i>&nbsp;        }
+<i>136</i>&nbsp;
+<b class="nc"><i>137</i>&nbsp;        UnassignedInfo unassignedInfoToUpdate = null;</b>
+<b class="nc"><i>138</i>&nbsp;        if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {</b>
+<b class="nc"><i>139</i>&nbsp;            String unassignedInfoMessage = &quot;force empty allocation from previous reason &quot; + shardRouting.unassignedInfo().getReason() +</b>
+<b class="nc"><i>140</i>&nbsp;                &quot;, &quot; + shardRouting.unassignedInfo().getMessage();</b>
+<b class="nc"><i>141</i>&nbsp;            unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY, unassignedInfoMessage,</b>
+<b class="nc"><i>142</i>&nbsp;                shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false,</b>
+<b class="nc"><i>143</i>&nbsp;                shardRouting.unassignedInfo().getLastAllocationStatus(), Collections.emptySet());</b>
+<i>144</i>&nbsp;        }
+<i>145</i>&nbsp;
+<b class="nc"><i>146</i>&nbsp;        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate,</b>
+<i>147</i>&nbsp;            EmptyStoreRecoverySource.INSTANCE);
+<i>148</i>&nbsp;
+<b class="nc"><i>149</i>&nbsp;        return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + &quot; (allocation command)&quot;, &quot;ignore deciders&quot;));</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

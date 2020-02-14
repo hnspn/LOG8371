@@ -1,0 +1,314 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ActiveShardCount</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.support</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ActiveShardCount (org.elasticsearch.action.support)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ActiveShardCount</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    64.3%
+  </span>
+  <span class="absValue">
+    (9/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    55.4%
+  </span>
+  <span class="absValue">
+    (41/ 74)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.support;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.IntObjectCursor;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.IndexRoutingTable;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * A class whose instances represent a value for counting the number
+<i>38</i>&nbsp; * of active shard copies for a given shard in an index.
+<i>39</i>&nbsp; */
+<b class="fc"><i>40</i>&nbsp;public final class ActiveShardCount implements Writeable {</b>
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    private static final int ACTIVE_SHARD_COUNT_DEFAULT = -2;
+<i>43</i>&nbsp;    private static final int ALL_ACTIVE_SHARDS = -1;
+<i>44</i>&nbsp;
+<b class="fc"><i>45</i>&nbsp;    public static final ActiveShardCount DEFAULT = new ActiveShardCount(ACTIVE_SHARD_COUNT_DEFAULT);</b>
+<b class="fc"><i>46</i>&nbsp;    public static final ActiveShardCount ALL = new ActiveShardCount(ALL_ACTIVE_SHARDS);</b>
+<b class="fc"><i>47</i>&nbsp;    public static final ActiveShardCount NONE = new ActiveShardCount(0);</b>
+<b class="fc"><i>48</i>&nbsp;    public static final ActiveShardCount ONE = new ActiveShardCount(1);</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    private final int value;
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;    private ActiveShardCount(final int value) {</b>
+<b class="fc"><i>53</i>&nbsp;        this.value = value;</b>
+<b class="fc"><i>54</i>&nbsp;    }</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    /**
+<i>57</i>&nbsp;     * Get an ActiveShardCount instance for the given value.  The value is first validated to ensure
+<i>58</i>&nbsp;     * it is a valid shard count and throws an IllegalArgumentException if validation fails.  Valid
+<i>59</i>&nbsp;     * values are any non-negative number.  Directly use {@link ActiveShardCount#DEFAULT} for the
+<i>60</i>&nbsp;     * default value (which is one shard copy) or {@link ActiveShardCount#ALL} to specify all the shards.
+<i>61</i>&nbsp;     */
+<i>62</i>&nbsp;    public static ActiveShardCount from(final int value) {
+<b class="fc"><i>63</i>&nbsp;        if (value &lt; 0) {</b>
+<b class="nc"><i>64</i>&nbsp;            throw new IllegalArgumentException(&quot;shard count cannot be a negative value&quot;);</b>
+<i>65</i>&nbsp;        }
+<b class="fc"><i>66</i>&nbsp;        return get(value);</b>
+<i>67</i>&nbsp;    }
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    /**
+<i>70</i>&nbsp;     * Validates that the instance is valid for the given number of replicas in an index.
+<i>71</i>&nbsp;     */
+<i>72</i>&nbsp;    public boolean validate(final int numberOfReplicas) {
+<b class="fc"><i>73</i>&nbsp;        assert numberOfReplicas &gt;= 0;</b>
+<b class="fc"><i>74</i>&nbsp;        return value &lt;= numberOfReplicas + 1;</b>
+<i>75</i>&nbsp;    }
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    private static ActiveShardCount get(final int value) {
+<b class="fc"><i>78</i>&nbsp;        switch (value) {</b>
+<i>79</i>&nbsp;            case ACTIVE_SHARD_COUNT_DEFAULT:
+<b class="nc"><i>80</i>&nbsp;                return DEFAULT;</b>
+<i>81</i>&nbsp;            case ALL_ACTIVE_SHARDS:
+<b class="nc"><i>82</i>&nbsp;                return ALL;</b>
+<i>83</i>&nbsp;            case 1:
+<b class="fc"><i>84</i>&nbsp;                return ONE;</b>
+<i>85</i>&nbsp;            case 0:
+<b class="nc"><i>86</i>&nbsp;                return NONE;</b>
+<i>87</i>&nbsp;            default:
+<b class="nc"><i>88</i>&nbsp;                assert value &gt; 1;</b>
+<b class="nc"><i>89</i>&nbsp;                return new ActiveShardCount(value);</b>
+<i>90</i>&nbsp;        }
+<i>91</i>&nbsp;    }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    @Override
+<i>94</i>&nbsp;    public void writeTo(final StreamOutput out) throws IOException {
+<b class="nc"><i>95</i>&nbsp;        out.writeInt(value);</b>
+<b class="nc"><i>96</i>&nbsp;    }</b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    public static ActiveShardCount readFrom(final StreamInput in) throws IOException {
+<b class="nc"><i>99</i>&nbsp;        return get(in.readInt());</b>
+<i>100</i>&nbsp;    }
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    /**
+<i>103</i>&nbsp;     * Parses the active shard count from the given string.  Valid values are &quot;all&quot; for
+<i>104</i>&nbsp;     * all shard copies, null for the default value (which defaults to one shard copy),
+<i>105</i>&nbsp;     * or a numeric value greater than or equal to 0. Any other input will throw an
+<i>106</i>&nbsp;     * IllegalArgumentException.
+<i>107</i>&nbsp;     */
+<i>108</i>&nbsp;    public static ActiveShardCount parseString(final String str) {
+<b class="fc"><i>109</i>&nbsp;        if (str == null) {</b>
+<b class="nc"><i>110</i>&nbsp;            return ActiveShardCount.DEFAULT;</b>
+<b class="fc"><i>111</i>&nbsp;        } else if (str.equals(&quot;all&quot;)) {</b>
+<b class="nc"><i>112</i>&nbsp;            return ActiveShardCount.ALL;</b>
+<i>113</i>&nbsp;        } else {
+<i>114</i>&nbsp;            int val;
+<i>115</i>&nbsp;            try {
+<b class="fc"><i>116</i>&nbsp;                val = Integer.parseInt(str);</b>
+<b class="nc"><i>117</i>&nbsp;            } catch (NumberFormatException e) {</b>
+<b class="nc"><i>118</i>&nbsp;                throw new IllegalArgumentException(&quot;cannot parse ActiveShardCount[&quot; + str + &quot;]&quot;, e);</b>
+<b class="fc"><i>119</i>&nbsp;            }</b>
+<b class="fc"><i>120</i>&nbsp;            return ActiveShardCount.from(val);</b>
+<i>121</i>&nbsp;        }
+<i>122</i>&nbsp;    }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    /**
+<i>125</i>&nbsp;     * Returns true iff the given number of active shards is enough to meet
+<i>126</i>&nbsp;     * the required shard count represented by this instance.  This method
+<i>127</i>&nbsp;     * should only be invoked with {@link ActiveShardCount} objects created
+<i>128</i>&nbsp;     * from {@link #from(int)}, or {@link #NONE} or {@link #ONE}.
+<i>129</i>&nbsp;     */
+<i>130</i>&nbsp;    public boolean enoughShardsActive(final int activeShardCount) {
+<b class="nc"><i>131</i>&nbsp;        if (this.value &lt; 0) {</b>
+<b class="nc"><i>132</i>&nbsp;            throw new IllegalStateException(&quot;not enough information to resolve to shard count&quot;);</b>
+<i>133</i>&nbsp;        }
+<b class="nc"><i>134</i>&nbsp;        if (activeShardCount &lt; 0) {</b>
+<b class="nc"><i>135</i>&nbsp;            throw new IllegalArgumentException(&quot;activeShardCount cannot be negative&quot;);</b>
+<i>136</i>&nbsp;        }
+<b class="nc"><i>137</i>&nbsp;        return this.value &lt;= activeShardCount;</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /**
+<i>141</i>&nbsp;     * Returns true iff the given cluster state&#39;s routing table contains enough active
+<i>142</i>&nbsp;     * shards for the given indices to meet the required shard count represented by this instance.
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public boolean enoughShardsActive(final ClusterState clusterState, final String... indices) {
+<b class="fc"><i>145</i>&nbsp;        if (this == ActiveShardCount.NONE) {</b>
+<i>146</i>&nbsp;            // not waiting for any active shards
+<b class="nc"><i>147</i>&nbsp;            return true;</b>
+<i>148</i>&nbsp;        }
+<i>149</i>&nbsp;
+<b class="fc"><i>150</i>&nbsp;        for (final String indexName : indices) {</b>
+<b class="fc"><i>151</i>&nbsp;            final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);</b>
+<b class="fc"><i>152</i>&nbsp;            if (indexMetaData == null) {</b>
+<i>153</i>&nbsp;                // its possible the index was deleted while waiting for active shard copies,
+<i>154</i>&nbsp;                // in this case, we&#39;ll just consider it that we have enough active shard copies
+<i>155</i>&nbsp;                // and we can stop waiting
+<b class="nc"><i>156</i>&nbsp;                continue;</b>
+<i>157</i>&nbsp;            }
+<b class="fc"><i>158</i>&nbsp;            final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);</b>
+<b class="fc"><i>159</i>&nbsp;            if (indexRoutingTable == null &amp;&amp; indexMetaData.getState() == IndexMetaData.State.CLOSE) {</b>
+<i>160</i>&nbsp;                // its possible the index was closed while waiting for active shard copies,
+<i>161</i>&nbsp;                // in this case, we&#39;ll just consider it that we have enough active shard copies
+<i>162</i>&nbsp;                // and we can stop waiting
+<b class="nc"><i>163</i>&nbsp;                continue;</b>
+<i>164</i>&nbsp;            }
+<b class="fc"><i>165</i>&nbsp;            assert indexRoutingTable != null;</b>
+<b class="fc"><i>166</i>&nbsp;            if (indexRoutingTable.allPrimaryShardsActive() == false) {</b>
+<i>167</i>&nbsp;                // all primary shards aren&#39;t active yet
+<b class="fc"><i>168</i>&nbsp;                return false;</b>
+<i>169</i>&nbsp;            }
+<b class="fc"><i>170</i>&nbsp;            ActiveShardCount waitForActiveShards = this;</b>
+<b class="fc"><i>171</i>&nbsp;            if (waitForActiveShards == ActiveShardCount.DEFAULT) {</b>
+<b class="fc"><i>172</i>&nbsp;                waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetaData.getSettings());</b>
+<i>173</i>&nbsp;            }
+<b class="fc"><i>174</i>&nbsp;            for (final IntObjectCursor&lt;IndexShardRoutingTable&gt; shardRouting : indexRoutingTable.getShards()) {</b>
+<b class="fc"><i>175</i>&nbsp;                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {</b>
+<i>176</i>&nbsp;                    // not enough active shard copies yet
+<b class="nc"><i>177</i>&nbsp;                    return false;</b>
+<i>178</i>&nbsp;                }
+<b class="fc"><i>179</i>&nbsp;            }</b>
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<b class="fc"><i>182</i>&nbsp;        return true;</b>
+<i>183</i>&nbsp;    }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    /**
+<i>186</i>&nbsp;     * Returns true iff the active shard count in the shard routing table is enough
+<i>187</i>&nbsp;     * to meet the required shard count represented by this instance.
+<i>188</i>&nbsp;     */
+<i>189</i>&nbsp;    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+<b class="fc"><i>190</i>&nbsp;        final int activeShardCount = shardRoutingTable.activeShards().size();</b>
+<b class="fc"><i>191</i>&nbsp;        if (this == ActiveShardCount.ALL) {</b>
+<i>192</i>&nbsp;            // adding 1 for the primary in addition to the total number of replicas,
+<i>193</i>&nbsp;            // which gives us the total number of shard copies
+<b class="nc"><i>194</i>&nbsp;            return activeShardCount == shardRoutingTable.replicaShards().size() + 1;</b>
+<b class="fc"><i>195</i>&nbsp;        } else if (this == ActiveShardCount.DEFAULT) {</b>
+<b class="nc"><i>196</i>&nbsp;            return activeShardCount &gt;= 1;</b>
+<i>197</i>&nbsp;        } else {
+<b class="fc"><i>198</i>&nbsp;            return activeShardCount &gt;= value;</b>
+<i>199</i>&nbsp;        }
+<i>200</i>&nbsp;    }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;    @Override
+<i>203</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>204</i>&nbsp;        return Integer.hashCode(value);</b>
+<i>205</i>&nbsp;    }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;    @Override
+<i>208</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>209</i>&nbsp;        if (this == o) {</b>
+<b class="fc"><i>210</i>&nbsp;            return true;</b>
+<i>211</i>&nbsp;        }
+<b class="nc"><i>212</i>&nbsp;        if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>213</i>&nbsp;            return false;</b>
+<i>214</i>&nbsp;        }
+<b class="nc"><i>215</i>&nbsp;        ActiveShardCount that = (ActiveShardCount) o;</b>
+<b class="nc"><i>216</i>&nbsp;        return value == that.value;</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    @Override
+<i>220</i>&nbsp;    public String toString() {
+<b class="nc"><i>221</i>&nbsp;        switch (value) {</b>
+<i>222</i>&nbsp;            case ALL_ACTIVE_SHARDS:
+<b class="nc"><i>223</i>&nbsp;                return &quot;ALL&quot;;</b>
+<i>224</i>&nbsp;            case ACTIVE_SHARD_COUNT_DEFAULT:
+<b class="nc"><i>225</i>&nbsp;                return &quot;DEFAULT&quot;;</b>
+<i>226</i>&nbsp;            default:
+<b class="nc"><i>227</i>&nbsp;                return Integer.toString(value);</b>
+<i>228</i>&nbsp;        }
+<i>229</i>&nbsp;    }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

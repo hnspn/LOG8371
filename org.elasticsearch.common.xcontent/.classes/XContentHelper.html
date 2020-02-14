@@ -1,0 +1,456 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: XContentHelper</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.xcontent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: XContentHelper (org.elasticsearch.common.xcontent)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">XContentHelper</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    36.8%
+  </span>
+  <span class="absValue">
+    (7/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    21.5%
+  </span>
+  <span class="absValue">
+    (32/ 149)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.xcontent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>23</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>24</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>25</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>26</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>27</i>&nbsp;import org.elasticsearch.common.compress.Compressor;
+<i>28</i>&nbsp;import org.elasticsearch.common.compress.CompressorFactory;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent.Params;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.io.BufferedInputStream;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;import java.io.InputStream;
+<i>34</i>&nbsp;import java.util.ArrayList;
+<i>35</i>&nbsp;import java.util.LinkedHashMap;
+<i>36</i>&nbsp;import java.util.List;
+<i>37</i>&nbsp;import java.util.Map;
+<i>38</i>&nbsp;import java.util.Objects;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;@SuppressWarnings(&quot;unchecked&quot;)
+<b class="nc"><i>41</i>&nbsp;public class XContentHelper {</b>
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;    /**
+<i>44</i>&nbsp;     * Creates a parser based on the bytes provided
+<i>45</i>&nbsp;     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)}
+<i>46</i>&nbsp;     * to avoid content type auto-detection
+<i>47</i>&nbsp;     */
+<i>48</i>&nbsp;    @Deprecated
+<i>49</i>&nbsp;    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+<i>50</i>&nbsp;                                              BytesReference bytes) throws IOException {
+<b class="nc"><i>51</i>&nbsp;        Compressor compressor = CompressorFactory.compressor(bytes);</b>
+<b class="nc"><i>52</i>&nbsp;        if (compressor != null) {</b>
+<b class="nc"><i>53</i>&nbsp;            InputStream compressedInput = compressor.streamInput(bytes.streamInput());</b>
+<b class="nc"><i>54</i>&nbsp;            if (compressedInput.markSupported() == false) {</b>
+<b class="nc"><i>55</i>&nbsp;                compressedInput = new BufferedInputStream(compressedInput);</b>
+<i>56</i>&nbsp;            }
+<b class="nc"><i>57</i>&nbsp;            final XContentType contentType = XContentFactory.xContentType(compressedInput);</b>
+<b class="nc"><i>58</i>&nbsp;            return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);</b>
+<i>59</i>&nbsp;        } else {
+<b class="nc"><i>60</i>&nbsp;            return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());</b>
+<i>61</i>&nbsp;        }
+<i>62</i>&nbsp;    }
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    /**
+<i>65</i>&nbsp;     * Creates a parser for the bytes using the supplied content-type
+<i>66</i>&nbsp;     */
+<i>67</i>&nbsp;    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+<i>68</i>&nbsp;                                              BytesReference bytes, XContentType xContentType) throws IOException {
+<b class="fc"><i>69</i>&nbsp;        Objects.requireNonNull(xContentType);</b>
+<b class="fc"><i>70</i>&nbsp;        Compressor compressor = CompressorFactory.compressor(bytes);</b>
+<b class="fc"><i>71</i>&nbsp;        if (compressor != null) {</b>
+<b class="nc"><i>72</i>&nbsp;            InputStream compressedInput = compressor.streamInput(bytes.streamInput());</b>
+<b class="nc"><i>73</i>&nbsp;            if (compressedInput.markSupported() == false) {</b>
+<b class="nc"><i>74</i>&nbsp;                compressedInput = new BufferedInputStream(compressedInput);</b>
+<i>75</i>&nbsp;            }
+<b class="nc"><i>76</i>&nbsp;            return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);</b>
+<i>77</i>&nbsp;        } else {
+<b class="fc"><i>78</i>&nbsp;            return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());</b>
+<i>79</i>&nbsp;        }
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * Converts the given bytes into a map that is optionally ordered.
+<i>84</i>&nbsp;     * @deprecated this method relies on auto-detection of content type. Use {@link #convertToMap(BytesReference, boolean, XContentType)}
+<i>85</i>&nbsp;     *             instead with the proper {@link XContentType}
+<i>86</i>&nbsp;     */
+<i>87</i>&nbsp;    @Deprecated
+<i>88</i>&nbsp;    public static Tuple&lt;XContentType, Map&lt;String, Object&gt;&gt; convertToMap(BytesReference bytes, boolean ordered)
+<i>89</i>&nbsp;            throws ElasticsearchParseException {
+<b class="nc"><i>90</i>&nbsp;        return convertToMap(bytes, ordered, null);</b>
+<i>91</i>&nbsp;    }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    /**
+<i>94</i>&nbsp;     * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+<i>95</i>&nbsp;     */
+<i>96</i>&nbsp;    public static Tuple&lt;XContentType, Map&lt;String, Object&gt;&gt; convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+<i>97</i>&nbsp;        throws ElasticsearchParseException {
+<i>98</i>&nbsp;        try {
+<i>99</i>&nbsp;            final XContentType contentType;
+<i>100</i>&nbsp;            InputStream input;
+<b class="fc"><i>101</i>&nbsp;            Compressor compressor = CompressorFactory.compressor(bytes);</b>
+<b class="fc"><i>102</i>&nbsp;            if (compressor != null) {</b>
+<b class="fc"><i>103</i>&nbsp;                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());</b>
+<b class="fc"><i>104</i>&nbsp;                if (compressedStreamInput.markSupported() == false) {</b>
+<b class="nc"><i>105</i>&nbsp;                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);</b>
+<i>106</i>&nbsp;                }
+<b class="fc"><i>107</i>&nbsp;                input = compressedStreamInput;</b>
+<b class="fc"><i>108</i>&nbsp;            } else {</b>
+<b class="nc"><i>109</i>&nbsp;                input = bytes.streamInput();</b>
+<i>110</i>&nbsp;            }
+<b class="fc"><i>111</i>&nbsp;            contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);</b>
+<b class="fc"><i>112</i>&nbsp;            try (InputStream stream = input) {</b>
+<b class="fc"><i>113</i>&nbsp;                return new Tuple&lt;&gt;(Objects.requireNonNull(contentType),</b>
+<b class="fc"><i>114</i>&nbsp;                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));</b>
+<b class="fc"><i>115</i>&nbsp;            }</b>
+<b class="nc"><i>116</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>117</i>&nbsp;            throw new ElasticsearchParseException(&quot;Failed to parse content to map&quot;, e);</b>
+<i>118</i>&nbsp;        }
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    /**
+<i>122</i>&nbsp;     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+<i>123</i>&nbsp;     * error.
+<i>124</i>&nbsp;     */
+<i>125</i>&nbsp;    public static Map&lt;String, Object&gt; convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+<i>126</i>&nbsp;        // It is safe to use EMPTY here because this never uses namedObject
+<b class="nc"><i>127</i>&nbsp;        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,</b>
+<i>128</i>&nbsp;                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, string)) {
+<b class="nc"><i>129</i>&nbsp;            return ordered ? parser.mapOrdered() : parser.map();</b>
+<b class="nc"><i>130</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>131</i>&nbsp;            throw new ElasticsearchParseException(&quot;Failed to parse content to map&quot;, e);</b>
+<i>132</i>&nbsp;        }
+<i>133</i>&nbsp;    }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+<i>137</i>&nbsp;     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn&#39;t automatically uncompress the input.
+<i>138</i>&nbsp;     */
+<i>139</i>&nbsp;    public static Map&lt;String, Object&gt; convertToMap(XContent xContent, InputStream input, boolean ordered)
+<i>140</i>&nbsp;            throws ElasticsearchParseException {
+<i>141</i>&nbsp;        // It is safe to use EMPTY here because this never uses namedObject
+<b class="fc"><i>142</i>&nbsp;        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,</b>
+<i>143</i>&nbsp;                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
+<b class="fc"><i>144</i>&nbsp;            return ordered ? parser.mapOrdered() : parser.map();</b>
+<b class="fc"><i>145</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>146</i>&nbsp;            throw new ElasticsearchParseException(&quot;Failed to parse content to map&quot;, e);</b>
+<i>147</i>&nbsp;        }
+<i>148</i>&nbsp;    }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    @Deprecated
+<i>151</i>&nbsp;    public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
+<b class="nc"><i>152</i>&nbsp;        return convertToJson(bytes, reformatJson, false);</b>
+<i>153</i>&nbsp;    }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    @Deprecated
+<i>156</i>&nbsp;    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
+<b class="nc"><i>157</i>&nbsp;        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));</b>
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;    public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
+<b class="nc"><i>161</i>&nbsp;        return convertToJson(bytes, reformatJson, false, xContentType);</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
+<i>165</i>&nbsp;        throws IOException {
+<b class="nc"><i>166</i>&nbsp;        Objects.requireNonNull(xContentType);</b>
+<b class="nc"><i>167</i>&nbsp;        if (xContentType == XContentType.JSON &amp;&amp; !reformatJson) {</b>
+<b class="nc"><i>168</i>&nbsp;            return bytes.utf8ToString();</b>
+<i>169</i>&nbsp;        }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        // It is safe to use EMPTY here because this never uses namedObject
+<b class="nc"><i>172</i>&nbsp;        try (InputStream stream = bytes.streamInput();</b>
+<b class="nc"><i>173</i>&nbsp;             XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,</b>
+<i>174</i>&nbsp;                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+<b class="nc"><i>175</i>&nbsp;            parser.nextToken();</b>
+<b class="nc"><i>176</i>&nbsp;            XContentBuilder builder = XContentFactory.jsonBuilder();</b>
+<b class="nc"><i>177</i>&nbsp;            if (prettyPrint) {</b>
+<b class="nc"><i>178</i>&nbsp;                builder.prettyPrint();</b>
+<i>179</i>&nbsp;            }
+<b class="nc"><i>180</i>&nbsp;            builder.copyCurrentStructure(parser);</b>
+<b class="nc"><i>181</i>&nbsp;            return Strings.toString(builder);</b>
+<b class="nc"><i>182</i>&nbsp;        }</b>
+<i>183</i>&nbsp;    }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    /**
+<i>186</i>&nbsp;     * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
+<i>187</i>&nbsp;     * unless both are Maps, in which case it recursively updated it.
+<i>188</i>&nbsp;     *
+<i>189</i>&nbsp;     * @param source                 the original map to be updated
+<i>190</i>&nbsp;     * @param changes                the changes to update into updated
+<i>191</i>&nbsp;     * @param checkUpdatesAreUnequal should this method check if updates to the same key (that are not both maps) are
+<i>192</i>&nbsp;     *                               unequal?  This is just a .equals check on the objects, but that can take some time on long strings.
+<i>193</i>&nbsp;     * @return true if the source map was modified
+<i>194</i>&nbsp;     */
+<i>195</i>&nbsp;    public static boolean update(Map&lt;String, Object&gt; source, Map&lt;String, Object&gt; changes, boolean checkUpdatesAreUnequal) {
+<b class="nc"><i>196</i>&nbsp;        boolean modified = false;</b>
+<b class="nc"><i>197</i>&nbsp;        for (Map.Entry&lt;String, Object&gt; changesEntry : changes.entrySet()) {</b>
+<b class="nc"><i>198</i>&nbsp;            if (!source.containsKey(changesEntry.getKey())) {</b>
+<i>199</i>&nbsp;                // safe to copy, change does not exist in source
+<b class="nc"><i>200</i>&nbsp;                source.put(changesEntry.getKey(), changesEntry.getValue());</b>
+<b class="nc"><i>201</i>&nbsp;                modified = true;</b>
+<b class="nc"><i>202</i>&nbsp;                continue;</b>
+<i>203</i>&nbsp;            }
+<b class="nc"><i>204</i>&nbsp;            Object old = source.get(changesEntry.getKey());</b>
+<b class="nc"><i>205</i>&nbsp;            if (old instanceof Map &amp;&amp; changesEntry.getValue() instanceof Map) {</b>
+<i>206</i>&nbsp;                // recursive merge maps
+<b class="nc"><i>207</i>&nbsp;                modified |= update((Map&lt;String, Object&gt;) source.get(changesEntry.getKey()),</b>
+<b class="nc"><i>208</i>&nbsp;                        (Map&lt;String, Object&gt;) changesEntry.getValue(), checkUpdatesAreUnequal &amp;&amp; !modified);</b>
+<b class="nc"><i>209</i>&nbsp;                continue;</b>
+<i>210</i>&nbsp;            }
+<i>211</i>&nbsp;            // update the field
+<b class="nc"><i>212</i>&nbsp;            source.put(changesEntry.getKey(), changesEntry.getValue());</b>
+<b class="nc"><i>213</i>&nbsp;            if (modified) {</b>
+<b class="nc"><i>214</i>&nbsp;                continue;</b>
+<i>215</i>&nbsp;            }
+<b class="nc"><i>216</i>&nbsp;            if (!checkUpdatesAreUnequal) {</b>
+<b class="nc"><i>217</i>&nbsp;                modified = true;</b>
+<b class="nc"><i>218</i>&nbsp;                continue;</b>
+<i>219</i>&nbsp;            }
+<b class="nc"><i>220</i>&nbsp;            modified = !Objects.equals(old, changesEntry.getValue());</b>
+<b class="nc"><i>221</i>&nbsp;        }</b>
+<b class="nc"><i>222</i>&nbsp;        return modified;</b>
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    /**
+<i>226</i>&nbsp;     * Merges the defaults provided as the second parameter into the content of the first. Only does recursive merge
+<i>227</i>&nbsp;     * for inner maps.
+<i>228</i>&nbsp;     */
+<i>229</i>&nbsp;    public static void mergeDefaults(Map&lt;String, Object&gt; content, Map&lt;String, Object&gt; defaults) {
+<b class="fc"><i>230</i>&nbsp;        for (Map.Entry&lt;String, Object&gt; defaultEntry : defaults.entrySet()) {</b>
+<b class="nc"><i>231</i>&nbsp;            if (!content.containsKey(defaultEntry.getKey())) {</b>
+<i>232</i>&nbsp;                // copy it over, it does not exists in the content
+<b class="nc"><i>233</i>&nbsp;                content.put(defaultEntry.getKey(), defaultEntry.getValue());</b>
+<i>234</i>&nbsp;            } else {
+<i>235</i>&nbsp;                // in the content and in the default, only merge compound ones (maps)
+<b class="nc"><i>236</i>&nbsp;                if (content.get(defaultEntry.getKey()) instanceof Map &amp;&amp; defaultEntry.getValue() instanceof Map) {</b>
+<b class="nc"><i>237</i>&nbsp;                    mergeDefaults((Map&lt;String, Object&gt;) content.get(defaultEntry.getKey()), (Map&lt;String, Object&gt;) defaultEntry.getValue());</b>
+<b class="nc"><i>238</i>&nbsp;                } else if (content.get(defaultEntry.getKey()) instanceof List &amp;&amp; defaultEntry.getValue() instanceof List) {</b>
+<b class="nc"><i>239</i>&nbsp;                    List defaultList = (List) defaultEntry.getValue();</b>
+<b class="nc"><i>240</i>&nbsp;                    List contentList = (List) content.get(defaultEntry.getKey());</b>
+<i>241</i>&nbsp;
+<b class="nc"><i>242</i>&nbsp;                    List mergedList = new ArrayList();</b>
+<b class="nc"><i>243</i>&nbsp;                    if (allListValuesAreMapsOfOne(defaultList) &amp;&amp; allListValuesAreMapsOfOne(contentList)) {</b>
+<i>244</i>&nbsp;                        // all are in the form of [ {&quot;key1&quot; : {}}, {&quot;key2&quot; : {}} ], merge based on keys
+<b class="nc"><i>245</i>&nbsp;                        Map&lt;String, Map&lt;String, Object&gt;&gt; processed = new LinkedHashMap&lt;&gt;();</b>
+<b class="nc"><i>246</i>&nbsp;                        for (Object o : contentList) {</b>
+<b class="nc"><i>247</i>&nbsp;                            Map&lt;String, Object&gt; map = (Map&lt;String, Object&gt;) o;</b>
+<b class="nc"><i>248</i>&nbsp;                            Map.Entry&lt;String, Object&gt; entry = map.entrySet().iterator().next();</b>
+<b class="nc"><i>249</i>&nbsp;                            processed.put(entry.getKey(), map);</b>
+<b class="nc"><i>250</i>&nbsp;                        }</b>
+<b class="nc"><i>251</i>&nbsp;                        for (Object o : defaultList) {</b>
+<b class="nc"><i>252</i>&nbsp;                            Map&lt;String, Object&gt; map = (Map&lt;String, Object&gt;) o;</b>
+<b class="nc"><i>253</i>&nbsp;                            Map.Entry&lt;String, Object&gt; entry = map.entrySet().iterator().next();</b>
+<b class="nc"><i>254</i>&nbsp;                            if (processed.containsKey(entry.getKey())) {</b>
+<b class="nc"><i>255</i>&nbsp;                                mergeDefaults(processed.get(entry.getKey()), map);</b>
+<i>256</i>&nbsp;                            } else {
+<i>257</i>&nbsp;                                // put the default entries after the content ones.
+<b class="nc"><i>258</i>&nbsp;                                processed.put(entry.getKey(), map);</b>
+<i>259</i>&nbsp;                            }
+<b class="nc"><i>260</i>&nbsp;                        }</b>
+<b class="nc"><i>261</i>&nbsp;                        for (Map&lt;String, Object&gt; map : processed.values()) {</b>
+<b class="nc"><i>262</i>&nbsp;                            mergedList.add(map);</b>
+<b class="nc"><i>263</i>&nbsp;                        }</b>
+<b class="nc"><i>264</i>&nbsp;                    } else {</b>
+<i>265</i>&nbsp;                        // if both are lists, simply combine them, first the defaults, then the content
+<i>266</i>&nbsp;                        // just make sure not to add the same value twice
+<b class="nc"><i>267</i>&nbsp;                        mergedList.addAll(defaultList);</b>
+<b class="nc"><i>268</i>&nbsp;                        for (Object o : contentList) {</b>
+<b class="nc"><i>269</i>&nbsp;                            if (!mergedList.contains(o)) {</b>
+<b class="nc"><i>270</i>&nbsp;                                mergedList.add(o);</b>
+<i>271</i>&nbsp;                            }
+<b class="nc"><i>272</i>&nbsp;                        }</b>
+<i>273</i>&nbsp;                    }
+<b class="nc"><i>274</i>&nbsp;                    content.put(defaultEntry.getKey(), mergedList);</b>
+<i>275</i>&nbsp;                }
+<i>276</i>&nbsp;            }
+<b class="nc"><i>277</i>&nbsp;        }</b>
+<b class="fc"><i>278</i>&nbsp;    }</b>
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    private static boolean allListValuesAreMapsOfOne(List list) {
+<b class="nc"><i>281</i>&nbsp;        for (Object o : list) {</b>
+<b class="nc"><i>282</i>&nbsp;            if (!(o instanceof Map)) {</b>
+<b class="nc"><i>283</i>&nbsp;                return false;</b>
+<i>284</i>&nbsp;            }
+<b class="nc"><i>285</i>&nbsp;            if (((Map) o).size() != 1) {</b>
+<b class="nc"><i>286</i>&nbsp;                return false;</b>
+<i>287</i>&nbsp;            }
+<b class="nc"><i>288</i>&nbsp;        }</b>
+<b class="nc"><i>289</i>&nbsp;        return true;</b>
+<i>290</i>&nbsp;    }
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;    /**
+<i>293</i>&nbsp;     * Writes a &quot;raw&quot; (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
+<i>294</i>&nbsp;     * {@link XContentBuilder#rawField(String, InputStream)}.
+<i>295</i>&nbsp;     * @deprecated use {@link #writeRawField(String, BytesReference, XContentType, XContentBuilder, Params)} to avoid content type
+<i>296</i>&nbsp;     * auto-detection
+<i>297</i>&nbsp;     */
+<i>298</i>&nbsp;    @Deprecated
+<i>299</i>&nbsp;    public static void writeRawField(String field, BytesReference source, XContentBuilder builder,
+<i>300</i>&nbsp;                                     ToXContent.Params params) throws IOException {
+<b class="nc"><i>301</i>&nbsp;        Compressor compressor = CompressorFactory.compressor(source);</b>
+<b class="nc"><i>302</i>&nbsp;        if (compressor != null) {</b>
+<b class="nc"><i>303</i>&nbsp;            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {</b>
+<b class="nc"><i>304</i>&nbsp;                builder.rawField(field, compressedStreamInput);</b>
+<b class="nc"><i>305</i>&nbsp;            }</b>
+<i>306</i>&nbsp;        } else {
+<b class="nc"><i>307</i>&nbsp;            try (InputStream stream = source.streamInput()) {</b>
+<b class="nc"><i>308</i>&nbsp;                builder.rawField(field, stream);</b>
+<b class="nc"><i>309</i>&nbsp;            }</b>
+<i>310</i>&nbsp;        }
+<b class="nc"><i>311</i>&nbsp;    }</b>
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;    /**
+<i>314</i>&nbsp;     * Writes a &quot;raw&quot; (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
+<i>315</i>&nbsp;     * {@link XContentBuilder#rawField(String, InputStream, XContentType)}.
+<i>316</i>&nbsp;     */
+<i>317</i>&nbsp;    public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder,
+<i>318</i>&nbsp;                                     ToXContent.Params params) throws IOException {
+<b class="nc"><i>319</i>&nbsp;        Objects.requireNonNull(xContentType);</b>
+<b class="nc"><i>320</i>&nbsp;        Compressor compressor = CompressorFactory.compressor(source);</b>
+<b class="nc"><i>321</i>&nbsp;        if (compressor != null) {</b>
+<b class="nc"><i>322</i>&nbsp;            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {</b>
+<b class="nc"><i>323</i>&nbsp;                builder.rawField(field, compressedStreamInput, xContentType);</b>
+<b class="nc"><i>324</i>&nbsp;            }</b>
+<i>325</i>&nbsp;        } else {
+<b class="nc"><i>326</i>&nbsp;            try (InputStream stream = source.streamInput()) {</b>
+<b class="nc"><i>327</i>&nbsp;                builder.rawField(field, stream, xContentType);</b>
+<b class="nc"><i>328</i>&nbsp;            }</b>
+<i>329</i>&nbsp;        }
+<b class="nc"><i>330</i>&nbsp;    }</b>
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    /**
+<i>333</i>&nbsp;     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+<i>334</i>&nbsp;     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+<i>335</i>&nbsp;     * by the {@link ToXContent#isFragment()} method returns.
+<i>336</i>&nbsp;     */
+<i>337</i>&nbsp;    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
+<b class="fc"><i>338</i>&nbsp;        return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);</b>
+<i>339</i>&nbsp;    }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;    /**
+<i>342</i>&nbsp;     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+<i>343</i>&nbsp;     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+<i>344</i>&nbsp;     * by the {@link ToXContent#isFragment()} method returns.
+<i>345</i>&nbsp;     */
+<i>346</i>&nbsp;    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params,
+<i>347</i>&nbsp;                                            boolean humanReadable) throws IOException {
+<b class="fc"><i>348</i>&nbsp;        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {</b>
+<b class="fc"><i>349</i>&nbsp;            builder.humanReadable(humanReadable);</b>
+<b class="fc"><i>350</i>&nbsp;            if (toXContent.isFragment()) {</b>
+<b class="fc"><i>351</i>&nbsp;                builder.startObject();</b>
+<i>352</i>&nbsp;            }
+<b class="fc"><i>353</i>&nbsp;            toXContent.toXContent(builder, params);</b>
+<b class="fc"><i>354</i>&nbsp;            if (toXContent.isFragment()) {</b>
+<b class="fc"><i>355</i>&nbsp;                builder.endObject();</b>
+<i>356</i>&nbsp;            }
+<b class="fc"><i>357</i>&nbsp;            return BytesReference.bytes(builder);</b>
+<b class="fc"><i>358</i>&nbsp;        }</b>
+<i>359</i>&nbsp;    }
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;    /**
+<i>362</i>&nbsp;     * Guesses the content type based on the provided bytes.
+<i>363</i>&nbsp;     *
+<i>364</i>&nbsp;     * @deprecated the content type should not be guessed except for few cases where we effectively don&#39;t know the content type.
+<i>365</i>&nbsp;     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+<i>366</i>&nbsp;     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+<i>367</i>&nbsp;     */
+<i>368</i>&nbsp;    @Deprecated
+<i>369</i>&nbsp;    public static XContentType xContentType(BytesReference bytes) {
+<b class="fc"><i>370</i>&nbsp;        BytesRef br = bytes.toBytesRef();</b>
+<b class="fc"><i>371</i>&nbsp;        return XContentFactory.xContentType(br.bytes, br.offset, br.length);</b>
+<i>372</i>&nbsp;    }
+<i>373</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

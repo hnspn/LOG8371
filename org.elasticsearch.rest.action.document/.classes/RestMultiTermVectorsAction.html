@@ -1,0 +1,164 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestMultiTermVectorsAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.document</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestMultiTermVectorsAction (org.elasticsearch.rest.action.document)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestMultiTermVectorsAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (2/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    45.5%
+  </span>
+  <span class="absValue">
+    (10/ 22)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.document;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+<i>24</i>&nbsp;import org.elasticsearch.action.termvectors.TermVectorsRequest;
+<i>25</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>26</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>27</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>28</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>29</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>30</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>31</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>32</i>&nbsp;import org.elasticsearch.rest.action.RestToXContentListener;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import java.io.IOException;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>37</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.POST;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;public class RestMultiTermVectorsAction extends BaseRestHandler {
+<b class="fc"><i>40</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(</b>
+<b class="fc"><i>41</i>&nbsp;        LogManager.getLogger(RestTermVectorsAction.class));</b>
+<i>42</i>&nbsp;    static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal] &quot; +
+<i>43</i>&nbsp;        &quot;Specifying types in multi term vector requests is deprecated.&quot;;
+<i>44</i>&nbsp;
+<b class="fc"><i>45</i>&nbsp;    public RestMultiTermVectorsAction(RestController controller) {</b>
+<b class="fc"><i>46</i>&nbsp;        controller.registerHandler(GET, &quot;/_mtermvectors&quot;, this);</b>
+<b class="fc"><i>47</i>&nbsp;        controller.registerHandler(POST, &quot;/_mtermvectors&quot;, this);</b>
+<b class="fc"><i>48</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/_mtermvectors&quot;, this);</b>
+<b class="fc"><i>49</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/_mtermvectors&quot;, this);</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;        // Deprecated typed endpoints.
+<b class="fc"><i>52</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/{type}/_mtermvectors&quot;, this);</b>
+<b class="fc"><i>53</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/{type}/_mtermvectors&quot;, this);</b>
+<b class="fc"><i>54</i>&nbsp;    }</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    @Override
+<i>57</i>&nbsp;    public String getName() {
+<b class="nc"><i>58</i>&nbsp;        return &quot;document_multi_term_vectors_action&quot;;</b>
+<i>59</i>&nbsp;    }
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    @Override
+<i>62</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<b class="nc"><i>63</i>&nbsp;        MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();</b>
+<b class="nc"><i>64</i>&nbsp;        TermVectorsRequest template = new TermVectorsRequest()</b>
+<b class="nc"><i>65</i>&nbsp;            .index(request.param(&quot;index&quot;));</b>
+<i>66</i>&nbsp;
+<b class="nc"><i>67</i>&nbsp;        if (request.hasParam(&quot;type&quot;)) {</b>
+<b class="nc"><i>68</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;mtermvectors_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<b class="nc"><i>69</i>&nbsp;            template.type(request.param(&quot;type&quot;));</b>
+<i>70</i>&nbsp;        } else {
+<b class="nc"><i>71</i>&nbsp;            template.type(MapperService.SINGLE_MAPPING_NAME);</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;
+<b class="nc"><i>74</i>&nbsp;        RestTermVectorsAction.readURIParameters(template, request);</b>
+<b class="nc"><i>75</i>&nbsp;        multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param(&quot;ids&quot;)));</b>
+<b class="nc"><i>76</i>&nbsp;        request.withContentOrSourceParamParserOrNull(p -&gt; multiTermVectorsRequest.add(template, p));</b>
+<i>77</i>&nbsp;
+<b class="nc"><i>78</i>&nbsp;        return channel -&gt; client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener&lt;&gt;(channel));</b>
+<i>79</i>&nbsp;    }
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,831 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MoreTypes</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.inject.internal</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MoreTypes (org.elasticsearch.common.inject.internal)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MoreTypes</td>
+<td class="coverageStat">
+  <span class="percent">
+    78.9%
+  </span>
+  <span class="absValue">
+    (15/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41%
+  </span>
+  <span class="absValue">
+    (82/ 200)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">MoreTypes$CompositeType</td>
+  </tr>
+  <tr>
+    <td class="name">MoreTypes$GenericArrayTypeImpl</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">MoreTypes$ParameterizedTypeImpl</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (6/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    73.3%
+  </span>
+  <span class="absValue">
+    (22/ 30)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">MoreTypes$WildcardTypeImpl</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 25)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    52.5%
+  </span>
+  <span class="absValue">
+    (21/ 40)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    39.4%
+  </span>
+  <span class="absValue">
+    (104/ 264)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Copyright (C) 2008 Google Inc.
+<i>3</i>&nbsp; *
+<i>4</i>&nbsp; * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<i>5</i>&nbsp; * you may not use this file except in compliance with the License.
+<i>6</i>&nbsp; * You may obtain a copy of the License at
+<i>7</i>&nbsp; *
+<i>8</i>&nbsp; * http://www.apache.org/licenses/LICENSE-2.0
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; * Unless required by applicable law or agreed to in writing, software
+<i>11</i>&nbsp; * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<i>12</i>&nbsp; * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<i>13</i>&nbsp; * See the License for the specific language governing permissions and
+<i>14</i>&nbsp; * limitations under the License.
+<i>15</i>&nbsp; */
+<i>16</i>&nbsp;
+<i>17</i>&nbsp;
+<i>18</i>&nbsp;package org.elasticsearch.common.inject.internal;
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;import org.elasticsearch.common.inject.ConfigurationException;
+<i>21</i>&nbsp;import org.elasticsearch.common.inject.TypeLiteral;
+<i>22</i>&nbsp;import org.elasticsearch.common.inject.spi.Message;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.lang.reflect.Constructor;
+<i>25</i>&nbsp;import java.lang.reflect.Field;
+<i>26</i>&nbsp;import java.lang.reflect.GenericArrayType;
+<i>27</i>&nbsp;import java.lang.reflect.GenericDeclaration;
+<i>28</i>&nbsp;import java.lang.reflect.Member;
+<i>29</i>&nbsp;import java.lang.reflect.Method;
+<i>30</i>&nbsp;import java.lang.reflect.ParameterizedType;
+<i>31</i>&nbsp;import java.lang.reflect.Type;
+<i>32</i>&nbsp;import java.lang.reflect.TypeVariable;
+<i>33</i>&nbsp;import java.lang.reflect.WildcardType;
+<i>34</i>&nbsp;import java.util.Arrays;
+<i>35</i>&nbsp;import java.util.HashMap;
+<i>36</i>&nbsp;import java.util.Map;
+<i>37</i>&nbsp;import java.util.NoSuchElementException;
+<i>38</i>&nbsp;import java.util.Objects;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import static java.util.Collections.singleton;
+<i>41</i>&nbsp;import static java.util.Collections.unmodifiableMap;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;/**
+<i>44</i>&nbsp; * Static methods for working with types that we aren&#39;t publishing in the
+<i>45</i>&nbsp; * public {@code Types} API.
+<i>46</i>&nbsp; *
+<i>47</i>&nbsp; * @author jessewilson@google.com (Jesse Wilson)
+<i>48</i>&nbsp; */
+<b class="fc"><i>49</i>&nbsp;public class MoreTypes {</b>
+<i>50</i>&nbsp;
+<b class="fc"><i>51</i>&nbsp;    public static final Type[] EMPTY_TYPE_ARRAY = new Type[]{};</b>
+<i>52</i>&nbsp;
+<b class="nc"><i>53</i>&nbsp;    private MoreTypes() {</b>
+<b class="nc"><i>54</i>&nbsp;    }</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private static final Map&lt;TypeLiteral&lt;?&gt;, TypeLiteral&lt;?&gt;&gt; PRIMITIVE_TO_WRAPPER;
+<i>57</i>&nbsp;    static {
+<b class="fc"><i>58</i>&nbsp;        Map&lt;TypeLiteral&lt;?&gt;, TypeLiteral&lt;?&gt;&gt; primitiveToWrapper = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>59</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class));</b>
+<b class="fc"><i>60</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class));</b>
+<b class="fc"><i>61</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(short.class), TypeLiteral.get(Short.class));</b>
+<b class="fc"><i>62</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(int.class), TypeLiteral.get(Integer.class));</b>
+<b class="fc"><i>63</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(long.class), TypeLiteral.get(Long.class));</b>
+<b class="fc"><i>64</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(float.class), TypeLiteral.get(Float.class));</b>
+<b class="fc"><i>65</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(double.class), TypeLiteral.get(Double.class));</b>
+<b class="fc"><i>66</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class));</b>
+<b class="fc"><i>67</i>&nbsp;        primitiveToWrapper.put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class));</b>
+<b class="fc"><i>68</i>&nbsp;        PRIMITIVE_TO_WRAPPER = unmodifiableMap(primitiveToWrapper);</b>
+<b class="fc"><i>69</i>&nbsp;    }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    /**
+<i>72</i>&nbsp;     * Returns an equivalent type that&#39;s safe for use in a key. The returned type will be free of
+<i>73</i>&nbsp;     * primitive types. Type literals of primitives will return the corresponding wrapper types.
+<i>74</i>&nbsp;     *
+<i>75</i>&nbsp;     * @throws ConfigurationException if {@code type} contains a type variable
+<i>76</i>&nbsp;     */
+<i>77</i>&nbsp;    public static &lt;T&gt; TypeLiteral&lt;T&gt; makeKeySafe(TypeLiteral&lt;T&gt; type) {
+<b class="fc"><i>78</i>&nbsp;        if (!isFullySpecified(type.getType())) {</b>
+<b class="nc"><i>79</i>&nbsp;            String message = type + &quot; cannot be used as a key; It is not fully specified.&quot;;</b>
+<b class="nc"><i>80</i>&nbsp;            throw new ConfigurationException(singleton(new Message(message)));</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<b class="fc"><i>84</i>&nbsp;        TypeLiteral&lt;T&gt; wrappedPrimitives = (TypeLiteral&lt;T&gt;) PRIMITIVE_TO_WRAPPER.get(type);</b>
+<b class="fc"><i>85</i>&nbsp;        return wrappedPrimitives != null</b>
+<b class="nc"><i>86</i>&nbsp;                ? wrappedPrimitives</b>
+<b class="fc"><i>87</i>&nbsp;                : type;</b>
+<i>88</i>&nbsp;    }
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    /**
+<i>91</i>&nbsp;     * Returns true if {@code type} is free from type variables.
+<i>92</i>&nbsp;     */
+<i>93</i>&nbsp;    private static boolean isFullySpecified(Type type) {
+<b class="fc"><i>94</i>&nbsp;        if (type instanceof Class) {</b>
+<b class="fc"><i>95</i>&nbsp;            return true;</b>
+<i>96</i>&nbsp;
+<b class="fc"><i>97</i>&nbsp;        } else if (type instanceof CompositeType) {</b>
+<b class="fc"><i>98</i>&nbsp;            return ((CompositeType) type).isFullySpecified();</b>
+<i>99</i>&nbsp;
+<b class="nc"><i>100</i>&nbsp;        } else if (type instanceof TypeVariable) {</b>
+<b class="nc"><i>101</i>&nbsp;            return false;</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;        } else {
+<b class="nc"><i>104</i>&nbsp;            return ((CompositeType) canonicalize(type)).isFullySpecified();</b>
+<i>105</i>&nbsp;        }
+<i>106</i>&nbsp;    }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    /**
+<i>109</i>&nbsp;     * Returns a type that is functionally equal but not necessarily equal
+<i>110</i>&nbsp;     * according to {@link Object#equals(Object) Object.equals()}.
+<i>111</i>&nbsp;     */
+<i>112</i>&nbsp;    public static Type canonicalize(Type type) {
+<b class="fc"><i>113</i>&nbsp;        if (type instanceof ParameterizedTypeImpl</b>
+<i>114</i>&nbsp;                || type instanceof GenericArrayTypeImpl
+<i>115</i>&nbsp;                || type instanceof WildcardTypeImpl) {
+<b class="fc"><i>116</i>&nbsp;            return type;</b>
+<i>117</i>&nbsp;
+<b class="fc"><i>118</i>&nbsp;        } else if (type instanceof ParameterizedType) {</b>
+<b class="fc"><i>119</i>&nbsp;            ParameterizedType p = (ParameterizedType) type;</b>
+<b class="fc"><i>120</i>&nbsp;            return new ParameterizedTypeImpl(p.getOwnerType(),</b>
+<b class="fc"><i>121</i>&nbsp;                    p.getRawType(), p.getActualTypeArguments());</b>
+<i>122</i>&nbsp;
+<b class="fc"><i>123</i>&nbsp;        } else if (type instanceof GenericArrayType) {</b>
+<b class="nc"><i>124</i>&nbsp;            GenericArrayType g = (GenericArrayType) type;</b>
+<b class="nc"><i>125</i>&nbsp;            return new GenericArrayTypeImpl(g.getGenericComponentType());</b>
+<i>126</i>&nbsp;
+<b class="fc"><i>127</i>&nbsp;        } else if (type instanceof Class &amp;&amp; ((Class&lt;?&gt;) type).isArray()) {</b>
+<b class="nc"><i>128</i>&nbsp;            Class&lt;?&gt; c = (Class&lt;?&gt;) type;</b>
+<b class="nc"><i>129</i>&nbsp;            return new GenericArrayTypeImpl(c.getComponentType());</b>
+<i>130</i>&nbsp;
+<b class="fc"><i>131</i>&nbsp;        } else if (type instanceof WildcardType) {</b>
+<b class="nc"><i>132</i>&nbsp;            WildcardType w = (WildcardType) type;</b>
+<b class="nc"><i>133</i>&nbsp;            return new WildcardTypeImpl(w.getUpperBounds(), w.getLowerBounds());</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        } else {
+<i>136</i>&nbsp;            // type is either serializable as-is or unsupported
+<b class="fc"><i>137</i>&nbsp;            return type;</b>
+<i>138</i>&nbsp;        }
+<i>139</i>&nbsp;    }
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    public static Class&lt;?&gt; getRawType(Type type) {
+<b class="fc"><i>142</i>&nbsp;        if (type instanceof Class&lt;?&gt;) {</b>
+<i>143</i>&nbsp;            // type is a normal class.
+<b class="fc"><i>144</i>&nbsp;            return (Class&lt;?&gt;) type;</b>
+<i>145</i>&nbsp;
+<b class="fc"><i>146</i>&nbsp;        } else if (type instanceof ParameterizedType) {</b>
+<b class="fc"><i>147</i>&nbsp;            ParameterizedType parameterizedType = (ParameterizedType) type;</b>
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;            // I&#39;m not exactly sure why getRawType() returns Type instead of Class.
+<i>150</i>&nbsp;            // Neal isn&#39;t either but suspects some pathological case related
+<i>151</i>&nbsp;            // to nested classes exists.
+<b class="fc"><i>152</i>&nbsp;            Type rawType = parameterizedType.getRawType();</b>
+<b class="fc"><i>153</i>&nbsp;            if (!(rawType instanceof Class)) {</b>
+<b class="nc"><i>154</i>&nbsp;                throw new IllegalArgumentException(</b>
+<b class="nc"><i>155</i>&nbsp;                        &quot;Expected a Class, but &lt;&quot; + type +&quot;&gt; is of type &quot; + type.getClass().getName()</b>
+<i>156</i>&nbsp;                );
+<i>157</i>&nbsp;            }
+<b class="fc"><i>158</i>&nbsp;            return (Class&lt;?&gt;) rawType;</b>
+<i>159</i>&nbsp;
+<b class="nc"><i>160</i>&nbsp;        } else if (type instanceof GenericArrayType) {</b>
+<i>161</i>&nbsp;            // TODO: Is this sufficient?
+<b class="nc"><i>162</i>&nbsp;            return Object[].class;</b>
+<i>163</i>&nbsp;
+<b class="nc"><i>164</i>&nbsp;        } else if (type instanceof TypeVariable) {</b>
+<i>165</i>&nbsp;            // we could use the variable&#39;s bounds, but that&#39;ll won&#39;t work if there are multiple.
+<i>166</i>&nbsp;            // having a raw type that&#39;s more general than necessary is okay
+<b class="nc"><i>167</i>&nbsp;            return Object.class;</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;        } else {
+<b class="nc"><i>170</i>&nbsp;            throw new IllegalArgumentException(&quot;Expected a Class, ParameterizedType, or &quot;</b>
+<b class="nc"><i>171</i>&nbsp;                    + &quot;GenericArrayType, but &lt;&quot; + type + &quot;&gt; is of type &quot; + type.getClass().getName());</b>
+<i>172</i>&nbsp;        }
+<i>173</i>&nbsp;    }
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;    /**
+<i>176</i>&nbsp;     * Returns true if {@code a} and {@code b} are equal.
+<i>177</i>&nbsp;     */
+<i>178</i>&nbsp;    public static boolean equals(Type a, Type b) {
+<b class="fc"><i>179</i>&nbsp;        if (a == b) {</b>
+<i>180</i>&nbsp;            // also handles (a == null &amp;&amp; b == null)
+<b class="fc"><i>181</i>&nbsp;            return true;</b>
+<i>182</i>&nbsp;
+<b class="fc"><i>183</i>&nbsp;        } else if (a instanceof Class) {</b>
+<i>184</i>&nbsp;            // Class already specifies equals().
+<b class="nc"><i>185</i>&nbsp;            return a.equals(b);</b>
+<i>186</i>&nbsp;
+<b class="fc"><i>187</i>&nbsp;        } else if (a instanceof ParameterizedType) {</b>
+<b class="fc"><i>188</i>&nbsp;            if (!(b instanceof ParameterizedType)) {</b>
+<b class="nc"><i>189</i>&nbsp;                return false;</b>
+<i>190</i>&nbsp;            }
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;            // TODO: save a .clone() call
+<b class="fc"><i>193</i>&nbsp;            ParameterizedType pa = (ParameterizedType) a;</b>
+<b class="fc"><i>194</i>&nbsp;            ParameterizedType pb = (ParameterizedType) b;</b>
+<b class="fc"><i>195</i>&nbsp;            return Objects.equals(pa.getOwnerType(), pb.getOwnerType())</b>
+<b class="fc"><i>196</i>&nbsp;                    &amp;&amp; pa.getRawType().equals(pb.getRawType())</b>
+<b class="fc"><i>197</i>&nbsp;                    &amp;&amp; Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());</b>
+<i>198</i>&nbsp;
+<b class="nc"><i>199</i>&nbsp;        } else if (a instanceof GenericArrayType) {</b>
+<b class="nc"><i>200</i>&nbsp;            if (!(b instanceof GenericArrayType)) {</b>
+<b class="nc"><i>201</i>&nbsp;                return false;</b>
+<i>202</i>&nbsp;            }
+<i>203</i>&nbsp;
+<b class="nc"><i>204</i>&nbsp;            GenericArrayType ga = (GenericArrayType) a;</b>
+<b class="nc"><i>205</i>&nbsp;            GenericArrayType gb = (GenericArrayType) b;</b>
+<b class="nc"><i>206</i>&nbsp;            return equals(ga.getGenericComponentType(), gb.getGenericComponentType());</b>
+<i>207</i>&nbsp;
+<b class="nc"><i>208</i>&nbsp;        } else if (a instanceof WildcardType) {</b>
+<b class="nc"><i>209</i>&nbsp;            if (!(b instanceof WildcardType)) {</b>
+<b class="nc"><i>210</i>&nbsp;                return false;</b>
+<i>211</i>&nbsp;            }
+<i>212</i>&nbsp;
+<b class="nc"><i>213</i>&nbsp;            WildcardType wa = (WildcardType) a;</b>
+<b class="nc"><i>214</i>&nbsp;            WildcardType wb = (WildcardType) b;</b>
+<b class="nc"><i>215</i>&nbsp;            return Arrays.equals(wa.getUpperBounds(), wb.getUpperBounds())</b>
+<b class="nc"><i>216</i>&nbsp;                    &amp;&amp; Arrays.equals(wa.getLowerBounds(), wb.getLowerBounds());</b>
+<i>217</i>&nbsp;
+<b class="nc"><i>218</i>&nbsp;        } else if (a instanceof TypeVariable) {</b>
+<b class="nc"><i>219</i>&nbsp;            if (!(b instanceof TypeVariable)) {</b>
+<b class="nc"><i>220</i>&nbsp;                return false;</b>
+<i>221</i>&nbsp;            }
+<b class="nc"><i>222</i>&nbsp;            TypeVariable&lt;?&gt; va = (TypeVariable) a;</b>
+<b class="nc"><i>223</i>&nbsp;            TypeVariable&lt;?&gt; vb = (TypeVariable) b;</b>
+<b class="nc"><i>224</i>&nbsp;            return va.getGenericDeclaration() == vb.getGenericDeclaration()</b>
+<b class="nc"><i>225</i>&nbsp;                    &amp;&amp; va.getName().equals(vb.getName());</b>
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;        } else {
+<i>228</i>&nbsp;            // This isn&#39;t a type we support. Could be a generic array type, wildcard type, etc.
+<b class="nc"><i>229</i>&nbsp;            return false;</b>
+<i>230</i>&nbsp;        }
+<i>231</i>&nbsp;    }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    /**
+<i>234</i>&nbsp;     * Returns the hashCode of {@code type}.
+<i>235</i>&nbsp;     */
+<i>236</i>&nbsp;    public static int hashCode(Type type) {
+<b class="fc"><i>237</i>&nbsp;        if (type instanceof Class) {</b>
+<i>238</i>&nbsp;            // Class specifies hashCode().
+<b class="fc"><i>239</i>&nbsp;            return type.hashCode();</b>
+<i>240</i>&nbsp;
+<b class="fc"><i>241</i>&nbsp;        } else if (type instanceof ParameterizedType) {</b>
+<b class="fc"><i>242</i>&nbsp;            ParameterizedType p = (ParameterizedType) type;</b>
+<b class="fc"><i>243</i>&nbsp;            return Arrays.hashCode(p.getActualTypeArguments())</b>
+<b class="fc"><i>244</i>&nbsp;                    ^ p.getRawType().hashCode()</b>
+<b class="fc"><i>245</i>&nbsp;                    ^ hashCodeOrZero(p.getOwnerType());</b>
+<i>246</i>&nbsp;
+<b class="nc"><i>247</i>&nbsp;        } else if (type instanceof GenericArrayType) {</b>
+<b class="nc"><i>248</i>&nbsp;            return hashCode(((GenericArrayType) type).getGenericComponentType());</b>
+<i>249</i>&nbsp;
+<b class="nc"><i>250</i>&nbsp;        } else if (type instanceof WildcardType) {</b>
+<b class="nc"><i>251</i>&nbsp;            WildcardType w = (WildcardType) type;</b>
+<b class="nc"><i>252</i>&nbsp;            return Arrays.hashCode(w.getLowerBounds()) ^ Arrays.hashCode(w.getUpperBounds());</b>
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;        } else {
+<i>255</i>&nbsp;            // This isn&#39;t a type we support. Probably a type variable
+<b class="nc"><i>256</i>&nbsp;            return hashCodeOrZero(type);</b>
+<i>257</i>&nbsp;        }
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    private static int hashCodeOrZero(Object o) {
+<b class="fc"><i>261</i>&nbsp;        return o != null ? o.hashCode() : 0;</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    public static String toString(Type type) {
+<b class="fc"><i>265</i>&nbsp;        if (type instanceof Class&lt;?&gt;) {</b>
+<b class="fc"><i>266</i>&nbsp;            return ((Class) type).getName();</b>
+<i>267</i>&nbsp;
+<b class="nc"><i>268</i>&nbsp;        } else if (type instanceof ParameterizedType) {</b>
+<b class="nc"><i>269</i>&nbsp;            ParameterizedType parameterizedType = (ParameterizedType) type;</b>
+<b class="nc"><i>270</i>&nbsp;            Type[] arguments = parameterizedType.getActualTypeArguments();</b>
+<b class="nc"><i>271</i>&nbsp;            Type ownerType = parameterizedType.getOwnerType();</b>
+<b class="nc"><i>272</i>&nbsp;            StringBuilder stringBuilder = new StringBuilder();</b>
+<b class="nc"><i>273</i>&nbsp;            if (ownerType != null) {</b>
+<b class="nc"><i>274</i>&nbsp;                stringBuilder.append(toString(ownerType)).append(&quot;.&quot;);</b>
+<i>275</i>&nbsp;            }
+<b class="nc"><i>276</i>&nbsp;            stringBuilder.append(toString(parameterizedType.getRawType()));</b>
+<b class="nc"><i>277</i>&nbsp;            if (arguments.length &gt; 0) {</b>
+<b class="nc"><i>278</i>&nbsp;                stringBuilder</b>
+<b class="nc"><i>279</i>&nbsp;                        .append(&quot;&lt;&quot;)</b>
+<b class="nc"><i>280</i>&nbsp;                        .append(toString(arguments[0]));</b>
+<b class="nc"><i>281</i>&nbsp;                for (int i = 1; i &lt; arguments.length; i++) {</b>
+<b class="nc"><i>282</i>&nbsp;                    stringBuilder.append(&quot;, &quot;).append(toString(arguments[i]));</b>
+<i>283</i>&nbsp;                }
+<i>284</i>&nbsp;            }
+<b class="nc"><i>285</i>&nbsp;            return stringBuilder.append(&quot;&gt;&quot;).toString();</b>
+<i>286</i>&nbsp;
+<b class="nc"><i>287</i>&nbsp;        } else if (type instanceof GenericArrayType) {</b>
+<b class="nc"><i>288</i>&nbsp;            return toString(((GenericArrayType) type).getGenericComponentType()) + &quot;[]&quot;;</b>
+<i>289</i>&nbsp;
+<b class="nc"><i>290</i>&nbsp;        } else if (type instanceof WildcardType) {</b>
+<b class="nc"><i>291</i>&nbsp;            WildcardType wildcardType = (WildcardType) type;</b>
+<b class="nc"><i>292</i>&nbsp;            Type[] lowerBounds = wildcardType.getLowerBounds();</b>
+<b class="nc"><i>293</i>&nbsp;            Type[] upperBounds = wildcardType.getUpperBounds();</b>
+<i>294</i>&nbsp;
+<b class="nc"><i>295</i>&nbsp;            if (upperBounds.length != 1 || lowerBounds.length &gt; 1) {</b>
+<b class="nc"><i>296</i>&nbsp;                throw new UnsupportedOperationException(&quot;Unsupported wildcard type &quot; + type);</b>
+<i>297</i>&nbsp;            }
+<i>298</i>&nbsp;
+<b class="nc"><i>299</i>&nbsp;            if (lowerBounds.length == 1) {</b>
+<b class="nc"><i>300</i>&nbsp;                if (upperBounds[0] != Object.class) {</b>
+<b class="nc"><i>301</i>&nbsp;                    throw new UnsupportedOperationException(&quot;Unsupported wildcard type &quot; + type);</b>
+<i>302</i>&nbsp;                }
+<b class="nc"><i>303</i>&nbsp;                return &quot;? super &quot; + toString(lowerBounds[0]);</b>
+<b class="nc"><i>304</i>&nbsp;            } else if (upperBounds[0] == Object.class) {</b>
+<b class="nc"><i>305</i>&nbsp;                return &quot;?&quot;;</b>
+<i>306</i>&nbsp;            } else {
+<b class="nc"><i>307</i>&nbsp;                return &quot;? extends &quot; + toString(upperBounds[0]);</b>
+<i>308</i>&nbsp;            }
+<i>309</i>&nbsp;
+<i>310</i>&nbsp;        } else {
+<b class="nc"><i>311</i>&nbsp;            return type.toString();</b>
+<i>312</i>&nbsp;        }
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    /**
+<i>316</i>&nbsp;     * Returns {@code Field.class}, {@code Method.class} or {@code Constructor.class}.
+<i>317</i>&nbsp;     */
+<i>318</i>&nbsp;    public static Class&lt;? extends Member&gt; memberType(Member member) {
+<b class="nc"><i>319</i>&nbsp;        Objects.requireNonNull(member, &quot;member&quot;);</b>
+<i>320</i>&nbsp;
+<b class="nc"><i>321</i>&nbsp;        if (member instanceof MemberImpl) {</b>
+<b class="nc"><i>322</i>&nbsp;            return ((MemberImpl) member).memberType;</b>
+<i>323</i>&nbsp;
+<b class="nc"><i>324</i>&nbsp;        } else if (member instanceof Field) {</b>
+<b class="nc"><i>325</i>&nbsp;            return Field.class;</b>
+<i>326</i>&nbsp;
+<b class="nc"><i>327</i>&nbsp;        } else if (member instanceof Method) {</b>
+<b class="nc"><i>328</i>&nbsp;            return Method.class;</b>
+<i>329</i>&nbsp;
+<b class="nc"><i>330</i>&nbsp;        } else if (member instanceof Constructor) {</b>
+<b class="nc"><i>331</i>&nbsp;            return Constructor.class;</b>
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;        } else {
+<b class="nc"><i>334</i>&nbsp;            throw new IllegalArgumentException(</b>
+<b class="nc"><i>335</i>&nbsp;                    &quot;Unsupported implementation class for Member, &quot; + member.getClass());</b>
+<i>336</i>&nbsp;        }
+<i>337</i>&nbsp;    }
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;    /**
+<i>340</i>&nbsp;     * Formats a member as concise string, such as {@code java.util.ArrayList.size},
+<i>341</i>&nbsp;     * {@code java.util.ArrayList&lt;init&gt;()} or {@code java.util.List.remove()}.
+<i>342</i>&nbsp;     */
+<i>343</i>&nbsp;    public static String toString(Member member) {
+<b class="nc"><i>344</i>&nbsp;        Class&lt;? extends Member&gt; memberType = memberType(member);</b>
+<i>345</i>&nbsp;
+<b class="nc"><i>346</i>&nbsp;        if (memberType == Method.class) {</b>
+<b class="nc"><i>347</i>&nbsp;            return member.getDeclaringClass().getName() + &quot;.&quot; + member.getName() + &quot;()&quot;;</b>
+<b class="nc"><i>348</i>&nbsp;        } else if (memberType == Field.class) {</b>
+<b class="nc"><i>349</i>&nbsp;            return member.getDeclaringClass().getName() + &quot;.&quot; + member.getName();</b>
+<b class="nc"><i>350</i>&nbsp;        } else if (memberType == Constructor.class) {</b>
+<b class="nc"><i>351</i>&nbsp;            return member.getDeclaringClass().getName() + &quot;.&lt;init&gt;()&quot;;</b>
+<i>352</i>&nbsp;        } else {
+<b class="nc"><i>353</i>&nbsp;            throw new AssertionError();</b>
+<i>354</i>&nbsp;        }
+<i>355</i>&nbsp;    }
+<i>356</i>&nbsp;
+<i>357</i>&nbsp;    public static String memberKey(Member member) {
+<b class="nc"><i>358</i>&nbsp;        Objects.requireNonNull(member, &quot;member&quot;);</b>
+<i>359</i>&nbsp;
+<b class="nc"><i>360</i>&nbsp;        return &quot;&lt;NO_MEMBER_KEY&gt;&quot;;</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    /**
+<i>364</i>&nbsp;     * Returns the generic supertype for {@code supertype}. For example, given a class {@code
+<i>365</i>&nbsp;     * IntegerSet}, the result for when supertype is {@code Set.class} is {@code Set&lt;Integer&gt;} and the
+<i>366</i>&nbsp;     * result when the supertype is {@code Collection.class} is {@code Collection&lt;Integer&gt;}.
+<i>367</i>&nbsp;     */
+<i>368</i>&nbsp;    public static Type getGenericSupertype(Type type, Class&lt;?&gt; rawType, Class&lt;?&gt; toResolve) {
+<b class="fc"><i>369</i>&nbsp;        if (toResolve == rawType) {</b>
+<b class="fc"><i>370</i>&nbsp;            return type;</b>
+<i>371</i>&nbsp;        }
+<i>372</i>&nbsp;
+<i>373</i>&nbsp;        // we skip searching through interfaces if unknown is an interface
+<b class="fc"><i>374</i>&nbsp;        if (toResolve.isInterface()) {</b>
+<b class="nc"><i>375</i>&nbsp;            Class[] interfaces = rawType.getInterfaces();</b>
+<b class="nc"><i>376</i>&nbsp;            for (int i = 0, length = interfaces.length; i &lt; length; i++) {</b>
+<b class="nc"><i>377</i>&nbsp;                if (interfaces[i] == toResolve) {</b>
+<b class="nc"><i>378</i>&nbsp;                    return rawType.getGenericInterfaces()[i];</b>
+<b class="nc"><i>379</i>&nbsp;                } else if (toResolve.isAssignableFrom(interfaces[i])) {</b>
+<b class="nc"><i>380</i>&nbsp;                    return getGenericSupertype(rawType.getGenericInterfaces()[i], interfaces[i], toResolve);</b>
+<i>381</i>&nbsp;                }
+<i>382</i>&nbsp;            }
+<i>383</i>&nbsp;        }
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;        // check our supertypes
+<b class="fc"><i>386</i>&nbsp;        if (!rawType.isInterface()) {</b>
+<b class="fc"><i>387</i>&nbsp;            while (rawType != Object.class) {</b>
+<b class="fc"><i>388</i>&nbsp;                Class&lt;?&gt; rawSupertype = rawType.getSuperclass();</b>
+<b class="fc"><i>389</i>&nbsp;                if (rawSupertype == toResolve) {</b>
+<b class="fc"><i>390</i>&nbsp;                    return rawType.getGenericSuperclass();</b>
+<b class="nc"><i>391</i>&nbsp;                } else if (toResolve.isAssignableFrom(rawSupertype)) {</b>
+<b class="nc"><i>392</i>&nbsp;                    return getGenericSupertype(rawType.getGenericSuperclass(), rawSupertype, toResolve);</b>
+<i>393</i>&nbsp;                }
+<b class="nc"><i>394</i>&nbsp;                rawType = rawSupertype;</b>
+<b class="nc"><i>395</i>&nbsp;            }</b>
+<i>396</i>&nbsp;        }
+<i>397</i>&nbsp;
+<i>398</i>&nbsp;        // we can&#39;t resolve this further
+<b class="nc"><i>399</i>&nbsp;        return toResolve;</b>
+<i>400</i>&nbsp;    }
+<i>401</i>&nbsp;
+<i>402</i>&nbsp;    public static Type resolveTypeVariable(Type type, Class&lt;?&gt; rawType, TypeVariable unknown) {
+<b class="fc"><i>403</i>&nbsp;        Class&lt;?&gt; declaredByRaw = declaringClassOf(unknown);</b>
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;        // we can&#39;t reduce this further
+<b class="fc"><i>406</i>&nbsp;        if (declaredByRaw == null) {</b>
+<b class="nc"><i>407</i>&nbsp;            return unknown;</b>
+<i>408</i>&nbsp;        }
+<i>409</i>&nbsp;
+<b class="fc"><i>410</i>&nbsp;        Type declaredBy = getGenericSupertype(type, rawType, declaredByRaw);</b>
+<b class="fc"><i>411</i>&nbsp;        if (declaredBy instanceof ParameterizedType) {</b>
+<b class="fc"><i>412</i>&nbsp;            int index = indexOf(declaredByRaw.getTypeParameters(), unknown);</b>
+<b class="fc"><i>413</i>&nbsp;            return ((ParameterizedType) declaredBy).getActualTypeArguments()[index];</b>
+<i>414</i>&nbsp;        }
+<i>415</i>&nbsp;
+<b class="fc"><i>416</i>&nbsp;        return unknown;</b>
+<i>417</i>&nbsp;    }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    private static int indexOf(Object[] array, Object toFind) {
+<b class="fc"><i>420</i>&nbsp;        for (int i = 0; i &lt; array.length; i++) {</b>
+<b class="fc"><i>421</i>&nbsp;            if (toFind.equals(array[i])) {</b>
+<b class="fc"><i>422</i>&nbsp;                return i;</b>
+<i>423</i>&nbsp;            }
+<i>424</i>&nbsp;        }
+<b class="nc"><i>425</i>&nbsp;        throw new NoSuchElementException();</b>
+<i>426</i>&nbsp;    }
+<i>427</i>&nbsp;
+<i>428</i>&nbsp;    /**
+<i>429</i>&nbsp;     * Returns the declaring class of {@code typeVariable}, or {@code null} if it was not declared by
+<i>430</i>&nbsp;     * a class.
+<i>431</i>&nbsp;     */
+<i>432</i>&nbsp;    private static Class&lt;?&gt; declaringClassOf(TypeVariable typeVariable) {
+<b class="fc"><i>433</i>&nbsp;        GenericDeclaration genericDeclaration = typeVariable.getGenericDeclaration();</b>
+<b class="fc"><i>434</i>&nbsp;        return genericDeclaration instanceof Class</b>
+<b class="fc"><i>435</i>&nbsp;                ? (Class&lt;?&gt;) genericDeclaration</b>
+<b class="nc"><i>436</i>&nbsp;                : null;</b>
+<i>437</i>&nbsp;    }
+<i>438</i>&nbsp;
+<i>439</i>&nbsp;    public static class ParameterizedTypeImpl
+<i>440</i>&nbsp;            implements ParameterizedType, CompositeType {
+<i>441</i>&nbsp;        private final Type ownerType;
+<i>442</i>&nbsp;        private final Type rawType;
+<i>443</i>&nbsp;        private final Type[] typeArguments;
+<i>444</i>&nbsp;
+<b class="fc"><i>445</i>&nbsp;        public ParameterizedTypeImpl(Type ownerType, Type rawType, Type... typeArguments) {</b>
+<i>446</i>&nbsp;            // require an owner type if the raw type needs it
+<b class="fc"><i>447</i>&nbsp;            if (rawType instanceof Class&lt;?&gt;) {</b>
+<b class="fc"><i>448</i>&nbsp;                Class rawTypeAsClass = (Class) rawType;</b>
+<b class="fc"><i>449</i>&nbsp;                if (ownerType == null &amp;&amp; rawTypeAsClass.getEnclosingClass() != null) {</b>
+<b class="nc"><i>450</i>&nbsp;                    throw new IllegalArgumentException(&quot;No owner type for enclosed &quot; + rawType);</b>
+<i>451</i>&nbsp;                }
+<b class="fc"><i>452</i>&nbsp;                if (ownerType != null &amp;&amp; rawTypeAsClass.getEnclosingClass() == null) {</b>
+<b class="nc"><i>453</i>&nbsp;                    throw new IllegalArgumentException(&quot;Owner type for unenclosed &quot; + rawType);</b>
+<i>454</i>&nbsp;                }
+<i>455</i>&nbsp;
+<i>456</i>&nbsp;            }
+<i>457</i>&nbsp;
+<b class="fc"><i>458</i>&nbsp;            this.ownerType = ownerType == null ? null : canonicalize(ownerType);</b>
+<b class="fc"><i>459</i>&nbsp;            this.rawType = canonicalize(rawType);</b>
+<b class="fc"><i>460</i>&nbsp;            this.typeArguments = typeArguments.clone();</b>
+<b class="fc"><i>461</i>&nbsp;            for (int t = 0; t &lt; this.typeArguments.length; t++) {</b>
+<b class="fc"><i>462</i>&nbsp;                Objects.requireNonNull(this.typeArguments[t], &quot;type parameter&quot;);</b>
+<b class="fc"><i>463</i>&nbsp;                checkNotPrimitive(this.typeArguments[t], &quot;type parameters&quot;);</b>
+<b class="fc"><i>464</i>&nbsp;                this.typeArguments[t] = canonicalize(this.typeArguments[t]);</b>
+<i>465</i>&nbsp;            }
+<b class="fc"><i>466</i>&nbsp;        }</b>
+<i>467</i>&nbsp;
+<i>468</i>&nbsp;        @Override
+<i>469</i>&nbsp;        public Type[] getActualTypeArguments() {
+<b class="fc"><i>470</i>&nbsp;            return typeArguments.clone();</b>
+<i>471</i>&nbsp;        }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;        @Override
+<i>474</i>&nbsp;        public Type getRawType() {
+<b class="fc"><i>475</i>&nbsp;            return rawType;</b>
+<i>476</i>&nbsp;        }
+<i>477</i>&nbsp;
+<i>478</i>&nbsp;        @Override
+<i>479</i>&nbsp;        public Type getOwnerType() {
+<b class="fc"><i>480</i>&nbsp;            return ownerType;</b>
+<i>481</i>&nbsp;        }
+<i>482</i>&nbsp;
+<i>483</i>&nbsp;        @Override
+<i>484</i>&nbsp;        public boolean isFullySpecified() {
+<b class="fc"><i>485</i>&nbsp;            if (ownerType != null &amp;&amp; !MoreTypes.isFullySpecified(ownerType)) {</b>
+<b class="nc"><i>486</i>&nbsp;                return false;</b>
+<i>487</i>&nbsp;            }
+<i>488</i>&nbsp;
+<b class="fc"><i>489</i>&nbsp;            if (!MoreTypes.isFullySpecified(rawType)) {</b>
+<b class="nc"><i>490</i>&nbsp;                return false;</b>
+<i>491</i>&nbsp;            }
+<i>492</i>&nbsp;
+<b class="fc"><i>493</i>&nbsp;            for (Type type : typeArguments) {</b>
+<b class="fc"><i>494</i>&nbsp;                if (!MoreTypes.isFullySpecified(type)) {</b>
+<b class="nc"><i>495</i>&nbsp;                    return false;</b>
+<i>496</i>&nbsp;                }
+<i>497</i>&nbsp;            }
+<i>498</i>&nbsp;
+<b class="fc"><i>499</i>&nbsp;            return true;</b>
+<i>500</i>&nbsp;        }
+<i>501</i>&nbsp;
+<i>502</i>&nbsp;        @Override
+<i>503</i>&nbsp;        public boolean equals(Object other) {
+<b class="nc"><i>504</i>&nbsp;            return other instanceof ParameterizedType</b>
+<b class="nc"><i>505</i>&nbsp;                    &amp;&amp; MoreTypes.equals(this, (ParameterizedType) other);</b>
+<i>506</i>&nbsp;        }
+<i>507</i>&nbsp;
+<i>508</i>&nbsp;        @Override
+<i>509</i>&nbsp;        public int hashCode() {
+<b class="fc"><i>510</i>&nbsp;            return MoreTypes.hashCode(this);</b>
+<i>511</i>&nbsp;        }
+<i>512</i>&nbsp;
+<i>513</i>&nbsp;        @Override
+<i>514</i>&nbsp;        public String toString() {
+<b class="nc"><i>515</i>&nbsp;            return MoreTypes.toString(this);</b>
+<i>516</i>&nbsp;        }
+<i>517</i>&nbsp;    }
+<i>518</i>&nbsp;
+<i>519</i>&nbsp;    public static class GenericArrayTypeImpl
+<i>520</i>&nbsp;            implements GenericArrayType, CompositeType {
+<i>521</i>&nbsp;        private final Type componentType;
+<i>522</i>&nbsp;
+<b class="nc"><i>523</i>&nbsp;        public GenericArrayTypeImpl(Type componentType) {</b>
+<b class="nc"><i>524</i>&nbsp;            this.componentType = canonicalize(componentType);</b>
+<b class="nc"><i>525</i>&nbsp;        }</b>
+<i>526</i>&nbsp;
+<i>527</i>&nbsp;        @Override
+<i>528</i>&nbsp;        public Type getGenericComponentType() {
+<b class="nc"><i>529</i>&nbsp;            return componentType;</b>
+<i>530</i>&nbsp;        }
+<i>531</i>&nbsp;
+<i>532</i>&nbsp;        @Override
+<i>533</i>&nbsp;        public boolean isFullySpecified() {
+<b class="nc"><i>534</i>&nbsp;            return MoreTypes.isFullySpecified(componentType);</b>
+<i>535</i>&nbsp;        }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;        @Override
+<i>538</i>&nbsp;        public boolean equals(Object o) {
+<b class="nc"><i>539</i>&nbsp;            return o instanceof GenericArrayType</b>
+<b class="nc"><i>540</i>&nbsp;                    &amp;&amp; MoreTypes.equals(this, (GenericArrayType) o);</b>
+<i>541</i>&nbsp;        }
+<i>542</i>&nbsp;
+<i>543</i>&nbsp;        @Override
+<i>544</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>545</i>&nbsp;            return MoreTypes.hashCode(this);</b>
+<i>546</i>&nbsp;        }
+<i>547</i>&nbsp;
+<i>548</i>&nbsp;        @Override
+<i>549</i>&nbsp;        public String toString() {
+<b class="nc"><i>550</i>&nbsp;            return MoreTypes.toString(this);</b>
+<i>551</i>&nbsp;        }
+<i>552</i>&nbsp;    }
+<i>553</i>&nbsp;
+<i>554</i>&nbsp;    /**
+<i>555</i>&nbsp;     * The WildcardType interface supports multiple upper bounds and multiple
+<i>556</i>&nbsp;     * lower bounds. We only support what the Java 6 language needs - at most one
+<i>557</i>&nbsp;     * bound. If a lower bound is set, the upper bound must be Object.class.
+<i>558</i>&nbsp;     */
+<i>559</i>&nbsp;    public static class WildcardTypeImpl implements WildcardType, CompositeType {
+<i>560</i>&nbsp;        private final Type upperBound;
+<i>561</i>&nbsp;        private final Type lowerBound;
+<i>562</i>&nbsp;
+<b class="nc"><i>563</i>&nbsp;        public WildcardTypeImpl(Type[] upperBounds, Type[] lowerBounds) {</b>
+<b class="nc"><i>564</i>&nbsp;            if (lowerBounds.length &gt; 1) {</b>
+<b class="nc"><i>565</i>&nbsp;                throw new IllegalArgumentException(&quot;Must have at most one lower bound.&quot;);</b>
+<i>566</i>&nbsp;            }
+<b class="nc"><i>567</i>&nbsp;            if (upperBounds.length != 1) {</b>
+<b class="nc"><i>568</i>&nbsp;                throw new IllegalArgumentException(&quot;Must have exactly one upper bound.&quot;);</b>
+<i>569</i>&nbsp;            }
+<b class="nc"><i>570</i>&nbsp;            if (lowerBounds.length == 1) {</b>
+<b class="nc"><i>571</i>&nbsp;                Objects.requireNonNull(lowerBounds[0], &quot;lowerBound&quot;);</b>
+<b class="nc"><i>572</i>&nbsp;                checkNotPrimitive(lowerBounds[0], &quot;wildcard bounds&quot;);</b>
+<b class="nc"><i>573</i>&nbsp;                if (upperBounds[0] != Object.class) {</b>
+<b class="nc"><i>574</i>&nbsp;                    throw new IllegalArgumentException(&quot;bounded both ways&quot;);</b>
+<i>575</i>&nbsp;                }
+<b class="nc"><i>576</i>&nbsp;                this.lowerBound = canonicalize(lowerBounds[0]);</b>
+<b class="nc"><i>577</i>&nbsp;                this.upperBound = Object.class;</b>
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;            } else {
+<b class="nc"><i>580</i>&nbsp;                Objects.requireNonNull(upperBounds[0], &quot;upperBound&quot;);</b>
+<b class="nc"><i>581</i>&nbsp;                checkNotPrimitive(upperBounds[0], &quot;wildcard bounds&quot;);</b>
+<b class="nc"><i>582</i>&nbsp;                this.lowerBound = null;</b>
+<b class="nc"><i>583</i>&nbsp;                this.upperBound = canonicalize(upperBounds[0]);</b>
+<i>584</i>&nbsp;            }
+<b class="nc"><i>585</i>&nbsp;        }</b>
+<i>586</i>&nbsp;
+<i>587</i>&nbsp;        @Override
+<i>588</i>&nbsp;        public Type[] getUpperBounds() {
+<b class="nc"><i>589</i>&nbsp;            return new Type[]{upperBound};</b>
+<i>590</i>&nbsp;        }
+<i>591</i>&nbsp;
+<i>592</i>&nbsp;        @Override
+<i>593</i>&nbsp;        public Type[] getLowerBounds() {
+<b class="nc"><i>594</i>&nbsp;            return lowerBound != null ? new Type[]{lowerBound} : EMPTY_TYPE_ARRAY;</b>
+<i>595</i>&nbsp;        }
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;        @Override
+<i>598</i>&nbsp;        public boolean isFullySpecified() {
+<b class="nc"><i>599</i>&nbsp;            return MoreTypes.isFullySpecified(upperBound)</b>
+<b class="nc"><i>600</i>&nbsp;                    &amp;&amp; (lowerBound == null || MoreTypes.isFullySpecified(lowerBound));</b>
+<i>601</i>&nbsp;        }
+<i>602</i>&nbsp;
+<i>603</i>&nbsp;        @Override
+<i>604</i>&nbsp;        public boolean equals(Object other) {
+<b class="nc"><i>605</i>&nbsp;            return other instanceof WildcardType</b>
+<b class="nc"><i>606</i>&nbsp;                    &amp;&amp; MoreTypes.equals(this, (WildcardType) other);</b>
+<i>607</i>&nbsp;        }
+<i>608</i>&nbsp;
+<i>609</i>&nbsp;        @Override
+<i>610</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>611</i>&nbsp;            return MoreTypes.hashCode(this);</b>
+<i>612</i>&nbsp;        }
+<i>613</i>&nbsp;
+<i>614</i>&nbsp;        @Override
+<i>615</i>&nbsp;        public String toString() {
+<b class="nc"><i>616</i>&nbsp;            return MoreTypes.toString(this);</b>
+<i>617</i>&nbsp;        }
+<i>618</i>&nbsp;    }
+<i>619</i>&nbsp;
+<i>620</i>&nbsp;    private static void checkNotPrimitive(Type type, String use) {
+<b class="fc"><i>621</i>&nbsp;        if (type instanceof Class&lt;?&gt; &amp;&amp; ((Class) type).isPrimitive()) {</b>
+<b class="nc"><i>622</i>&nbsp;            throw new IllegalArgumentException(&quot;Primitive types are not allowed in &quot; + use + &quot;: &quot; + type);</b>
+<i>623</i>&nbsp;        }
+<b class="fc"><i>624</i>&nbsp;    }</b>
+<i>625</i>&nbsp;
+<i>626</i>&nbsp;    /**
+<i>627</i>&nbsp;     * We cannot serialize the built-in Java member classes, which prevents us from using Members in
+<i>628</i>&nbsp;     * our exception types. We workaround this with this serializable implementation. It includes all
+<i>629</i>&nbsp;     * of the API methods, plus everything we use for line numbers and messaging.
+<i>630</i>&nbsp;     */
+<i>631</i>&nbsp;    public static class MemberImpl implements Member {
+<i>632</i>&nbsp;        private final Class&lt;?&gt; declaringClass;
+<i>633</i>&nbsp;        private final String name;
+<i>634</i>&nbsp;        private final int modifiers;
+<i>635</i>&nbsp;        private final boolean synthetic;
+<i>636</i>&nbsp;        private final Class&lt;? extends Member&gt; memberType;
+<i>637</i>&nbsp;
+<i>638</i>&nbsp;        private MemberImpl(Member member) {
+<i>639</i>&nbsp;            this.declaringClass = member.getDeclaringClass();
+<i>640</i>&nbsp;            this.name = member.getName();
+<i>641</i>&nbsp;            this.modifiers = member.getModifiers();
+<i>642</i>&nbsp;            this.synthetic = member.isSynthetic();
+<i>643</i>&nbsp;            this.memberType = memberType(member);
+<i>644</i>&nbsp;        }
+<i>645</i>&nbsp;
+<i>646</i>&nbsp;        @Override
+<i>647</i>&nbsp;        public Class getDeclaringClass() {
+<i>648</i>&nbsp;            return declaringClass;
+<i>649</i>&nbsp;        }
+<i>650</i>&nbsp;
+<i>651</i>&nbsp;        @Override
+<i>652</i>&nbsp;        public String getName() {
+<i>653</i>&nbsp;            return name;
+<i>654</i>&nbsp;        }
+<i>655</i>&nbsp;
+<i>656</i>&nbsp;        @Override
+<i>657</i>&nbsp;        public int getModifiers() {
+<i>658</i>&nbsp;            return modifiers;
+<i>659</i>&nbsp;        }
+<i>660</i>&nbsp;
+<i>661</i>&nbsp;        @Override
+<i>662</i>&nbsp;        public boolean isSynthetic() {
+<i>663</i>&nbsp;            return synthetic;
+<i>664</i>&nbsp;        }
+<i>665</i>&nbsp;
+<i>666</i>&nbsp;        @Override
+<i>667</i>&nbsp;        public String toString() {
+<i>668</i>&nbsp;            return MoreTypes.toString(this);
+<i>669</i>&nbsp;        }
+<i>670</i>&nbsp;    }
+<i>671</i>&nbsp;
+<i>672</i>&nbsp;    /**
+<i>673</i>&nbsp;     * A type formed from other types, such as arrays, parameterized types or wildcard types
+<i>674</i>&nbsp;     */
+<i>675</i>&nbsp;    private interface CompositeType {
+<i>676</i>&nbsp;        /**
+<i>677</i>&nbsp;         * Returns true if there are no type variables in this type.
+<i>678</i>&nbsp;         */
+<i>679</i>&nbsp;        boolean isFullySpecified();
+<i>680</i>&nbsp;    }
+<i>681</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

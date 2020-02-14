@@ -1,0 +1,307 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PrunePostingsMergePolicy</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PrunePostingsMergePolicy (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PrunePostingsMergePolicy</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 8)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.engine;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.codecs.FieldsProducer;
+<i>23</i>&nbsp;import org.apache.lucene.index.CodecReader;
+<i>24</i>&nbsp;import org.apache.lucene.index.FilterCodecReader;
+<i>25</i>&nbsp;import org.apache.lucene.index.FilterLeafReader;
+<i>26</i>&nbsp;import org.apache.lucene.index.FilteredTermsEnum;
+<i>27</i>&nbsp;import org.apache.lucene.index.ImpactsEnum;
+<i>28</i>&nbsp;import org.apache.lucene.index.MergePolicy;
+<i>29</i>&nbsp;import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+<i>30</i>&nbsp;import org.apache.lucene.index.PostingsEnum;
+<i>31</i>&nbsp;import org.apache.lucene.index.Terms;
+<i>32</i>&nbsp;import org.apache.lucene.index.TermsEnum;
+<i>33</i>&nbsp;import org.apache.lucene.search.DocIdSetIterator;
+<i>34</i>&nbsp;import org.apache.lucene.util.Bits;
+<i>35</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.io.IOException;
+<i>38</i>&nbsp;import java.util.Iterator;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;/**
+<i>41</i>&nbsp; * This merge policy drops id field postings for all delete documents this can be
+<i>42</i>&nbsp; * useful to guarantee consistent update performance even if a large number of deleted / updated documents
+<i>43</i>&nbsp; * are retained. Merging postings away is efficient since lucene visits postings term by term and
+<i>44</i>&nbsp; * with the original live-docs being available we are adding a negotiable overhead such that we can
+<i>45</i>&nbsp; * prune soft-deletes by default. Yet, using this merge policy will cause loosing all search capabilities on top of
+<i>46</i>&nbsp; * soft deleted documents independent of the retention policy. Note, in order for this merge policy to be effective it needs to be added
+<i>47</i>&nbsp; * before the {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy} because otherwise only documents that are deleted / removed
+<i>48</i>&nbsp; * anyways will be pruned.
+<i>49</i>&nbsp; */
+<b class="nc"><i>50</i>&nbsp;final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    PrunePostingsMergePolicy(MergePolicy in, String idField) {
+<b class="nc"><i>53</i>&nbsp;        super(in, toWrap -&gt; new OneMerge(toWrap.segments) {</b>
+<i>54</i>&nbsp;            @Override
+<i>55</i>&nbsp;            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+<i>56</i>&nbsp;                CodecReader wrapped = toWrap.wrapForMerge(reader);
+<i>57</i>&nbsp;                return wrapReader(wrapped, idField);
+<i>58</i>&nbsp;            }
+<i>59</i>&nbsp;        });
+<b class="nc"><i>60</i>&nbsp;    }</b>
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private static CodecReader wrapReader(CodecReader reader, String idField) {
+<b class="nc"><i>63</i>&nbsp;        Bits liveDocs = reader.getLiveDocs();</b>
+<b class="nc"><i>64</i>&nbsp;        if (liveDocs == null) {</b>
+<b class="nc"><i>65</i>&nbsp;            return reader; // no deleted docs - we are good!</b>
+<i>66</i>&nbsp;        }
+<b class="nc"><i>67</i>&nbsp;        final boolean fullyDeletedSegment = reader.numDocs() == 0;</b>
+<b class="nc"><i>68</i>&nbsp;        return new FilterCodecReader(reader) {</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;            @Override
+<i>71</i>&nbsp;            public FieldsProducer getPostingsReader() {
+<i>72</i>&nbsp;                FieldsProducer postingsReader = super.getPostingsReader();
+<i>73</i>&nbsp;                if (postingsReader == null) {
+<i>74</i>&nbsp;                    return null;
+<i>75</i>&nbsp;                }
+<i>76</i>&nbsp;                return new FieldsProducer() {
+<i>77</i>&nbsp;                    @Override
+<i>78</i>&nbsp;                    public void close() throws IOException {
+<i>79</i>&nbsp;                        postingsReader.close();
+<i>80</i>&nbsp;                    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;                    @Override
+<i>83</i>&nbsp;                    public void checkIntegrity() throws IOException {
+<i>84</i>&nbsp;                        postingsReader.checkIntegrity();
+<i>85</i>&nbsp;                    }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;                    @Override
+<i>88</i>&nbsp;                    public Iterator&lt;String&gt; iterator() {
+<i>89</i>&nbsp;                        return postingsReader.iterator();
+<i>90</i>&nbsp;                    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;                    @Override
+<i>93</i>&nbsp;                    public Terms terms(String field) throws IOException {
+<i>94</i>&nbsp;                        Terms in = postingsReader.terms(field);
+<i>95</i>&nbsp;                        if (idField.equals(field) &amp;&amp; in != null) {
+<i>96</i>&nbsp;                            return new FilterLeafReader.FilterTerms(in) {
+<i>97</i>&nbsp;                                @Override
+<i>98</i>&nbsp;                                public TermsEnum iterator() throws IOException {
+<i>99</i>&nbsp;                                    TermsEnum iterator = super.iterator();
+<i>100</i>&nbsp;                                    return new FilteredTermsEnum(iterator, false) {
+<i>101</i>&nbsp;                                        private PostingsEnum internal;
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;                                        @Override
+<i>104</i>&nbsp;                                        protected AcceptStatus accept(BytesRef term) throws IOException {
+<i>105</i>&nbsp;                                            if (fullyDeletedSegment) {
+<i>106</i>&nbsp;                                                return AcceptStatus.END; // short-cut this if we don&#39;t match anything
+<i>107</i>&nbsp;                                            }
+<i>108</i>&nbsp;                                            internal = postings(internal, PostingsEnum.NONE);
+<i>109</i>&nbsp;                                            if (internal.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+<i>110</i>&nbsp;                                                return AcceptStatus.YES;
+<i>111</i>&nbsp;                                            }
+<i>112</i>&nbsp;                                            return AcceptStatus.NO;
+<i>113</i>&nbsp;                                        }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;                                        @Override
+<i>116</i>&nbsp;                                        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+<i>117</i>&nbsp;                                            if (reuse instanceof OnlyLiveDocsPostingsEnum) {
+<i>118</i>&nbsp;                                                OnlyLiveDocsPostingsEnum reuseInstance = (OnlyLiveDocsPostingsEnum) reuse;
+<i>119</i>&nbsp;                                                reuseInstance.reset(super.postings(reuseInstance.in, flags));
+<i>120</i>&nbsp;                                                return reuseInstance;
+<i>121</i>&nbsp;                                            }
+<i>122</i>&nbsp;                                            return new OnlyLiveDocsPostingsEnum(super.postings(null, flags), liveDocs);
+<i>123</i>&nbsp;                                        }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;                                        @Override
+<i>126</i>&nbsp;                                        public ImpactsEnum impacts(int flags) throws IOException {
+<i>127</i>&nbsp;                                            throw new UnsupportedOperationException();
+<i>128</i>&nbsp;                                        }
+<i>129</i>&nbsp;                                    };
+<i>130</i>&nbsp;                                }
+<i>131</i>&nbsp;                            };
+<i>132</i>&nbsp;                        } else {
+<i>133</i>&nbsp;                            return in;
+<i>134</i>&nbsp;                        }
+<i>135</i>&nbsp;                    }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;                    @Override
+<i>138</i>&nbsp;                    public int size() {
+<i>139</i>&nbsp;                        return postingsReader.size();
+<i>140</i>&nbsp;                    }
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;                    @Override
+<i>143</i>&nbsp;                    public long ramBytesUsed() {
+<i>144</i>&nbsp;                        return postingsReader.ramBytesUsed();
+<i>145</i>&nbsp;                    }
+<i>146</i>&nbsp;                };
+<i>147</i>&nbsp;            }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;            @Override
+<i>150</i>&nbsp;            public CacheHelper getCoreCacheHelper() {
+<i>151</i>&nbsp;                return null;
+<i>152</i>&nbsp;            }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;            @Override
+<i>155</i>&nbsp;            public CacheHelper getReaderCacheHelper() {
+<i>156</i>&nbsp;                return null;
+<i>157</i>&nbsp;            }
+<i>158</i>&nbsp;        };
+<i>159</i>&nbsp;    }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;    private static final class OnlyLiveDocsPostingsEnum extends PostingsEnum {
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;        private final Bits liveDocs;
+<i>164</i>&nbsp;        private PostingsEnum in;
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;        OnlyLiveDocsPostingsEnum(PostingsEnum in, Bits liveDocs) {
+<i>167</i>&nbsp;            this.liveDocs = liveDocs;
+<i>168</i>&nbsp;            reset(in);
+<i>169</i>&nbsp;        }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        void reset(PostingsEnum in) {
+<i>172</i>&nbsp;            this.in = in;
+<i>173</i>&nbsp;        }
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;        @Override
+<i>176</i>&nbsp;        public int docID() {
+<i>177</i>&nbsp;            return in.docID();
+<i>178</i>&nbsp;        }
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;        @Override
+<i>181</i>&nbsp;        public int nextDoc() throws IOException {
+<i>182</i>&nbsp;            int docId;
+<i>183</i>&nbsp;            do {
+<i>184</i>&nbsp;                docId = in.nextDoc();
+<i>185</i>&nbsp;            } while (docId != DocIdSetIterator.NO_MORE_DOCS &amp;&amp; liveDocs.get(docId) == false);
+<i>186</i>&nbsp;            return docId;
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;        @Override
+<i>190</i>&nbsp;        public int advance(int target) {
+<i>191</i>&nbsp;            throw new UnsupportedOperationException();
+<i>192</i>&nbsp;        }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        @Override
+<i>195</i>&nbsp;        public long cost() {
+<i>196</i>&nbsp;            return in.cost();
+<i>197</i>&nbsp;        }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;        @Override
+<i>200</i>&nbsp;        public int freq() throws IOException {
+<i>201</i>&nbsp;            return in.freq();
+<i>202</i>&nbsp;        }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;        @Override
+<i>205</i>&nbsp;        public int nextPosition() throws IOException {
+<i>206</i>&nbsp;            return in.nextPosition();
+<i>207</i>&nbsp;        }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;        @Override
+<i>210</i>&nbsp;        public int startOffset() throws IOException {
+<i>211</i>&nbsp;            return in.startOffset();
+<i>212</i>&nbsp;        }
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;        @Override
+<i>215</i>&nbsp;        public int endOffset() throws IOException {
+<i>216</i>&nbsp;            return in.endOffset();
+<i>217</i>&nbsp;        }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;        @Override
+<i>220</i>&nbsp;        public BytesRef getPayload() throws IOException {
+<i>221</i>&nbsp;            return in.getPayload();
+<i>222</i>&nbsp;        }
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

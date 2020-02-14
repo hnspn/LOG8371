@@ -1,0 +1,593 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TermVectorsFields</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.termvectors</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TermVectorsFields (org.elasticsearch.action.termvectors)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TermVectorsFields</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 27)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.termvectors;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectLongHashMap;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+<i>24</i>&nbsp;import org.apache.lucene.index.BaseTermsEnum;
+<i>25</i>&nbsp;import org.apache.lucene.index.Fields;
+<i>26</i>&nbsp;import org.apache.lucene.index.ImpactsEnum;
+<i>27</i>&nbsp;import org.apache.lucene.index.PostingsEnum;
+<i>28</i>&nbsp;import org.apache.lucene.index.SlowImpactsEnum;
+<i>29</i>&nbsp;import org.apache.lucene.index.Terms;
+<i>30</i>&nbsp;import org.apache.lucene.index.TermsEnum;
+<i>31</i>&nbsp;import org.apache.lucene.search.BoostAttribute;
+<i>32</i>&nbsp;import org.apache.lucene.util.ArrayUtil;
+<i>33</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>34</i>&nbsp;import org.apache.lucene.util.BytesRefBuilder;
+<i>35</i>&nbsp;import org.apache.lucene.util.RamUsageEstimator;
+<i>36</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.util.Arrays;
+<i>41</i>&nbsp;import java.util.Iterator;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import static org.apache.lucene.util.ArrayUtil.grow;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;/**
+<i>46</i>&nbsp; * This class represents the result of a {@link TermVectorsRequest}. It works
+<i>47</i>&nbsp; * exactly like the {@link Fields} class except for one thing: It can return
+<i>48</i>&nbsp; * offsets and payloads even if positions are not present. You must call
+<i>49</i>&nbsp; * nextPosition() anyway to move the counter although this method only returns
+<i>50</i>&nbsp; * {@code -1,}, if no positions were returned by the {@link TermVectorsRequest}.
+<i>51</i>&nbsp; * &lt;p&gt;
+<i>52</i>&nbsp; * The data is stored in two byte arrays ({@code headerRef} and
+<i>53</i>&nbsp; * {@code termVectors}, both {@link BytesRef}) that have the following format:
+<i>54</i>&nbsp; * &lt;p&gt;
+<i>55</i>&nbsp; * {@code headerRef}: Stores offsets per field in the {@code termVectors} array
+<i>56</i>&nbsp; * and some header information as {@link BytesRef}. Format is
+<i>57</i>&nbsp; * &lt;ul&gt;
+<i>58</i>&nbsp; * &lt;li&gt;String : &quot;TV&quot;&lt;/li&gt;
+<i>59</i>&nbsp; * &lt;li&gt;vint: version (=-1)&lt;/li&gt;
+<i>60</i>&nbsp; * &lt;li&gt;boolean: hasTermStatistics (are the term statistics stored?)&lt;/li&gt;
+<i>61</i>&nbsp; * &lt;li&gt;boolean: hasFieldStatitsics (are the field statistics stored?)&lt;/li&gt;
+<i>62</i>&nbsp; * &lt;li&gt;vint: number of fields&lt;/li&gt;
+<i>63</i>&nbsp; * &lt;li&gt;
+<i>64</i>&nbsp; * &lt;ul&gt;
+<i>65</i>&nbsp; * &lt;li&gt;String: field name 1&lt;/li&gt;
+<i>66</i>&nbsp; * &lt;li&gt;vint: offset in {@code termVectors} for field 1&lt;/li&gt;
+<i>67</i>&nbsp; * &lt;li&gt;...&lt;/li&gt;
+<i>68</i>&nbsp; * &lt;li&gt;String: field name last field&lt;/li&gt;
+<i>69</i>&nbsp; * &lt;li&gt;vint: offset in {@code termVectors} for last field&lt;/li&gt;
+<i>70</i>&nbsp; * &lt;/ul&gt;
+<i>71</i>&nbsp; * &lt;/li&gt;
+<i>72</i>&nbsp; * &lt;/ul&gt;
+<i>73</i>&nbsp; * &lt;p&gt;
+<i>74</i>&nbsp; * termVectors: Stores the actual term vectors as a {@link BytesRef}.
+<i>75</i>&nbsp; * &lt;p&gt;
+<i>76</i>&nbsp; * Term vectors for each fields are stored in blocks, one for each field. The
+<i>77</i>&nbsp; * offsets in {@code headerRef} are used to find where the block for a field
+<i>78</i>&nbsp; * starts. Each block begins with a
+<i>79</i>&nbsp; * &lt;ul&gt;
+<i>80</i>&nbsp; * &lt;li&gt;vint: number of terms&lt;/li&gt;
+<i>81</i>&nbsp; * &lt;li&gt;boolean: positions (has it positions stored?)&lt;/li&gt;
+<i>82</i>&nbsp; * &lt;li&gt;boolean: offsets (has it offsets stored?)&lt;/li&gt;
+<i>83</i>&nbsp; * &lt;li&gt;boolean: payloads (has it payloads stored?)&lt;/li&gt;
+<i>84</i>&nbsp; * &lt;/ul&gt;
+<i>85</i>&nbsp; * If the field statistics were requested ({@code hasFieldStatistics} is true,
+<i>86</i>&nbsp; * see {@code headerRef}), the following numbers are stored:
+<i>87</i>&nbsp; * &lt;ul&gt;
+<i>88</i>&nbsp; * &lt;li&gt;vlong: sum of total term frequencies of the field (sumTotalTermFreq)&lt;/li&gt;
+<i>89</i>&nbsp; * &lt;li&gt;vlong: sum of document frequencies for each term (sumDocFreq)&lt;/li&gt;
+<i>90</i>&nbsp; * &lt;li&gt;vint: number of documents in the shard that has an entry for this field
+<i>91</i>&nbsp; * (docCount)&lt;/li&gt;
+<i>92</i>&nbsp; * &lt;/ul&gt;
+<i>93</i>&nbsp; * &lt;p&gt;
+<i>94</i>&nbsp; * After that, for each term it stores
+<i>95</i>&nbsp; * &lt;ul&gt;
+<i>96</i>&nbsp; * &lt;li&gt;vint: term lengths&lt;/li&gt;
+<i>97</i>&nbsp; * &lt;li&gt;BytesRef: term name&lt;/li&gt;
+<i>98</i>&nbsp; * &lt;/ul&gt;
+<i>99</i>&nbsp; * &lt;p&gt;
+<i>100</i>&nbsp; * If term statistics are requested ({@code hasTermStatistics} is true, see
+<i>101</i>&nbsp; * {@code headerRef}):
+<i>102</i>&nbsp; * &lt;ul&gt;
+<i>103</i>&nbsp; * &lt;li&gt;vint: document frequency, how often does this term appear in documents?&lt;/li&gt;
+<i>104</i>&nbsp; * &lt;li&gt;vlong: total term frequency. Sum of terms in this field.&lt;/li&gt;
+<i>105</i>&nbsp; * &lt;/ul&gt;
+<i>106</i>&nbsp; * After that
+<i>107</i>&nbsp; * &lt;ul&gt;
+<i>108</i>&nbsp; * &lt;li&gt;vint: frequency (always returned)&lt;/li&gt;
+<i>109</i>&nbsp; * &lt;li&gt;
+<i>110</i>&nbsp; * &lt;ul&gt;
+<i>111</i>&nbsp; * &lt;li&gt;vint: position_1 (if positions)&lt;/li&gt;
+<i>112</i>&nbsp; * &lt;li&gt;vint: startOffset_1 (if offset)&lt;/li&gt;
+<i>113</i>&nbsp; * &lt;li&gt;vint: endOffset_1 (if offset)&lt;/li&gt;
+<i>114</i>&nbsp; * &lt;li&gt;BytesRef: payload_1 (if payloads)&lt;/li&gt;
+<i>115</i>&nbsp; * &lt;li&gt;...&lt;/li&gt;
+<i>116</i>&nbsp; * &lt;li&gt;vint: endOffset_freqency (if offset)&lt;/li&gt;
+<i>117</i>&nbsp; * &lt;li&gt;BytesRef: payload_freqency (if payloads)&lt;/li&gt;
+<i>118</i>&nbsp; * &lt;/ul&gt;&lt;/li&gt;
+<i>119</i>&nbsp; * &lt;/ul&gt;
+<i>120</i>&nbsp; */
+<i>121</i>&nbsp;
+<b class="nc"><i>122</i>&nbsp;public final class TermVectorsFields extends Fields {</b>
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    private final ObjectLongHashMap&lt;String&gt; fieldMap;
+<i>125</i>&nbsp;    private final BytesReference termVectors;
+<i>126</i>&nbsp;    final boolean hasTermStatistic;
+<i>127</i>&nbsp;    final boolean hasFieldStatistic;
+<i>128</i>&nbsp;    public final boolean hasScores;
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    /**
+<i>131</i>&nbsp;     * @param headerRef   Stores offsets per field in the {@code termVectors} and some
+<i>132</i>&nbsp;     *                    header information as {@link BytesRef}.
+<i>133</i>&nbsp;     * @param termVectors Stores the actual term vectors as a {@link BytesRef}.
+<i>134</i>&nbsp;     */
+<b class="nc"><i>135</i>&nbsp;    public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {</b>
+<b class="nc"><i>136</i>&nbsp;        try (StreamInput header = headerRef.streamInput()) {</b>
+<b class="nc"><i>137</i>&nbsp;            fieldMap = new ObjectLongHashMap&lt;&gt;();</b>
+<i>138</i>&nbsp;            // here we read the header to fill the field offset map
+<b class="nc"><i>139</i>&nbsp;            String headerString = header.readString();</b>
+<b class="nc"><i>140</i>&nbsp;            assert headerString.equals(&quot;TV&quot;);</b>
+<b class="nc"><i>141</i>&nbsp;            int version = header.readInt();</b>
+<b class="nc"><i>142</i>&nbsp;            assert version == -1;</b>
+<b class="nc"><i>143</i>&nbsp;            hasTermStatistic = header.readBoolean();</b>
+<b class="nc"><i>144</i>&nbsp;            hasFieldStatistic = header.readBoolean();</b>
+<b class="nc"><i>145</i>&nbsp;            hasScores = header.readBoolean();</b>
+<b class="nc"><i>146</i>&nbsp;            final int numFields = header.readVInt();</b>
+<b class="nc"><i>147</i>&nbsp;            for (int i = 0; i &lt; numFields; i++) {</b>
+<b class="nc"><i>148</i>&nbsp;                fieldMap.put((header.readString()), header.readVLong());</b>
+<i>149</i>&nbsp;            }
+<b class="nc"><i>150</i>&nbsp;        }</b>
+<i>151</i>&nbsp;        // reference to the term vector data
+<b class="nc"><i>152</i>&nbsp;        this.termVectors = termVectors;</b>
+<b class="nc"><i>153</i>&nbsp;    }</b>
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    @Override
+<i>156</i>&nbsp;    public Iterator&lt;String&gt; iterator() {
+<b class="nc"><i>157</i>&nbsp;        final Iterator&lt;ObjectLongCursor&lt;String&gt;&gt; iterator = fieldMap.iterator();</b>
+<b class="nc"><i>158</i>&nbsp;        return new Iterator&lt;String&gt;() {</b>
+<i>159</i>&nbsp;            @Override
+<i>160</i>&nbsp;            public boolean hasNext() {
+<i>161</i>&nbsp;                return iterator.hasNext();
+<i>162</i>&nbsp;            }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;            @Override
+<i>165</i>&nbsp;            public String next() {
+<i>166</i>&nbsp;                return iterator.next().key;
+<i>167</i>&nbsp;            }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;            @Override
+<i>170</i>&nbsp;            public void remove() {
+<i>171</i>&nbsp;                throw new UnsupportedOperationException();
+<i>172</i>&nbsp;            }
+<i>173</i>&nbsp;        };
+<i>174</i>&nbsp;    }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    @Override
+<i>177</i>&nbsp;    public Terms terms(String field) throws IOException {
+<i>178</i>&nbsp;        // first, find where in the termVectors bytes the actual term vector for
+<i>179</i>&nbsp;        // this field is stored
+<b class="nc"><i>180</i>&nbsp;        final int keySlot = fieldMap.indexOf(field);</b>
+<b class="nc"><i>181</i>&nbsp;        if (keySlot &lt; 0) {</b>
+<b class="nc"><i>182</i>&nbsp;            return null; // we don&#39;t have it.</b>
+<i>183</i>&nbsp;        }
+<b class="nc"><i>184</i>&nbsp;        long readOffset = fieldMap.indexGet(keySlot);</b>
+<b class="nc"><i>185</i>&nbsp;        return new TermVector(termVectors, readOffset);</b>
+<i>186</i>&nbsp;    }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    @Override
+<i>189</i>&nbsp;    public int size() {
+<b class="nc"><i>190</i>&nbsp;        return fieldMap.size();</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    private final class TermVector extends Terms {
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;        private final StreamInput perFieldTermVectorInput;
+<i>196</i>&nbsp;        private final long readOffset;
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;        private long numTerms;
+<i>199</i>&nbsp;        private boolean hasPositions;
+<i>200</i>&nbsp;        private boolean hasOffsets;
+<i>201</i>&nbsp;        private boolean hasPayloads;
+<i>202</i>&nbsp;        private long sumTotalTermFreq;
+<i>203</i>&nbsp;        private long sumDocFreq;
+<i>204</i>&nbsp;        private int docCount;
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;        TermVector(BytesReference termVectors, long readOffset) throws IOException {
+<i>207</i>&nbsp;            this.perFieldTermVectorInput = termVectors.streamInput();
+<i>208</i>&nbsp;            this.readOffset = readOffset;
+<i>209</i>&nbsp;            reset();
+<i>210</i>&nbsp;        }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        private void reset() throws IOException {
+<i>213</i>&nbsp;            this.perFieldTermVectorInput.reset();
+<i>214</i>&nbsp;            this.perFieldTermVectorInput.skip(readOffset);
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;            // read how many terms....
+<i>217</i>&nbsp;            this.numTerms = perFieldTermVectorInput.readVLong();
+<i>218</i>&nbsp;            // ...if positions etc. were stored....
+<i>219</i>&nbsp;            this.hasPositions = perFieldTermVectorInput.readBoolean();
+<i>220</i>&nbsp;            this.hasOffsets = perFieldTermVectorInput.readBoolean();
+<i>221</i>&nbsp;            this.hasPayloads = perFieldTermVectorInput.readBoolean();
+<i>222</i>&nbsp;            // read the field statistics
+<i>223</i>&nbsp;            this.sumTotalTermFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
+<i>224</i>&nbsp;            this.sumDocFreq = hasFieldStatistic ? readPotentiallyNegativeVLong(perFieldTermVectorInput) : -1;
+<i>225</i>&nbsp;            this.docCount = hasFieldStatistic ? readPotentiallyNegativeVInt(perFieldTermVectorInput) : -1;
+<i>226</i>&nbsp;        }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;        @Override
+<i>229</i>&nbsp;        public TermsEnum iterator() throws IOException {
+<i>230</i>&nbsp;            // reset before asking for an iterator
+<i>231</i>&nbsp;            reset();
+<i>232</i>&nbsp;            // convert bytes ref for the terms to actual data
+<i>233</i>&nbsp;            return new BaseTermsEnum() {
+<i>234</i>&nbsp;                int currentTerm = 0;
+<i>235</i>&nbsp;                int freq = 0;
+<i>236</i>&nbsp;                int docFreq = -1;
+<i>237</i>&nbsp;                long totalTermFrequency = -1;
+<i>238</i>&nbsp;                int[] positions = new int[1];
+<i>239</i>&nbsp;                int[] startOffsets = new int[1];
+<i>240</i>&nbsp;                int[] endOffsets = new int[1];
+<i>241</i>&nbsp;                BytesRefBuilder[] payloads = new BytesRefBuilder[1];
+<i>242</i>&nbsp;                final BytesRefBuilder spare = new BytesRefBuilder();
+<i>243</i>&nbsp;                BoostAttribute boostAtt = this.attributes().addAttribute(BoostAttribute.class);
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;                @Override
+<i>246</i>&nbsp;                public BytesRef next() throws IOException {
+<i>247</i>&nbsp;                    if (currentTerm++ &lt; numTerms) {
+<i>248</i>&nbsp;                        // term string. first the size...
+<i>249</i>&nbsp;                        int termVectorSize = perFieldTermVectorInput.readVInt();
+<i>250</i>&nbsp;                        spare.grow(termVectorSize);
+<i>251</i>&nbsp;                        // ...then the value.
+<i>252</i>&nbsp;                        perFieldTermVectorInput.readBytes(spare.bytes(), 0, termVectorSize);
+<i>253</i>&nbsp;                        spare.setLength(termVectorSize);
+<i>254</i>&nbsp;                        if (hasTermStatistic) {
+<i>255</i>&nbsp;                            docFreq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+<i>256</i>&nbsp;                            totalTermFrequency = readPotentiallyNegativeVLong(perFieldTermVectorInput);
+<i>257</i>&nbsp;                        }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;                        freq = readPotentiallyNegativeVInt(perFieldTermVectorInput);
+<i>260</i>&nbsp;                        // grow the arrays to read the values. this is just
+<i>261</i>&nbsp;                        // for performance reasons. Re-use memory instead of
+<i>262</i>&nbsp;                        // realloc.
+<i>263</i>&nbsp;                        growBuffers();
+<i>264</i>&nbsp;                        // finally, read the values into the arrays
+<i>265</i>&nbsp;                        // currentPosition etc. so that we can just iterate
+<i>266</i>&nbsp;                        // later
+<i>267</i>&nbsp;                        writeInfos(perFieldTermVectorInput);
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;                        // read the score if available
+<i>270</i>&nbsp;                        if (hasScores) {
+<i>271</i>&nbsp;                            boostAtt.setBoost(perFieldTermVectorInput.readFloat());
+<i>272</i>&nbsp;                        }
+<i>273</i>&nbsp;                        return spare.get();
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;                    } else {
+<i>276</i>&nbsp;                        return null;
+<i>277</i>&nbsp;                    }
+<i>278</i>&nbsp;                }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;                private void writeInfos(final StreamInput input) throws IOException {
+<i>281</i>&nbsp;                    for (int i = 0; i &lt; freq; i++) {
+<i>282</i>&nbsp;                        if (hasPositions) {
+<i>283</i>&nbsp;                            positions[i] = input.readVInt();
+<i>284</i>&nbsp;                        }
+<i>285</i>&nbsp;                        if (hasOffsets) {
+<i>286</i>&nbsp;                            startOffsets[i] = input.readVInt();
+<i>287</i>&nbsp;                            endOffsets[i] = input.readVInt();
+<i>288</i>&nbsp;                        }
+<i>289</i>&nbsp;                        if (hasPayloads) {
+<i>290</i>&nbsp;                            int payloadLength = input.readVInt();
+<i>291</i>&nbsp;                            if (payloads[i] == null) {
+<i>292</i>&nbsp;                                payloads[i] = new BytesRefBuilder();
+<i>293</i>&nbsp;                            }
+<i>294</i>&nbsp;                            payloads[i].grow(payloadLength);
+<i>295</i>&nbsp;                            input.readBytes(payloads[i].bytes(), 0, payloadLength);
+<i>296</i>&nbsp;                            payloads[i].setLength(payloadLength);
+<i>297</i>&nbsp;                        }
+<i>298</i>&nbsp;                    }
+<i>299</i>&nbsp;                }
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;                private void growBuffers() {
+<i>302</i>&nbsp;                    if (hasPositions) {
+<i>303</i>&nbsp;                        positions = grow(positions, freq);
+<i>304</i>&nbsp;                    }
+<i>305</i>&nbsp;                    if (hasOffsets) {
+<i>306</i>&nbsp;                        startOffsets = grow(startOffsets, freq);
+<i>307</i>&nbsp;                        endOffsets = grow(endOffsets, freq);
+<i>308</i>&nbsp;                    }
+<i>309</i>&nbsp;                    if (hasPayloads) {
+<i>310</i>&nbsp;                        if (payloads.length &lt; freq) {
+<i>311</i>&nbsp;                            payloads = Arrays.copyOf(payloads, ArrayUtil.oversize(freq, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+<i>312</i>&nbsp;                        }
+<i>313</i>&nbsp;                    }
+<i>314</i>&nbsp;                }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;                @Override
+<i>317</i>&nbsp;                public SeekStatus seekCeil(BytesRef text) throws IOException {
+<i>318</i>&nbsp;                    throw new UnsupportedOperationException();
+<i>319</i>&nbsp;                }
+<i>320</i>&nbsp;
+<i>321</i>&nbsp;                @Override
+<i>322</i>&nbsp;                public void seekExact(long ord) throws IOException {
+<i>323</i>&nbsp;                    throw new UnsupportedOperationException(&quot;Seek is not supported&quot;);
+<i>324</i>&nbsp;                }
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;                @Override
+<i>327</i>&nbsp;                public BytesRef term() throws IOException {
+<i>328</i>&nbsp;                    return spare.get();
+<i>329</i>&nbsp;                }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;                @Override
+<i>332</i>&nbsp;                public long ord() throws IOException {
+<i>333</i>&nbsp;                    throw new UnsupportedOperationException(&quot;ordinals are not supported&quot;);
+<i>334</i>&nbsp;                }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;                @Override
+<i>337</i>&nbsp;                public int docFreq() throws IOException {
+<i>338</i>&nbsp;                    return docFreq;
+<i>339</i>&nbsp;                }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;                @Override
+<i>342</i>&nbsp;                public long totalTermFreq() throws IOException {
+<i>343</i>&nbsp;                    return totalTermFrequency;
+<i>344</i>&nbsp;                }
+<i>345</i>&nbsp;
+<i>346</i>&nbsp;                @Override
+<i>347</i>&nbsp;                public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+<i>348</i>&nbsp;                    final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum ? (TermVectorPostingsEnum) reuse
+<i>349</i>&nbsp;                            : new TermVectorPostingsEnum());
+<i>350</i>&nbsp;                    return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
+<i>351</i>&nbsp;                            : null, hasPayloads ? payloads : null, freq);
+<i>352</i>&nbsp;                }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;                @Override
+<i>355</i>&nbsp;                public ImpactsEnum impacts(int flags) throws IOException {
+<i>356</i>&nbsp;                    return new SlowImpactsEnum(postings(null, flags));
+<i>357</i>&nbsp;                }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;            };
+<i>360</i>&nbsp;        }
+<i>361</i>&nbsp;
+<i>362</i>&nbsp;        @Override
+<i>363</i>&nbsp;        public long size() throws IOException {
+<i>364</i>&nbsp;            return numTerms;
+<i>365</i>&nbsp;        }
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;        @Override
+<i>368</i>&nbsp;        public long getSumTotalTermFreq() throws IOException {
+<i>369</i>&nbsp;            return sumTotalTermFreq;
+<i>370</i>&nbsp;        }
+<i>371</i>&nbsp;
+<i>372</i>&nbsp;        @Override
+<i>373</i>&nbsp;        public long getSumDocFreq() throws IOException {
+<i>374</i>&nbsp;            return sumDocFreq;
+<i>375</i>&nbsp;        }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;        @Override
+<i>378</i>&nbsp;        public int getDocCount() throws IOException {
+<i>379</i>&nbsp;            return docCount;
+<i>380</i>&nbsp;        }
+<i>381</i>&nbsp;
+<i>382</i>&nbsp;        @Override
+<i>383</i>&nbsp;        public boolean hasFreqs() {
+<i>384</i>&nbsp;            return true;
+<i>385</i>&nbsp;        }
+<i>386</i>&nbsp;
+<i>387</i>&nbsp;        @Override
+<i>388</i>&nbsp;        public boolean hasOffsets() {
+<i>389</i>&nbsp;            return hasOffsets;
+<i>390</i>&nbsp;        }
+<i>391</i>&nbsp;
+<i>392</i>&nbsp;        @Override
+<i>393</i>&nbsp;        public boolean hasPositions() {
+<i>394</i>&nbsp;            return hasPositions;
+<i>395</i>&nbsp;        }
+<i>396</i>&nbsp;
+<i>397</i>&nbsp;        @Override
+<i>398</i>&nbsp;        public boolean hasPayloads() {
+<i>399</i>&nbsp;            return hasPayloads;
+<i>400</i>&nbsp;        }
+<i>401</i>&nbsp;    }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;    private final class TermVectorPostingsEnum extends PostingsEnum {
+<i>404</i>&nbsp;        private boolean hasPositions;
+<i>405</i>&nbsp;        private boolean hasOffsets;
+<i>406</i>&nbsp;        private boolean hasPayloads;
+<i>407</i>&nbsp;        int curPos = -1;
+<i>408</i>&nbsp;        int doc = -1;
+<i>409</i>&nbsp;        private int freq;
+<i>410</i>&nbsp;        private int[] startOffsets;
+<i>411</i>&nbsp;        private int[] positions;
+<i>412</i>&nbsp;        private BytesRefBuilder[] payloads;
+<i>413</i>&nbsp;        private int[] endOffsets;
+<i>414</i>&nbsp;
+<i>415</i>&nbsp;        private PostingsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
+<i>416</i>&nbsp;            curPos = -1;
+<i>417</i>&nbsp;            doc = -1;
+<i>418</i>&nbsp;            this.hasPositions = positions != null;
+<i>419</i>&nbsp;            this.hasOffsets = startOffsets != null;
+<i>420</i>&nbsp;            this.hasPayloads = payloads != null;
+<i>421</i>&nbsp;            this.freq = freq;
+<i>422</i>&nbsp;            this.startOffsets = startOffsets;
+<i>423</i>&nbsp;            this.endOffsets = endOffsets;
+<i>424</i>&nbsp;            this.payloads = payloads;
+<i>425</i>&nbsp;            this.positions = positions;
+<i>426</i>&nbsp;            return this;
+<i>427</i>&nbsp;        }
+<i>428</i>&nbsp;
+<i>429</i>&nbsp;        @Override
+<i>430</i>&nbsp;        public int nextDoc() throws IOException {
+<i>431</i>&nbsp;            return doc = (doc == -1 ? 0 : NO_MORE_DOCS);
+<i>432</i>&nbsp;        }
+<i>433</i>&nbsp;
+<i>434</i>&nbsp;        @Override
+<i>435</i>&nbsp;        public int docID() {
+<i>436</i>&nbsp;            return doc;
+<i>437</i>&nbsp;        }
+<i>438</i>&nbsp;
+<i>439</i>&nbsp;        @Override
+<i>440</i>&nbsp;        public int advance(int target) throws IOException {
+<i>441</i>&nbsp;            while (nextDoc() &lt; target &amp;&amp; doc != NO_MORE_DOCS) {
+<i>442</i>&nbsp;            }
+<i>443</i>&nbsp;            return doc;
+<i>444</i>&nbsp;        }
+<i>445</i>&nbsp;
+<i>446</i>&nbsp;        @Override
+<i>447</i>&nbsp;        public int freq() throws IOException {
+<i>448</i>&nbsp;            return freq;
+<i>449</i>&nbsp;        }
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;        // call nextPosition once before calling this one
+<i>452</i>&nbsp;        // because else counter is not advanced
+<i>453</i>&nbsp;        @Override
+<i>454</i>&nbsp;        public int startOffset() throws IOException {
+<i>455</i>&nbsp;            assert curPos &lt; freq &amp;&amp; curPos &gt;= 0;
+<i>456</i>&nbsp;            return hasOffsets ? startOffsets[curPos] : -1;
+<i>457</i>&nbsp;
+<i>458</i>&nbsp;        }
+<i>459</i>&nbsp;
+<i>460</i>&nbsp;        @Override
+<i>461</i>&nbsp;        // can return -1 if posistions were not requested or
+<i>462</i>&nbsp;        // stored but offsets were stored and requested
+<i>463</i>&nbsp;        public int nextPosition() throws IOException {
+<i>464</i>&nbsp;            assert curPos + 1 &lt; freq;
+<i>465</i>&nbsp;            ++curPos;
+<i>466</i>&nbsp;            // this is kind of cheating but if you don&#39;t need positions
+<i>467</i>&nbsp;            // we safe lots fo space on the wire
+<i>468</i>&nbsp;            return hasPositions ? positions[curPos] : -1;
+<i>469</i>&nbsp;        }
+<i>470</i>&nbsp;
+<i>471</i>&nbsp;        @Override
+<i>472</i>&nbsp;        public BytesRef getPayload() throws IOException {
+<i>473</i>&nbsp;            assert curPos &lt; freq &amp;&amp; curPos &gt;= 0;
+<i>474</i>&nbsp;            if (hasPayloads) {
+<i>475</i>&nbsp;                final BytesRefBuilder payload = payloads[curPos];
+<i>476</i>&nbsp;                if (payload != null) {
+<i>477</i>&nbsp;                    return payload.get();
+<i>478</i>&nbsp;                }
+<i>479</i>&nbsp;            }
+<i>480</i>&nbsp;            return null;
+<i>481</i>&nbsp;        }
+<i>482</i>&nbsp;
+<i>483</i>&nbsp;        @Override
+<i>484</i>&nbsp;        public int endOffset() throws IOException {
+<i>485</i>&nbsp;            assert curPos &lt; freq &amp;&amp; curPos &gt;= 0;
+<i>486</i>&nbsp;            return hasOffsets ? endOffsets[curPos] : -1;
+<i>487</i>&nbsp;        }
+<i>488</i>&nbsp;
+<i>489</i>&nbsp;        @Override
+<i>490</i>&nbsp;        public long cost() {
+<i>491</i>&nbsp;            return 1;
+<i>492</i>&nbsp;        }
+<i>493</i>&nbsp;    }
+<i>494</i>&nbsp;
+<i>495</i>&nbsp;    // read a vInt. this is used if the integer might be negative. In this case,
+<i>496</i>&nbsp;    // the writer writes a 0 for -1 or value +1 and accordingly we have to
+<i>497</i>&nbsp;    // subtract 1 again
+<i>498</i>&nbsp;    // adds one to mock not existing term freq
+<i>499</i>&nbsp;    int readPotentiallyNegativeVInt(StreamInput stream) throws IOException {
+<b class="nc"><i>500</i>&nbsp;        return stream.readVInt() - 1;</b>
+<i>501</i>&nbsp;    }
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;    // read a vLong. this is used if the integer might be negative. In this
+<i>504</i>&nbsp;    // case, the writer writes a 0 for -1 or value +1 and accordingly we have to
+<i>505</i>&nbsp;    // subtract 1 again
+<i>506</i>&nbsp;    // adds one to mock not existing term freq
+<i>507</i>&nbsp;    long readPotentiallyNegativeVLong(StreamInput stream) throws IOException {
+<b class="nc"><i>508</i>&nbsp;        return stream.readVLong() - 1;</b>
+<i>509</i>&nbsp;    }
+<i>510</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

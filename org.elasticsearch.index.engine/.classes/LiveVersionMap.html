@@ -1,0 +1,609 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: LiveVersionMap</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: LiveVersionMap (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">LiveVersionMap</td>
+<td class="coverageStat">
+  <span class="percent">
+    25.9%
+  </span>
+  <span class="absValue">
+    (7/ 27)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    23.1%
+  </span>
+  <span class="absValue">
+    (24/ 104)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">LiveVersionMap$Maps</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.5%
+  </span>
+  <span class="absValue">
+    (6/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41.2%
+  </span>
+  <span class="absValue">
+    (14/ 34)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">LiveVersionMap$VersionLookup</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.5%
+  </span>
+  <span class="absValue">
+    (6/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    55.6%
+  </span>
+  <span class="absValue">
+    (10/ 18)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    38.8%
+  </span>
+  <span class="absValue">
+    (19/ 49)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.8%
+  </span>
+  <span class="absValue">
+    (48/ 156)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.engine;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.ReferenceManager;
+<i>23</i>&nbsp;import org.apache.lucene.util.Accountable;
+<i>24</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>25</i>&nbsp;import org.apache.lucene.util.RamUsageEstimator;
+<i>26</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>27</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>28</i>&nbsp;import org.elasticsearch.common.util.concurrent.KeyedLock;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.io.IOException;
+<i>31</i>&nbsp;import java.util.Collection;
+<i>32</i>&nbsp;import java.util.Collections;
+<i>33</i>&nbsp;import java.util.Map;
+<i>34</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/** Maps _uid value to its version information. */
+<b class="fc"><i>37</i>&nbsp;final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {</b>
+<i>38</i>&nbsp;
+<b class="fc"><i>39</i>&nbsp;    private final KeyedLock&lt;BytesRef&gt; keyedLock = new KeyedLock&lt;&gt;();</b>
+<i>40</i>&nbsp;
+<b class="fc"><i>41</i>&nbsp;    private static final class VersionLookup {</b>
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;        /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
+<i>44</i>&nbsp;         *  we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not
+<i>45</i>&nbsp;         *  clear this RAM. */
+<b class="fc"><i>46</i>&nbsp;        final AtomicLong ramBytesUsed = new AtomicLong();</b>
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;        private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());</b>
+<i>49</i>&nbsp;        private final Map&lt;BytesRef, VersionValue&gt; map;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;        // each version map has a notion of safe / unsafe which allows us to apply certain optimization in the auto-generated ID usecase
+<i>52</i>&nbsp;        // where we know that documents can&#39;t have any duplicates so we can skip the version map entirely. This reduces
+<i>53</i>&nbsp;        // the memory pressure significantly for this use-case where we often get a massive amount of small document (metrics).
+<i>54</i>&nbsp;        // if the version map is in safeAccess mode we track all version in the version map. yet if a document comes in that needs
+<i>55</i>&nbsp;        // safe access but we are not in this mode we force a refresh and make the map as safe access required. All subsequent ops will
+<i>56</i>&nbsp;        // respect that and fill the version map. The nice part here is that we are only really requiring this for a single ID and since
+<i>57</i>&nbsp;        // we hold the ID lock in the engine while we do all this it&#39;s safe to do it globally unlocked.
+<i>58</i>&nbsp;        // NOTE: these values can both be non-volatile since it&#39;s ok to read a stale value per doc ID. We serialize changes in the engine
+<i>59</i>&nbsp;        // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
+<i>60</i>&nbsp;        // map reference itself.
+<i>61</i>&nbsp;        private boolean unsafe;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;        // minimum timestamp of delete operations that were made while this map was active. this is used to make sure they are kept in
+<i>64</i>&nbsp;        // the tombstone
+<b class="fc"><i>65</i>&nbsp;        private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);</b>
+<i>66</i>&nbsp;
+<b class="fc"><i>67</i>&nbsp;        private VersionLookup(Map&lt;BytesRef, VersionValue&gt; map) {</b>
+<b class="fc"><i>68</i>&nbsp;            this.map = map;</b>
+<b class="fc"><i>69</i>&nbsp;        }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;        VersionValue get(BytesRef key) {
+<b class="nc"><i>72</i>&nbsp;            return map.get(key);</b>
+<i>73</i>&nbsp;        }
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;        VersionValue put(BytesRef key, VersionValue value) {
+<b class="nc"><i>76</i>&nbsp;            return map.put(key, value);</b>
+<i>77</i>&nbsp;        }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;        boolean isEmpty() {
+<b class="fc"><i>80</i>&nbsp;            return map.isEmpty();</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        int size() {
+<b class="fc"><i>84</i>&nbsp;            return map.size();</b>
+<i>85</i>&nbsp;        }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;        boolean isUnsafe() {
+<b class="fc"><i>88</i>&nbsp;            return unsafe;</b>
+<i>89</i>&nbsp;        }
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;        void markAsUnsafe() {
+<b class="nc"><i>92</i>&nbsp;            unsafe = true;</b>
+<b class="nc"><i>93</i>&nbsp;        }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;        public VersionValue remove(BytesRef uid) {
+<b class="nc"><i>96</i>&nbsp;            return map.remove(uid);</b>
+<i>97</i>&nbsp;        }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;        public void updateMinDeletedTimestamp(DeleteVersionValue delete) {
+<b class="nc"><i>100</i>&nbsp;            long time = delete.time;</b>
+<b class="nc"><i>101</i>&nbsp;            minDeleteTimestamp.updateAndGet(prev -&gt; Math.min(time, prev));</b>
+<b class="nc"><i>102</i>&nbsp;        }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<b class="fc"><i>106</i>&nbsp;    private static final class Maps {</b>
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;        // All writes (adds and deletes) go into here:
+<i>109</i>&nbsp;        final VersionLookup current;
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;        // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
+<i>112</i>&nbsp;        final VersionLookup old;
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;        // this is not volatile since we don&#39;t need to maintain a happens before relation ship across doc IDs so it&#39;s enough to
+<i>115</i>&nbsp;        // have the volatile read of the Maps reference to make it visible even across threads.
+<i>116</i>&nbsp;        boolean needsSafeAccess;
+<i>117</i>&nbsp;        final boolean previousMapsNeededSafeAccess;
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;
+<b class="fc"><i>120</i>&nbsp;        Maps(VersionLookup current, VersionLookup old, boolean previousMapsNeededSafeAccess) {</b>
+<b class="fc"><i>121</i>&nbsp;            this.current = current;</b>
+<b class="fc"><i>122</i>&nbsp;            this.old = old;</b>
+<b class="fc"><i>123</i>&nbsp;            this.previousMapsNeededSafeAccess = previousMapsNeededSafeAccess;</b>
+<b class="fc"><i>124</i>&nbsp;        }</b>
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;        Maps() {
+<b class="fc"><i>127</i>&nbsp;            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()),</b>
+<b class="fc"><i>128</i>&nbsp;                VersionLookup.EMPTY, false);</b>
+<b class="fc"><i>129</i>&nbsp;        }</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;        boolean isSafeAccessMode() {
+<b class="nc"><i>132</i>&nbsp;            return needsSafeAccess || previousMapsNeededSafeAccess;</b>
+<i>133</i>&nbsp;        }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        boolean shouldInheritSafeAccess() {
+<b class="fc"><i>136</i>&nbsp;            final boolean mapHasNotSeenAnyOperations = current.isEmpty() &amp;&amp; current.isUnsafe() == false;</b>
+<b class="fc"><i>137</i>&nbsp;            return needsSafeAccess</b>
+<i>138</i>&nbsp;                // we haven&#39;t seen any ops and map before needed it so we maintain it
+<i>139</i>&nbsp;                || (mapHasNotSeenAnyOperations &amp;&amp; previousMapsNeededSafeAccess);
+<i>140</i>&nbsp;        }
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;        /**
+<i>143</i>&nbsp;         * Builds a new map for the refresh transition this should be called in beforeRefresh()
+<i>144</i>&nbsp;         */
+<i>145</i>&nbsp;        Maps buildTransitionMap() {
+<b class="fc"><i>146</i>&nbsp;            return new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())), current,</b>
+<b class="fc"><i>147</i>&nbsp;                shouldInheritSafeAccess());</b>
+<i>148</i>&nbsp;        }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;        /**
+<i>151</i>&nbsp;         * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
+<i>152</i>&nbsp;         */
+<i>153</i>&nbsp;        Maps invalidateOldMap() {
+<b class="fc"><i>154</i>&nbsp;            return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);</b>
+<i>155</i>&nbsp;        }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;        void put(BytesRef uid, VersionValue version) {
+<b class="nc"><i>158</i>&nbsp;            long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;</b>
+<b class="nc"><i>159</i>&nbsp;            long ramAccounting = BASE_BYTES_PER_CHM_ENTRY + version.ramBytesUsed() + uidRAMBytesUsed;</b>
+<b class="nc"><i>160</i>&nbsp;            VersionValue previousValue = current.put(uid, version);</b>
+<b class="nc"><i>161</i>&nbsp;            ramAccounting += previousValue == null ? 0 : -(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed);</b>
+<b class="nc"><i>162</i>&nbsp;            adjustRam(ramAccounting);</b>
+<b class="nc"><i>163</i>&nbsp;        }</b>
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;        void adjustRam(long value) {
+<b class="nc"><i>166</i>&nbsp;            if (value != 0) {</b>
+<b class="nc"><i>167</i>&nbsp;                long v = current.ramBytesUsed.addAndGet(value);</b>
+<b class="nc"><i>168</i>&nbsp;                assert v &gt;= 0 : &quot;bytes=&quot; + v;</b>
+<i>169</i>&nbsp;            }
+<b class="nc"><i>170</i>&nbsp;        }</b>
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;        void remove(BytesRef uid, DeleteVersionValue deleted) {
+<b class="nc"><i>173</i>&nbsp;            VersionValue previousValue = current.remove(uid);</b>
+<b class="nc"><i>174</i>&nbsp;            current.updateMinDeletedTimestamp(deleted);</b>
+<b class="nc"><i>175</i>&nbsp;            if (previousValue != null) {</b>
+<b class="nc"><i>176</i>&nbsp;                long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;</b>
+<b class="nc"><i>177</i>&nbsp;                adjustRam(-(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed));</b>
+<i>178</i>&nbsp;            }
+<b class="nc"><i>179</i>&nbsp;            if (old != VersionLookup.EMPTY) {</b>
+<i>180</i>&nbsp;                // we also need to remove it from the old map here to make sure we don&#39;t read this stale value while
+<i>181</i>&nbsp;                // we are in the middle of a refresh. Most of the time the old map is an empty map so we can skip it there.
+<b class="nc"><i>182</i>&nbsp;                old.remove(uid);</b>
+<i>183</i>&nbsp;            }
+<b class="nc"><i>184</i>&nbsp;        }</b>
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        long getMinDeleteTimestamp() {
+<b class="nc"><i>187</i>&nbsp;            return Math.min(current.minDeleteTimestamp.get(), old.minDeleteTimestamp.get());</b>
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;    }
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;    // All deletes also go here, and delete &quot;tombstones&quot; are retained after refresh:
+<b class="fc"><i>192</i>&nbsp;    private final Map&lt;BytesRef, DeleteVersionValue&gt; tombstones = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();</b>
+<i>193</i>&nbsp;
+<b class="fc"><i>194</i>&nbsp;    private volatile Maps maps = new Maps();</b>
+<i>195</i>&nbsp;    // we maintain a second map that only receives the updates that we skip on the actual map (unsafe ops)
+<i>196</i>&nbsp;    // this map is only maintained if assertions are enabled
+<b class="fc"><i>197</i>&nbsp;    private volatile Maps unsafeKeysMap = new Maps();</b>
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;    /**
+<i>200</i>&nbsp;     * Bytes consumed for each BytesRef UID:
+<i>201</i>&nbsp;     * In this base value, we account for the {@link BytesRef} object itself as
+<i>202</i>&nbsp;     * well as the header of the byte[] array it holds, and some lost bytes due
+<i>203</i>&nbsp;     * to object alignment. So consumers of this constant just have to add the
+<i>204</i>&nbsp;     * length of the byte[] (assuming it is not shared between multiple
+<i>205</i>&nbsp;     * instances).
+<i>206</i>&nbsp;     */
+<b class="fc"><i>207</i>&nbsp;    private static final long BASE_BYTES_PER_BYTESREF =</b>
+<i>208</i>&nbsp;        // shallow memory usage of the BytesRef object
+<b class="fc"><i>209</i>&nbsp;        RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) +</b>
+<i>210</i>&nbsp;            // header of the byte[] array
+<i>211</i>&nbsp;            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER +
+<i>212</i>&nbsp;            // with an alignment size (-XX:ObjectAlignmentInBytes) of 8 (default),
+<i>213</i>&nbsp;            // there could be between 0 and 7 lost bytes, so we account for 3
+<i>214</i>&nbsp;            // lost bytes on average
+<i>215</i>&nbsp;            3;
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * Bytes used by having CHM point to a key/value.
+<i>219</i>&nbsp;     */
+<i>220</i>&nbsp;    private static final long BASE_BYTES_PER_CHM_ENTRY;
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;    static {
+<i>223</i>&nbsp;        // use the same impl as the Maps does
+<b class="fc"><i>224</i>&nbsp;        Map&lt;Integer, Integer&gt; map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();</b>
+<b class="fc"><i>225</i>&nbsp;        map.put(0, 0);</b>
+<b class="fc"><i>226</i>&nbsp;        long chmEntryShallowSize = RamUsageEstimator.shallowSizeOf(map.entrySet().iterator().next());</b>
+<i>227</i>&nbsp;        // assume a load factor of 50%
+<i>228</i>&nbsp;        // for each entry, we need two object refs, one for the entry itself
+<i>229</i>&nbsp;        // and one for the free space that is due to the fact hash tables can
+<i>230</i>&nbsp;        // not be fully loaded
+<b class="fc"><i>231</i>&nbsp;        BASE_BYTES_PER_CHM_ENTRY = chmEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;</b>
+<b class="fc"><i>232</i>&nbsp;    }</b>
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    /**
+<i>235</i>&nbsp;     * Tracks bytes used by tombstones (deletes)
+<i>236</i>&nbsp;     */
+<b class="fc"><i>237</i>&nbsp;    private final AtomicLong ramBytesUsedTombstones = new AtomicLong();</b>
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    @Override
+<i>240</i>&nbsp;    public void beforeRefresh() throws IOException {
+<i>241</i>&nbsp;        // Start sending all updates after this point to the new
+<i>242</i>&nbsp;        // map.  While reopen is running, any lookup will first
+<i>243</i>&nbsp;        // try this new map, then fallback to old, then to the
+<i>244</i>&nbsp;        // current searcher:
+<b class="fc"><i>245</i>&nbsp;        maps = maps.buildTransitionMap();</b>
+<b class="fc"><i>246</i>&nbsp;        assert (unsafeKeysMap = unsafeKeysMap.buildTransitionMap()) != null;</b>
+<i>247</i>&nbsp;        // This is not 100% correct, since concurrent indexing ops can change these counters in between our execution of the previous
+<i>248</i>&nbsp;        // line and this one, but that should be minor, and the error won&#39;t accumulate over time:
+<b class="fc"><i>249</i>&nbsp;    }</b>
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    @Override
+<i>252</i>&nbsp;    public void afterRefresh(boolean didRefresh) throws IOException {
+<i>253</i>&nbsp;        // We can now drop old because these operations are now visible via the newly opened searcher.  Even if didRefresh is false, which
+<i>254</i>&nbsp;        // means Lucene did not actually open a new reader because it detected no changes, it&#39;s possible old has some entries in it, which
+<i>255</i>&nbsp;        // is fine: it means they were actually already included in the previously opened reader, so we can still safely drop them in that
+<i>256</i>&nbsp;        // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
+<i>257</i>&nbsp;        // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
+<i>258</i>&nbsp;        // reflected in the previous reader.   We don&#39;t touch tombstones here: they expire on their own index.gc_deletes timeframe:
+<i>259</i>&nbsp;
+<b class="fc"><i>260</i>&nbsp;        maps = maps.invalidateOldMap();</b>
+<b class="fc"><i>261</i>&nbsp;        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;</b>
+<i>262</i>&nbsp;
+<b class="fc"><i>263</i>&nbsp;    }</b>
+<i>264</i>&nbsp;
+<i>265</i>&nbsp;    /**
+<i>266</i>&nbsp;     * Returns the live version (add or delete) for this uid.
+<i>267</i>&nbsp;     */
+<i>268</i>&nbsp;    VersionValue getUnderLock(final BytesRef uid) {
+<b class="nc"><i>269</i>&nbsp;        return getUnderLock(uid, maps);</b>
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
+<b class="nc"><i>273</i>&nbsp;        assert assertKeyedLockHeldByCurrentThread(uid);</b>
+<i>274</i>&nbsp;        // First try to get the &quot;live&quot; value:
+<b class="nc"><i>275</i>&nbsp;        VersionValue value = currentMaps.current.get(uid);</b>
+<b class="nc"><i>276</i>&nbsp;        if (value != null) {</b>
+<b class="nc"><i>277</i>&nbsp;            return value;</b>
+<i>278</i>&nbsp;        }
+<i>279</i>&nbsp;
+<b class="nc"><i>280</i>&nbsp;        value = currentMaps.old.get(uid);</b>
+<b class="nc"><i>281</i>&nbsp;        if (value != null) {</b>
+<b class="nc"><i>282</i>&nbsp;            return value;</b>
+<i>283</i>&nbsp;        }
+<i>284</i>&nbsp;
+<b class="nc"><i>285</i>&nbsp;        return tombstones.get(uid);</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    VersionValue getVersionForAssert(final BytesRef uid) {
+<b class="nc"><i>289</i>&nbsp;        VersionValue value = getUnderLock(uid, maps);</b>
+<b class="nc"><i>290</i>&nbsp;        if (value == null) {</b>
+<b class="nc"><i>291</i>&nbsp;            value = getUnderLock(uid, unsafeKeysMap);</b>
+<i>292</i>&nbsp;        }
+<b class="nc"><i>293</i>&nbsp;        return value;</b>
+<i>294</i>&nbsp;    }
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;    boolean isUnsafe() {
+<b class="nc"><i>297</i>&nbsp;        return maps.current.isUnsafe() || maps.old.isUnsafe();</b>
+<i>298</i>&nbsp;    }
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    void enforceSafeAccess() {
+<b class="nc"><i>301</i>&nbsp;        maps.needsSafeAccess = true;</b>
+<b class="nc"><i>302</i>&nbsp;    }</b>
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;    boolean isSafeAccessRequired() {
+<b class="nc"><i>305</i>&nbsp;        return maps.isSafeAccessMode();</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    /**
+<i>309</i>&nbsp;     * Adds this uid/version to the pending adds map iff the map needs safe access.
+<i>310</i>&nbsp;     */
+<i>311</i>&nbsp;    void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+<b class="nc"><i>312</i>&nbsp;        assert assertKeyedLockHeldByCurrentThread(uid);</b>
+<b class="nc"><i>313</i>&nbsp;        Maps maps = this.maps;</b>
+<b class="nc"><i>314</i>&nbsp;        if (maps.isSafeAccessMode()) {</b>
+<b class="nc"><i>315</i>&nbsp;            putIndexUnderLock(uid, version);</b>
+<i>316</i>&nbsp;        } else {
+<i>317</i>&nbsp;            // Even though we don&#39;t store a record of the indexing operation (and mark as unsafe),
+<i>318</i>&nbsp;            // we should still remove any previous delete for this uuid (avoid accidental accesses).
+<i>319</i>&nbsp;            // Not this should not hurt performance because the tombstone is small (or empty) when unsafe is relevant.
+<b class="nc"><i>320</i>&nbsp;            removeTombstoneUnderLock(uid);</b>
+<b class="nc"><i>321</i>&nbsp;            maps.current.markAsUnsafe();</b>
+<b class="nc"><i>322</i>&nbsp;            assert putAssertionMap(uid, version);</b>
+<i>323</i>&nbsp;        }
+<b class="nc"><i>324</i>&nbsp;    }</b>
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;    void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+<b class="nc"><i>327</i>&nbsp;        assert assertKeyedLockHeldByCurrentThread(uid);</b>
+<b class="nc"><i>328</i>&nbsp;        assert uid.bytes.length == uid.length : &quot;Oversized _uid! UID length: &quot; + uid.length + &quot;, bytes length: &quot; + uid.bytes.length;</b>
+<b class="nc"><i>329</i>&nbsp;        maps.put(uid, version);</b>
+<b class="nc"><i>330</i>&nbsp;        removeTombstoneUnderLock(uid);</b>
+<b class="nc"><i>331</i>&nbsp;    }</b>
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    private boolean putAssertionMap(BytesRef uid, IndexVersionValue version) {
+<b class="nc"><i>334</i>&nbsp;        assert assertKeyedLockHeldByCurrentThread(uid);</b>
+<b class="nc"><i>335</i>&nbsp;        assert uid.bytes.length == uid.length : &quot;Oversized _uid! UID length: &quot; + uid.length + &quot;, bytes length: &quot; + uid.bytes.length;</b>
+<b class="nc"><i>336</i>&nbsp;        unsafeKeysMap.put(uid, version);</b>
+<b class="nc"><i>337</i>&nbsp;        return true;</b>
+<i>338</i>&nbsp;    }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
+<b class="nc"><i>341</i>&nbsp;        assert assertKeyedLockHeldByCurrentThread(uid);</b>
+<b class="nc"><i>342</i>&nbsp;        assert uid.bytes.length == uid.length : &quot;Oversized _uid! UID length: &quot; + uid.length + &quot;, bytes length: &quot; + uid.bytes.length;</b>
+<b class="nc"><i>343</i>&nbsp;        putTombstone(uid, version);</b>
+<b class="nc"><i>344</i>&nbsp;        maps.remove(uid, version);</b>
+<b class="nc"><i>345</i>&nbsp;    }</b>
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    private void putTombstone(BytesRef uid, DeleteVersionValue version) {
+<b class="nc"><i>348</i>&nbsp;        long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;</b>
+<i>349</i>&nbsp;        // Also enroll the delete into tombstones, and account for its RAM too:
+<b class="nc"><i>350</i>&nbsp;        final VersionValue prevTombstone = tombstones.put(uid, version);</b>
+<b class="nc"><i>351</i>&nbsp;        long accountRam = (BASE_BYTES_PER_CHM_ENTRY + version.ramBytesUsed() + uidRAMBytesUsed);</b>
+<i>352</i>&nbsp;        // Deduct tombstones bytes used for the version we just removed or replaced:
+<b class="nc"><i>353</i>&nbsp;        if (prevTombstone != null) {</b>
+<b class="nc"><i>354</i>&nbsp;            accountRam -= (BASE_BYTES_PER_CHM_ENTRY + prevTombstone.ramBytesUsed() + uidRAMBytesUsed);</b>
+<i>355</i>&nbsp;        }
+<b class="nc"><i>356</i>&nbsp;        if (accountRam != 0) {</b>
+<b class="nc"><i>357</i>&nbsp;            long v = ramBytesUsedTombstones.addAndGet(accountRam);</b>
+<b class="nc"><i>358</i>&nbsp;            assert v &gt;= 0: &quot;bytes=&quot; + v;</b>
+<i>359</i>&nbsp;        }
+<b class="nc"><i>360</i>&nbsp;    }</b>
+<i>361</i>&nbsp;
+<i>362</i>&nbsp;    /**
+<i>363</i>&nbsp;     * Removes this uid from the pending deletes map.
+<i>364</i>&nbsp;     */
+<i>365</i>&nbsp;    void removeTombstoneUnderLock(BytesRef uid) {
+<b class="nc"><i>366</i>&nbsp;        assert assertKeyedLockHeldByCurrentThread(uid);</b>
+<b class="nc"><i>367</i>&nbsp;        long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;</b>
+<b class="nc"><i>368</i>&nbsp;        final VersionValue prev = tombstones.remove(uid);</b>
+<b class="nc"><i>369</i>&nbsp;        if (prev != null) {</b>
+<b class="nc"><i>370</i>&nbsp;            assert prev.isDelete();</b>
+<b class="nc"><i>371</i>&nbsp;            long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));</b>
+<b class="nc"><i>372</i>&nbsp;            assert v &gt;= 0 : &quot;bytes=&quot; + v;</b>
+<i>373</i>&nbsp;        }
+<b class="nc"><i>374</i>&nbsp;    }</b>
+<i>375</i>&nbsp;
+<i>376</i>&nbsp;    private boolean canRemoveTombstone(long maxTimestampToPrune, long maxSeqNoToPrune, DeleteVersionValue versionValue) {
+<i>377</i>&nbsp;        // check if the value is old enough and safe to be removed
+<b class="nc"><i>378</i>&nbsp;        final boolean isTooOld = versionValue.time &lt; maxTimestampToPrune;</b>
+<b class="nc"><i>379</i>&nbsp;        final boolean isSafeToPrune = versionValue.seqNo &lt;= maxSeqNoToPrune;</b>
+<i>380</i>&nbsp;        // version value can&#39;t be removed it&#39;s
+<i>381</i>&nbsp;        // not yet flushed to lucene ie. it&#39;s part of this current maps object
+<b class="nc"><i>382</i>&nbsp;        final boolean isNotTrackedByCurrentMaps = versionValue.time &lt; maps.getMinDeleteTimestamp();</b>
+<b class="nc"><i>383</i>&nbsp;        return isTooOld &amp;&amp; isSafeToPrune &amp;&amp; isNotTrackedByCurrentMaps;</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    /**
+<i>387</i>&nbsp;     * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
+<i>388</i>&nbsp;     */
+<i>389</i>&nbsp;    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
+<b class="nc"><i>390</i>&nbsp;        for (Map.Entry&lt;BytesRef, DeleteVersionValue&gt; entry : tombstones.entrySet()) {</b>
+<i>391</i>&nbsp;            // we do check before we actually lock the key - this way we don&#39;t need to acquire the lock for tombstones that are not
+<i>392</i>&nbsp;            // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can&#39;t collect it now w
+<i>393</i>&nbsp;            // we won&#39;t collect the tombstone below since it must be newer than this one.
+<b class="nc"><i>394</i>&nbsp;            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, entry.getValue())) {</b>
+<b class="nc"><i>395</i>&nbsp;                final BytesRef uid = entry.getKey();</b>
+<b class="nc"><i>396</i>&nbsp;                try (Releasable lock = keyedLock.tryAcquire(uid)) {</b>
+<i>397</i>&nbsp;                    // we use tryAcquire here since this is a best effort and we try to be least disruptive
+<i>398</i>&nbsp;                    // this method is also called under lock in the engine under certain situations such that this can lead to deadlocks
+<i>399</i>&nbsp;                    // if we do use a blocking acquire. see #28714
+<b class="nc"><i>400</i>&nbsp;                    if (lock != null) { // did we get the lock?</b>
+<i>401</i>&nbsp;                        // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+<b class="nc"><i>402</i>&nbsp;                        final DeleteVersionValue versionValue = tombstones.get(uid);</b>
+<b class="nc"><i>403</i>&nbsp;                        if (versionValue != null) {</b>
+<b class="nc"><i>404</i>&nbsp;                            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, versionValue)) {</b>
+<b class="nc"><i>405</i>&nbsp;                                removeTombstoneUnderLock(uid);</b>
+<i>406</i>&nbsp;                            }
+<i>407</i>&nbsp;                        }
+<i>408</i>&nbsp;                    }
+<b class="nc"><i>409</i>&nbsp;                }</b>
+<i>410</i>&nbsp;            }
+<b class="nc"><i>411</i>&nbsp;        }</b>
+<b class="nc"><i>412</i>&nbsp;    }</b>
+<i>413</i>&nbsp;
+<i>414</i>&nbsp;    /**
+<i>415</i>&nbsp;     * Called when this index is closed.
+<i>416</i>&nbsp;     */
+<i>417</i>&nbsp;    synchronized void clear() {
+<b class="fc"><i>418</i>&nbsp;        maps = new Maps();</b>
+<b class="fc"><i>419</i>&nbsp;        tombstones.clear();</b>
+<i>420</i>&nbsp;        // NOTE: we can&#39;t zero this here, because a refresh thread could be calling InternalEngine.pruneDeletedTombstones at the same time,
+<i>421</i>&nbsp;        // and this will lead to an assert trip.  Presumably it&#39;s fine if our ramBytesUsedTombstones is non-zero after clear since the
+<i>422</i>&nbsp;        // index is being closed:
+<i>423</i>&nbsp;        //ramBytesUsedTombstones.set(0);
+<b class="fc"><i>424</i>&nbsp;    }</b>
+<i>425</i>&nbsp;
+<i>426</i>&nbsp;    @Override
+<i>427</i>&nbsp;    public long ramBytesUsed() {
+<b class="nc"><i>428</i>&nbsp;        return maps.current.ramBytesUsed.get() + ramBytesUsedTombstones.get();</b>
+<i>429</i>&nbsp;    }
+<i>430</i>&nbsp;
+<i>431</i>&nbsp;    /**
+<i>432</i>&nbsp;     * Returns how much RAM would be freed up by refreshing. This is {@link #ramBytesUsed} except does not include tombstones because they
+<i>433</i>&nbsp;     * don&#39;t clear on refresh.
+<i>434</i>&nbsp;     */
+<i>435</i>&nbsp;    long ramBytesUsedForRefresh() {
+<b class="fc"><i>436</i>&nbsp;        return maps.current.ramBytesUsed.get();</b>
+<i>437</i>&nbsp;    }
+<i>438</i>&nbsp;
+<i>439</i>&nbsp;    /**
+<i>440</i>&nbsp;     * Returns how much RAM is current being freed up by refreshing.  This is {@link #ramBytesUsed()}
+<i>441</i>&nbsp;     * except does not include tombstones because they don&#39;t clear on refresh.
+<i>442</i>&nbsp;     */
+<i>443</i>&nbsp;    long getRefreshingBytes() {
+<b class="fc"><i>444</i>&nbsp;        return maps.old.ramBytesUsed.get();</b>
+<i>445</i>&nbsp;    }
+<i>446</i>&nbsp;
+<i>447</i>&nbsp;    @Override
+<i>448</i>&nbsp;    public Collection&lt;Accountable&gt; getChildResources() {
+<i>449</i>&nbsp;        // TODO: useful to break down RAM usage here?
+<b class="nc"><i>450</i>&nbsp;        return Collections.emptyList();</b>
+<i>451</i>&nbsp;    }
+<i>452</i>&nbsp;
+<i>453</i>&nbsp;    /**
+<i>454</i>&nbsp;     * Returns the current internal versions as a point in time snapshot
+<i>455</i>&nbsp;     */
+<i>456</i>&nbsp;    Map&lt;BytesRef, VersionValue&gt; getAllCurrent() {
+<b class="nc"><i>457</i>&nbsp;        return maps.current.map;</b>
+<i>458</i>&nbsp;    }
+<i>459</i>&nbsp;
+<i>460</i>&nbsp;    /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones
+<i>461</i>&nbsp;     *  (exposed via reader but not yet GC&#39;d). */
+<i>462</i>&nbsp;    Map&lt;BytesRef, DeleteVersionValue&gt; getAllTombstones() {
+<b class="nc"><i>463</i>&nbsp;        return tombstones;</b>
+<i>464</i>&nbsp;    }
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;    /**
+<i>467</i>&nbsp;     * Acquires a releaseable lock for the given uId. All *UnderLock methods require
+<i>468</i>&nbsp;     * this lock to be hold by the caller otherwise the visibility guarantees of this version
+<i>469</i>&nbsp;     * map are broken. We assert on this lock to be hold when calling these methods.
+<i>470</i>&nbsp;     * @see KeyedLock
+<i>471</i>&nbsp;     */
+<i>472</i>&nbsp;    Releasable acquireLock(BytesRef uid) {
+<b class="nc"><i>473</i>&nbsp;        return keyedLock.acquire(uid);</b>
+<i>474</i>&nbsp;    }
+<i>475</i>&nbsp;
+<i>476</i>&nbsp;    boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
+<b class="nc"><i>477</i>&nbsp;        assert keyedLock.isHeldByCurrentThread(uid) : &quot;Thread [&quot; + Thread.currentThread().getName() +</b>
+<b class="nc"><i>478</i>&nbsp;            &quot;], uid [&quot; + uid.utf8ToString() + &quot;]&quot;;</b>
+<b class="nc"><i>479</i>&nbsp;        return true;</b>
+<i>480</i>&nbsp;    }
+<i>481</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

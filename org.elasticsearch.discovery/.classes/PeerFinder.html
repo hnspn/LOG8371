@@ -1,0 +1,668 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PeerFinder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PeerFinder (org.elasticsearch.discovery)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PeerFinder</td>
+<td class="coverageStat">
+  <span class="percent">
+    70%
+  </span>
+  <span class="absValue">
+    (14/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    74.5%
+  </span>
+  <span class="absValue">
+    (79/ 106)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PeerFinder$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (4/ 12)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">PeerFinder$ConfiguredHostsResolver</td>
+  </tr>
+  <tr>
+    <td class="name">PeerFinder$Peer</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 59)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">PeerFinder$TransportAddressConnector</td>
+  </tr>
+  <tr>
+    <td class="name">PeerFinder$Zen1UnicastPingRequestHandler</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8.3%
+  </span>
+  <span class="absValue">
+    (1/ 12)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    47.2%
+  </span>
+  <span class="absValue">
+    (17/ 36)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    44.4%
+  </span>
+  <span class="absValue">
+    (84/ 189)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectCursor;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>26</i>&nbsp;import org.apache.lucene.util.SetOnce;
+<i>27</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.coordination.PeersResponse;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>33</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>34</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>35</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>36</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>37</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>38</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>39</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>40</i>&nbsp;import org.elasticsearch.discovery.zen.UnicastZenPing;
+<i>41</i>&nbsp;import org.elasticsearch.discovery.zen.ZenDiscovery;
+<i>42</i>&nbsp;import org.elasticsearch.discovery.zen.ZenPing;
+<i>43</i>&nbsp;import org.elasticsearch.discovery.zen.ZenPing.PingResponse;
+<i>44</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>45</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool.Names;
+<i>46</i>&nbsp;import org.elasticsearch.transport.TransportChannel;
+<i>47</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>48</i>&nbsp;import org.elasticsearch.transport.TransportRequest;
+<i>49</i>&nbsp;import org.elasticsearch.transport.TransportRequestHandler;
+<i>50</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions;
+<i>51</i>&nbsp;import org.elasticsearch.transport.TransportResponseHandler;
+<i>52</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;import java.io.IOException;
+<i>55</i>&nbsp;import java.util.ArrayList;
+<i>56</i>&nbsp;import java.util.Arrays;
+<i>57</i>&nbsp;import java.util.Collections;
+<i>58</i>&nbsp;import java.util.LinkedHashMap;
+<i>59</i>&nbsp;import java.util.List;
+<i>60</i>&nbsp;import java.util.Map;
+<i>61</i>&nbsp;import java.util.Objects;
+<i>62</i>&nbsp;import java.util.Optional;
+<i>63</i>&nbsp;import java.util.function.Consumer;
+<i>64</i>&nbsp;import java.util.stream.Collectors;
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;import static java.util.Collections.emptyList;
+<i>67</i>&nbsp;import static org.elasticsearch.cluster.coordination.Coordinator.isZen1Node;
+<i>68</i>&nbsp;import static org.elasticsearch.cluster.coordination.DiscoveryUpgradeService.createDiscoveryNodeWithImpossiblyHighId;
+<i>69</i>&nbsp;
+<b class="fc"><i>70</i>&nbsp;public abstract class PeerFinder {</b>
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    private static final Logger logger = LogManager.getLogger(PeerFinder.class);</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    public static final String REQUEST_PEERS_ACTION_NAME = &quot;internal:discovery/request_peers&quot;;
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    // the time between attempts to find all peers
+<b class="fc"><i>77</i>&nbsp;    public static final Setting&lt;TimeValue&gt; DISCOVERY_FIND_PEERS_INTERVAL_SETTING =</b>
+<b class="fc"><i>78</i>&nbsp;        Setting.timeSetting(&quot;discovery.find_peers_interval&quot;,</b>
+<b class="fc"><i>79</i>&nbsp;            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);</b>
+<i>80</i>&nbsp;
+<b class="fc"><i>81</i>&nbsp;    public static final Setting&lt;TimeValue&gt; DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING =</b>
+<b class="fc"><i>82</i>&nbsp;        Setting.timeSetting(&quot;discovery.request_peers_timeout&quot;,</b>
+<b class="fc"><i>83</i>&nbsp;            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    private final Settings settings;
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    private final TimeValue findPeersInterval;
+<i>88</i>&nbsp;    private final TimeValue requestPeersTimeout;
+<i>89</i>&nbsp;
+<b class="fc"><i>90</i>&nbsp;    private final Object mutex = new Object();</b>
+<i>91</i>&nbsp;    private final TransportService transportService;
+<i>92</i>&nbsp;    private final TransportAddressConnector transportAddressConnector;
+<i>93</i>&nbsp;    private final ConfiguredHostsResolver configuredHostsResolver;
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    private volatile long currentTerm;
+<i>96</i>&nbsp;    private boolean active;
+<i>97</i>&nbsp;    private DiscoveryNodes lastAcceptedNodes;
+<b class="fc"><i>98</i>&nbsp;    private final Map&lt;TransportAddress, Peer&gt; peersByAddress = new LinkedHashMap&lt;&gt;();</b>
+<b class="fc"><i>99</i>&nbsp;    private Optional&lt;DiscoveryNode&gt; leader = Optional.empty();</b>
+<b class="fc"><i>100</i>&nbsp;    private volatile List&lt;TransportAddress&gt; lastResolvedAddresses = emptyList();</b>
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
+<b class="fc"><i>103</i>&nbsp;                      ConfiguredHostsResolver configuredHostsResolver) {</b>
+<b class="fc"><i>104</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>105</i>&nbsp;        findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);</b>
+<b class="fc"><i>106</i>&nbsp;        requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>107</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>108</i>&nbsp;        this.transportAddressConnector = transportAddressConnector;</b>
+<b class="fc"><i>109</i>&nbsp;        this.configuredHostsResolver = configuredHostsResolver;</b>
+<i>110</i>&nbsp;
+<b class="fc"><i>111</i>&nbsp;        transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,</b>
+<i>112</i>&nbsp;            PeersRequest::new,
+<b class="nc"><i>113</i>&nbsp;            (request, channel, task) -&gt; channel.sendResponse(handlePeersRequest(request)));</b>
+<i>114</i>&nbsp;
+<b class="fc"><i>115</i>&nbsp;        transportService.registerRequestHandler(UnicastZenPing.ACTION_NAME, Names.GENERIC, false, false,</b>
+<i>116</i>&nbsp;            UnicastZenPing.UnicastPingRequest::new, new Zen1UnicastPingRequestHandler());
+<b class="fc"><i>117</i>&nbsp;    }</b>
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    public void activate(final DiscoveryNodes lastAcceptedNodes) {
+<b class="fc"><i>120</i>&nbsp;        logger.trace(&quot;activating with {}&quot;, lastAcceptedNodes);</b>
+<i>121</i>&nbsp;
+<b class="fc"><i>122</i>&nbsp;        synchronized (mutex) {</b>
+<b class="fc"><i>123</i>&nbsp;            assert assertInactiveWithNoKnownPeers();</b>
+<b class="fc"><i>124</i>&nbsp;            active = true;</b>
+<b class="fc"><i>125</i>&nbsp;            this.lastAcceptedNodes = lastAcceptedNodes;</b>
+<b class="fc"><i>126</i>&nbsp;            leader = Optional.empty();</b>
+<b class="fc"><i>127</i>&nbsp;            handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected</b>
+<b class="fc"><i>128</i>&nbsp;        }</b>
+<i>129</i>&nbsp;
+<b class="fc"><i>130</i>&nbsp;        onFoundPeersUpdated(); // trigger a check for a quorum already</b>
+<b class="fc"><i>131</i>&nbsp;    }</b>
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    public void deactivate(DiscoveryNode leader) {
+<i>134</i>&nbsp;        final boolean peersRemoved;
+<b class="fc"><i>135</i>&nbsp;        synchronized (mutex) {</b>
+<b class="fc"><i>136</i>&nbsp;            logger.trace(&quot;deactivating and setting leader to {}&quot;, leader);</b>
+<b class="fc"><i>137</i>&nbsp;            active = false;</b>
+<b class="fc"><i>138</i>&nbsp;            peersRemoved = handleWakeUp();</b>
+<b class="fc"><i>139</i>&nbsp;            this.leader = Optional.of(leader);</b>
+<b class="fc"><i>140</i>&nbsp;            assert assertInactiveWithNoKnownPeers();</b>
+<b class="fc"><i>141</i>&nbsp;        }</b>
+<b class="fc"><i>142</i>&nbsp;        if (peersRemoved) {</b>
+<b class="nc"><i>143</i>&nbsp;            onFoundPeersUpdated();</b>
+<i>144</i>&nbsp;        }
+<b class="fc"><i>145</i>&nbsp;    }</b>
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;    // exposed to subclasses for testing
+<i>148</i>&nbsp;    protected final boolean holdsLock() {
+<b class="fc"><i>149</i>&nbsp;        return Thread.holdsLock(mutex);</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    private boolean assertInactiveWithNoKnownPeers() {
+<b class="fc"><i>153</i>&nbsp;        assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<b class="fc"><i>154</i>&nbsp;        assert active == false;</b>
+<b class="fc"><i>155</i>&nbsp;        assert peersByAddress.isEmpty() : peersByAddress.keySet();</b>
+<b class="fc"><i>156</i>&nbsp;        return true;</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    PeersResponse handlePeersRequest(PeersRequest peersRequest) {
+<b class="nc"><i>160</i>&nbsp;        synchronized (mutex) {</b>
+<b class="nc"><i>161</i>&nbsp;            assert peersRequest.getSourceNode().equals(getLocalNode()) == false;</b>
+<i>162</i>&nbsp;            final List&lt;DiscoveryNode&gt; knownPeers;
+<b class="nc"><i>163</i>&nbsp;            if (active) {</b>
+<b class="nc"><i>164</i>&nbsp;                assert leader.isPresent() == false : leader;</b>
+<b class="nc"><i>165</i>&nbsp;                if (peersRequest.getSourceNode().isMasterNode()) {</b>
+<b class="nc"><i>166</i>&nbsp;                    startProbe(peersRequest.getSourceNode().getAddress());</b>
+<i>167</i>&nbsp;                }
+<b class="nc"><i>168</i>&nbsp;                peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);</b>
+<b class="nc"><i>169</i>&nbsp;                knownPeers = getFoundPeersUnderLock();</b>
+<i>170</i>&nbsp;            } else {
+<b class="nc"><i>171</i>&nbsp;                assert leader.isPresent() || lastAcceptedNodes == null;</b>
+<b class="nc"><i>172</i>&nbsp;                knownPeers = emptyList();</b>
+<i>173</i>&nbsp;            }
+<b class="nc"><i>174</i>&nbsp;            return new PeersResponse(leader, knownPeers, currentTerm);</b>
+<b class="nc"><i>175</i>&nbsp;        }</b>
+<i>176</i>&nbsp;    }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    // exposed for checking invariant in o.e.c.c.Coordinator (public since this is a different package)
+<i>179</i>&nbsp;    public Optional&lt;DiscoveryNode&gt; getLeader() {
+<b class="nc"><i>180</i>&nbsp;        synchronized (mutex) {</b>
+<b class="nc"><i>181</i>&nbsp;            return leader;</b>
+<b class="nc"><i>182</i>&nbsp;        }</b>
+<i>183</i>&nbsp;    }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    // exposed for checking invariant in o.e.c.c.Coordinator (public since this is a different package)
+<i>186</i>&nbsp;    public long getCurrentTerm() {
+<b class="nc"><i>187</i>&nbsp;        return currentTerm;</b>
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    public void setCurrentTerm(long currentTerm) {
+<b class="fc"><i>191</i>&nbsp;        this.currentTerm = currentTerm;</b>
+<b class="fc"><i>192</i>&nbsp;    }</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    private DiscoveryNode getLocalNode() {
+<b class="fc"><i>195</i>&nbsp;        final DiscoveryNode localNode = transportService.getLocalNode();</b>
+<b class="fc"><i>196</i>&nbsp;        assert localNode != null;</b>
+<b class="fc"><i>197</i>&nbsp;        return localNode;</b>
+<i>198</i>&nbsp;    }
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    /**
+<i>201</i>&nbsp;     * Invoked on receipt of a PeersResponse from a node that believes it&#39;s an active leader, which this node should therefore try and join.
+<i>202</i>&nbsp;     * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
+<i>203</i>&nbsp;     */
+<i>204</i>&nbsp;    protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    /**
+<i>207</i>&nbsp;     * Invoked when the set of found peers changes. Note that invocations of this method are not fully synchronised, so we only guarantee
+<i>208</i>&nbsp;     * that the change to the set of found peers happens before this method is invoked. If there are multiple concurrent changes then there
+<i>209</i>&nbsp;     * will be multiple concurrent invocations of this method, with no guarantee as to their order. For this reason we do not pass the
+<i>210</i>&nbsp;     * updated set of peers as an argument to this method, leaving it to the implementation to call getFoundPeers() with appropriate
+<i>211</i>&nbsp;     * synchronisation to avoid lost updates. Also, by the time this method is invoked we may have been deactivated.
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    protected abstract void onFoundPeersUpdated();
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    public List&lt;TransportAddress&gt; getLastResolvedAddresses() {
+<b class="nc"><i>216</i>&nbsp;        return lastResolvedAddresses;</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    public interface TransportAddressConnector {
+<i>220</i>&nbsp;        /**
+<i>221</i>&nbsp;         * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
+<i>222</i>&nbsp;         */
+<i>223</i>&nbsp;        void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener&lt;DiscoveryNode&gt; listener);
+<i>224</i>&nbsp;    }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;    public interface ConfiguredHostsResolver {
+<i>227</i>&nbsp;        /**
+<i>228</i>&nbsp;         * Attempt to resolve the configured unicast hosts list to a list of transport addresses.
+<i>229</i>&nbsp;         *
+<i>230</i>&nbsp;         * @param consumer Consumer for the resolved list. May not be called if an error occurs or if another resolution attempt is in
+<i>231</i>&nbsp;         *                 progress.
+<i>232</i>&nbsp;         */
+<i>233</i>&nbsp;        void resolveConfiguredHosts(Consumer&lt;List&lt;TransportAddress&gt;&gt; consumer);
+<i>234</i>&nbsp;    }
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    public Iterable&lt;DiscoveryNode&gt; getFoundPeers() {
+<b class="fc"><i>237</i>&nbsp;        synchronized (mutex) {</b>
+<b class="fc"><i>238</i>&nbsp;            return getFoundPeersUnderLock();</b>
+<b class="nc"><i>239</i>&nbsp;        }</b>
+<i>240</i>&nbsp;    }
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    private List&lt;DiscoveryNode&gt; getFoundPeersUnderLock() {
+<b class="fc"><i>243</i>&nbsp;        assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<b class="fc"><i>244</i>&nbsp;        return peersByAddress.values().stream()</b>
+<b class="fc"><i>245</i>&nbsp;            .map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().collect(Collectors.toList());</b>
+<i>246</i>&nbsp;    }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    private Peer createConnectingPeer(TransportAddress transportAddress) {
+<b class="nc"><i>249</i>&nbsp;        Peer peer = new Peer(transportAddress);</b>
+<b class="nc"><i>250</i>&nbsp;        peer.establishConnection();</b>
+<b class="nc"><i>251</i>&nbsp;        return peer;</b>
+<i>252</i>&nbsp;    }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    /**
+<i>255</i>&nbsp;     * @return whether any peers were removed due to disconnection
+<i>256</i>&nbsp;     */
+<i>257</i>&nbsp;    private boolean handleWakeUp() {
+<b class="fc"><i>258</i>&nbsp;        assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<i>259</i>&nbsp;
+<b class="fc"><i>260</i>&nbsp;        final boolean peersRemoved = peersByAddress.values().removeIf(Peer::handleWakeUp);</b>
+<i>261</i>&nbsp;
+<b class="fc"><i>262</i>&nbsp;        if (active == false) {</b>
+<b class="fc"><i>263</i>&nbsp;            logger.trace(&quot;not active&quot;);</b>
+<b class="fc"><i>264</i>&nbsp;            return peersRemoved;</b>
+<i>265</i>&nbsp;        }
+<i>266</i>&nbsp;
+<b class="fc"><i>267</i>&nbsp;        logger.trace(&quot;probing master nodes from cluster state: {}&quot;, lastAcceptedNodes);</b>
+<b class="fc"><i>268</i>&nbsp;        for (ObjectCursor&lt;DiscoveryNode&gt; discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {</b>
+<b class="fc"><i>269</i>&nbsp;            startProbe(discoveryNodeObjectCursor.value.getAddress());</b>
+<b class="fc"><i>270</i>&nbsp;        }</b>
+<i>271</i>&nbsp;
+<b class="fc"><i>272</i>&nbsp;        configuredHostsResolver.resolveConfiguredHosts(providedAddresses -&gt; {</b>
+<b class="fc"><i>273</i>&nbsp;            synchronized (mutex) {</b>
+<b class="fc"><i>274</i>&nbsp;                lastResolvedAddresses = providedAddresses;</b>
+<b class="fc"><i>275</i>&nbsp;                logger.trace(&quot;probing resolved transport addresses {}&quot;, providedAddresses);</b>
+<b class="fc"><i>276</i>&nbsp;                providedAddresses.forEach(this::startProbe);</b>
+<b class="fc"><i>277</i>&nbsp;            }</b>
+<b class="fc"><i>278</i>&nbsp;        });</b>
+<i>279</i>&nbsp;
+<b class="fc"><i>280</i>&nbsp;        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {</b>
+<i>281</i>&nbsp;            @Override
+<i>282</i>&nbsp;            public boolean isForceExecution() {
+<b class="nc"><i>283</i>&nbsp;                return true;</b>
+<i>284</i>&nbsp;            }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;            @Override
+<i>287</i>&nbsp;            public void onFailure(Exception e) {
+<b class="nc"><i>288</i>&nbsp;                assert false : e;</b>
+<b class="nc"><i>289</i>&nbsp;                logger.debug(&quot;unexpected exception in wakeup&quot;, e);</b>
+<b class="nc"><i>290</i>&nbsp;            }</b>
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;            @Override
+<i>293</i>&nbsp;            protected void doRun() {
+<b class="fc"><i>294</i>&nbsp;                synchronized (mutex) {</b>
+<b class="fc"><i>295</i>&nbsp;                    if (handleWakeUp() == false) {</b>
+<b class="fc"><i>296</i>&nbsp;                        return;</b>
+<i>297</i>&nbsp;                    }
+<b class="nc"><i>298</i>&nbsp;                }</b>
+<b class="nc"><i>299</i>&nbsp;                onFoundPeersUpdated();</b>
+<b class="nc"><i>300</i>&nbsp;            }</b>
+<i>301</i>&nbsp;
+<i>302</i>&nbsp;            @Override
+<i>303</i>&nbsp;            public String toString() {
+<b class="nc"><i>304</i>&nbsp;                return &quot;PeerFinder handling wakeup&quot;;</b>
+<i>305</i>&nbsp;            }
+<i>306</i>&nbsp;        });
+<i>307</i>&nbsp;
+<b class="fc"><i>308</i>&nbsp;        return peersRemoved;</b>
+<i>309</i>&nbsp;    }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;    protected void startProbe(TransportAddress transportAddress) {
+<b class="fc"><i>312</i>&nbsp;        assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<b class="fc"><i>313</i>&nbsp;        if (active == false) {</b>
+<b class="nc"><i>314</i>&nbsp;            logger.trace(&quot;startProbe({}) not running&quot;, transportAddress);</b>
+<b class="nc"><i>315</i>&nbsp;            return;</b>
+<i>316</i>&nbsp;        }
+<i>317</i>&nbsp;
+<b class="fc"><i>318</i>&nbsp;        if (transportAddress.equals(getLocalNode().getAddress())) {</b>
+<b class="fc"><i>319</i>&nbsp;            logger.trace(&quot;startProbe({}) not probing local node&quot;, transportAddress);</b>
+<b class="fc"><i>320</i>&nbsp;            return;</b>
+<i>321</i>&nbsp;        }
+<i>322</i>&nbsp;
+<b class="nc"><i>323</i>&nbsp;        peersByAddress.computeIfAbsent(transportAddress, this::createConnectingPeer);</b>
+<b class="nc"><i>324</i>&nbsp;    }</b>
+<i>325</i>&nbsp;
+<b class="nc"><i>326</i>&nbsp;    private class Peer {</b>
+<i>327</i>&nbsp;        private final TransportAddress transportAddress;
+<b class="nc"><i>328</i>&nbsp;        private SetOnce&lt;DiscoveryNode&gt; discoveryNode = new SetOnce&lt;&gt;();</b>
+<i>329</i>&nbsp;        private volatile boolean peersRequestInFlight;
+<i>330</i>&nbsp;
+<b class="nc"><i>331</i>&nbsp;        Peer(TransportAddress transportAddress) {</b>
+<b class="nc"><i>332</i>&nbsp;            this.transportAddress = transportAddress;</b>
+<b class="nc"><i>333</i>&nbsp;        }</b>
+<i>334</i>&nbsp;
+<i>335</i>&nbsp;        @Nullable
+<i>336</i>&nbsp;        DiscoveryNode getDiscoveryNode() {
+<b class="nc"><i>337</i>&nbsp;            return discoveryNode.get();</b>
+<i>338</i>&nbsp;        }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;        boolean handleWakeUp() {
+<b class="nc"><i>341</i>&nbsp;            assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<i>342</i>&nbsp;
+<b class="nc"><i>343</i>&nbsp;            if (active == false) {</b>
+<b class="nc"><i>344</i>&nbsp;                return true;</b>
+<i>345</i>&nbsp;            }
+<i>346</i>&nbsp;
+<b class="nc"><i>347</i>&nbsp;            final DiscoveryNode discoveryNode = getDiscoveryNode();</b>
+<i>348</i>&nbsp;            // may be null if connection not yet established
+<i>349</i>&nbsp;
+<b class="nc"><i>350</i>&nbsp;            if (discoveryNode != null) {</b>
+<b class="nc"><i>351</i>&nbsp;                if (transportService.nodeConnected(discoveryNode)) {</b>
+<b class="nc"><i>352</i>&nbsp;                    if (peersRequestInFlight == false) {</b>
+<b class="nc"><i>353</i>&nbsp;                        requestPeers();</b>
+<i>354</i>&nbsp;                    }
+<i>355</i>&nbsp;                } else {
+<b class="nc"><i>356</i>&nbsp;                    logger.trace(&quot;{} no longer connected&quot;, this);</b>
+<b class="nc"><i>357</i>&nbsp;                    return true;</b>
+<i>358</i>&nbsp;                }
+<i>359</i>&nbsp;            }
+<i>360</i>&nbsp;
+<b class="nc"><i>361</i>&nbsp;            return false;</b>
+<i>362</i>&nbsp;        }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;        void establishConnection() {
+<b class="nc"><i>365</i>&nbsp;            assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<b class="nc"><i>366</i>&nbsp;            assert getDiscoveryNode() == null : &quot;unexpectedly connected to &quot; + getDiscoveryNode();</b>
+<b class="nc"><i>367</i>&nbsp;            assert active;</b>
+<i>368</i>&nbsp;
+<b class="nc"><i>369</i>&nbsp;            logger.trace(&quot;{} attempting connection&quot;, this);</b>
+<b class="nc"><i>370</i>&nbsp;            transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener&lt;DiscoveryNode&gt;() {</b>
+<i>371</i>&nbsp;                @Override
+<i>372</i>&nbsp;                public void onResponse(DiscoveryNode remoteNode) {
+<i>373</i>&nbsp;                    assert remoteNode.isMasterNode() : remoteNode + &quot; is not master-eligible&quot;;
+<i>374</i>&nbsp;                    assert remoteNode.equals(getLocalNode()) == false : remoteNode + &quot; is the local node&quot;;
+<i>375</i>&nbsp;                    synchronized (mutex) {
+<i>376</i>&nbsp;                        if (active == false) {
+<i>377</i>&nbsp;                            return;
+<i>378</i>&nbsp;                        }
+<i>379</i>&nbsp;
+<i>380</i>&nbsp;                        assert discoveryNode.get() == null : &quot;discoveryNode unexpectedly already set to &quot; + discoveryNode.get();
+<i>381</i>&nbsp;                        discoveryNode.set(remoteNode);
+<i>382</i>&nbsp;                        requestPeers();
+<i>383</i>&nbsp;                    }
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;                    assert holdsLock() == false : &quot;PeerFinder mutex is held in error&quot;;
+<i>386</i>&nbsp;                    onFoundPeersUpdated();
+<i>387</i>&nbsp;                }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;                @Override
+<i>390</i>&nbsp;                public void onFailure(Exception e) {
+<i>391</i>&nbsp;                    logger.debug(() -&gt; new ParameterizedMessage(&quot;{} connection failed&quot;, Peer.this), e);
+<i>392</i>&nbsp;                    synchronized (mutex) {
+<i>393</i>&nbsp;                        peersByAddress.remove(transportAddress);
+<i>394</i>&nbsp;                    }
+<i>395</i>&nbsp;                }
+<i>396</i>&nbsp;            });
+<b class="nc"><i>397</i>&nbsp;        }</b>
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;        private void requestPeers() {
+<b class="nc"><i>400</i>&nbsp;            assert holdsLock() : &quot;PeerFinder mutex not held&quot;;</b>
+<b class="nc"><i>401</i>&nbsp;            assert peersRequestInFlight == false : &quot;PeersRequest already in flight&quot;;</b>
+<b class="nc"><i>402</i>&nbsp;            assert active;</b>
+<i>403</i>&nbsp;
+<b class="nc"><i>404</i>&nbsp;            final DiscoveryNode discoveryNode = getDiscoveryNode();</b>
+<b class="nc"><i>405</i>&nbsp;            assert discoveryNode != null : &quot;cannot request peers without first connecting&quot;;</b>
+<i>406</i>&nbsp;
+<b class="nc"><i>407</i>&nbsp;            if (discoveryNode.equals(getLocalNode())) {</b>
+<b class="nc"><i>408</i>&nbsp;                logger.trace(&quot;{} not requesting peers from local node&quot;, this);</b>
+<b class="nc"><i>409</i>&nbsp;                return;</b>
+<i>410</i>&nbsp;            }
+<i>411</i>&nbsp;
+<b class="nc"><i>412</i>&nbsp;            logger.trace(&quot;{} requesting peers&quot;, this);</b>
+<b class="nc"><i>413</i>&nbsp;            peersRequestInFlight = true;</b>
+<i>414</i>&nbsp;
+<b class="nc"><i>415</i>&nbsp;            final List&lt;DiscoveryNode&gt; knownNodes = getFoundPeersUnderLock();</b>
+<i>416</i>&nbsp;
+<b class="nc"><i>417</i>&nbsp;            final TransportResponseHandler&lt;PeersResponse&gt; peersResponseHandler = new TransportResponseHandler&lt;PeersResponse&gt;() {</b>
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;                @Override
+<i>420</i>&nbsp;                public PeersResponse read(StreamInput in) throws IOException {
+<i>421</i>&nbsp;                    return new PeersResponse(in);
+<i>422</i>&nbsp;                }
+<i>423</i>&nbsp;
+<i>424</i>&nbsp;                @Override
+<i>425</i>&nbsp;                public void handleResponse(PeersResponse response) {
+<i>426</i>&nbsp;                    logger.trace(&quot;{} received {}&quot;, Peer.this, response);
+<i>427</i>&nbsp;                    synchronized (mutex) {
+<i>428</i>&nbsp;                        if (active == false) {
+<i>429</i>&nbsp;                            return;
+<i>430</i>&nbsp;                        }
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;                        peersRequestInFlight = false;
+<i>433</i>&nbsp;
+<i>434</i>&nbsp;                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+<i>435</i>&nbsp;                        response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
+<i>436</i>&nbsp;                    }
+<i>437</i>&nbsp;
+<i>438</i>&nbsp;                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+<i>439</i>&nbsp;                        // Must not hold lock here to avoid deadlock
+<i>440</i>&nbsp;                        assert holdsLock() == false : &quot;PeerFinder mutex is held in error&quot;;
+<i>441</i>&nbsp;                        onActiveMasterFound(discoveryNode, response.getTerm());
+<i>442</i>&nbsp;                    }
+<i>443</i>&nbsp;                }
+<i>444</i>&nbsp;
+<i>445</i>&nbsp;                @Override
+<i>446</i>&nbsp;                public void handleException(TransportException exp) {
+<i>447</i>&nbsp;                    peersRequestInFlight = false;
+<i>448</i>&nbsp;                    logger.debug(new ParameterizedMessage(&quot;{} peers request failed&quot;, Peer.this), exp);
+<i>449</i>&nbsp;                }
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;                @Override
+<i>452</i>&nbsp;                public String executor() {
+<i>453</i>&nbsp;                    return Names.GENERIC;
+<i>454</i>&nbsp;                }
+<i>455</i>&nbsp;            };
+<i>456</i>&nbsp;            final String actionName;
+<i>457</i>&nbsp;            final TransportRequest transportRequest;
+<i>458</i>&nbsp;            final TransportResponseHandler&lt;?&gt; transportResponseHandler;
+<b class="nc"><i>459</i>&nbsp;            if (isZen1Node(discoveryNode)) {</b>
+<b class="nc"><i>460</i>&nbsp;                actionName = UnicastZenPing.ACTION_NAME;</b>
+<b class="nc"><i>461</i>&nbsp;                transportRequest = new UnicastZenPing.UnicastPingRequest(1, ZenDiscovery.PING_TIMEOUT_SETTING.get(settings),</b>
+<b class="nc"><i>462</i>&nbsp;                    new ZenPing.PingResponse(createDiscoveryNodeWithImpossiblyHighId(getLocalNode()), null,</b>
+<b class="nc"><i>463</i>&nbsp;                        ClusterName.CLUSTER_NAME_SETTING.get(settings), ClusterState.UNKNOWN_VERSION));</b>
+<b class="nc"><i>464</i>&nbsp;                transportResponseHandler = peersResponseHandler.wrap(ucResponse -&gt; {</b>
+<b class="nc"><i>465</i>&nbsp;                    Optional&lt;DiscoveryNode&gt; optionalMasterNode = Arrays.stream(ucResponse.pingResponses)</b>
+<b class="nc"><i>466</i>&nbsp;                        .filter(pr -&gt; discoveryNode.equals(pr.node()) &amp;&amp; discoveryNode.equals(pr.master()))</b>
+<b class="nc"><i>467</i>&nbsp;                        .map(ZenPing.PingResponse::node)</b>
+<b class="nc"><i>468</i>&nbsp;                        .findFirst();</b>
+<b class="nc"><i>469</i>&nbsp;                    List&lt;DiscoveryNode&gt; discoveredNodes = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>470</i>&nbsp;                    if (optionalMasterNode.isPresent() == false) {</b>
+<b class="nc"><i>471</i>&nbsp;                        Arrays.stream(ucResponse.pingResponses).map(PingResponse::master).filter(Objects::nonNull)</b>
+<b class="nc"><i>472</i>&nbsp;                            .forEach(discoveredNodes::add);</b>
+<b class="nc"><i>473</i>&nbsp;                        Arrays.stream(ucResponse.pingResponses).map(PingResponse::node).forEach(discoveredNodes::add);</b>
+<i>474</i>&nbsp;                    }
+<b class="nc"><i>475</i>&nbsp;                    return new PeersResponse(optionalMasterNode, discoveredNodes, 0L);</b>
+<i>476</i>&nbsp;                }, UnicastZenPing.UnicastPingResponse::new);
+<i>477</i>&nbsp;            } else {
+<b class="nc"><i>478</i>&nbsp;                actionName = REQUEST_PEERS_ACTION_NAME;</b>
+<b class="nc"><i>479</i>&nbsp;                transportRequest = new PeersRequest(getLocalNode(), knownNodes);</b>
+<b class="nc"><i>480</i>&nbsp;                transportResponseHandler = peersResponseHandler;</b>
+<i>481</i>&nbsp;            }
+<b class="nc"><i>482</i>&nbsp;            transportService.sendRequest(discoveryNode, actionName,</b>
+<i>483</i>&nbsp;                transportRequest,
+<b class="nc"><i>484</i>&nbsp;                TransportRequestOptions.builder().withTimeout(requestPeersTimeout).build(),</b>
+<i>485</i>&nbsp;                transportResponseHandler);
+<b class="nc"><i>486</i>&nbsp;        }</b>
+<i>487</i>&nbsp;
+<i>488</i>&nbsp;        @Override
+<i>489</i>&nbsp;        public String toString() {
+<b class="nc"><i>490</i>&nbsp;            return &quot;Peer{&quot; +</b>
+<i>491</i>&nbsp;                &quot;transportAddress=&quot; + transportAddress +
+<b class="nc"><i>492</i>&nbsp;                &quot;, discoveryNode=&quot; + discoveryNode.get() +</b>
+<i>493</i>&nbsp;                &quot;, peersRequestInFlight=&quot; + peersRequestInFlight +
+<i>494</i>&nbsp;                &#39;}&#39;;
+<i>495</i>&nbsp;        }
+<i>496</i>&nbsp;    }
+<i>497</i>&nbsp;
+<b class="fc"><i>498</i>&nbsp;    private class Zen1UnicastPingRequestHandler implements TransportRequestHandler&lt;UnicastZenPing.UnicastPingRequest&gt; {</b>
+<i>499</i>&nbsp;        @Override
+<i>500</i>&nbsp;        public void messageReceived(UnicastZenPing.UnicastPingRequest request, TransportChannel channel, Task task) throws Exception {
+<b class="nc"><i>501</i>&nbsp;            final PeersRequest peersRequest = new PeersRequest(request.pingResponse.node(),</b>
+<b class="nc"><i>502</i>&nbsp;                Optional.ofNullable(request.pingResponse.master()).map(Collections::singletonList).orElse(emptyList()));</b>
+<b class="nc"><i>503</i>&nbsp;            final PeersResponse peersResponse = handlePeersRequest(peersRequest);</b>
+<b class="nc"><i>504</i>&nbsp;            final List&lt;ZenPing.PingResponse&gt; pingResponses = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>505</i>&nbsp;            final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);</b>
+<b class="nc"><i>506</i>&nbsp;            pingResponses.add(new ZenPing.PingResponse(createDiscoveryNodeWithImpossiblyHighId(transportService.getLocalNode()),</b>
+<b class="nc"><i>507</i>&nbsp;                peersResponse.getMasterNode().orElse(null),</b>
+<i>508</i>&nbsp;                clusterName, ClusterState.UNKNOWN_VERSION));
+<b class="nc"><i>509</i>&nbsp;            peersResponse.getKnownPeers().forEach(dn -&gt; pingResponses.add(</b>
+<i>510</i>&nbsp;                new ZenPing.PingResponse(ZenPing.PingResponse.FAKE_PING_ID,
+<b class="nc"><i>511</i>&nbsp;                    isZen1Node(dn) ? dn : createDiscoveryNodeWithImpossiblyHighId(dn), null, clusterName, ClusterState.UNKNOWN_VERSION)));</b>
+<b class="nc"><i>512</i>&nbsp;            channel.sendResponse(new UnicastZenPing.UnicastPingResponse(request.id, pingResponses.toArray(new ZenPing.PingResponse[0])));</b>
+<b class="nc"><i>513</i>&nbsp;        }</b>
+<i>514</i>&nbsp;    }
+<i>515</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

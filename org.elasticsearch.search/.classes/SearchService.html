@@ -1,0 +1,1292 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SearchService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SearchService (org.elasticsearch.search)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SearchService</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.9%
+  </span>
+  <span class="absValue">
+    (10/ 63)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.5%
+  </span>
+  <span class="absValue">
+    (63/ 547)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">SearchService$CanMatchResponse</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">SearchService$Reaper</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8.3%
+  </span>
+  <span class="absValue">
+    (1/ 12)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    15.9%
+  </span>
+  <span class="absValue">
+    (11/ 69)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.3%
+  </span>
+  <span class="absValue">
+    (64/ 568)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.lucene.search.FieldDoc;
+<i>25</i>&nbsp;import org.apache.lucene.search.TopDocs;
+<i>26</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>27</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>28</i>&nbsp;import org.elasticsearch.action.ActionRunnable;
+<i>29</i>&nbsp;import org.elasticsearch.action.OriginalIndices;
+<i>30</i>&nbsp;import org.elasticsearch.action.search.SearchTask;
+<i>31</i>&nbsp;import org.elasticsearch.action.search.SearchType;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>34</i>&nbsp;import org.elasticsearch.common.component.AbstractLifecycleComponent;
+<i>35</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>36</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>37</i>&nbsp;import org.elasticsearch.common.lucene.Lucene;
+<i>38</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>39</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>40</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>41</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>42</i>&nbsp;import org.elasticsearch.common.util.BigArrays;
+<i>43</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>44</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+<i>45</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>46</i>&nbsp;import org.elasticsearch.index.Index;
+<i>47</i>&nbsp;import org.elasticsearch.index.IndexService;
+<i>48</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>49</i>&nbsp;import org.elasticsearch.index.engine.Engine;
+<i>50</i>&nbsp;import org.elasticsearch.index.query.InnerHitContextBuilder;
+<i>51</i>&nbsp;import org.elasticsearch.index.query.MatchAllQueryBuilder;
+<i>52</i>&nbsp;import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+<i>53</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>54</i>&nbsp;import org.elasticsearch.index.query.QueryRewriteContext;
+<i>55</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>56</i>&nbsp;import org.elasticsearch.index.query.Rewriteable;
+<i>57</i>&nbsp;import org.elasticsearch.index.shard.IndexEventListener;
+<i>58</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>59</i>&nbsp;import org.elasticsearch.index.shard.SearchOperationListener;
+<i>60</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>61</i>&nbsp;import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+<i>62</i>&nbsp;import org.elasticsearch.node.ResponseCollectorService;
+<i>63</i>&nbsp;import org.elasticsearch.script.FieldScript;
+<i>64</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>65</i>&nbsp;import org.elasticsearch.search.aggregations.AggregationInitializationException;
+<i>66</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactories;
+<i>67</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation;
+<i>68</i>&nbsp;import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+<i>69</i>&nbsp;import org.elasticsearch.search.aggregations.SearchContextAggregations;
+<i>70</i>&nbsp;import org.elasticsearch.search.builder.SearchSourceBuilder;
+<i>71</i>&nbsp;import org.elasticsearch.search.collapse.CollapseContext;
+<i>72</i>&nbsp;import org.elasticsearch.search.dfs.DfsPhase;
+<i>73</i>&nbsp;import org.elasticsearch.search.dfs.DfsSearchResult;
+<i>74</i>&nbsp;import org.elasticsearch.search.fetch.FetchPhase;
+<i>75</i>&nbsp;import org.elasticsearch.search.fetch.FetchSearchResult;
+<i>76</i>&nbsp;import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+<i>77</i>&nbsp;import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+<i>78</i>&nbsp;import org.elasticsearch.search.fetch.ShardFetchRequest;
+<i>79</i>&nbsp;import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+<i>80</i>&nbsp;import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
+<i>81</i>&nbsp;import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+<i>82</i>&nbsp;import org.elasticsearch.search.internal.AliasFilter;
+<i>83</i>&nbsp;import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+<i>84</i>&nbsp;import org.elasticsearch.search.internal.ScrollContext;
+<i>85</i>&nbsp;import org.elasticsearch.search.internal.SearchContext;
+<i>86</i>&nbsp;import org.elasticsearch.search.internal.SearchContext.Lifetime;
+<i>87</i>&nbsp;import org.elasticsearch.search.internal.ShardSearchRequest;
+<i>88</i>&nbsp;import org.elasticsearch.search.profile.Profilers;
+<i>89</i>&nbsp;import org.elasticsearch.search.query.QueryPhase;
+<i>90</i>&nbsp;import org.elasticsearch.search.query.QuerySearchRequest;
+<i>91</i>&nbsp;import org.elasticsearch.search.query.QuerySearchResult;
+<i>92</i>&nbsp;import org.elasticsearch.search.query.ScrollQuerySearchResult;
+<i>93</i>&nbsp;import org.elasticsearch.search.rescore.RescorerBuilder;
+<i>94</i>&nbsp;import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+<i>95</i>&nbsp;import org.elasticsearch.search.sort.SortAndFormats;
+<i>96</i>&nbsp;import org.elasticsearch.search.sort.SortBuilder;
+<i>97</i>&nbsp;import org.elasticsearch.search.suggest.Suggest;
+<i>98</i>&nbsp;import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+<i>99</i>&nbsp;import org.elasticsearch.threadpool.Scheduler.Cancellable;
+<i>100</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>101</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool.Names;
+<i>102</i>&nbsp;import org.elasticsearch.transport.TransportRequest;
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;import java.io.IOException;
+<i>105</i>&nbsp;import java.util.ArrayList;
+<i>106</i>&nbsp;import java.util.Collection;
+<i>107</i>&nbsp;import java.util.Collections;
+<i>108</i>&nbsp;import java.util.HashMap;
+<i>109</i>&nbsp;import java.util.List;
+<i>110</i>&nbsp;import java.util.Map;
+<i>111</i>&nbsp;import java.util.Optional;
+<i>112</i>&nbsp;import java.util.Set;
+<i>113</i>&nbsp;import java.util.concurrent.ExecutionException;
+<i>114</i>&nbsp;import java.util.concurrent.Executor;
+<i>115</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>116</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>117</i>&nbsp;import java.util.function.LongSupplier;
+<i>118</i>&nbsp;import java.util.function.Supplier;
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
+<i>121</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+<i>122</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+<i>123</i>&nbsp;
+<b class="fc"><i>124</i>&nbsp;public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {</b>
+<b class="fc"><i>125</i>&nbsp;    private static final Logger logger = LogManager.getLogger(SearchService.class);</b>
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
+<b class="fc"><i>128</i>&nbsp;    public static final Setting&lt;TimeValue&gt; DEFAULT_KEEPALIVE_SETTING =</b>
+<b class="fc"><i>129</i>&nbsp;        Setting.positiveTimeSetting(&quot;search.default_keep_alive&quot;, timeValueMinutes(5), Property.NodeScope, Property.Dynamic);</b>
+<b class="fc"><i>130</i>&nbsp;    public static final Setting&lt;TimeValue&gt; MAX_KEEPALIVE_SETTING =</b>
+<b class="fc"><i>131</i>&nbsp;        Setting.positiveTimeSetting(&quot;search.max_keep_alive&quot;, timeValueHours(24), Property.NodeScope, Property.Dynamic);</b>
+<b class="fc"><i>132</i>&nbsp;    public static final Setting&lt;TimeValue&gt; KEEPALIVE_INTERVAL_SETTING =</b>
+<b class="fc"><i>133</i>&nbsp;        Setting.positiveTimeSetting(&quot;search.keep_alive_interval&quot;, timeValueMinutes(1), Property.NodeScope);</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
+<i>137</i>&nbsp;     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
+<i>138</i>&nbsp;     * noticeably slow down searches.
+<i>139</i>&nbsp;     */
+<b class="fc"><i>140</i>&nbsp;    public static final Setting&lt;Boolean&gt; LOW_LEVEL_CANCELLATION_SETTING =</b>
+<b class="fc"><i>141</i>&nbsp;        Setting.boolSetting(&quot;search.low_level_cancellation&quot;, true, Property.Dynamic, Property.NodeScope);</b>
+<i>142</i>&nbsp;
+<b class="fc"><i>143</i>&nbsp;    public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);</b>
+<b class="fc"><i>144</i>&nbsp;    public static final Setting&lt;TimeValue&gt; DEFAULT_SEARCH_TIMEOUT_SETTING =</b>
+<b class="fc"><i>145</i>&nbsp;        Setting.timeSetting(&quot;search.default_search_timeout&quot;, NO_TIMEOUT, Property.Dynamic, Property.NodeScope);</b>
+<b class="fc"><i>146</i>&nbsp;    public static final Setting&lt;Boolean&gt; DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS =</b>
+<b class="fc"><i>147</i>&nbsp;            Setting.boolSetting(&quot;search.default_allow_partial_results&quot;, true, Property.Dynamic, Property.NodeScope);</b>
+<i>148</i>&nbsp;
+<b class="fc"><i>149</i>&nbsp;    public static final Setting&lt;Integer&gt; MAX_OPEN_SCROLL_CONTEXT =</b>
+<b class="fc"><i>150</i>&nbsp;        Setting.intSetting(&quot;search.max_open_scroll_context&quot;, 500, 0, Property.Dynamic, Property.NodeScope);</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    public static final int DEFAULT_SIZE = 10;
+<i>153</i>&nbsp;    public static final int DEFAULT_FROM = 0;
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    private final ThreadPool threadPool;
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    private final ClusterService clusterService;
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    private final IndicesService indicesService;
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;    private final ScriptService scriptService;
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    private final ResponseCollectorService responseCollectorService;
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    private final BigArrays bigArrays;
+<i>166</i>&nbsp;
+<b class="fc"><i>167</i>&nbsp;    private final DfsPhase dfsPhase = new DfsPhase();</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    private final QueryPhase queryPhase;
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    private final FetchPhase fetchPhase;
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    private volatile long defaultKeepAlive;
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;    private volatile long maxKeepAlive;
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;    private volatile TimeValue defaultSearchTimeout;
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    private volatile boolean defaultAllowPartialSearchResults;
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    private volatile boolean lowLevelCancellation;
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    private volatile int maxOpenScrollContext;
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    private final Cancellable keepAliveReaper;
+<i>186</i>&nbsp;
+<b class="fc"><i>187</i>&nbsp;    private final AtomicLong idGenerator = new AtomicLong();</b>
+<i>188</i>&nbsp;
+<b class="fc"><i>189</i>&nbsp;    private final ConcurrentMapLong&lt;SearchContext&gt; activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();</b>
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;    private final MultiBucketConsumerService multiBucketConsumerService;
+<i>192</i>&nbsp;
+<b class="fc"><i>193</i>&nbsp;    private final AtomicInteger openScrollContexts = new AtomicInteger();</b>
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    public SearchService(ClusterService clusterService, IndicesService indicesService,
+<i>196</i>&nbsp;                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
+<b class="fc"><i>197</i>&nbsp;                         ResponseCollectorService responseCollectorService) {</b>
+<b class="fc"><i>198</i>&nbsp;        Settings settings = clusterService.getSettings();</b>
+<b class="fc"><i>199</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>200</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>201</i>&nbsp;        this.indicesService = indicesService;</b>
+<b class="fc"><i>202</i>&nbsp;        this.scriptService = scriptService;</b>
+<b class="fc"><i>203</i>&nbsp;        this.responseCollectorService = responseCollectorService;</b>
+<b class="fc"><i>204</i>&nbsp;        this.bigArrays = bigArrays;</b>
+<b class="fc"><i>205</i>&nbsp;        this.queryPhase = new QueryPhase();</b>
+<b class="fc"><i>206</i>&nbsp;        this.fetchPhase = fetchPhase;</b>
+<b class="fc"><i>207</i>&nbsp;        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings);</b>
+<i>208</i>&nbsp;
+<b class="fc"><i>209</i>&nbsp;        TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);</b>
+<b class="fc"><i>210</i>&nbsp;        setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));</b>
+<i>211</i>&nbsp;
+<b class="fc"><i>212</i>&nbsp;        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING,</b>
+<i>213</i>&nbsp;            this::setKeepAlives, this::validateKeepAlives);
+<i>214</i>&nbsp;
+<b class="fc"><i>215</i>&nbsp;        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);</b>
+<i>216</i>&nbsp;
+<b class="fc"><i>217</i>&nbsp;        defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>218</i>&nbsp;        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);</b>
+<i>219</i>&nbsp;
+<b class="fc"><i>220</i>&nbsp;        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);</b>
+<b class="fc"><i>221</i>&nbsp;        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,</b>
+<i>222</i>&nbsp;                this::setDefaultAllowPartialSearchResults);
+<i>223</i>&nbsp;
+<b class="fc"><i>224</i>&nbsp;        maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);</b>
+<b class="fc"><i>225</i>&nbsp;        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);</b>
+<i>226</i>&nbsp;
+<b class="fc"><i>227</i>&nbsp;        lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);</b>
+<b class="fc"><i>228</i>&nbsp;        clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);</b>
+<b class="fc"><i>229</i>&nbsp;    }</b>
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
+<b class="fc"><i>232</i>&nbsp;        if (defaultKeepAlive.millis() &gt; maxKeepAlive.millis()) {</b>
+<b class="nc"><i>233</i>&nbsp;            throw new IllegalArgumentException(&quot;Default keep alive setting for scroll [&quot; + DEFAULT_KEEPALIVE_SETTING.getKey() + &quot;]&quot; +</b>
+<b class="nc"><i>234</i>&nbsp;                &quot; should be smaller than max keep alive [&quot; + MAX_KEEPALIVE_SETTING.getKey() + &quot;], &quot; +</b>
+<i>235</i>&nbsp;                &quot;was (&quot; + defaultKeepAlive + &quot; &gt; &quot; + maxKeepAlive + &quot;)&quot;);
+<i>236</i>&nbsp;        }
+<b class="fc"><i>237</i>&nbsp;    }</b>
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    private void setKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
+<b class="fc"><i>240</i>&nbsp;        validateKeepAlives(defaultKeepAlive, maxKeepAlive);</b>
+<b class="fc"><i>241</i>&nbsp;        this.defaultKeepAlive = defaultKeepAlive.millis();</b>
+<b class="fc"><i>242</i>&nbsp;        this.maxKeepAlive = maxKeepAlive.millis();</b>
+<b class="fc"><i>243</i>&nbsp;    }</b>
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;    private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
+<b class="nc"><i>246</i>&nbsp;        this.defaultSearchTimeout = defaultSearchTimeout;</b>
+<b class="nc"><i>247</i>&nbsp;    }</b>
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;    private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
+<b class="nc"><i>250</i>&nbsp;        this.defaultAllowPartialSearchResults = defaultAllowPartialSearchResults;</b>
+<b class="nc"><i>251</i>&nbsp;    }</b>
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    public boolean defaultAllowPartialSearchResults() {
+<b class="nc"><i>254</i>&nbsp;        return defaultAllowPartialSearchResults;</b>
+<i>255</i>&nbsp;    }
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;    private void setMaxOpenScrollContext(int maxOpenScrollContext) {
+<b class="nc"><i>258</i>&nbsp;        this.maxOpenScrollContext = maxOpenScrollContext;</b>
+<b class="nc"><i>259</i>&nbsp;    }</b>
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    private void setLowLevelCancellation(Boolean lowLevelCancellation) {
+<b class="nc"><i>262</i>&nbsp;        this.lowLevelCancellation = lowLevelCancellation;</b>
+<b class="nc"><i>263</i>&nbsp;    }</b>
+<i>264</i>&nbsp;
+<i>265</i>&nbsp;    @Override
+<i>266</i>&nbsp;    public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
+<i>267</i>&nbsp;        // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
+<i>268</i>&nbsp;        // if we then close all the contexts we can get some search failures along the way which are not expected.
+<i>269</i>&nbsp;        // it&#39;s fine to keep the contexts open if the index is still &quot;alive&quot;
+<i>270</i>&nbsp;        // unfortunately we don&#39;t have a clear way to signal today why an index is closed.
+<i>271</i>&nbsp;        // to release memory and let references to the filesystem go etc.
+<b class="fc"><i>272</i>&nbsp;        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {</b>
+<b class="fc"><i>273</i>&nbsp;            freeAllContextForIndex(index);</b>
+<i>274</i>&nbsp;        }
+<i>275</i>&nbsp;
+<b class="fc"><i>276</i>&nbsp;    }</b>
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;    protected void putContext(SearchContext context) {
+<b class="nc"><i>279</i>&nbsp;        final SearchContext previous = activeContexts.put(context.id(), context);</b>
+<b class="nc"><i>280</i>&nbsp;        assert previous == null;</b>
+<b class="nc"><i>281</i>&nbsp;    }</b>
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    protected SearchContext removeContext(long id) {
+<b class="nc"><i>284</i>&nbsp;        return activeContexts.remove(id);</b>
+<i>285</i>&nbsp;    }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;    @Override
+<i>288</i>&nbsp;    protected void doStart() {
+<b class="fc"><i>289</i>&nbsp;    }</b>
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    @Override
+<i>292</i>&nbsp;    protected void doStop() {
+<b class="fc"><i>293</i>&nbsp;        for (final SearchContext context : activeContexts.values()) {</b>
+<b class="nc"><i>294</i>&nbsp;            freeContext(context.id());</b>
+<b class="nc"><i>295</i>&nbsp;        }</b>
+<b class="fc"><i>296</i>&nbsp;    }</b>
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;    @Override
+<i>299</i>&nbsp;    protected void doClose() {
+<b class="fc"><i>300</i>&nbsp;        doStop();</b>
+<b class="fc"><i>301</i>&nbsp;        keepAliveReaper.cancel();</b>
+<b class="fc"><i>302</i>&nbsp;    }</b>
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;    public void executeDfsPhase(ShardSearchRequest request, SearchTask task, ActionListener&lt;SearchPhaseResult&gt; listener) {
+<b class="nc"><i>305</i>&nbsp;        rewriteShardRequest(request, ActionListener.map(listener, r -&gt; executeDfsPhase(r, task)));</b>
+<b class="nc"><i>306</i>&nbsp;    }</b>
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchTask task) throws IOException {
+<b class="nc"><i>309</i>&nbsp;        final SearchContext context = createAndPutContext(request);</b>
+<b class="nc"><i>310</i>&nbsp;        context.incRef();</b>
+<i>311</i>&nbsp;        try {
+<b class="nc"><i>312</i>&nbsp;            context.setTask(task);</b>
+<b class="nc"><i>313</i>&nbsp;            contextProcessing(context);</b>
+<b class="nc"><i>314</i>&nbsp;            dfsPhase.execute(context);</b>
+<b class="nc"><i>315</i>&nbsp;            contextProcessedSuccessfully(context);</b>
+<b class="nc"><i>316</i>&nbsp;            return context.dfsResult();</b>
+<b class="nc"><i>317</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>318</i>&nbsp;            logger.trace(&quot;Dfs phase failed&quot;, e);</b>
+<b class="nc"><i>319</i>&nbsp;            processFailure(context, e);</b>
+<b class="nc"><i>320</i>&nbsp;            throw e;</b>
+<i>321</i>&nbsp;        } finally {
+<b class="nc"><i>322</i>&nbsp;            cleanContext(context);</b>
+<b class="nc"><i>323</i>&nbsp;        }</b>
+<i>324</i>&nbsp;    }
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;    /**
+<i>327</i>&nbsp;     * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
+<i>328</i>&nbsp;     */
+<i>329</i>&nbsp;    private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
+<b class="nc"><i>330</i>&nbsp;        final boolean canCache = indicesService.canCache(request, context);</b>
+<b class="nc"><i>331</i>&nbsp;        context.getQueryShardContext().freezeContext();</b>
+<b class="nc"><i>332</i>&nbsp;        if (canCache) {</b>
+<b class="nc"><i>333</i>&nbsp;            indicesService.loadIntoContext(request, context, queryPhase);</b>
+<i>334</i>&nbsp;        } else {
+<b class="nc"><i>335</i>&nbsp;            queryPhase.execute(context);</b>
+<i>336</i>&nbsp;        }
+<b class="nc"><i>337</i>&nbsp;    }</b>
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;    public void executeQueryPhase(ShardSearchRequest request, SearchTask task, ActionListener&lt;SearchPhaseResult&gt; listener) {
+<b class="nc"><i>340</i>&nbsp;        rewriteShardRequest(request, ActionListener.map(listener, r -&gt; executeQueryPhase(r, task)));</b>
+<b class="nc"><i>341</i>&nbsp;    }</b>
+<i>342</i>&nbsp;
+<i>343</i>&nbsp;    private &lt;T&gt; void runAsync(long id, Supplier&lt;T&gt; executable, ActionListener&lt;T&gt; listener) {
+<b class="nc"><i>344</i>&nbsp;        getExecutor(id).execute(ActionRunnable.supply(listener, executable::get));</b>
+<b class="nc"><i>345</i>&nbsp;    }</b>
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {
+<b class="nc"><i>348</i>&nbsp;        final SearchContext context = createAndPutContext(request);</b>
+<b class="nc"><i>349</i>&nbsp;        context.incRef();</b>
+<i>350</i>&nbsp;        try {
+<b class="nc"><i>351</i>&nbsp;            context.setTask(task);</b>
+<i>352</i>&nbsp;            final long afterQueryTime;
+<b class="nc"><i>353</i>&nbsp;            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {</b>
+<b class="nc"><i>354</i>&nbsp;                contextProcessing(context);</b>
+<b class="nc"><i>355</i>&nbsp;                loadOrExecuteQueryPhase(request, context);</b>
+<b class="nc"><i>356</i>&nbsp;                if (context.queryResult().hasSearchContext() == false &amp;&amp; context.scrollContext() == null) {</b>
+<b class="nc"><i>357</i>&nbsp;                    freeContext(context.id());</b>
+<i>358</i>&nbsp;                } else {
+<b class="nc"><i>359</i>&nbsp;                    contextProcessedSuccessfully(context);</b>
+<i>360</i>&nbsp;                }
+<b class="nc"><i>361</i>&nbsp;                afterQueryTime = executor.success();</b>
+<b class="nc"><i>362</i>&nbsp;            }</b>
+<b class="nc"><i>363</i>&nbsp;            if (request.numberOfShards() == 1) {</b>
+<b class="nc"><i>364</i>&nbsp;                return executeFetchPhase(context, afterQueryTime);</b>
+<i>365</i>&nbsp;            }
+<b class="nc"><i>366</i>&nbsp;            return context.queryResult();</b>
+<b class="nc"><i>367</i>&nbsp;        } catch (Exception e) {</b>
+<i>368</i>&nbsp;            // execution exception can happen while loading the cache, strip it
+<b class="nc"><i>369</i>&nbsp;            if (e instanceof ExecutionException) {</b>
+<b class="nc"><i>370</i>&nbsp;                e = (e.getCause() == null || e.getCause() instanceof Exception) ?</b>
+<b class="nc"><i>371</i>&nbsp;                    (Exception) e.getCause() : new ElasticsearchException(e.getCause());</b>
+<i>372</i>&nbsp;            }
+<b class="nc"><i>373</i>&nbsp;            logger.trace(&quot;Query phase failed&quot;, e);</b>
+<b class="nc"><i>374</i>&nbsp;            processFailure(context, e);</b>
+<b class="nc"><i>375</i>&nbsp;            throw e;</b>
+<i>376</i>&nbsp;        } finally {
+<b class="nc"><i>377</i>&nbsp;            cleanContext(context);</b>
+<b class="nc"><i>378</i>&nbsp;        }</b>
+<i>379</i>&nbsp;    }
+<i>380</i>&nbsp;
+<i>381</i>&nbsp;    private QueryFetchSearchResult executeFetchPhase(SearchContext context, long afterQueryTime) {
+<b class="nc"><i>382</i>&nbsp;        try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)){</b>
+<b class="nc"><i>383</i>&nbsp;            shortcutDocIdsToLoad(context);</b>
+<b class="nc"><i>384</i>&nbsp;            fetchPhase.execute(context);</b>
+<b class="nc"><i>385</i>&nbsp;            if (fetchPhaseShouldFreeContext(context)) {</b>
+<b class="nc"><i>386</i>&nbsp;                freeContext(context.id());</b>
+<i>387</i>&nbsp;            } else {
+<b class="nc"><i>388</i>&nbsp;                contextProcessedSuccessfully(context);</b>
+<i>389</i>&nbsp;            }
+<b class="nc"><i>390</i>&nbsp;            executor.success();</b>
+<b class="nc"><i>391</i>&nbsp;        }</b>
+<b class="nc"><i>392</i>&nbsp;        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());</b>
+<i>393</i>&nbsp;    }
+<i>394</i>&nbsp;
+<i>395</i>&nbsp;    public void executeQueryPhase(InternalScrollSearchRequest request, SearchTask task, ActionListener&lt;ScrollQuerySearchResult&gt; listener) {
+<b class="nc"><i>396</i>&nbsp;        runAsync(request.id(), () -&gt; {</b>
+<b class="nc"><i>397</i>&nbsp;            final SearchContext context = findContext(request.id(), request);</b>
+<b class="nc"><i>398</i>&nbsp;            context.incRef();</b>
+<b class="nc"><i>399</i>&nbsp;            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {</b>
+<b class="nc"><i>400</i>&nbsp;                context.setTask(task);</b>
+<b class="nc"><i>401</i>&nbsp;                contextProcessing(context);</b>
+<b class="nc"><i>402</i>&nbsp;                processScroll(request, context);</b>
+<b class="nc"><i>403</i>&nbsp;                queryPhase.execute(context);</b>
+<b class="nc"><i>404</i>&nbsp;                contextProcessedSuccessfully(context);</b>
+<b class="nc"><i>405</i>&nbsp;                executor.success();</b>
+<b class="nc"><i>406</i>&nbsp;                return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());</b>
+<b class="nc"><i>407</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>408</i>&nbsp;                logger.trace(&quot;Query phase failed&quot;, e);</b>
+<b class="nc"><i>409</i>&nbsp;                processFailure(context, e);</b>
+<b class="nc"><i>410</i>&nbsp;                throw e;</b>
+<i>411</i>&nbsp;            } finally {
+<b class="nc"><i>412</i>&nbsp;                cleanContext(context);</b>
+<b class="nc"><i>413</i>&nbsp;            }</b>
+<i>414</i>&nbsp;        }, listener);
+<b class="nc"><i>415</i>&nbsp;    }</b>
+<i>416</i>&nbsp;
+<i>417</i>&nbsp;    public void executeQueryPhase(QuerySearchRequest request, SearchTask task, ActionListener&lt;QuerySearchResult&gt; listener) {
+<b class="nc"><i>418</i>&nbsp;        runAsync(request.id(), () -&gt; {</b>
+<b class="nc"><i>419</i>&nbsp;            final SearchContext context = findContext(request.id(), request);</b>
+<b class="nc"><i>420</i>&nbsp;            context.setTask(task);</b>
+<b class="nc"><i>421</i>&nbsp;            context.incRef();</b>
+<b class="nc"><i>422</i>&nbsp;            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {</b>
+<b class="nc"><i>423</i>&nbsp;                contextProcessing(context);</b>
+<b class="nc"><i>424</i>&nbsp;                context.searcher().setAggregatedDfs(request.dfs());</b>
+<b class="nc"><i>425</i>&nbsp;                queryPhase.execute(context);</b>
+<b class="nc"><i>426</i>&nbsp;                if (context.queryResult().hasSearchContext() == false &amp;&amp; context.scrollContext() == null) {</b>
+<i>427</i>&nbsp;                    // no hits, we can release the context since there will be no fetch phase
+<b class="nc"><i>428</i>&nbsp;                    freeContext(context.id());</b>
+<i>429</i>&nbsp;                } else {
+<b class="nc"><i>430</i>&nbsp;                    contextProcessedSuccessfully(context);</b>
+<i>431</i>&nbsp;                }
+<b class="nc"><i>432</i>&nbsp;                executor.success();</b>
+<b class="nc"><i>433</i>&nbsp;                return context.queryResult();</b>
+<b class="nc"><i>434</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>435</i>&nbsp;                logger.trace(&quot;Query phase failed&quot;, e);</b>
+<b class="nc"><i>436</i>&nbsp;                processFailure(context, e);</b>
+<b class="nc"><i>437</i>&nbsp;                throw e;</b>
+<i>438</i>&nbsp;            } finally {
+<b class="nc"><i>439</i>&nbsp;                cleanContext(context);</b>
+<b class="nc"><i>440</i>&nbsp;            }</b>
+<i>441</i>&nbsp;        }, listener);
+<b class="nc"><i>442</i>&nbsp;    }</b>
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    private boolean fetchPhaseShouldFreeContext(SearchContext context) {
+<b class="nc"><i>445</i>&nbsp;        if (context.scrollContext() == null) {</b>
+<i>446</i>&nbsp;            // simple search, no scroll
+<b class="nc"><i>447</i>&nbsp;            return true;</b>
+<i>448</i>&nbsp;        } else {
+<i>449</i>&nbsp;            // scroll request, but the scroll was not extended
+<b class="nc"><i>450</i>&nbsp;            return context.scrollContext().scroll == null;</b>
+<i>451</i>&nbsp;        }
+<i>452</i>&nbsp;    }
+<i>453</i>&nbsp;
+<i>454</i>&nbsp;    final Executor getExecutor(long id) {
+<b class="nc"><i>455</i>&nbsp;        SearchContext context = activeContexts.get(id);</b>
+<b class="nc"><i>456</i>&nbsp;        if (context == null) {</b>
+<b class="nc"><i>457</i>&nbsp;            throw new SearchContextMissingException(id);</b>
+<i>458</i>&nbsp;        }
+<b class="nc"><i>459</i>&nbsp;        return getExecutor(context.indexShard());</b>
+<i>460</i>&nbsp;    }
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;    private Executor getExecutor(IndexShard indexShard) {
+<b class="nc"><i>463</i>&nbsp;        assert indexShard != null;</b>
+<b class="nc"><i>464</i>&nbsp;        return threadPool.executor(indexShard.indexSettings().isSearchThrottled() ? Names.SEARCH_THROTTLED : Names.SEARCH);</b>
+<i>465</i>&nbsp;    }
+<i>466</i>&nbsp;
+<i>467</i>&nbsp;    public void executeFetchPhase(InternalScrollSearchRequest request, SearchTask task,
+<i>468</i>&nbsp;                                  ActionListener&lt;ScrollQueryFetchSearchResult&gt; listener) {
+<b class="nc"><i>469</i>&nbsp;        runAsync(request.id(), () -&gt; {</b>
+<b class="nc"><i>470</i>&nbsp;            final SearchContext context = findContext(request.id(), request);</b>
+<b class="nc"><i>471</i>&nbsp;            context.setTask(task);</b>
+<b class="nc"><i>472</i>&nbsp;            context.incRef();</b>
+<b class="nc"><i>473</i>&nbsp;            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)){</b>
+<b class="nc"><i>474</i>&nbsp;                contextProcessing(context);</b>
+<b class="nc"><i>475</i>&nbsp;                processScroll(request, context);</b>
+<b class="nc"><i>476</i>&nbsp;                queryPhase.execute(context);</b>
+<b class="nc"><i>477</i>&nbsp;                final long afterQueryTime = executor.success();</b>
+<b class="nc"><i>478</i>&nbsp;                QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, afterQueryTime);</b>
+<b class="nc"><i>479</i>&nbsp;                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());</b>
+<b class="nc"><i>480</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>481</i>&nbsp;                logger.trace(&quot;Fetch phase failed&quot;, e);</b>
+<b class="nc"><i>482</i>&nbsp;                processFailure(context, e);</b>
+<b class="nc"><i>483</i>&nbsp;                throw e;</b>
+<i>484</i>&nbsp;            } finally {
+<b class="nc"><i>485</i>&nbsp;                cleanContext(context);</b>
+<b class="nc"><i>486</i>&nbsp;            }</b>
+<i>487</i>&nbsp;        }, listener);
+<b class="nc"><i>488</i>&nbsp;    }</b>
+<i>489</i>&nbsp;
+<i>490</i>&nbsp;    public void executeFetchPhase(ShardFetchRequest request, SearchTask task, ActionListener&lt;FetchSearchResult&gt; listener) {
+<b class="nc"><i>491</i>&nbsp;        runAsync(request.id(), () -&gt; {</b>
+<b class="nc"><i>492</i>&nbsp;            final SearchContext context = findContext(request.id(), request);</b>
+<b class="nc"><i>493</i>&nbsp;            context.incRef();</b>
+<i>494</i>&nbsp;            try {
+<b class="nc"><i>495</i>&nbsp;                context.setTask(task);</b>
+<b class="nc"><i>496</i>&nbsp;                contextProcessing(context);</b>
+<b class="nc"><i>497</i>&nbsp;                if (request.lastEmittedDoc() != null) {</b>
+<b class="nc"><i>498</i>&nbsp;                    context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();</b>
+<i>499</i>&nbsp;                }
+<b class="nc"><i>500</i>&nbsp;                context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());</b>
+<b class="nc"><i>501</i>&nbsp;                try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, System.nanoTime())) {</b>
+<b class="nc"><i>502</i>&nbsp;                    fetchPhase.execute(context);</b>
+<b class="nc"><i>503</i>&nbsp;                    if (fetchPhaseShouldFreeContext(context)) {</b>
+<b class="nc"><i>504</i>&nbsp;                        freeContext(request.id());</b>
+<i>505</i>&nbsp;                    } else {
+<b class="nc"><i>506</i>&nbsp;                        contextProcessedSuccessfully(context);</b>
+<i>507</i>&nbsp;                    }
+<b class="nc"><i>508</i>&nbsp;                    executor.success();</b>
+<b class="nc"><i>509</i>&nbsp;                }</b>
+<b class="nc"><i>510</i>&nbsp;                return context.fetchResult();</b>
+<b class="nc"><i>511</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>512</i>&nbsp;                logger.trace(&quot;Fetch phase failed&quot;, e);</b>
+<b class="nc"><i>513</i>&nbsp;                processFailure(context, e);</b>
+<b class="nc"><i>514</i>&nbsp;                throw e;</b>
+<i>515</i>&nbsp;            } finally {
+<b class="nc"><i>516</i>&nbsp;                cleanContext(context);</b>
+<b class="nc"><i>517</i>&nbsp;            }</b>
+<i>518</i>&nbsp;        }, listener);
+<b class="nc"><i>519</i>&nbsp;    }</b>
+<i>520</i>&nbsp;
+<i>521</i>&nbsp;    private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
+<b class="nc"><i>522</i>&nbsp;        SearchContext context = activeContexts.get(id);</b>
+<b class="nc"><i>523</i>&nbsp;        if (context == null) {</b>
+<b class="nc"><i>524</i>&nbsp;            throw new SearchContextMissingException(id);</b>
+<i>525</i>&nbsp;        }
+<i>526</i>&nbsp;
+<b class="nc"><i>527</i>&nbsp;        SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();</b>
+<i>528</i>&nbsp;        try {
+<b class="nc"><i>529</i>&nbsp;            operationListener.validateSearchContext(context, request);</b>
+<b class="nc"><i>530</i>&nbsp;            return context;</b>
+<b class="nc"><i>531</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>532</i>&nbsp;            processFailure(context, e);</b>
+<b class="nc"><i>533</i>&nbsp;            throw e;</b>
+<i>534</i>&nbsp;        }
+<i>535</i>&nbsp;    }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
+<b class="nc"><i>538</i>&nbsp;        if (request.scroll() != null &amp;&amp; openScrollContexts.get() &gt;= maxOpenScrollContext) {</b>
+<b class="nc"><i>539</i>&nbsp;            throw new ElasticsearchException(</b>
+<i>540</i>&nbsp;                &quot;Trying to create too many scroll contexts. Must be less than or equal to: [&quot; +
+<i>541</i>&nbsp;                    maxOpenScrollContext + &quot;]. &quot; + &quot;This limit can be set by changing the [&quot;
+<b class="nc"><i>542</i>&nbsp;                    + MAX_OPEN_SCROLL_CONTEXT.getKey() + &quot;] setting.&quot;);</b>
+<i>543</i>&nbsp;        }
+<i>544</i>&nbsp;
+<b class="nc"><i>545</i>&nbsp;        SearchContext context = createContext(request);</b>
+<b class="nc"><i>546</i>&nbsp;        onNewContext(context);</b>
+<b class="nc"><i>547</i>&nbsp;        boolean success = false;</b>
+<i>548</i>&nbsp;        try {
+<b class="nc"><i>549</i>&nbsp;            putContext(context);</b>
+<b class="nc"><i>550</i>&nbsp;            success = true;</b>
+<b class="nc"><i>551</i>&nbsp;            return context;</b>
+<i>552</i>&nbsp;        } finally {
+<b class="nc"><i>553</i>&nbsp;            if (success == false) {</b>
+<b class="nc"><i>554</i>&nbsp;                freeContext(context.id());</b>
+<i>555</i>&nbsp;            }
+<b class="nc"><i>556</i>&nbsp;        }</b>
+<i>557</i>&nbsp;    }
+<i>558</i>&nbsp;
+<i>559</i>&nbsp;    private void onNewContext(SearchContext context) {
+<b class="nc"><i>560</i>&nbsp;        boolean success = false;</b>
+<i>561</i>&nbsp;        try {
+<b class="nc"><i>562</i>&nbsp;            if (context.scrollContext() != null) {</b>
+<b class="nc"><i>563</i>&nbsp;                openScrollContexts.incrementAndGet();</b>
+<b class="nc"><i>564</i>&nbsp;                context.indexShard().getSearchOperationListener().onNewScrollContext(context);</b>
+<i>565</i>&nbsp;            }
+<b class="nc"><i>566</i>&nbsp;            context.indexShard().getSearchOperationListener().onNewContext(context);</b>
+<b class="nc"><i>567</i>&nbsp;            success = true;</b>
+<i>568</i>&nbsp;        } finally {
+<i>569</i>&nbsp;            // currently, the concrete listener is CompositeListener, which swallows exceptions, but here we anyway try to do the
+<i>570</i>&nbsp;            // right thing by closing and notifying onFreeXXX in case one of the listeners fails with an exception in the future.
+<b class="nc"><i>571</i>&nbsp;            if (success == false) {</b>
+<b class="nc"><i>572</i>&nbsp;                try (SearchContext dummy = context) {</b>
+<b class="nc"><i>573</i>&nbsp;                    onFreeContext(context);</b>
+<b class="nc"><i>574</i>&nbsp;                }</b>
+<i>575</i>&nbsp;            }
+<b class="nc"><i>576</i>&nbsp;        }</b>
+<b class="nc"><i>577</i>&nbsp;    }</b>
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;    final SearchContext createContext(ShardSearchRequest request) throws IOException {
+<b class="nc"><i>580</i>&nbsp;        final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout);</b>
+<i>581</i>&nbsp;        try {
+<b class="nc"><i>582</i>&nbsp;            if (request.scroll() != null) {</b>
+<b class="nc"><i>583</i>&nbsp;                context.scrollContext(new ScrollContext());</b>
+<b class="nc"><i>584</i>&nbsp;                context.scrollContext().scroll = request.scroll();</b>
+<i>585</i>&nbsp;            }
+<b class="nc"><i>586</i>&nbsp;            parseSource(context, request.source());</b>
+<i>587</i>&nbsp;
+<i>588</i>&nbsp;            // if the from and size are still not set, default them
+<b class="nc"><i>589</i>&nbsp;            if (context.from() == -1) {</b>
+<b class="nc"><i>590</i>&nbsp;                context.from(DEFAULT_FROM);</b>
+<i>591</i>&nbsp;            }
+<b class="nc"><i>592</i>&nbsp;            if (context.size() == -1) {</b>
+<b class="nc"><i>593</i>&nbsp;                context.size(DEFAULT_SIZE);</b>
+<i>594</i>&nbsp;            }
+<i>595</i>&nbsp;
+<i>596</i>&nbsp;            // pre process
+<b class="nc"><i>597</i>&nbsp;            dfsPhase.preProcess(context);</b>
+<b class="nc"><i>598</i>&nbsp;            queryPhase.preProcess(context);</b>
+<b class="nc"><i>599</i>&nbsp;            fetchPhase.preProcess(context);</b>
+<i>600</i>&nbsp;
+<i>601</i>&nbsp;            // compute the context keep alive
+<b class="nc"><i>602</i>&nbsp;            long keepAlive = defaultKeepAlive;</b>
+<b class="nc"><i>603</i>&nbsp;            if (request.scroll() != null &amp;&amp; request.scroll().keepAlive() != null) {</b>
+<b class="nc"><i>604</i>&nbsp;                keepAlive = request.scroll().keepAlive().millis();</b>
+<i>605</i>&nbsp;            }
+<b class="nc"><i>606</i>&nbsp;            contextScrollKeepAlive(context, keepAlive);</b>
+<b class="nc"><i>607</i>&nbsp;            context.lowLevelCancellation(lowLevelCancellation);</b>
+<b class="nc"><i>608</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>609</i>&nbsp;            context.close();</b>
+<b class="nc"><i>610</i>&nbsp;            throw e;</b>
+<b class="nc"><i>611</i>&nbsp;        }</b>
+<i>612</i>&nbsp;
+<b class="nc"><i>613</i>&nbsp;        return context;</b>
+<i>614</i>&nbsp;    }
+<i>615</i>&nbsp;
+<i>616</i>&nbsp;    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
+<b class="nc"><i>617</i>&nbsp;        return createSearchContext(request, timeout, true, &quot;search&quot;);</b>
+<i>618</i>&nbsp;    }
+<i>619</i>&nbsp;
+<i>620</i>&nbsp;    private DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout,
+<i>621</i>&nbsp;                                                     boolean assertAsyncActions, String source)
+<i>622</i>&nbsp;            throws IOException {
+<b class="nc"><i>623</i>&nbsp;        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());</b>
+<b class="nc"><i>624</i>&nbsp;        IndexShard indexShard = indexService.getShard(request.shardId().getId());</b>
+<b class="nc"><i>625</i>&nbsp;        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),</b>
+<b class="nc"><i>626</i>&nbsp;                indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);</b>
+<b class="nc"><i>627</i>&nbsp;        Engine.Searcher searcher = indexShard.acquireSearcher(source);</b>
+<i>628</i>&nbsp;
+<b class="nc"><i>629</i>&nbsp;        boolean success = false;</b>
+<b class="nc"><i>630</i>&nbsp;        DefaultSearchContext searchContext = null;</b>
+<i>631</i>&nbsp;        try {
+<b class="nc"><i>632</i>&nbsp;            searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,</b>
+<b class="nc"><i>633</i>&nbsp;                searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,</b>
+<b class="nc"><i>634</i>&nbsp;                fetchPhase, clusterService.state().nodes().getMinNodeVersion());</b>
+<i>635</i>&nbsp;            // we clone the query shard context here just for rewriting otherwise we
+<i>636</i>&nbsp;            // might end up with incorrect state since we are using now() or script services
+<i>637</i>&nbsp;            // during rewrite and normalized / evaluate templates etc.
+<b class="nc"><i>638</i>&nbsp;            QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());</b>
+<b class="nc"><i>639</i>&nbsp;            Rewriteable.rewrite(request.getRewriteable(), context, assertAsyncActions);</b>
+<b class="nc"><i>640</i>&nbsp;            assert searchContext.getQueryShardContext().isCacheable();</b>
+<b class="nc"><i>641</i>&nbsp;            success = true;</b>
+<i>642</i>&nbsp;        } finally {
+<b class="nc"><i>643</i>&nbsp;            if (success == false) {</b>
+<b class="nc"><i>644</i>&nbsp;                IOUtils.closeWhileHandlingException(searchContext);</b>
+<b class="nc"><i>645</i>&nbsp;                if (searchContext == null) {</b>
+<i>646</i>&nbsp;                    // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
+<i>647</i>&nbsp;                    // leak a searcher and this can have severe implications (unable to obtain shard lock exceptions).
+<b class="nc"><i>648</i>&nbsp;                    IOUtils.closeWhileHandlingException(searcher);</b>
+<i>649</i>&nbsp;                }
+<i>650</i>&nbsp;            }
+<b class="nc"><i>651</i>&nbsp;        }</b>
+<b class="nc"><i>652</i>&nbsp;        return searchContext;</b>
+<i>653</i>&nbsp;    }
+<i>654</i>&nbsp;
+<i>655</i>&nbsp;    private void freeAllContextForIndex(Index index) {
+<b class="fc"><i>656</i>&nbsp;        assert index != null;</b>
+<b class="fc"><i>657</i>&nbsp;        for (SearchContext ctx : activeContexts.values()) {</b>
+<b class="nc"><i>658</i>&nbsp;            if (index.equals(ctx.indexShard().shardId().getIndex())) {</b>
+<b class="nc"><i>659</i>&nbsp;                freeContext(ctx.id());</b>
+<i>660</i>&nbsp;            }
+<b class="nc"><i>661</i>&nbsp;        }</b>
+<b class="fc"><i>662</i>&nbsp;    }</b>
+<i>663</i>&nbsp;
+<i>664</i>&nbsp;
+<i>665</i>&nbsp;    public boolean freeContext(long id) {
+<b class="nc"><i>666</i>&nbsp;        try (SearchContext context = removeContext(id)) {</b>
+<b class="nc"><i>667</i>&nbsp;            if (context != null) {</b>
+<b class="nc"><i>668</i>&nbsp;                onFreeContext(context);</b>
+<b class="nc"><i>669</i>&nbsp;                return true;</b>
+<i>670</i>&nbsp;            }
+<b class="nc"><i>671</i>&nbsp;            return false;</b>
+<b class="nc"><i>672</i>&nbsp;        }</b>
+<i>673</i>&nbsp;    }
+<i>674</i>&nbsp;
+<i>675</i>&nbsp;    private void onFreeContext(SearchContext context) {
+<b class="nc"><i>676</i>&nbsp;        assert context.refCount() &gt; 0 : &quot; refCount must be &gt; 0: &quot; + context.refCount();</b>
+<b class="nc"><i>677</i>&nbsp;        assert activeContexts.containsKey(context.id()) == false;</b>
+<b class="nc"><i>678</i>&nbsp;        context.indexShard().getSearchOperationListener().onFreeContext(context);</b>
+<b class="nc"><i>679</i>&nbsp;        if (context.scrollContext() != null) {</b>
+<b class="nc"><i>680</i>&nbsp;            openScrollContexts.decrementAndGet();</b>
+<b class="nc"><i>681</i>&nbsp;            context.indexShard().getSearchOperationListener().onFreeScrollContext(context);</b>
+<i>682</i>&nbsp;        }
+<b class="nc"><i>683</i>&nbsp;    }</b>
+<i>684</i>&nbsp;
+<i>685</i>&nbsp;    public void freeAllScrollContexts() {
+<b class="nc"><i>686</i>&nbsp;        for (SearchContext searchContext : activeContexts.values()) {</b>
+<b class="nc"><i>687</i>&nbsp;            if (searchContext.scrollContext() != null) {</b>
+<b class="nc"><i>688</i>&nbsp;                freeContext(searchContext.id());</b>
+<i>689</i>&nbsp;            }
+<b class="nc"><i>690</i>&nbsp;        }</b>
+<b class="nc"><i>691</i>&nbsp;    }</b>
+<i>692</i>&nbsp;
+<i>693</i>&nbsp;    private void contextScrollKeepAlive(SearchContext context, long keepAlive) {
+<b class="nc"><i>694</i>&nbsp;        if (keepAlive &gt; maxKeepAlive) {</b>
+<b class="nc"><i>695</i>&nbsp;            throw new IllegalArgumentException(</b>
+<b class="nc"><i>696</i>&nbsp;                &quot;Keep alive for scroll (&quot; + TimeValue.timeValueMillis(keepAlive) + &quot;) is too large. &quot; +</b>
+<b class="nc"><i>697</i>&nbsp;                    &quot;It must be less than (&quot; + TimeValue.timeValueMillis(maxKeepAlive) + &quot;). &quot; +</b>
+<b class="nc"><i>698</i>&nbsp;                    &quot;This limit can be set by changing the [&quot; + MAX_KEEPALIVE_SETTING.getKey() + &quot;] cluster level setting.&quot;);</b>
+<i>699</i>&nbsp;        }
+<b class="nc"><i>700</i>&nbsp;        context.keepAlive(keepAlive);</b>
+<b class="nc"><i>701</i>&nbsp;    }</b>
+<i>702</i>&nbsp;
+<i>703</i>&nbsp;    private void contextProcessing(SearchContext context) {
+<i>704</i>&nbsp;        // disable timeout while executing a search
+<b class="nc"><i>705</i>&nbsp;        context.accessed(-1);</b>
+<b class="nc"><i>706</i>&nbsp;    }</b>
+<i>707</i>&nbsp;
+<i>708</i>&nbsp;    private void contextProcessedSuccessfully(SearchContext context) {
+<b class="nc"><i>709</i>&nbsp;        context.accessed(threadPool.relativeTimeInMillis());</b>
+<b class="nc"><i>710</i>&nbsp;    }</b>
+<i>711</i>&nbsp;
+<i>712</i>&nbsp;    private void cleanContext(SearchContext context) {
+<i>713</i>&nbsp;        try {
+<b class="nc"><i>714</i>&nbsp;            context.clearReleasables(Lifetime.PHASE);</b>
+<b class="nc"><i>715</i>&nbsp;            context.setTask(null);</b>
+<i>716</i>&nbsp;        } finally {
+<b class="nc"><i>717</i>&nbsp;            context.decRef();</b>
+<b class="nc"><i>718</i>&nbsp;        }</b>
+<b class="nc"><i>719</i>&nbsp;    }</b>
+<i>720</i>&nbsp;
+<i>721</i>&nbsp;    private void processFailure(SearchContext context, Exception e) {
+<b class="nc"><i>722</i>&nbsp;        freeContext(context.id());</b>
+<i>723</i>&nbsp;        try {
+<b class="nc"><i>724</i>&nbsp;            if (Lucene.isCorruptionException(e)) {</b>
+<b class="nc"><i>725</i>&nbsp;                context.indexShard().failShard(&quot;search execution corruption failure&quot;, e);</b>
+<i>726</i>&nbsp;            }
+<b class="nc"><i>727</i>&nbsp;        } catch (Exception inner) {</b>
+<b class="nc"><i>728</i>&nbsp;            inner.addSuppressed(e);</b>
+<b class="nc"><i>729</i>&nbsp;            logger.warn(&quot;failed to process shard failure to (potentially) send back shard failure on corruption&quot;, inner);</b>
+<b class="nc"><i>730</i>&nbsp;        }</b>
+<b class="nc"><i>731</i>&nbsp;    }</b>
+<i>732</i>&nbsp;
+<i>733</i>&nbsp;    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source) throws SearchException {
+<i>734</i>&nbsp;        // nothing to parse...
+<b class="nc"><i>735</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>736</i>&nbsp;            return;</b>
+<i>737</i>&nbsp;        }
+<b class="nc"><i>738</i>&nbsp;        SearchShardTarget shardTarget = context.shardTarget();</b>
+<b class="nc"><i>739</i>&nbsp;        QueryShardContext queryShardContext = context.getQueryShardContext();</b>
+<b class="nc"><i>740</i>&nbsp;        context.from(source.from());</b>
+<b class="nc"><i>741</i>&nbsp;        context.size(source.size());</b>
+<b class="nc"><i>742</i>&nbsp;        Map&lt;String, InnerHitContextBuilder&gt; innerHitBuilders = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>743</i>&nbsp;        if (source.query() != null) {</b>
+<b class="nc"><i>744</i>&nbsp;            InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);</b>
+<b class="nc"><i>745</i>&nbsp;            context.parsedQuery(queryShardContext.toQuery(source.query()));</b>
+<i>746</i>&nbsp;        }
+<b class="nc"><i>747</i>&nbsp;        if (source.postFilter() != null) {</b>
+<b class="nc"><i>748</i>&nbsp;            InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);</b>
+<b class="nc"><i>749</i>&nbsp;            context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));</b>
+<i>750</i>&nbsp;        }
+<b class="nc"><i>751</i>&nbsp;        if (innerHitBuilders.size() &gt; 0) {</b>
+<b class="nc"><i>752</i>&nbsp;            for (Map.Entry&lt;String, InnerHitContextBuilder&gt; entry : innerHitBuilders.entrySet()) {</b>
+<i>753</i>&nbsp;                try {
+<b class="nc"><i>754</i>&nbsp;                    entry.getValue().build(context, context.innerHits());</b>
+<b class="nc"><i>755</i>&nbsp;                } catch (IOException e) {</b>
+<b class="nc"><i>756</i>&nbsp;                    throw new SearchException(shardTarget, &quot;failed to build inner_hits&quot;, e);</b>
+<b class="nc"><i>757</i>&nbsp;                }</b>
+<b class="nc"><i>758</i>&nbsp;            }</b>
+<i>759</i>&nbsp;        }
+<b class="nc"><i>760</i>&nbsp;        if (source.sorts() != null) {</b>
+<i>761</i>&nbsp;            try {
+<b class="nc"><i>762</i>&nbsp;                Optional&lt;SortAndFormats&gt; optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());</b>
+<b class="nc"><i>763</i>&nbsp;                if (optionalSort.isPresent()) {</b>
+<b class="nc"><i>764</i>&nbsp;                    context.sort(optionalSort.get());</b>
+<i>765</i>&nbsp;                }
+<b class="nc"><i>766</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>767</i>&nbsp;                throw new SearchException(shardTarget, &quot;failed to create sort elements&quot;, e);</b>
+<b class="nc"><i>768</i>&nbsp;            }</b>
+<i>769</i>&nbsp;        }
+<b class="nc"><i>770</i>&nbsp;        context.trackScores(source.trackScores());</b>
+<b class="nc"><i>771</i>&nbsp;        if (source.trackTotalHitsUpTo() != null</b>
+<b class="nc"><i>772</i>&nbsp;                &amp;&amp; source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE</b>
+<b class="nc"><i>773</i>&nbsp;                &amp;&amp; context.scrollContext() != null) {</b>
+<b class="nc"><i>774</i>&nbsp;            throw new SearchException(shardTarget, &quot;disabling [track_total_hits] is not allowed in a scroll context&quot;);</b>
+<i>775</i>&nbsp;        }
+<b class="nc"><i>776</i>&nbsp;        if (source.trackTotalHitsUpTo() != null) {</b>
+<b class="nc"><i>777</i>&nbsp;            context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());</b>
+<i>778</i>&nbsp;        }
+<b class="nc"><i>779</i>&nbsp;        if (source.minScore() != null) {</b>
+<b class="nc"><i>780</i>&nbsp;            context.minimumScore(source.minScore());</b>
+<i>781</i>&nbsp;        }
+<b class="nc"><i>782</i>&nbsp;        if (source.profile()) {</b>
+<b class="nc"><i>783</i>&nbsp;            context.setProfilers(new Profilers(context.searcher()));</b>
+<i>784</i>&nbsp;        }
+<b class="nc"><i>785</i>&nbsp;        if (source.timeout() != null) {</b>
+<b class="nc"><i>786</i>&nbsp;            context.timeout(source.timeout());</b>
+<i>787</i>&nbsp;        }
+<b class="nc"><i>788</i>&nbsp;        context.terminateAfter(source.terminateAfter());</b>
+<b class="nc"><i>789</i>&nbsp;        if (source.aggregations() != null) {</b>
+<i>790</i>&nbsp;            try {
+<b class="nc"><i>791</i>&nbsp;                AggregatorFactories factories = source.aggregations().build(queryShardContext, null);</b>
+<b class="nc"><i>792</i>&nbsp;                context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));</b>
+<b class="nc"><i>793</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>794</i>&nbsp;                throw new AggregationInitializationException(&quot;Failed to create aggregators&quot;, e);</b>
+<b class="nc"><i>795</i>&nbsp;            }</b>
+<i>796</i>&nbsp;        }
+<b class="nc"><i>797</i>&nbsp;        if (source.suggest() != null) {</b>
+<i>798</i>&nbsp;            try {
+<b class="nc"><i>799</i>&nbsp;                context.suggest(source.suggest().build(queryShardContext));</b>
+<b class="nc"><i>800</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>801</i>&nbsp;                throw new SearchException(shardTarget, &quot;failed to create SuggestionSearchContext&quot;, e);</b>
+<b class="nc"><i>802</i>&nbsp;            }</b>
+<i>803</i>&nbsp;        }
+<b class="nc"><i>804</i>&nbsp;        if (source.rescores() != null) {</b>
+<i>805</i>&nbsp;            try {
+<b class="nc"><i>806</i>&nbsp;                for (RescorerBuilder&lt;?&gt; rescore : source.rescores()) {</b>
+<b class="nc"><i>807</i>&nbsp;                    context.addRescore(rescore.buildContext(queryShardContext));</b>
+<b class="nc"><i>808</i>&nbsp;                }</b>
+<b class="nc"><i>809</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>810</i>&nbsp;                throw new SearchException(shardTarget, &quot;failed to create RescoreSearchContext&quot;, e);</b>
+<b class="nc"><i>811</i>&nbsp;            }</b>
+<i>812</i>&nbsp;        }
+<b class="nc"><i>813</i>&nbsp;        if (source.explain() != null) {</b>
+<b class="nc"><i>814</i>&nbsp;            context.explain(source.explain());</b>
+<i>815</i>&nbsp;        }
+<b class="nc"><i>816</i>&nbsp;        if (source.fetchSource() != null) {</b>
+<b class="nc"><i>817</i>&nbsp;            context.fetchSourceContext(source.fetchSource());</b>
+<i>818</i>&nbsp;        }
+<b class="nc"><i>819</i>&nbsp;        if (source.docValueFields() != null) {</b>
+<b class="nc"><i>820</i>&nbsp;            List&lt;DocValueFieldsContext.FieldAndFormat&gt; docValueFields = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>821</i>&nbsp;            for (DocValueFieldsContext.FieldAndFormat format : source.docValueFields()) {</b>
+<b class="nc"><i>822</i>&nbsp;                Collection&lt;String&gt; fieldNames = context.mapperService().simpleMatchToFullName(format.field);</b>
+<b class="nc"><i>823</i>&nbsp;                for (String fieldName: fieldNames) {</b>
+<b class="nc"><i>824</i>&nbsp;                   docValueFields.add(new DocValueFieldsContext.FieldAndFormat(fieldName, format.format));</b>
+<b class="nc"><i>825</i>&nbsp;                }</b>
+<b class="nc"><i>826</i>&nbsp;            }</b>
+<b class="nc"><i>827</i>&nbsp;            int maxAllowedDocvalueFields = context.mapperService().getIndexSettings().getMaxDocvalueFields();</b>
+<b class="nc"><i>828</i>&nbsp;            if (docValueFields.size() &gt; maxAllowedDocvalueFields) {</b>
+<b class="nc"><i>829</i>&nbsp;                throw new IllegalArgumentException(</b>
+<i>830</i>&nbsp;                    &quot;Trying to retrieve too many docvalue_fields. Must be less than or equal to: [&quot; + maxAllowedDocvalueFields
+<b class="nc"><i>831</i>&nbsp;                        + &quot;] but was [&quot; + docValueFields.size() + &quot;]. This limit can be set by changing the [&quot;</b>
+<b class="nc"><i>832</i>&nbsp;                        + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + &quot;] index level setting.&quot;);</b>
+<i>833</i>&nbsp;            }
+<b class="nc"><i>834</i>&nbsp;            context.docValueFieldsContext(new DocValueFieldsContext(docValueFields));</b>
+<i>835</i>&nbsp;        }
+<b class="nc"><i>836</i>&nbsp;        if (source.highlighter() != null) {</b>
+<b class="nc"><i>837</i>&nbsp;            HighlightBuilder highlightBuilder = source.highlighter();</b>
+<i>838</i>&nbsp;            try {
+<b class="nc"><i>839</i>&nbsp;                context.highlight(highlightBuilder.build(queryShardContext));</b>
+<b class="nc"><i>840</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>841</i>&nbsp;                throw new SearchException(shardTarget, &quot;failed to create SearchContextHighlighter&quot;, e);</b>
+<b class="nc"><i>842</i>&nbsp;            }</b>
+<i>843</i>&nbsp;        }
+<b class="nc"><i>844</i>&nbsp;        if (source.scriptFields() != null &amp;&amp; source.size() != 0) {</b>
+<b class="nc"><i>845</i>&nbsp;            int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();</b>
+<b class="nc"><i>846</i>&nbsp;            if (source.scriptFields().size() &gt; maxAllowedScriptFields) {</b>
+<b class="nc"><i>847</i>&nbsp;                throw new IllegalArgumentException(</b>
+<i>848</i>&nbsp;                        &quot;Trying to retrieve too many script_fields. Must be less than or equal to: [&quot; + maxAllowedScriptFields
+<b class="nc"><i>849</i>&nbsp;                                + &quot;] but was [&quot; + source.scriptFields().size() + &quot;]. This limit can be set by changing the [&quot;</b>
+<b class="nc"><i>850</i>&nbsp;                                + IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey() + &quot;] index level setting.&quot;);</b>
+<i>851</i>&nbsp;            }
+<b class="nc"><i>852</i>&nbsp;            for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {</b>
+<b class="nc"><i>853</i>&nbsp;                FieldScript.Factory factory = scriptService.compile(field.script(), FieldScript.CONTEXT);</b>
+<b class="nc"><i>854</i>&nbsp;                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());</b>
+<b class="nc"><i>855</i>&nbsp;                context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));</b>
+<b class="nc"><i>856</i>&nbsp;            }</b>
+<i>857</i>&nbsp;        }
+<b class="nc"><i>858</i>&nbsp;        if (source.ext() != null) {</b>
+<b class="nc"><i>859</i>&nbsp;            for (SearchExtBuilder searchExtBuilder : source.ext()) {</b>
+<b class="nc"><i>860</i>&nbsp;                context.addSearchExt(searchExtBuilder);</b>
+<b class="nc"><i>861</i>&nbsp;            }</b>
+<i>862</i>&nbsp;        }
+<b class="nc"><i>863</i>&nbsp;        if (source.version() != null) {</b>
+<b class="nc"><i>864</i>&nbsp;            context.version(source.version());</b>
+<i>865</i>&nbsp;        }
+<i>866</i>&nbsp;
+<b class="nc"><i>867</i>&nbsp;        if (source.seqNoAndPrimaryTerm() != null) {</b>
+<b class="nc"><i>868</i>&nbsp;            context.seqNoAndPrimaryTerm(source.seqNoAndPrimaryTerm());</b>
+<i>869</i>&nbsp;        }
+<i>870</i>&nbsp;
+<b class="nc"><i>871</i>&nbsp;        if (source.stats() != null) {</b>
+<b class="nc"><i>872</i>&nbsp;            context.groupStats(source.stats());</b>
+<i>873</i>&nbsp;        }
+<b class="nc"><i>874</i>&nbsp;        if (source.searchAfter() != null &amp;&amp; source.searchAfter().length &gt; 0) {</b>
+<b class="nc"><i>875</i>&nbsp;            if (context.scrollContext() != null) {</b>
+<b class="nc"><i>876</i>&nbsp;                throw new SearchException(shardTarget, &quot;`search_after` cannot be used in a scroll context.&quot;);</b>
+<i>877</i>&nbsp;            }
+<b class="nc"><i>878</i>&nbsp;            if (context.from() &gt; 0) {</b>
+<b class="nc"><i>879</i>&nbsp;                throw new SearchException(shardTarget, &quot;`from` parameter must be set to 0 when `search_after` is used.&quot;);</b>
+<i>880</i>&nbsp;            }
+<b class="nc"><i>881</i>&nbsp;            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());</b>
+<b class="nc"><i>882</i>&nbsp;            context.searchAfter(fieldDoc);</b>
+<i>883</i>&nbsp;        }
+<i>884</i>&nbsp;
+<b class="nc"><i>885</i>&nbsp;        if (source.slice() != null) {</b>
+<b class="nc"><i>886</i>&nbsp;            if (context.scrollContext() == null) {</b>
+<b class="nc"><i>887</i>&nbsp;                throw new SearchException(shardTarget, &quot;`slice` cannot be used outside of a scroll context&quot;);</b>
+<i>888</i>&nbsp;            }
+<b class="nc"><i>889</i>&nbsp;            context.sliceBuilder(source.slice());</b>
+<i>890</i>&nbsp;        }
+<i>891</i>&nbsp;
+<b class="nc"><i>892</i>&nbsp;        if (source.storedFields() != null) {</b>
+<b class="nc"><i>893</i>&nbsp;            if (source.storedFields().fetchFields() == false) {</b>
+<b class="nc"><i>894</i>&nbsp;                if (context.version()) {</b>
+<b class="nc"><i>895</i>&nbsp;                    throw new SearchException(shardTarget, &quot;`stored_fields` cannot be disabled if version is requested&quot;);</b>
+<i>896</i>&nbsp;                }
+<b class="nc"><i>897</i>&nbsp;                if (context.sourceRequested()) {</b>
+<b class="nc"><i>898</i>&nbsp;                    throw new SearchException(shardTarget, &quot;`stored_fields` cannot be disabled if _source is requested&quot;);</b>
+<i>899</i>&nbsp;                }
+<i>900</i>&nbsp;            }
+<b class="nc"><i>901</i>&nbsp;            context.storedFieldsContext(source.storedFields());</b>
+<i>902</i>&nbsp;        }
+<i>903</i>&nbsp;
+<b class="nc"><i>904</i>&nbsp;        if (source.collapse() != null) {</b>
+<b class="nc"><i>905</i>&nbsp;            if (context.scrollContext() != null) {</b>
+<b class="nc"><i>906</i>&nbsp;                throw new SearchException(shardTarget, &quot;cannot use `collapse` in a scroll context&quot;);</b>
+<i>907</i>&nbsp;            }
+<b class="nc"><i>908</i>&nbsp;            if (context.searchAfter() != null) {</b>
+<b class="nc"><i>909</i>&nbsp;                throw new SearchException(shardTarget, &quot;cannot use `collapse` in conjunction with `search_after`&quot;);</b>
+<i>910</i>&nbsp;            }
+<b class="nc"><i>911</i>&nbsp;            if (context.rescore() != null &amp;&amp; context.rescore().isEmpty() == false) {</b>
+<b class="nc"><i>912</i>&nbsp;                throw new SearchException(shardTarget, &quot;cannot use `collapse` in conjunction with `rescore`&quot;);</b>
+<i>913</i>&nbsp;            }
+<b class="nc"><i>914</i>&nbsp;            final CollapseContext collapseContext = source.collapse().build(queryShardContext);</b>
+<b class="nc"><i>915</i>&nbsp;            context.collapse(collapseContext);</b>
+<i>916</i>&nbsp;        }
+<b class="nc"><i>917</i>&nbsp;    }</b>
+<i>918</i>&nbsp;
+<i>919</i>&nbsp;    /**
+<i>920</i>&nbsp;     * Shortcut ids to load, we load only &quot;from&quot; and up to &quot;size&quot;. The phase controller
+<i>921</i>&nbsp;     * handles this as well since the result is always size * shards for Q_T_F
+<i>922</i>&nbsp;     */
+<i>923</i>&nbsp;    private void shortcutDocIdsToLoad(SearchContext context) {
+<i>924</i>&nbsp;        final int[] docIdsToLoad;
+<b class="nc"><i>925</i>&nbsp;        int docsOffset = 0;</b>
+<b class="nc"><i>926</i>&nbsp;        final Suggest suggest = context.queryResult().suggest();</b>
+<b class="nc"><i>927</i>&nbsp;        int numSuggestDocs = 0;</b>
+<i>928</i>&nbsp;        final List&lt;CompletionSuggestion&gt; completionSuggestions;
+<b class="nc"><i>929</i>&nbsp;        if (suggest != null &amp;&amp; suggest.hasScoreDocs()) {</b>
+<b class="nc"><i>930</i>&nbsp;            completionSuggestions = suggest.filter(CompletionSuggestion.class);</b>
+<b class="nc"><i>931</i>&nbsp;            for (CompletionSuggestion completionSuggestion : completionSuggestions) {</b>
+<b class="nc"><i>932</i>&nbsp;                numSuggestDocs += completionSuggestion.getOptions().size();</b>
+<b class="nc"><i>933</i>&nbsp;            }</b>
+<i>934</i>&nbsp;        } else {
+<b class="nc"><i>935</i>&nbsp;            completionSuggestions = Collections.emptyList();</b>
+<i>936</i>&nbsp;        }
+<b class="nc"><i>937</i>&nbsp;        if (context.request().scroll() != null) {</b>
+<b class="nc"><i>938</i>&nbsp;            TopDocs topDocs = context.queryResult().topDocs().topDocs;</b>
+<b class="nc"><i>939</i>&nbsp;            docIdsToLoad = new int[topDocs.scoreDocs.length + numSuggestDocs];</b>
+<b class="nc"><i>940</i>&nbsp;            for (int i = 0; i &lt; topDocs.scoreDocs.length; i++) {</b>
+<b class="nc"><i>941</i>&nbsp;                docIdsToLoad[docsOffset++] = topDocs.scoreDocs[i].doc;</b>
+<i>942</i>&nbsp;            }
+<b class="nc"><i>943</i>&nbsp;        } else {</b>
+<b class="nc"><i>944</i>&nbsp;            TopDocs topDocs = context.queryResult().topDocs().topDocs;</b>
+<b class="nc"><i>945</i>&nbsp;            if (topDocs.scoreDocs.length &lt; context.from()) {</b>
+<i>946</i>&nbsp;                // no more docs...
+<b class="nc"><i>947</i>&nbsp;                docIdsToLoad = new int[numSuggestDocs];</b>
+<i>948</i>&nbsp;            } else {
+<b class="nc"><i>949</i>&nbsp;                int totalSize = context.from() + context.size();</b>
+<b class="nc"><i>950</i>&nbsp;                docIdsToLoad = new int[Math.min(topDocs.scoreDocs.length - context.from(), context.size()) +</b>
+<i>951</i>&nbsp;                    numSuggestDocs];
+<b class="nc"><i>952</i>&nbsp;                for (int i = context.from(); i &lt; Math.min(totalSize, topDocs.scoreDocs.length); i++) {</b>
+<b class="nc"><i>953</i>&nbsp;                    docIdsToLoad[docsOffset++] = topDocs.scoreDocs[i].doc;</b>
+<i>954</i>&nbsp;                }
+<i>955</i>&nbsp;            }
+<i>956</i>&nbsp;        }
+<b class="nc"><i>957</i>&nbsp;        for (CompletionSuggestion completionSuggestion : completionSuggestions) {</b>
+<b class="nc"><i>958</i>&nbsp;            for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {</b>
+<b class="nc"><i>959</i>&nbsp;                docIdsToLoad[docsOffset++] = option.getDoc().doc;</b>
+<b class="nc"><i>960</i>&nbsp;            }</b>
+<b class="nc"><i>961</i>&nbsp;        }</b>
+<b class="nc"><i>962</i>&nbsp;        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);</b>
+<b class="nc"><i>963</i>&nbsp;    }</b>
+<i>964</i>&nbsp;
+<i>965</i>&nbsp;    private void processScroll(InternalScrollSearchRequest request, SearchContext context) {
+<i>966</i>&nbsp;        // process scroll
+<b class="nc"><i>967</i>&nbsp;        context.from(context.from() + context.size());</b>
+<b class="nc"><i>968</i>&nbsp;        context.scrollContext().scroll = request.scroll();</b>
+<i>969</i>&nbsp;        // update the context keep alive based on the new scroll value
+<b class="nc"><i>970</i>&nbsp;        if (request.scroll() != null &amp;&amp; request.scroll().keepAlive() != null) {</b>
+<b class="nc"><i>971</i>&nbsp;            contextScrollKeepAlive(context, request.scroll().keepAlive().millis());</b>
+<i>972</i>&nbsp;        }
+<b class="nc"><i>973</i>&nbsp;    }</b>
+<i>974</i>&nbsp;
+<i>975</i>&nbsp;    /**
+<i>976</i>&nbsp;     * Returns the number of active contexts in this
+<i>977</i>&nbsp;     * SearchService
+<i>978</i>&nbsp;     */
+<i>979</i>&nbsp;    public int getActiveContexts() {
+<b class="nc"><i>980</i>&nbsp;        return this.activeContexts.size();</b>
+<i>981</i>&nbsp;    }
+<i>982</i>&nbsp;
+<i>983</i>&nbsp;    public ResponseCollectorService getResponseCollectorService() {
+<b class="nc"><i>984</i>&nbsp;        return this.responseCollectorService;</b>
+<i>985</i>&nbsp;    }
+<i>986</i>&nbsp;
+<b class="fc"><i>987</i>&nbsp;    class Reaper implements Runnable {</b>
+<i>988</i>&nbsp;        @Override
+<i>989</i>&nbsp;        public void run() {
+<b class="nc"><i>990</i>&nbsp;            final long time = threadPool.relativeTimeInMillis();</b>
+<b class="nc"><i>991</i>&nbsp;            for (SearchContext context : activeContexts.values()) {</b>
+<i>992</i>&nbsp;                // Use the same value for both checks since lastAccessTime can
+<i>993</i>&nbsp;                // be modified by another thread between checks!
+<b class="nc"><i>994</i>&nbsp;                final long lastAccessTime = context.lastAccessTime();</b>
+<b class="nc"><i>995</i>&nbsp;                if (lastAccessTime == -1L) { // its being processed or timeout is disabled</b>
+<b class="nc"><i>996</i>&nbsp;                    continue;</b>
+<i>997</i>&nbsp;                }
+<b class="nc"><i>998</i>&nbsp;                if ((time - lastAccessTime &gt; context.keepAlive())) {</b>
+<b class="nc"><i>999</i>&nbsp;                    logger.debug(&quot;freeing search context [{}], time [{}], lastAccessTime [{}], keepAlive [{}]&quot;, context.id(), time,</b>
+<b class="nc"><i>1000</i>&nbsp;                        lastAccessTime, context.keepAlive());</b>
+<b class="nc"><i>1001</i>&nbsp;                    freeContext(context.id());</b>
+<i>1002</i>&nbsp;                }
+<b class="nc"><i>1003</i>&nbsp;            }</b>
+<b class="nc"><i>1004</i>&nbsp;        }</b>
+<i>1005</i>&nbsp;    }
+<i>1006</i>&nbsp;
+<i>1007</i>&nbsp;    public AliasFilter buildAliasFilter(ClusterState state, String index, Set&lt;String&gt; resolvedExpressions) {
+<b class="nc"><i>1008</i>&nbsp;        return indicesService.buildAliasFilter(state, index, resolvedExpressions);</b>
+<i>1009</i>&nbsp;    }
+<i>1010</i>&nbsp;
+<i>1011</i>&nbsp;    /**
+<i>1012</i>&nbsp;     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
+<i>1013</i>&nbsp;     * This method can have false positives while if it returns &lt;code&gt;false&lt;/code&gt; the query won&#39;t match any documents on the current
+<i>1014</i>&nbsp;     * shard.
+<i>1015</i>&nbsp;     */
+<i>1016</i>&nbsp;    public boolean canMatch(ShardSearchRequest request) throws IOException {
+<b class="nc"><i>1017</i>&nbsp;        assert request.searchType() == SearchType.QUERY_THEN_FETCH : &quot;unexpected search type: &quot; + request.searchType();</b>
+<b class="nc"><i>1018</i>&nbsp;        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());</b>
+<b class="nc"><i>1019</i>&nbsp;        IndexShard indexShard = indexService.getShard(request.shardId().getId());</b>
+<i>1020</i>&nbsp;        // we don&#39;t want to use the reader wrapper since it could run costly operations
+<i>1021</i>&nbsp;        // and we can afford false positives.
+<b class="nc"><i>1022</i>&nbsp;        try (Engine.Searcher searcher = indexShard.acquireSearcherNoWrap(&quot;can_match&quot;)) {</b>
+<b class="nc"><i>1023</i>&nbsp;            QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,</b>
+<b class="nc"><i>1024</i>&nbsp;                request::nowInMillis, request.getClusterAlias());</b>
+<b class="nc"><i>1025</i>&nbsp;            Rewriteable.rewrite(request.getRewriteable(), context, false);</b>
+<b class="nc"><i>1026</i>&nbsp;            if (canRewriteToMatchNone(request.source())) {</b>
+<b class="nc"><i>1027</i>&nbsp;                QueryBuilder queryBuilder = request.source().query();</b>
+<b class="nc"><i>1028</i>&nbsp;                return queryBuilder instanceof MatchNoneQueryBuilder == false;</b>
+<i>1029</i>&nbsp;            }
+<b class="nc"><i>1030</i>&nbsp;            return true; // null query means match_all</b>
+<b class="nc"><i>1031</i>&nbsp;        }</b>
+<i>1032</i>&nbsp;    }
+<i>1033</i>&nbsp;
+<i>1034</i>&nbsp;
+<i>1035</i>&nbsp;    public void canMatch(ShardSearchRequest request, ActionListener&lt;CanMatchResponse&gt; listener) {
+<i>1036</i>&nbsp;        try {
+<b class="nc"><i>1037</i>&nbsp;            listener.onResponse(new CanMatchResponse(canMatch(request)));</b>
+<b class="nc"><i>1038</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>1039</i>&nbsp;            listener.onFailure(e);</b>
+<b class="nc"><i>1040</i>&nbsp;        }</b>
+<b class="nc"><i>1041</i>&nbsp;    }</b>
+<i>1042</i>&nbsp;
+<i>1043</i>&nbsp;    /**
+<i>1044</i>&nbsp;     * Returns true iff the given search source builder can be early terminated by rewriting to a match none query. Or in other words
+<i>1045</i>&nbsp;     * if the execution of the search request can be early terminated without executing it. This is for instance not possible if
+<i>1046</i>&nbsp;     * a global aggregation is part of this request or if there is a suggest builder present.
+<i>1047</i>&nbsp;     */
+<i>1048</i>&nbsp;    public static boolean canRewriteToMatchNone(SearchSourceBuilder source) {
+<b class="nc"><i>1049</i>&nbsp;        if (source == null || source.query() == null || source.query() instanceof MatchAllQueryBuilder || source.suggest() != null) {</b>
+<b class="nc"><i>1050</i>&nbsp;            return false;</b>
+<i>1051</i>&nbsp;        }
+<b class="nc"><i>1052</i>&nbsp;        AggregatorFactories.Builder aggregations = source.aggregations();</b>
+<b class="nc"><i>1053</i>&nbsp;        return aggregations == null || aggregations.mustVisitAllDocs() == false;</b>
+<i>1054</i>&nbsp;    }
+<i>1055</i>&nbsp;
+<i>1056</i>&nbsp;    /*
+<i>1057</i>&nbsp;     * Rewrites the search request with a light weight rewrite context in order to fetch resources asynchronously
+<i>1058</i>&nbsp;     * The action listener is guaranteed to be executed on the search thread-pool
+<i>1059</i>&nbsp;     */
+<i>1060</i>&nbsp;    private void rewriteShardRequest(ShardSearchRequest request, ActionListener&lt;ShardSearchRequest&gt; listener) {
+<b class="nc"><i>1061</i>&nbsp;        IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());</b>
+<b class="nc"><i>1062</i>&nbsp;        Executor executor = getExecutor(shard);</b>
+<b class="nc"><i>1063</i>&nbsp;        ActionListener&lt;Rewriteable&gt; actionListener = ActionListener.wrap(r -&gt;</b>
+<i>1064</i>&nbsp;                // now we need to check if there is a pending refresh and register
+<b class="nc"><i>1065</i>&nbsp;                shard.awaitShardSearchActive(b -&gt; executor.execute(ActionRunnable.supply(listener, () -&gt; request))),</b>
+<b class="nc"><i>1066</i>&nbsp;            listener::onFailure);</b>
+<i>1067</i>&nbsp;        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
+<i>1068</i>&nbsp;        // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it&#39;s not
+<i>1069</i>&nbsp;        // adding a lot of overhead
+<b class="nc"><i>1070</i>&nbsp;        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);</b>
+<b class="nc"><i>1071</i>&nbsp;    }</b>
+<i>1072</i>&nbsp;
+<i>1073</i>&nbsp;    /**
+<i>1074</i>&nbsp;     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+<i>1075</i>&nbsp;     */
+<i>1076</i>&nbsp;    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
+<b class="nc"><i>1077</i>&nbsp;        return indicesService.getRewriteContext(nowInMillis);</b>
+<i>1078</i>&nbsp;    }
+<i>1079</i>&nbsp;
+<i>1080</i>&nbsp;    public IndicesService getIndicesService() {
+<b class="nc"><i>1081</i>&nbsp;        return indicesService;</b>
+<i>1082</i>&nbsp;    }
+<i>1083</i>&nbsp;
+<i>1084</i>&nbsp;    public InternalAggregation.ReduceContext createReduceContext(boolean finalReduce) {
+<b class="nc"><i>1085</i>&nbsp;        return new InternalAggregation.ReduceContext(bigArrays, scriptService,</b>
+<b class="nc"><i>1086</i>&nbsp;            finalReduce ? multiBucketConsumerService.create() : bucketCount -&gt; {}, finalReduce);</b>
+<i>1087</i>&nbsp;    }
+<i>1088</i>&nbsp;
+<i>1089</i>&nbsp;    public static final class CanMatchResponse extends SearchPhaseResult {
+<i>1090</i>&nbsp;        private final boolean canMatch;
+<i>1091</i>&nbsp;
+<i>1092</i>&nbsp;        public CanMatchResponse(StreamInput in) throws IOException {
+<b class="nc"><i>1093</i>&nbsp;            super(in);</b>
+<b class="nc"><i>1094</i>&nbsp;            this.canMatch = in.readBoolean();</b>
+<b class="nc"><i>1095</i>&nbsp;        }</b>
+<i>1096</i>&nbsp;
+<b class="nc"><i>1097</i>&nbsp;        public CanMatchResponse(boolean canMatch) {</b>
+<b class="nc"><i>1098</i>&nbsp;            this.canMatch = canMatch;</b>
+<b class="nc"><i>1099</i>&nbsp;        }</b>
+<i>1100</i>&nbsp;
+<i>1101</i>&nbsp;        @Override
+<i>1102</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>1103</i>&nbsp;            out.writeBoolean(canMatch);</b>
+<b class="nc"><i>1104</i>&nbsp;        }</b>
+<i>1105</i>&nbsp;
+<i>1106</i>&nbsp;        public boolean canMatch() {
+<b class="nc"><i>1107</i>&nbsp;            return canMatch;</b>
+<i>1108</i>&nbsp;        }
+<i>1109</i>&nbsp;    }
+<i>1110</i>&nbsp;
+<i>1111</i>&nbsp;    /**
+<i>1112</i>&nbsp;     * This helper class ensures we only execute either the success or the failure path for {@link SearchOperationListener}.
+<i>1113</i>&nbsp;     * This is crucial for some implementations like {@link org.elasticsearch.index.search.stats.ShardSearchStats}.
+<i>1114</i>&nbsp;     */
+<i>1115</i>&nbsp;    private static final class SearchOperationListenerExecutor implements AutoCloseable {
+<i>1116</i>&nbsp;        private final SearchOperationListener listener;
+<i>1117</i>&nbsp;        private final SearchContext context;
+<i>1118</i>&nbsp;        private final long time;
+<i>1119</i>&nbsp;        private final boolean fetch;
+<i>1120</i>&nbsp;        private long afterQueryTime = -1;
+<i>1121</i>&nbsp;        private boolean closed = false;
+<i>1122</i>&nbsp;
+<i>1123</i>&nbsp;        SearchOperationListenerExecutor(SearchContext context) {
+<i>1124</i>&nbsp;            this(context, false, System.nanoTime());
+<i>1125</i>&nbsp;        }
+<i>1126</i>&nbsp;
+<i>1127</i>&nbsp;        SearchOperationListenerExecutor(SearchContext context, boolean fetch, long startTime) {
+<i>1128</i>&nbsp;            this.listener = context.indexShard().getSearchOperationListener();
+<i>1129</i>&nbsp;            this.context = context;
+<i>1130</i>&nbsp;            time = startTime;
+<i>1131</i>&nbsp;            this.fetch = fetch;
+<i>1132</i>&nbsp;            if (fetch) {
+<i>1133</i>&nbsp;                listener.onPreFetchPhase(context);
+<i>1134</i>&nbsp;            } else {
+<i>1135</i>&nbsp;                listener.onPreQueryPhase(context);
+<i>1136</i>&nbsp;            }
+<i>1137</i>&nbsp;        }
+<i>1138</i>&nbsp;
+<i>1139</i>&nbsp;        long success() {
+<i>1140</i>&nbsp;            return afterQueryTime = System.nanoTime();
+<i>1141</i>&nbsp;        }
+<i>1142</i>&nbsp;
+<i>1143</i>&nbsp;        @Override
+<i>1144</i>&nbsp;        public void close() {
+<i>1145</i>&nbsp;            assert closed == false : &quot;already closed - while technically ok double closing is a likely a bug in this case&quot;;
+<i>1146</i>&nbsp;            if (closed == false) {
+<i>1147</i>&nbsp;                closed = true;
+<i>1148</i>&nbsp;                if (afterQueryTime != -1) {
+<i>1149</i>&nbsp;                    if (fetch) {
+<i>1150</i>&nbsp;                        listener.onFetchPhase(context, afterQueryTime - time);
+<i>1151</i>&nbsp;                    } else {
+<i>1152</i>&nbsp;                        listener.onQueryPhase(context, afterQueryTime - time);
+<i>1153</i>&nbsp;                    }
+<i>1154</i>&nbsp;                } else {
+<i>1155</i>&nbsp;                    if (fetch) {
+<i>1156</i>&nbsp;                        listener.onFailedFetchPhase(context);
+<i>1157</i>&nbsp;                    } else {
+<i>1158</i>&nbsp;                        listener.onFailedQueryPhase(context);
+<i>1159</i>&nbsp;                    }
+<i>1160</i>&nbsp;                }
+<i>1161</i>&nbsp;            }
+<i>1162</i>&nbsp;        }
+<i>1163</i>&nbsp;    }
+<i>1164</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

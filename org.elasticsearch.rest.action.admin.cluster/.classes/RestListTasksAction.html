@@ -1,0 +1,208 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestListTasksAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.admin.cluster</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestListTasksAction (org.elasticsearch.rest.action.admin.cluster)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestListTasksAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    14.3%
+  </span>
+  <span class="absValue">
+    (1/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.9%
+  </span>
+  <span class="absValue">
+    (4/ 31)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.admin.cluster;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+<i>25</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>27</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>28</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>30</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>31</i>&nbsp;import org.elasticsearch.rest.BytesRestResponse;
+<i>32</i>&nbsp;import org.elasticsearch.rest.RestChannel;
+<i>33</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>34</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>35</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>36</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>37</i>&nbsp;import org.elasticsearch.rest.action.RestBuilderListener;
+<i>38</i>&nbsp;import org.elasticsearch.rest.action.RestToXContentListener;
+<i>39</i>&nbsp;import org.elasticsearch.tasks.TaskId;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import java.io.IOException;
+<i>42</i>&nbsp;import java.util.function.Supplier;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;public class RestListTasksAction extends BaseRestHandler {
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    private final Supplier&lt;DiscoveryNodes&gt; nodesInCluster;
+<i>50</i>&nbsp;
+<b class="fc"><i>51</i>&nbsp;    public RestListTasksAction(RestController controller, Supplier&lt;DiscoveryNodes&gt; nodesInCluster) {</b>
+<b class="fc"><i>52</i>&nbsp;        this.nodesInCluster = nodesInCluster;</b>
+<b class="fc"><i>53</i>&nbsp;        controller.registerHandler(GET, &quot;/_tasks&quot;, this);</b>
+<b class="fc"><i>54</i>&nbsp;    }</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    @Override
+<i>57</i>&nbsp;    public String getName() {
+<b class="nc"><i>58</i>&nbsp;        return &quot;list_tasks_action&quot;;</b>
+<i>59</i>&nbsp;    }
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    @Override
+<i>62</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<b class="nc"><i>63</i>&nbsp;        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);</b>
+<b class="nc"><i>64</i>&nbsp;        final String groupBy = request.param(&quot;group_by&quot;, &quot;nodes&quot;);</b>
+<b class="nc"><i>65</i>&nbsp;        return channel -&gt; client.admin().cluster().listTasks(listTasksRequest,</b>
+<b class="nc"><i>66</i>&nbsp;                listTasksResponseListener(nodesInCluster, groupBy, channel));</b>
+<i>67</i>&nbsp;    }
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    public static ListTasksRequest generateListTasksRequest(RestRequest request) {
+<b class="nc"><i>70</i>&nbsp;        boolean detailed = request.paramAsBoolean(&quot;detailed&quot;, false);</b>
+<b class="nc"><i>71</i>&nbsp;        String[] nodes = Strings.splitStringByCommaToArray(request.param(&quot;nodes&quot;));</b>
+<b class="nc"><i>72</i>&nbsp;        String[] actions = Strings.splitStringByCommaToArray(request.param(&quot;actions&quot;));</b>
+<b class="nc"><i>73</i>&nbsp;        TaskId parentTaskId = new TaskId(request.param(&quot;parent_task_id&quot;));</b>
+<b class="nc"><i>74</i>&nbsp;        boolean waitForCompletion = request.paramAsBoolean(&quot;wait_for_completion&quot;, false);</b>
+<b class="nc"><i>75</i>&nbsp;        TimeValue timeout = request.paramAsTime(&quot;timeout&quot;, null);</b>
+<i>76</i>&nbsp;
+<b class="nc"><i>77</i>&nbsp;        ListTasksRequest listTasksRequest = new ListTasksRequest();</b>
+<b class="nc"><i>78</i>&nbsp;        listTasksRequest.setNodes(nodes);</b>
+<b class="nc"><i>79</i>&nbsp;        listTasksRequest.setDetailed(detailed);</b>
+<b class="nc"><i>80</i>&nbsp;        listTasksRequest.setActions(actions);</b>
+<b class="nc"><i>81</i>&nbsp;        listTasksRequest.setParentTaskId(parentTaskId);</b>
+<b class="nc"><i>82</i>&nbsp;        listTasksRequest.setWaitForCompletion(waitForCompletion);</b>
+<b class="nc"><i>83</i>&nbsp;        listTasksRequest.setTimeout(timeout);</b>
+<b class="nc"><i>84</i>&nbsp;        return listTasksRequest;</b>
+<i>85</i>&nbsp;    }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    /**
+<i>88</i>&nbsp;     * Standard listener for extensions of {@link ListTasksResponse} that supports {@code group_by=nodes}.
+<i>89</i>&nbsp;     */
+<i>90</i>&nbsp;    public static &lt;T extends ListTasksResponse&gt; ActionListener&lt;T&gt; listTasksResponseListener(
+<i>91</i>&nbsp;                Supplier&lt;DiscoveryNodes&gt; nodesInCluster,
+<i>92</i>&nbsp;                String groupBy,
+<i>93</i>&nbsp;                final RestChannel channel) {
+<b class="nc"><i>94</i>&nbsp;        if (&quot;nodes&quot;.equals(groupBy)) {</b>
+<b class="nc"><i>95</i>&nbsp;            return new RestBuilderListener&lt;T&gt;(channel) {</b>
+<i>96</i>&nbsp;                @Override
+<i>97</i>&nbsp;                public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
+<i>98</i>&nbsp;                    builder.startObject();
+<i>99</i>&nbsp;                    response.toXContentGroupedByNode(builder, channel.request(), nodesInCluster.get());
+<i>100</i>&nbsp;                    builder.endObject();
+<i>101</i>&nbsp;                    return new BytesRestResponse(RestStatus.OK, builder);
+<i>102</i>&nbsp;                }
+<i>103</i>&nbsp;            };
+<b class="nc"><i>104</i>&nbsp;        } else if (&quot;parents&quot;.equals(groupBy)) {</b>
+<b class="nc"><i>105</i>&nbsp;            return new RestBuilderListener&lt;T&gt;(channel) {</b>
+<i>106</i>&nbsp;                @Override
+<i>107</i>&nbsp;                public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
+<i>108</i>&nbsp;                    builder.startObject();
+<i>109</i>&nbsp;                    response.toXContentGroupedByParents(builder, channel.request());
+<i>110</i>&nbsp;                    builder.endObject();
+<i>111</i>&nbsp;                    return new BytesRestResponse(RestStatus.OK, builder);
+<i>112</i>&nbsp;                }
+<i>113</i>&nbsp;            };
+<b class="nc"><i>114</i>&nbsp;        } else if (&quot;none&quot;.equals(groupBy)) {</b>
+<b class="nc"><i>115</i>&nbsp;            return new RestToXContentListener&lt;&gt;(channel);</b>
+<i>116</i>&nbsp;        } else {
+<b class="nc"><i>117</i>&nbsp;            throw new IllegalArgumentException(&quot;[group_by] must be one of [nodes], [parents] or [none] but was [&quot; + groupBy + &quot;]&quot;);</b>
+<i>118</i>&nbsp;        }
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    @Override
+<i>122</i>&nbsp;    public boolean canTripCircuitBreaker() {
+<b class="nc"><i>123</i>&nbsp;        return false;</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

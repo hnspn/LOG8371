@@ -1,0 +1,949 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PolygonBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.geo.builders</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PolygonBuilder (org.elasticsearch.common.geo.builders)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PolygonBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    2%
+  </span>
+  <span class="absValue">
+    (1/ 49)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0.9%
+  </span>
+  <span class="absValue">
+    (3/ 336)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.geo.builders;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>23</i>&nbsp;import org.elasticsearch.common.geo.GeoShapeType;
+<i>24</i>&nbsp;import org.elasticsearch.common.geo.parsers.ShapeParser;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>29</i>&nbsp;import org.locationtech.jts.geom.Coordinate;
+<i>30</i>&nbsp;import org.locationtech.jts.geom.Geometry;
+<i>31</i>&nbsp;import org.locationtech.jts.geom.GeometryFactory;
+<i>32</i>&nbsp;import org.locationtech.jts.geom.LinearRing;
+<i>33</i>&nbsp;import org.locationtech.jts.geom.MultiPolygon;
+<i>34</i>&nbsp;import org.locationtech.jts.geom.Polygon;
+<i>35</i>&nbsp;import org.locationtech.spatial4j.exception.InvalidShapeException;
+<i>36</i>&nbsp;import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.IOException;
+<i>39</i>&nbsp;import java.util.ArrayList;
+<i>40</i>&nbsp;import java.util.Arrays;
+<i>41</i>&nbsp;import java.util.HashMap;
+<i>42</i>&nbsp;import java.util.HashSet;
+<i>43</i>&nbsp;import java.util.Iterator;
+<i>44</i>&nbsp;import java.util.List;
+<i>45</i>&nbsp;import java.util.Locale;
+<i>46</i>&nbsp;import java.util.Objects;
+<i>47</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import static org.apache.lucene.geo.GeoUtils.orient;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;/**
+<i>52</i>&nbsp; * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
+<i>53</i>&nbsp; * Methods to wrap polygons at the dateline and building shapes from the data held by the
+<i>54</i>&nbsp; * builder.
+<i>55</i>&nbsp; */
+<b class="fc"><i>56</i>&nbsp;public class PolygonBuilder extends ShapeBuilder&lt;JtsGeometry, org.elasticsearch.geometry.Geometry, PolygonBuilder&gt; {</b>
+<i>57</i>&nbsp;
+<b class="fc"><i>58</i>&nbsp;    public static final GeoShapeType TYPE = GeoShapeType.POLYGON;</b>
+<i>59</i>&nbsp;
+<b class="fc"><i>60</i>&nbsp;    private static final Coordinate[][] EMPTY = new Coordinate[0][];</b>
+<i>61</i>&nbsp;
+<b class="nc"><i>62</i>&nbsp;    private Orientation orientation = Orientation.RIGHT;</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    // line string defining the shell of the polygon
+<i>65</i>&nbsp;    private LineStringBuilder shell;
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    // List of line strings defining the holes of the polygon
+<b class="nc"><i>68</i>&nbsp;    private final List&lt;LineStringBuilder&gt; holes = new ArrayList&lt;&gt;();</b>
+<i>69</i>&nbsp;
+<b class="nc"><i>70</i>&nbsp;    public PolygonBuilder(LineStringBuilder lineString, Orientation orientation, boolean coerce) {</b>
+<b class="nc"><i>71</i>&nbsp;        this.orientation = orientation;</b>
+<b class="nc"><i>72</i>&nbsp;        if (coerce) {</b>
+<b class="nc"><i>73</i>&nbsp;            lineString.close();</b>
+<i>74</i>&nbsp;        }
+<b class="nc"><i>75</i>&nbsp;        validateLinearRing(lineString);</b>
+<b class="nc"><i>76</i>&nbsp;        this.shell = lineString;</b>
+<b class="nc"><i>77</i>&nbsp;    }</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    public PolygonBuilder(LineStringBuilder lineString, Orientation orientation) {
+<b class="nc"><i>80</i>&nbsp;        this(lineString, orientation, false);</b>
+<b class="nc"><i>81</i>&nbsp;    }</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    public PolygonBuilder(CoordinatesBuilder coordinates, Orientation orientation) {
+<b class="nc"><i>84</i>&nbsp;        this(new LineStringBuilder(coordinates), orientation, false);</b>
+<b class="nc"><i>85</i>&nbsp;    }</b>
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    public PolygonBuilder(CoordinatesBuilder coordinates) {
+<b class="nc"><i>88</i>&nbsp;        this(coordinates, Orientation.RIGHT);</b>
+<b class="nc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * Read from a stream.
+<i>93</i>&nbsp;     */
+<b class="nc"><i>94</i>&nbsp;    public PolygonBuilder(StreamInput in) throws IOException {</b>
+<b class="nc"><i>95</i>&nbsp;        shell = new LineStringBuilder(in);</b>
+<b class="nc"><i>96</i>&nbsp;        orientation = Orientation.readFrom(in);</b>
+<b class="nc"><i>97</i>&nbsp;        int holes = in.readVInt();</b>
+<b class="nc"><i>98</i>&nbsp;        for (int i = 0; i &lt; holes; i++) {</b>
+<b class="nc"><i>99</i>&nbsp;            hole(new LineStringBuilder(in));</b>
+<i>100</i>&nbsp;        }
+<b class="nc"><i>101</i>&nbsp;    }</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    @Override
+<i>104</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>105</i>&nbsp;        shell.writeTo(out);</b>
+<b class="nc"><i>106</i>&nbsp;        orientation.writeTo(out);</b>
+<b class="nc"><i>107</i>&nbsp;        out.writeVInt(holes.size());</b>
+<b class="nc"><i>108</i>&nbsp;        for (LineStringBuilder hole : holes) {</b>
+<b class="nc"><i>109</i>&nbsp;            hole.writeTo(out);</b>
+<b class="nc"><i>110</i>&nbsp;        }</b>
+<b class="nc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    public Orientation orientation() {
+<b class="nc"><i>114</i>&nbsp;        return this.orientation;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    /**
+<i>118</i>&nbsp;     * Add a new hole to the polygon
+<i>119</i>&nbsp;     * @param hole linear ring defining the hole
+<i>120</i>&nbsp;     * @return this
+<i>121</i>&nbsp;     */
+<i>122</i>&nbsp;    public PolygonBuilder hole(LineStringBuilder hole) {
+<b class="nc"><i>123</i>&nbsp;        return this.hole(hole, false);</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    /**
+<i>127</i>&nbsp;     * Add a new hole to the polygon
+<i>128</i>&nbsp;     * @param hole linear ring defining the hole
+<i>129</i>&nbsp;     * @param coerce if set to true, it will try to close the hole by adding starting point as end point
+<i>130</i>&nbsp;     * @return this
+<i>131</i>&nbsp;     */
+<i>132</i>&nbsp;    public PolygonBuilder hole(LineStringBuilder hole, boolean coerce) {
+<b class="nc"><i>133</i>&nbsp;        if (coerce) {</b>
+<b class="nc"><i>134</i>&nbsp;            hole.close();</b>
+<i>135</i>&nbsp;        }
+<b class="nc"><i>136</i>&nbsp;        validateLinearRing(hole);</b>
+<b class="nc"><i>137</i>&nbsp;        holes.add(hole);</b>
+<b class="nc"><i>138</i>&nbsp;        return this;</b>
+<i>139</i>&nbsp;    }
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    /**
+<i>142</i>&nbsp;     * @return the list of holes defined for this polygon
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public List&lt;LineStringBuilder&gt; holes() {
+<b class="nc"><i>145</i>&nbsp;        return this.holes;</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /**
+<i>149</i>&nbsp;     * @return the list of points of the shell for this polygon
+<i>150</i>&nbsp;     */
+<i>151</i>&nbsp;    public LineStringBuilder shell() {
+<b class="nc"><i>152</i>&nbsp;        return this.shell;</b>
+<i>153</i>&nbsp;    }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    /**
+<i>156</i>&nbsp;     * Close the shell of the polygon
+<i>157</i>&nbsp;     */
+<i>158</i>&nbsp;    public PolygonBuilder close() {
+<b class="nc"><i>159</i>&nbsp;        shell.close();</b>
+<b class="nc"><i>160</i>&nbsp;        return this;</b>
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    private static void validateLinearRing(LineStringBuilder lineString) {
+<i>164</i>&nbsp;        /**
+<i>165</i>&nbsp;         * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+<i>166</i>&nbsp;         * A LinearRing is closed LineString with 4 or more positions. The first and last positions
+<i>167</i>&nbsp;         * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+<i>168</i>&nbsp;         * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+<i>169</i>&nbsp;         */
+<b class="nc"><i>170</i>&nbsp;        List&lt;Coordinate&gt; points = lineString.coordinates;</b>
+<b class="nc"><i>171</i>&nbsp;        if (points.size() &lt; 4) {</b>
+<b class="nc"><i>172</i>&nbsp;            throw new IllegalArgumentException(</b>
+<b class="nc"><i>173</i>&nbsp;                    &quot;invalid number of points in LinearRing (found [&quot; + points.size() + &quot;] - must be &gt;= 4)&quot;);</b>
+<i>174</i>&nbsp;        }
+<i>175</i>&nbsp;
+<b class="nc"><i>176</i>&nbsp;        if (!points.get(0).equals(points.get(points.size() - 1))) {</b>
+<b class="nc"><i>177</i>&nbsp;                throw new IllegalArgumentException(&quot;invalid LinearRing found (coordinates are not closed)&quot;);</b>
+<i>178</i>&nbsp;        }
+<b class="nc"><i>179</i>&nbsp;    }</b>
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Validates only 1 vertex is tangential (shared) between the interior and exterior of a polygon
+<i>183</i>&nbsp;     */
+<i>184</i>&nbsp;    protected void validateHole(LineStringBuilder shell, LineStringBuilder hole) {
+<b class="nc"><i>185</i>&nbsp;        HashSet&lt;Coordinate&gt; exterior = Sets.newHashSet(shell.coordinates);</b>
+<b class="nc"><i>186</i>&nbsp;        HashSet&lt;Coordinate&gt; interior = Sets.newHashSet(hole.coordinates);</b>
+<b class="nc"><i>187</i>&nbsp;        exterior.retainAll(interior);</b>
+<b class="nc"><i>188</i>&nbsp;        if (exterior.size() &gt;= 2) {</b>
+<b class="nc"><i>189</i>&nbsp;            throw new InvalidShapeException(&quot;Invalid polygon, interior cannot share more than one point with the exterior&quot;);</b>
+<i>190</i>&nbsp;        }
+<b class="nc"><i>191</i>&nbsp;    }</b>
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    /**
+<i>194</i>&nbsp;     * The coordinates setup by the builder will be assembled to a polygon. The result will consist of
+<i>195</i>&nbsp;     * a set of polygons. Each of these components holds a list of linestrings defining the polygon: the
+<i>196</i>&nbsp;     * first set of coordinates will be used as the shell of the polygon. The others are defined to holes
+<i>197</i>&nbsp;     * within the polygon.
+<i>198</i>&nbsp;     * This Method also wraps the polygons at the dateline. In order to this fact the result may
+<i>199</i>&nbsp;     * contains more polygons and less holes than defined in the builder it self.
+<i>200</i>&nbsp;     *
+<i>201</i>&nbsp;     * @return coordinates of the polygon
+<i>202</i>&nbsp;     */
+<i>203</i>&nbsp;    public Coordinate[][][] coordinates() {
+<b class="nc"><i>204</i>&nbsp;        int numEdges = shell.coordinates.size()-1; // Last point is repeated</b>
+<b class="nc"><i>205</i>&nbsp;        for (int i = 0; i &lt; holes.size(); i++) {</b>
+<b class="nc"><i>206</i>&nbsp;            numEdges += holes.get(i).coordinates.size()-1;</b>
+<b class="nc"><i>207</i>&nbsp;            validateHole(shell, this.holes.get(i));</b>
+<i>208</i>&nbsp;        }
+<i>209</i>&nbsp;
+<b class="nc"><i>210</i>&nbsp;        Edge[] edges = new Edge[numEdges];</b>
+<b class="nc"><i>211</i>&nbsp;        Edge[] holeComponents = new Edge[holes.size()];</b>
+<b class="nc"><i>212</i>&nbsp;        final AtomicBoolean translated = new AtomicBoolean(false);</b>
+<b class="nc"><i>213</i>&nbsp;        int offset = createEdges(0, orientation, shell, null, edges, 0, translated);</b>
+<b class="nc"><i>214</i>&nbsp;        for (int i = 0; i &lt; holes.size(); i++) {</b>
+<b class="nc"><i>215</i>&nbsp;            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset, translated);</b>
+<b class="nc"><i>216</i>&nbsp;            holeComponents[i] = edges[offset];</b>
+<b class="nc"><i>217</i>&nbsp;            offset += length;</b>
+<i>218</i>&nbsp;        }
+<i>219</i>&nbsp;
+<b class="nc"><i>220</i>&nbsp;        int numHoles = holeComponents.length;</b>
+<i>221</i>&nbsp;
+<b class="nc"><i>222</i>&nbsp;        numHoles = merge(edges, 0, intersections(+DATELINE, edges), holeComponents, numHoles);</b>
+<b class="nc"><i>223</i>&nbsp;        numHoles = merge(edges, 0, intersections(-DATELINE, edges), holeComponents, numHoles);</b>
+<i>224</i>&nbsp;
+<b class="nc"><i>225</i>&nbsp;        return compose(edges, holeComponents, numHoles);</b>
+<i>226</i>&nbsp;    }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    @Override
+<i>229</i>&nbsp;    public JtsGeometry buildS4J() {
+<b class="nc"><i>230</i>&nbsp;        return jtsGeometry(buildS4JGeometry(FACTORY, wrapdateline));</b>
+<i>231</i>&nbsp;    }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    @Override
+<i>234</i>&nbsp;    public org.elasticsearch.geometry.Geometry buildGeometry() {
+<b class="nc"><i>235</i>&nbsp;        return toPolygonGeometry();</b>
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>239</i>&nbsp;        shell.coordinatesToXcontent(builder, true);</b>
+<b class="nc"><i>240</i>&nbsp;        for(LineStringBuilder hole : holes) {</b>
+<b class="nc"><i>241</i>&nbsp;            hole.coordinatesToXcontent(builder, true);</b>
+<b class="nc"><i>242</i>&nbsp;        }</b>
+<b class="nc"><i>243</i>&nbsp;        return builder;</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    @Override
+<i>247</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>248</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>249</i>&nbsp;        builder.field(ShapeParser.FIELD_TYPE.getPreferredName(), TYPE.shapeName());</b>
+<b class="nc"><i>250</i>&nbsp;        builder.field(ShapeParser.FIELD_ORIENTATION.getPreferredName(), orientation.name().toLowerCase(Locale.ROOT));</b>
+<b class="nc"><i>251</i>&nbsp;        builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());</b>
+<b class="nc"><i>252</i>&nbsp;        coordinatesArray(builder, params);</b>
+<b class="nc"><i>253</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>254</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>255</i>&nbsp;        return builder;</b>
+<i>256</i>&nbsp;    }
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    public Geometry buildS4JGeometry(GeometryFactory factory, boolean fixDateline) {
+<b class="nc"><i>259</i>&nbsp;        if(fixDateline) {</b>
+<b class="nc"><i>260</i>&nbsp;            Coordinate[][][] polygons = coordinates();</b>
+<b class="nc"><i>261</i>&nbsp;            return polygons.length == 1</b>
+<b class="nc"><i>262</i>&nbsp;                    ? polygonS4J(factory, polygons[0])</b>
+<b class="nc"><i>263</i>&nbsp;                    : multipolygonS4J(factory, polygons);</b>
+<i>264</i>&nbsp;        } else {
+<b class="nc"><i>265</i>&nbsp;            return toPolygonS4J(factory);</b>
+<i>266</i>&nbsp;        }
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    public Polygon toPolygonS4J() {
+<b class="nc"><i>270</i>&nbsp;        return toPolygonS4J(FACTORY);</b>
+<i>271</i>&nbsp;    }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;    protected Polygon toPolygonS4J(GeometryFactory factory) {
+<b class="nc"><i>274</i>&nbsp;        final LinearRing shell = linearRingS4J(factory, this.shell.coordinates);</b>
+<b class="nc"><i>275</i>&nbsp;        final LinearRing[] holes = new LinearRing[this.holes.size()];</b>
+<b class="nc"><i>276</i>&nbsp;        Iterator&lt;LineStringBuilder&gt; iterator = this.holes.iterator();</b>
+<b class="nc"><i>277</i>&nbsp;        for (int i = 0; iterator.hasNext(); i++) {</b>
+<b class="nc"><i>278</i>&nbsp;            holes[i] = linearRingS4J(factory, iterator.next().coordinates);</b>
+<i>279</i>&nbsp;        }
+<b class="nc"><i>280</i>&nbsp;        return factory.createPolygon(shell, holes);</b>
+<i>281</i>&nbsp;    }
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    public org.elasticsearch.geometry.Polygon toPolygonGeometry() {
+<b class="nc"><i>284</i>&nbsp;        final List&lt;org.elasticsearch.geometry.LinearRing&gt; holes = new ArrayList&lt;&gt;(this.holes.size());</b>
+<b class="nc"><i>285</i>&nbsp;        for (int i = 0; i &lt; this.holes.size(); ++i) {</b>
+<b class="nc"><i>286</i>&nbsp;            holes.add(linearRing(this.holes.get(i).coordinates));</b>
+<i>287</i>&nbsp;        }
+<b class="nc"><i>288</i>&nbsp;        return new org.elasticsearch.geometry.Polygon(linearRing(this.shell.coordinates), holes);</b>
+<i>289</i>&nbsp;    }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    protected static org.elasticsearch.geometry.LinearRing linearRing(List&lt;Coordinate&gt; coordinates) {
+<b class="nc"><i>292</i>&nbsp;        return new org.elasticsearch.geometry.LinearRing(coordinates.stream().mapToDouble(i -&gt; i.x).toArray(),</b>
+<b class="nc"><i>293</i>&nbsp;            coordinates.stream().mapToDouble(i -&gt; i.y).toArray()</b>
+<i>294</i>&nbsp;        );
+<i>295</i>&nbsp;    }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    protected static LinearRing linearRingS4J(GeometryFactory factory, List&lt;Coordinate&gt; coordinates) {
+<b class="nc"><i>298</i>&nbsp;        return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));</b>
+<i>299</i>&nbsp;    }
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;    @Override
+<i>302</i>&nbsp;    public GeoShapeType type() {
+<b class="nc"><i>303</i>&nbsp;        return TYPE;</b>
+<i>304</i>&nbsp;    }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;    @Override
+<i>307</i>&nbsp;    public int numDimensions() {
+<b class="nc"><i>308</i>&nbsp;        if (shell == null) {</b>
+<b class="nc"><i>309</i>&nbsp;            throw new IllegalStateException(&quot;unable to get number of dimensions, &quot; +</b>
+<i>310</i>&nbsp;                &quot;Polygon has not yet been initialized&quot;);
+<i>311</i>&nbsp;        }
+<b class="nc"><i>312</i>&nbsp;        return shell.numDimensions();</b>
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    protected static Polygon polygonS4J(GeometryFactory factory, Coordinate[][] polygon) {
+<b class="nc"><i>316</i>&nbsp;        LinearRing shell = factory.createLinearRing(polygon[0]);</b>
+<i>317</i>&nbsp;        LinearRing[] holes;
+<i>318</i>&nbsp;
+<b class="nc"><i>319</i>&nbsp;        if(polygon.length &gt; 1) {</b>
+<b class="nc"><i>320</i>&nbsp;            holes = new LinearRing[polygon.length-1];</b>
+<b class="nc"><i>321</i>&nbsp;            for (int i = 0; i &lt; holes.length; i++) {</b>
+<b class="nc"><i>322</i>&nbsp;                holes[i] = factory.createLinearRing(polygon[i+1]);</b>
+<i>323</i>&nbsp;            }
+<i>324</i>&nbsp;        } else {
+<b class="nc"><i>325</i>&nbsp;            holes = null;</b>
+<i>326</i>&nbsp;        }
+<b class="nc"><i>327</i>&nbsp;        return factory.createPolygon(shell, holes);</b>
+<i>328</i>&nbsp;    }
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;    /**
+<i>331</i>&nbsp;     * Create a Multipolygon from a set of coordinates. Each primary array contains a polygon which
+<i>332</i>&nbsp;     * in turn contains an array of linestrings. These line Strings are represented as an array of
+<i>333</i>&nbsp;     * coordinates. The first linestring will be the shell of the polygon the others define holes
+<i>334</i>&nbsp;     * within the polygon.
+<i>335</i>&nbsp;     *
+<i>336</i>&nbsp;     * @param factory {@link GeometryFactory} to use
+<i>337</i>&nbsp;     * @param polygons definition of polygons
+<i>338</i>&nbsp;     * @return a new Multipolygon
+<i>339</i>&nbsp;     */
+<i>340</i>&nbsp;    protected static MultiPolygon multipolygonS4J(GeometryFactory factory, Coordinate[][][] polygons) {
+<b class="nc"><i>341</i>&nbsp;        Polygon[] polygonSet = new Polygon[polygons.length];</b>
+<b class="nc"><i>342</i>&nbsp;        for (int i = 0; i &lt; polygonSet.length; i++) {</b>
+<b class="nc"><i>343</i>&nbsp;            polygonSet[i] = polygonS4J(factory, polygons[i]);</b>
+<i>344</i>&nbsp;        }
+<b class="nc"><i>345</i>&nbsp;        return factory.createMultiPolygon(polygonSet);</b>
+<i>346</i>&nbsp;    }
+<i>347</i>&nbsp;
+<i>348</i>&nbsp;    /**
+<i>349</i>&nbsp;     * This method sets the component id of all edges in a ring to a given id and shifts the
+<i>350</i>&nbsp;     * coordinates of this component according to the dateline
+<i>351</i>&nbsp;     *
+<i>352</i>&nbsp;     * @param edge An arbitrary edge of the component
+<i>353</i>&nbsp;     * @param id id to apply to the component
+<i>354</i>&nbsp;     * @param edges a list of edges to which all edges of the component will be added (could be &lt;code&gt;null&lt;/code&gt;)
+<i>355</i>&nbsp;     * @return number of edges that belong to this component
+<i>356</i>&nbsp;     */
+<i>357</i>&nbsp;    private static int component(final Edge edge, final int id, final ArrayList&lt;Edge&gt; edges, double[] partitionPoint) {
+<i>358</i>&nbsp;        // find a coordinate that is not part of the dateline
+<b class="nc"><i>359</i>&nbsp;        Edge any = edge;</b>
+<b class="nc"><i>360</i>&nbsp;        while(any.coordinate.x == +DATELINE || any.coordinate.x == -DATELINE) {</b>
+<b class="nc"><i>361</i>&nbsp;            if((any = any.next) == edge) {</b>
+<b class="nc"><i>362</i>&nbsp;                break;</b>
+<i>363</i>&nbsp;            }
+<i>364</i>&nbsp;        }
+<i>365</i>&nbsp;
+<b class="nc"><i>366</i>&nbsp;        double shiftOffset = any.coordinate.x &gt; DATELINE ? DATELINE : (any.coordinate.x &lt; -DATELINE ? -DATELINE : 0);</b>
+<b class="nc"><i>367</i>&nbsp;        if (debugEnabled()) {</b>
+<b class="nc"><i>368</i>&nbsp;            LOGGER.debug(&quot;shift: [{}]&quot;, shiftOffset);</b>
+<i>369</i>&nbsp;        }
+<i>370</i>&nbsp;
+<i>371</i>&nbsp;        // run along the border of the component, collect the
+<i>372</i>&nbsp;        // edges, shift them according to the dateline and
+<i>373</i>&nbsp;        // update the component id
+<b class="nc"><i>374</i>&nbsp;        int length = 0, connectedComponents = 0;</b>
+<i>375</i>&nbsp;        // if there are two connected components, splitIndex keeps track of where to split the edge array
+<i>376</i>&nbsp;        // start at 1 since the source coordinate is shared
+<b class="nc"><i>377</i>&nbsp;        int splitIndex = 1;</b>
+<b class="nc"><i>378</i>&nbsp;        Edge current = edge;</b>
+<b class="nc"><i>379</i>&nbsp;        Edge prev = edge;</b>
+<i>380</i>&nbsp;        // bookkeep the source and sink of each visited coordinate
+<b class="nc"><i>381</i>&nbsp;        HashMap&lt;Coordinate, Tuple&lt;Edge, Edge&gt;&gt; visitedEdge = new HashMap&lt;&gt;();</b>
+<i>382</i>&nbsp;        do {
+<b class="nc"><i>383</i>&nbsp;            current.coordinate = shift(current.coordinate, shiftOffset);</b>
+<b class="nc"><i>384</i>&nbsp;            current.component = id;</b>
+<i>385</i>&nbsp;
+<b class="nc"><i>386</i>&nbsp;            if (edges != null) {</b>
+<i>387</i>&nbsp;                // found a closed loop - we have two connected components so we need to slice into two distinct components
+<b class="nc"><i>388</i>&nbsp;                if (visitedEdge.containsKey(current.coordinate)) {</b>
+<b class="nc"><i>389</i>&nbsp;                    partitionPoint[0] = current.coordinate.x;</b>
+<b class="nc"><i>390</i>&nbsp;                    partitionPoint[1] = current.coordinate.y;</b>
+<b class="nc"><i>391</i>&nbsp;                    partitionPoint[2] = current.coordinate.z;</b>
+<b class="nc"><i>392</i>&nbsp;                    if (connectedComponents &gt; 0 &amp;&amp; current.next != edge) {</b>
+<b class="nc"><i>393</i>&nbsp;                        throw new InvalidShapeException(&quot;Shape contains more than one shared point&quot;);</b>
+<i>394</i>&nbsp;                    }
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;                    // a negative id flags the edge as visited for the edges(...) method.
+<i>397</i>&nbsp;                    // since we&#39;re splitting connected components, we want the edges method to visit
+<i>398</i>&nbsp;                    // the newly separated component
+<b class="nc"><i>399</i>&nbsp;                    final int visitID = -id;</b>
+<b class="nc"><i>400</i>&nbsp;                    Edge firstAppearance = visitedEdge.get(current.coordinate).v2();</b>
+<i>401</i>&nbsp;                    // correct the graph pointers by correcting the &#39;next&#39; pointer for both the
+<i>402</i>&nbsp;                    // first appearance and this appearance of the edge
+<b class="nc"><i>403</i>&nbsp;                    Edge temp = firstAppearance.next;</b>
+<b class="nc"><i>404</i>&nbsp;                    firstAppearance.next = current.next;</b>
+<b class="nc"><i>405</i>&nbsp;                    current.next = temp;</b>
+<b class="nc"><i>406</i>&nbsp;                    current.component = visitID;</b>
+<i>407</i>&nbsp;                    // backtrack until we get back to this coordinate, setting the visit id to
+<i>408</i>&nbsp;                    // a non-visited value (anything positive)
+<i>409</i>&nbsp;                    do {
+<b class="nc"><i>410</i>&nbsp;                        prev.component = visitID;</b>
+<b class="nc"><i>411</i>&nbsp;                        prev = visitedEdge.get(prev.coordinate).v1();</b>
+<b class="nc"><i>412</i>&nbsp;                        ++splitIndex;</b>
+<b class="nc"><i>413</i>&nbsp;                    } while (!current.coordinate.equals(prev.coordinate));</b>
+<b class="nc"><i>414</i>&nbsp;                    ++connectedComponents;</b>
+<b class="nc"><i>415</i>&nbsp;                } else {</b>
+<b class="nc"><i>416</i>&nbsp;                    visitedEdge.put(current.coordinate, new Tuple&lt;Edge, Edge&gt;(prev, current));</b>
+<i>417</i>&nbsp;                }
+<b class="nc"><i>418</i>&nbsp;                edges.add(current);</b>
+<b class="nc"><i>419</i>&nbsp;                prev = current;</b>
+<i>420</i>&nbsp;            }
+<b class="nc"><i>421</i>&nbsp;            length++;</b>
+<b class="nc"><i>422</i>&nbsp;        } while(connectedComponents == 0 &amp;&amp; (current = current.next) != edge);</b>
+<i>423</i>&nbsp;
+<b class="nc"><i>424</i>&nbsp;        return (splitIndex != 1) ? length-splitIndex: length;</b>
+<i>425</i>&nbsp;    }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;    /**
+<i>428</i>&nbsp;     * Compute all coordinates of a component
+<i>429</i>&nbsp;     * @param component an arbitrary edge of the component
+<i>430</i>&nbsp;     * @param coordinates Array of coordinates to write the result to
+<i>431</i>&nbsp;     * @return the coordinates parameter
+<i>432</i>&nbsp;     */
+<i>433</i>&nbsp;    private static Coordinate[] coordinates(Edge component, Coordinate[] coordinates, double[] partitionPoint) {
+<b class="nc"><i>434</i>&nbsp;        for (int i = 0; i &lt; coordinates.length; i++) {</b>
+<b class="nc"><i>435</i>&nbsp;            coordinates[i] = (component = component.next).coordinate;</b>
+<i>436</i>&nbsp;        }
+<i>437</i>&nbsp;        // First and last coordinates must be equal
+<b class="nc"><i>438</i>&nbsp;        if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {</b>
+<b class="nc"><i>439</i>&nbsp;            if (partitionPoint[2] == Double.NaN) {</b>
+<b class="nc"><i>440</i>&nbsp;                throw new InvalidShapeException(&quot;Self-intersection at or near point [&quot;</b>
+<i>441</i>&nbsp;                    + partitionPoint[0] + &quot;,&quot; + partitionPoint[1] + &quot;]&quot;);
+<i>442</i>&nbsp;            } else {
+<b class="nc"><i>443</i>&nbsp;                throw new InvalidShapeException(&quot;Self-intersection at or near point [&quot;</b>
+<i>444</i>&nbsp;                    + partitionPoint[0] + &quot;,&quot; + partitionPoint[1] + &quot;,&quot; + partitionPoint[2] + &quot;]&quot;);
+<i>445</i>&nbsp;            }
+<i>446</i>&nbsp;        }
+<b class="nc"><i>447</i>&nbsp;        return coordinates;</b>
+<i>448</i>&nbsp;    }
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;    private static Coordinate[][][] buildCoordinates(List&lt;List&lt;Coordinate[]&gt;&gt; components) {
+<b class="nc"><i>451</i>&nbsp;        Coordinate[][][] result = new Coordinate[components.size()][][];</b>
+<b class="nc"><i>452</i>&nbsp;        for (int i = 0; i &lt; result.length; i++) {</b>
+<b class="nc"><i>453</i>&nbsp;            List&lt;Coordinate[]&gt; component = components.get(i);</b>
+<b class="nc"><i>454</i>&nbsp;            result[i] = component.toArray(new Coordinate[component.size()][]);</b>
+<i>455</i>&nbsp;        }
+<i>456</i>&nbsp;
+<b class="nc"><i>457</i>&nbsp;        if(debugEnabled()) {</b>
+<b class="nc"><i>458</i>&nbsp;            for (int i = 0; i &lt; result.length; i++) {</b>
+<b class="nc"><i>459</i>&nbsp;                LOGGER.debug(&quot;Component [{}]:&quot;, i);</b>
+<b class="nc"><i>460</i>&nbsp;                for (int j = 0; j &lt; result[i].length; j++) {</b>
+<b class="nc"><i>461</i>&nbsp;                    LOGGER.debug(&quot;\t{}&quot;, Arrays.toString(result[i][j]));</b>
+<i>462</i>&nbsp;                }
+<i>463</i>&nbsp;            }
+<i>464</i>&nbsp;        }
+<i>465</i>&nbsp;
+<b class="nc"><i>466</i>&nbsp;        return result;</b>
+<i>467</i>&nbsp;    }
+<i>468</i>&nbsp;
+<i>469</i>&nbsp;    private static Coordinate[][] holes(Edge[] holes, int numHoles) {
+<b class="nc"><i>470</i>&nbsp;        if (numHoles == 0) {</b>
+<b class="nc"><i>471</i>&nbsp;            return EMPTY;</b>
+<i>472</i>&nbsp;        }
+<b class="nc"><i>473</i>&nbsp;        final Coordinate[][] points = new Coordinate[numHoles][];</b>
+<i>474</i>&nbsp;
+<b class="nc"><i>475</i>&nbsp;        for (int i = 0; i &lt; numHoles; i++) {</b>
+<b class="nc"><i>476</i>&nbsp;            double[]  partitionPoint = new double[3];</b>
+<b class="nc"><i>477</i>&nbsp;            int length = component(holes[i], -(i+1), null, partitionPoint); // mark as visited by inverting the sign</b>
+<b class="nc"><i>478</i>&nbsp;            points[i] = coordinates(holes[i], new Coordinate[length+1], partitionPoint);</b>
+<i>479</i>&nbsp;        }
+<i>480</i>&nbsp;
+<b class="nc"><i>481</i>&nbsp;        return points;</b>
+<i>482</i>&nbsp;    }
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;    private static Edge[] edges(Edge[] edges, int numHoles, List&lt;List&lt;Coordinate[]&gt;&gt; components) {
+<b class="nc"><i>485</i>&nbsp;        ArrayList&lt;Edge&gt; mainEdges = new ArrayList&lt;&gt;(edges.length);</b>
+<i>486</i>&nbsp;
+<b class="nc"><i>487</i>&nbsp;        for (int i = 0; i &lt; edges.length; i++) {</b>
+<b class="nc"><i>488</i>&nbsp;            if (edges[i].component &gt;= 0) {</b>
+<b class="nc"><i>489</i>&nbsp;                double[]  partitionPoint = new double[3];</b>
+<b class="nc"><i>490</i>&nbsp;                int length = component(edges[i], -(components.size()+numHoles+1), mainEdges, partitionPoint);</b>
+<b class="nc"><i>491</i>&nbsp;                List&lt;Coordinate[]&gt; component = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>492</i>&nbsp;                component.add(coordinates(edges[i], new Coordinate[length+1], partitionPoint));</b>
+<b class="nc"><i>493</i>&nbsp;                components.add(component);</b>
+<i>494</i>&nbsp;            }
+<i>495</i>&nbsp;        }
+<i>496</i>&nbsp;
+<b class="nc"><i>497</i>&nbsp;        return mainEdges.toArray(new Edge[mainEdges.size()]);</b>
+<i>498</i>&nbsp;    }
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;    private static Coordinate[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {
+<b class="nc"><i>501</i>&nbsp;        final List&lt;List&lt;Coordinate[]&gt;&gt; components = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>502</i>&nbsp;        assign(holes, holes(holes, numHoles), numHoles, edges(edges, numHoles, components), components);</b>
+<b class="nc"><i>503</i>&nbsp;        return buildCoordinates(components);</b>
+<i>504</i>&nbsp;    }
+<i>505</i>&nbsp;
+<i>506</i>&nbsp;    private static void assign(Edge[] holes, Coordinate[][] points, int numHoles, Edge[] edges, List&lt;List&lt;Coordinate[]&gt;&gt; components) {
+<i>507</i>&nbsp;        // Assign Hole to related components
+<i>508</i>&nbsp;        // To find the new component the hole belongs to all intersections of the
+<i>509</i>&nbsp;        // polygon edges with a vertical line are calculated. This vertical line
+<i>510</i>&nbsp;        // is an arbitrary point of the hole. The polygon edge next to this point
+<i>511</i>&nbsp;        // is part of the polygon the hole belongs to.
+<b class="nc"><i>512</i>&nbsp;        if (debugEnabled()) {</b>
+<b class="nc"><i>513</i>&nbsp;            LOGGER.debug(&quot;Holes: {}&quot;, Arrays.toString(holes));</b>
+<i>514</i>&nbsp;        }
+<b class="nc"><i>515</i>&nbsp;        for (int i = 0; i &lt; numHoles; i++) {</b>
+<i>516</i>&nbsp;            // To do the assignment we assume (and later, elsewhere, check) that each hole is within
+<i>517</i>&nbsp;            // a single component, and the components do not overlap. Based on this assumption, it&#39;s
+<i>518</i>&nbsp;            // enough to find a component that contains some vertex of the hole, and
+<i>519</i>&nbsp;            // holes[i].coordinate is such a vertex, so we use that one.
+<i>520</i>&nbsp;
+<i>521</i>&nbsp;            // First, we sort all the edges according to their order of intersection with the line
+<i>522</i>&nbsp;            // of longitude through holes[i].coordinate, in order from south to north. Edges that do
+<i>523</i>&nbsp;            // not intersect this line are sorted to the end of the array and of no further interest
+<i>524</i>&nbsp;            // here.
+<b class="nc"><i>525</i>&nbsp;            final Edge current = new Edge(holes[i].coordinate, holes[i].next);</b>
+<b class="nc"><i>526</i>&nbsp;            current.intersect = current.coordinate;</b>
+<b class="nc"><i>527</i>&nbsp;            final int intersections = intersections(current.coordinate.x, edges);</b>
+<i>528</i>&nbsp;
+<b class="nc"><i>529</i>&nbsp;            if (intersections == 0) {</b>
+<i>530</i>&nbsp;                // There were no edges that intersect the line of longitude through
+<i>531</i>&nbsp;                // holes[i].coordinate, so there&#39;s no way this hole is within the polygon.
+<b class="nc"><i>532</i>&nbsp;                throw new InvalidShapeException(&quot;Invalid shape: Hole is not within polygon&quot;);</b>
+<i>533</i>&nbsp;            }
+<i>534</i>&nbsp;
+<i>535</i>&nbsp;            // Next we do a binary search to find the position of holes[i].coordinate in the array.
+<i>536</i>&nbsp;            // The binary search returns the index of an exact match, or (-insertionPoint - 1) if
+<i>537</i>&nbsp;            // the vertex lies between the intersections of edges[insertionPoint] and
+<i>538</i>&nbsp;            // edges[insertionPoint+1]. The latter case is vastly more common.
+<i>539</i>&nbsp;
+<i>540</i>&nbsp;            final int pos;
+<b class="nc"><i>541</i>&nbsp;            boolean sharedVertex = false;</b>
+<b class="nc"><i>542</i>&nbsp;            if (((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) &gt;= 0)</b>
+<b class="nc"><i>543</i>&nbsp;                &amp;&amp; !(sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0))) {</b>
+<i>544</i>&nbsp;                // The binary search returned an exact match, but we checked again using compareTo()
+<i>545</i>&nbsp;                // and it didn&#39;t match after all.
+<i>546</i>&nbsp;
+<i>547</i>&nbsp;                // TODO Can this actually happen? Needs a test to exercise it, or else needs to be removed.
+<b class="nc"><i>548</i>&nbsp;                throw new InvalidShapeException(&quot;Invalid shape: Hole is not within polygon&quot;);</b>
+<i>549</i>&nbsp;            }
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;            final int index;
+<b class="nc"><i>552</i>&nbsp;            if (sharedVertex) {</b>
+<i>553</i>&nbsp;                // holes[i].coordinate lies exactly on an edge.
+<b class="nc"><i>554</i>&nbsp;                index = 0; // TODO Should this be pos instead of 0? This assigns exact matches to the southernmost component.</b>
+<b class="nc"><i>555</i>&nbsp;            } else if (pos == -1) {</b>
+<i>556</i>&nbsp;                // holes[i].coordinate is strictly south of all intersections. Assign it to the
+<i>557</i>&nbsp;                // southernmost component, and allow later validation to spot that it is not
+<i>558</i>&nbsp;                // entirely within the chosen component.
+<b class="nc"><i>559</i>&nbsp;                index = 0;</b>
+<i>560</i>&nbsp;            } else {
+<i>561</i>&nbsp;                // holes[i].coordinate is strictly north of at least one intersection. Assign it to
+<i>562</i>&nbsp;                // the component immediately to its south.
+<b class="nc"><i>563</i>&nbsp;                index = -(pos + 2);</b>
+<i>564</i>&nbsp;            }
+<i>565</i>&nbsp;
+<b class="nc"><i>566</i>&nbsp;            final int component = -edges[index].component - numHoles - 1;</b>
+<i>567</i>&nbsp;
+<b class="nc"><i>568</i>&nbsp;            if(debugEnabled()) {</b>
+<b class="nc"><i>569</i>&nbsp;                LOGGER.debug(&quot;\tposition ({}) of edge {}: {}&quot;, index, current, edges[index]);</b>
+<b class="nc"><i>570</i>&nbsp;                LOGGER.debug(&quot;\tComponent: {}&quot;, component);</b>
+<b class="nc"><i>571</i>&nbsp;                LOGGER.debug(&quot;\tHole intersections ({}): {}&quot;, current.coordinate.x, Arrays.toString(edges));</b>
+<i>572</i>&nbsp;            }
+<i>573</i>&nbsp;
+<b class="nc"><i>574</i>&nbsp;            components.get(component).add(points[i]);</b>
+<i>575</i>&nbsp;        }
+<b class="nc"><i>576</i>&nbsp;    }</b>
+<i>577</i>&nbsp;
+<i>578</i>&nbsp;    private static int merge(Edge[] intersections, int offset, int length, Edge[] holes, int numHoles) {
+<i>579</i>&nbsp;        // Intersections appear pairwise. On the first edge the inner of
+<i>580</i>&nbsp;        // of the polygon is entered. On the second edge the outer face
+<i>581</i>&nbsp;        // is entered. Other kinds of intersections are discard by the
+<i>582</i>&nbsp;        // intersection function
+<i>583</i>&nbsp;
+<b class="nc"><i>584</i>&nbsp;        for (int i = 0; i &lt; length; i += 2) {</b>
+<b class="nc"><i>585</i>&nbsp;            Edge e1 = intersections[offset + i + 0];</b>
+<b class="nc"><i>586</i>&nbsp;            Edge e2 = intersections[offset + i + 1];</b>
+<i>587</i>&nbsp;
+<i>588</i>&nbsp;            // If two segments are connected maybe a hole must be deleted
+<i>589</i>&nbsp;            // Since Edges of components appear pairwise we need to check
+<i>590</i>&nbsp;            // the second edge only (the first edge is either polygon or
+<i>591</i>&nbsp;            // already handled)
+<b class="nc"><i>592</i>&nbsp;            if (e2.component &gt; 0) {</b>
+<i>593</i>&nbsp;                //TODO: Check if we could save the set null step
+<b class="nc"><i>594</i>&nbsp;                numHoles--;</b>
+<b class="nc"><i>595</i>&nbsp;                holes[e2.component-1] = holes[numHoles];</b>
+<b class="nc"><i>596</i>&nbsp;                holes[numHoles] = null;</b>
+<i>597</i>&nbsp;            }
+<i>598</i>&nbsp;            // only connect edges if intersections are pairwise
+<i>599</i>&nbsp;            // 1. per the comment above, the edge array is sorted by y-value of the intersection
+<i>600</i>&nbsp;            // with the dateline.  Two edges have the same y intercept when they cross the
+<i>601</i>&nbsp;            // dateline thus they appear sequentially (pairwise) in the edge array. Two edges
+<i>602</i>&nbsp;            // do not have the same y intercept when we&#39;re forming a multi-poly from a poly
+<i>603</i>&nbsp;            // that wraps the dateline (but there are 2 ordered intercepts).
+<i>604</i>&nbsp;            // The connect method creates a new edge for these paired edges in the linked list.
+<i>605</i>&nbsp;            // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge
+<i>606</i>&nbsp;            // to connect. Thus the first logic check enforces the pairwise rule
+<i>607</i>&nbsp;            // 2. the second logic check ensures the two candidate edges aren&#39;t already connected by an
+<i>608</i>&nbsp;            //    existing edge along the dateline - this is necessary due to a logic change in
+<i>609</i>&nbsp;            //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
+<i>610</i>&nbsp;            //    in support of OGC standards
+<b class="nc"><i>611</i>&nbsp;            if (e1.intersect != Edge.MAX_COORDINATE &amp;&amp; e2.intersect != Edge.MAX_COORDINATE</b>
+<b class="nc"><i>612</i>&nbsp;                    &amp;&amp; !(e1.next.next.coordinate.equals3D(e2.coordinate) &amp;&amp; Math.abs(e1.next.coordinate.x) == DATELINE</b>
+<b class="nc"><i>613</i>&nbsp;                    &amp;&amp; Math.abs(e2.coordinate.x) == DATELINE) ) {</b>
+<b class="nc"><i>614</i>&nbsp;                connect(e1, e2);</b>
+<i>615</i>&nbsp;            }
+<i>616</i>&nbsp;        }
+<b class="nc"><i>617</i>&nbsp;        return numHoles;</b>
+<i>618</i>&nbsp;    }
+<i>619</i>&nbsp;
+<i>620</i>&nbsp;    private static void connect(Edge in, Edge out) {
+<b class="nc"><i>621</i>&nbsp;        assert in != null &amp;&amp; out != null;</b>
+<b class="nc"><i>622</i>&nbsp;        assert in != out;</b>
+<i>623</i>&nbsp;        // Connecting two Edges by inserting the point at
+<i>624</i>&nbsp;        // dateline intersection and connect these by adding
+<i>625</i>&nbsp;        // two edges between this points. One per direction
+<b class="nc"><i>626</i>&nbsp;        if(in.intersect != in.next.coordinate) {</b>
+<i>627</i>&nbsp;            // NOTE: the order of the object creation is crucial here! Don&#39;t change it!
+<i>628</i>&nbsp;            // first edge has no point on dateline
+<b class="nc"><i>629</i>&nbsp;            Edge e1 = new Edge(in.intersect, in.next);</b>
+<i>630</i>&nbsp;
+<b class="nc"><i>631</i>&nbsp;            if(out.intersect != out.next.coordinate) {</b>
+<i>632</i>&nbsp;                // second edge has no point on dateline
+<b class="nc"><i>633</i>&nbsp;                Edge e2 = new Edge(out.intersect, out.next);</b>
+<b class="nc"><i>634</i>&nbsp;                in.next = new Edge(in.intersect, e2, in.intersect);</b>
+<b class="nc"><i>635</i>&nbsp;            } else {</b>
+<i>636</i>&nbsp;                // second edge intersects with dateline
+<b class="nc"><i>637</i>&nbsp;                in.next = new Edge(in.intersect, out.next, in.intersect);</b>
+<i>638</i>&nbsp;            }
+<b class="nc"><i>639</i>&nbsp;            out.next = new Edge(out.intersect, e1, out.intersect);</b>
+<b class="nc"><i>640</i>&nbsp;        } else if (in.next != out &amp;&amp; in.coordinate != out.intersect) {</b>
+<i>641</i>&nbsp;            // first edge intersects with dateline
+<b class="nc"><i>642</i>&nbsp;            Edge e2 = new Edge(out.intersect, in.next, out.intersect);</b>
+<i>643</i>&nbsp;
+<b class="nc"><i>644</i>&nbsp;            if(out.intersect != out.next.coordinate) {</b>
+<i>645</i>&nbsp;                // second edge has no point on dateline
+<b class="nc"><i>646</i>&nbsp;                Edge e1 = new Edge(out.intersect, out.next);</b>
+<b class="nc"><i>647</i>&nbsp;                in.next = new Edge(in.intersect, e1, in.intersect);</b>
+<i>648</i>&nbsp;
+<b class="nc"><i>649</i>&nbsp;            } else {</b>
+<i>650</i>&nbsp;                // second edge intersects with dateline
+<b class="nc"><i>651</i>&nbsp;                in.next = new Edge(in.intersect, out.next, in.intersect);</b>
+<i>652</i>&nbsp;            }
+<b class="nc"><i>653</i>&nbsp;            out.next = e2;</b>
+<i>654</i>&nbsp;        }
+<b class="nc"><i>655</i>&nbsp;    }</b>
+<i>656</i>&nbsp;
+<i>657</i>&nbsp;    private static int createEdges(int component, Orientation orientation, LineStringBuilder shell,
+<i>658</i>&nbsp;                                   LineStringBuilder hole, Edge[] edges, int offset, final AtomicBoolean translated) {
+<i>659</i>&nbsp;        // inner rings (holes) have an opposite direction than the outer rings
+<i>660</i>&nbsp;        // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
+<b class="nc"><i>661</i>&nbsp;        boolean direction = (component == 0 ^ orientation == Orientation.RIGHT);</b>
+<i>662</i>&nbsp;        // set the points array accordingly (shell or hole)
+<b class="nc"><i>663</i>&nbsp;        Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);</b>
+<b class="nc"><i>664</i>&nbsp;        ring(component, direction, orientation == Orientation.LEFT, points, 0, edges, offset, points.length-1, translated);</b>
+<b class="nc"><i>665</i>&nbsp;        return points.length-1;</b>
+<i>666</i>&nbsp;    }
+<i>667</i>&nbsp;
+<i>668</i>&nbsp;    /**
+<i>669</i>&nbsp;     * Create a connected list of a list of coordinates
+<i>670</i>&nbsp;     *
+<i>671</i>&nbsp;     * @param points
+<i>672</i>&nbsp;     *            array of point
+<i>673</i>&nbsp;     * @param offset
+<i>674</i>&nbsp;     *            index of the first point
+<i>675</i>&nbsp;     * @param length
+<i>676</i>&nbsp;     *            number of points
+<i>677</i>&nbsp;     * @return Array of edges
+<i>678</i>&nbsp;     */
+<i>679</i>&nbsp;    private static Edge[] ring(int component, boolean direction, boolean handedness,
+<i>680</i>&nbsp;                                 Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
+<i>681</i>&nbsp;
+<b class="nc"><i>682</i>&nbsp;        boolean orientation = getOrientation(points, offset, length);</b>
+<i>683</i>&nbsp;
+<i>684</i>&nbsp;        // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
+<i>685</i>&nbsp;        // since GeoJSON doesn&#39;t specify (and doesn&#39;t need to) GEO core will assume OGC standards
+<i>686</i>&nbsp;        // thus if orientation is computed as cw, the logic will translate points across dateline
+<i>687</i>&nbsp;        // and convert to a right handed system
+<i>688</i>&nbsp;
+<i>689</i>&nbsp;        // compute the bounding box and calculate range
+<b class="nc"><i>690</i>&nbsp;        double[] range = range(points, offset, length);</b>
+<b class="nc"><i>691</i>&nbsp;        final double rng = range[1] - range[0];</b>
+<i>692</i>&nbsp;        // translate the points if the following is true
+<i>693</i>&nbsp;        //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
+<i>694</i>&nbsp;        //       (translation would result in a collapsed poly)
+<i>695</i>&nbsp;        //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
+<b class="nc"><i>696</i>&nbsp;        boolean incorrectOrientation = component == 0 &amp;&amp; handedness != orientation;</b>
+<b class="nc"><i>697</i>&nbsp;        if ( (incorrectOrientation &amp;&amp; (rng &gt; DATELINE &amp;&amp; rng != 2*DATELINE)) || (translated.get() &amp;&amp; component != 0)) {</b>
+<b class="nc"><i>698</i>&nbsp;            translate(points);</b>
+<i>699</i>&nbsp;            // flip the translation bit if the shell is being translated
+<b class="nc"><i>700</i>&nbsp;            if (component == 0) {</b>
+<b class="nc"><i>701</i>&nbsp;                translated.set(true);</b>
+<i>702</i>&nbsp;            }
+<i>703</i>&nbsp;            // correct the orientation post translation (ccw for shell, cw for holes)
+<b class="nc"><i>704</i>&nbsp;            if (component == 0 || (component != 0 &amp;&amp; handedness == orientation)) {</b>
+<b class="nc"><i>705</i>&nbsp;                orientation = !orientation;</b>
+<i>706</i>&nbsp;            }
+<i>707</i>&nbsp;        }
+<b class="nc"><i>708</i>&nbsp;        return concat(component, direction ^ orientation, points, offset, edges, toffset, length);</b>
+<i>709</i>&nbsp;    }
+<i>710</i>&nbsp;
+<i>711</i>&nbsp;    /**
+<i>712</i>&nbsp;     * @return whether the points are clockwise (true) or anticlockwise (false)
+<i>713</i>&nbsp;     */
+<i>714</i>&nbsp;    private static boolean getOrientation(Coordinate[] points, int offset, int length) {
+<i>715</i>&nbsp;        // calculate the direction of the points: find the southernmost point
+<i>716</i>&nbsp;        // and check its neighbors orientation.
+<i>717</i>&nbsp;
+<b class="nc"><i>718</i>&nbsp;        final int top = top(points, offset, length);</b>
+<b class="nc"><i>719</i>&nbsp;        final int prev = (top + length - 1) % length;</b>
+<b class="nc"><i>720</i>&nbsp;        final int next = (top + 1) % length;</b>
+<i>721</i>&nbsp;
+<b class="nc"><i>722</i>&nbsp;        final int determinantSign = orient(</b>
+<i>723</i>&nbsp;            points[offset + prev].x, points[offset + prev].y,
+<i>724</i>&nbsp;            points[offset + top].x, points[offset + top].y,
+<i>725</i>&nbsp;            points[offset + next].x, points[offset + next].y);
+<i>726</i>&nbsp;
+<b class="nc"><i>727</i>&nbsp;        if (determinantSign == 0) {</b>
+<i>728</i>&nbsp;            // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
+<b class="nc"><i>729</i>&nbsp;            throw new InvalidShapeException(&quot;Cannot determine orientation: edges adjacent to (&quot;</b>
+<i>730</i>&nbsp;                + points[offset + top].x + &quot;,&quot; + points[offset +top].y + &quot;) coincide&quot;);
+<i>731</i>&nbsp;        }
+<i>732</i>&nbsp;
+<b class="nc"><i>733</i>&nbsp;        return determinantSign &lt; 0;</b>
+<i>734</i>&nbsp;    }
+<i>735</i>&nbsp;
+<i>736</i>&nbsp;    /**
+<i>737</i>&nbsp;     * @return the (offset) index of the point that is furthest west amongst
+<i>738</i>&nbsp;     * those points that are the furthest south in the set.
+<i>739</i>&nbsp;     */
+<i>740</i>&nbsp;    private static int top(Coordinate[] points, int offset, int length) {
+<b class="nc"><i>741</i>&nbsp;        int top = 0; // we start at 1 here since top points to 0</b>
+<b class="nc"><i>742</i>&nbsp;        for (int i = 1; i &lt; length; i++) {</b>
+<b class="nc"><i>743</i>&nbsp;            if (points[offset + i].y &lt; points[offset + top].y) {</b>
+<b class="nc"><i>744</i>&nbsp;                top = i;</b>
+<b class="nc"><i>745</i>&nbsp;            } else if (points[offset + i].y == points[offset + top].y) {</b>
+<b class="nc"><i>746</i>&nbsp;                if (points[offset + i].x &lt; points[offset + top].x) {</b>
+<b class="nc"><i>747</i>&nbsp;                    top = i;</b>
+<i>748</i>&nbsp;                }
+<i>749</i>&nbsp;            }
+<i>750</i>&nbsp;        }
+<b class="nc"><i>751</i>&nbsp;        return top;</b>
+<i>752</i>&nbsp;    }
+<i>753</i>&nbsp;
+<i>754</i>&nbsp;    private static double[] range(Coordinate[] points, int offset, int length) {
+<b class="nc"><i>755</i>&nbsp;        double minX = points[0].x;</b>
+<b class="nc"><i>756</i>&nbsp;        double maxX = points[0].x;</b>
+<b class="nc"><i>757</i>&nbsp;        double minY = points[0].y;</b>
+<b class="nc"><i>758</i>&nbsp;        double maxY = points[0].y;</b>
+<i>759</i>&nbsp;        // compute the bounding coordinates (@todo: cleanup brute force)
+<b class="nc"><i>760</i>&nbsp;        for (int i = 1; i &lt; length; ++i) {</b>
+<b class="nc"><i>761</i>&nbsp;            if (points[offset + i].x &lt; minX) {</b>
+<b class="nc"><i>762</i>&nbsp;                minX = points[offset + i].x;</b>
+<i>763</i>&nbsp;            }
+<b class="nc"><i>764</i>&nbsp;            if (points[offset + i].x &gt; maxX) {</b>
+<b class="nc"><i>765</i>&nbsp;                maxX = points[offset + i].x;</b>
+<i>766</i>&nbsp;            }
+<b class="nc"><i>767</i>&nbsp;            if (points[offset + i].y &lt; minY) {</b>
+<b class="nc"><i>768</i>&nbsp;                minY = points[offset + i].y;</b>
+<i>769</i>&nbsp;            }
+<b class="nc"><i>770</i>&nbsp;            if (points[offset + i].y &gt; maxY) {</b>
+<b class="nc"><i>771</i>&nbsp;                maxY = points[offset + i].y;</b>
+<i>772</i>&nbsp;            }
+<i>773</i>&nbsp;        }
+<b class="nc"><i>774</i>&nbsp;        return new double[] {minX, maxX, minY, maxY};</b>
+<i>775</i>&nbsp;    }
+<i>776</i>&nbsp;
+<i>777</i>&nbsp;    /**
+<i>778</i>&nbsp;     * Concatenate a set of points to a polygon
+<i>779</i>&nbsp;     *
+<i>780</i>&nbsp;     * @param component
+<i>781</i>&nbsp;     *            component id of the polygon
+<i>782</i>&nbsp;     * @param direction
+<i>783</i>&nbsp;     *            direction of the ring
+<i>784</i>&nbsp;     * @param points
+<i>785</i>&nbsp;     *            list of points to concatenate
+<i>786</i>&nbsp;     * @param pointOffset
+<i>787</i>&nbsp;     *            index of the first point
+<i>788</i>&nbsp;     * @param edges
+<i>789</i>&nbsp;     *            Array of edges to write the result to
+<i>790</i>&nbsp;     * @param edgeOffset
+<i>791</i>&nbsp;     *            index of the first edge in the result
+<i>792</i>&nbsp;     * @param length
+<i>793</i>&nbsp;     *            number of points to use
+<i>794</i>&nbsp;     * @return the edges creates
+<i>795</i>&nbsp;     */
+<i>796</i>&nbsp;    private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges,
+<i>797</i>&nbsp;            final int edgeOffset, int length) {
+<b class="nc"><i>798</i>&nbsp;        assert edges.length &gt;= length+edgeOffset;</b>
+<b class="nc"><i>799</i>&nbsp;        assert points.length &gt;= length+pointOffset;</b>
+<b class="nc"><i>800</i>&nbsp;        edges[edgeOffset] = new Edge(points[pointOffset], null);</b>
+<b class="nc"><i>801</i>&nbsp;        for (int i = 1; i &lt; length; i++) {</b>
+<b class="nc"><i>802</i>&nbsp;            if (direction) {</b>
+<b class="nc"><i>803</i>&nbsp;                edges[edgeOffset + i] = new Edge(points[pointOffset + i], edges[edgeOffset + i - 1]);</b>
+<b class="nc"><i>804</i>&nbsp;                edges[edgeOffset + i].component = component;</b>
+<b class="nc"><i>805</i>&nbsp;            } else if(!edges[edgeOffset + i - 1].coordinate.equals(points[pointOffset + i])) {</b>
+<b class="nc"><i>806</i>&nbsp;                edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(points[pointOffset + i], null);</b>
+<b class="nc"><i>807</i>&nbsp;                edges[edgeOffset + i - 1].component = component;</b>
+<i>808</i>&nbsp;            } else {
+<b class="nc"><i>809</i>&nbsp;                throw new InvalidShapeException(&quot;Provided shape has duplicate consecutive coordinates at: &quot; + points[pointOffset + i]);</b>
+<i>810</i>&nbsp;            }
+<i>811</i>&nbsp;        }
+<i>812</i>&nbsp;
+<b class="nc"><i>813</i>&nbsp;        if (direction) {</b>
+<b class="nc"><i>814</i>&nbsp;            edges[edgeOffset].setNext(edges[edgeOffset + length - 1]);</b>
+<b class="nc"><i>815</i>&nbsp;            edges[edgeOffset].component = component;</b>
+<i>816</i>&nbsp;        } else {
+<b class="nc"><i>817</i>&nbsp;            edges[edgeOffset + length - 1].setNext(edges[edgeOffset]);</b>
+<b class="nc"><i>818</i>&nbsp;            edges[edgeOffset + length - 1].component = component;</b>
+<i>819</i>&nbsp;        }
+<i>820</i>&nbsp;
+<b class="nc"><i>821</i>&nbsp;        return edges;</b>
+<i>822</i>&nbsp;    }
+<i>823</i>&nbsp;
+<i>824</i>&nbsp;    /**
+<i>825</i>&nbsp;     * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range
+<i>826</i>&nbsp;     */
+<i>827</i>&nbsp;    private static void translate(Coordinate[] points) {
+<b class="nc"><i>828</i>&nbsp;        for (Coordinate c : points) {</b>
+<b class="nc"><i>829</i>&nbsp;            if (c.x &lt; 0) {</b>
+<b class="nc"><i>830</i>&nbsp;                c.x += 2*DATELINE;</b>
+<i>831</i>&nbsp;            }
+<i>832</i>&nbsp;        }
+<b class="nc"><i>833</i>&nbsp;    }</b>
+<i>834</i>&nbsp;
+<i>835</i>&nbsp;    @Override
+<i>836</i>&nbsp;    protected StringBuilder contentToWKT() {
+<b class="nc"><i>837</i>&nbsp;        StringBuilder sb = new StringBuilder();</b>
+<b class="nc"><i>838</i>&nbsp;        sb.append(&#39;(&#39;);</b>
+<b class="nc"><i>839</i>&nbsp;        sb.append(ShapeBuilder.coordinateListToWKT(shell.coordinates));</b>
+<b class="nc"><i>840</i>&nbsp;        for (LineStringBuilder hole : holes) {</b>
+<b class="nc"><i>841</i>&nbsp;            sb.append(&quot;, &quot;);</b>
+<b class="nc"><i>842</i>&nbsp;            sb.append(ShapeBuilder.coordinateListToWKT(hole.coordinates));</b>
+<b class="nc"><i>843</i>&nbsp;        }</b>
+<b class="nc"><i>844</i>&nbsp;        sb.append(&#39;)&#39;);</b>
+<b class="nc"><i>845</i>&nbsp;        return sb;</b>
+<i>846</i>&nbsp;    }
+<i>847</i>&nbsp;
+<i>848</i>&nbsp;    @Override
+<i>849</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>850</i>&nbsp;        return Objects.hash(shell, holes, orientation);</b>
+<i>851</i>&nbsp;    }
+<i>852</i>&nbsp;
+<i>853</i>&nbsp;    @Override
+<i>854</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>855</i>&nbsp;        if (this == obj) {</b>
+<b class="nc"><i>856</i>&nbsp;            return true;</b>
+<i>857</i>&nbsp;        }
+<b class="nc"><i>858</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="nc"><i>859</i>&nbsp;            return false;</b>
+<i>860</i>&nbsp;        }
+<b class="nc"><i>861</i>&nbsp;        PolygonBuilder other = (PolygonBuilder) obj;</b>
+<b class="nc"><i>862</i>&nbsp;        return Objects.equals(shell, other.shell) &amp;&amp;</b>
+<b class="nc"><i>863</i>&nbsp;                Objects.equals(holes, other.holes) &amp;&amp;</b>
+<b class="nc"><i>864</i>&nbsp;                Objects.equals(orientation,  other.orientation);</b>
+<i>865</i>&nbsp;    }
+<i>866</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,372 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DiskThresholdMonitor</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DiskThresholdMonitor (org.elasticsearch.cluster.routing.allocation)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DiskThresholdMonitor</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (2/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    9.2%
+  </span>
+  <span class="absValue">
+    (14/ 153)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectLookupContainer;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>24</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>25</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>26</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>27</i>&nbsp;import org.elasticsearch.Version;
+<i>28</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.GroupedActionListener;
+<i>30</i>&nbsp;import org.elasticsearch.client.Client;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.ClusterInfo;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.DiskUsage;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.routing.RerouteService;
+<i>37</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>38</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNodes;
+<i>39</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>40</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>41</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>42</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>43</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>45</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>46</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;import java.util.HashSet;
+<i>49</i>&nbsp;import java.util.Set;
+<i>50</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>51</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>52</i>&nbsp;import java.util.function.LongSupplier;
+<i>53</i>&nbsp;import java.util.function.Supplier;
+<i>54</i>&nbsp;import java.util.stream.Collectors;
+<i>55</i>&nbsp;import java.util.stream.StreamSupport;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;/**
+<i>58</i>&nbsp; * Listens for a node to go over the high watermark and kicks off an empty
+<i>59</i>&nbsp; * reroute if it does. Also responsible for logging about nodes that have
+<i>60</i>&nbsp; * passed the disk watermarks
+<i>61</i>&nbsp; */
+<b class="fc"><i>62</i>&nbsp;public class DiskThresholdMonitor {</b>
+<i>63</i>&nbsp;
+<b class="fc"><i>64</i>&nbsp;    private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    private final DiskThresholdSettings diskThresholdSettings;
+<i>67</i>&nbsp;    private final Client client;
+<b class="fc"><i>68</i>&nbsp;    private final Set&lt;String&gt; nodeHasPassedWatermark = Sets.newConcurrentHashSet();</b>
+<i>69</i>&nbsp;    private final Supplier&lt;ClusterState&gt; clusterStateSupplier;
+<i>70</i>&nbsp;    private final LongSupplier currentTimeMillisSupplier;
+<i>71</i>&nbsp;    private final RerouteService rerouteService;
+<b class="fc"><i>72</i>&nbsp;    private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);</b>
+<b class="fc"><i>73</i>&nbsp;    private final AtomicBoolean checkInProgress = new AtomicBoolean();</b>
+<b class="fc"><i>74</i>&nbsp;    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    public DiskThresholdMonitor(Settings settings, Supplier&lt;ClusterState&gt; clusterStateSupplier, ClusterSettings clusterSettings,
+<b class="fc"><i>77</i>&nbsp;                                Client client, LongSupplier currentTimeMillisSupplier, RerouteService rerouteService) {</b>
+<b class="fc"><i>78</i>&nbsp;        this.clusterStateSupplier = clusterStateSupplier;</b>
+<b class="fc"><i>79</i>&nbsp;        this.currentTimeMillisSupplier = currentTimeMillisSupplier;</b>
+<b class="fc"><i>80</i>&nbsp;        this.rerouteService = rerouteService;</b>
+<b class="fc"><i>81</i>&nbsp;        this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);</b>
+<b class="fc"><i>82</i>&nbsp;        this.client = client;</b>
+<b class="fc"><i>83</i>&nbsp;        if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {</b>
+<b class="nc"><i>84</i>&nbsp;            deprecationLogger.deprecated(&quot;[{}] will be removed in version {}&quot;,</b>
+<b class="nc"><i>85</i>&nbsp;                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);</b>
+<i>86</i>&nbsp;        }
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /**
+<i>90</i>&nbsp;     * Warn about the given disk usage if the low or high watermark has been passed
+<i>91</i>&nbsp;     */
+<i>92</i>&nbsp;    private void warnAboutDiskIfNeeded(DiskUsage usage) {
+<i>93</i>&nbsp;        // Check absolute disk values
+<b class="nc"><i>94</i>&nbsp;        if (usage.getFreeBytes() &lt; diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()) {</b>
+<b class="nc"><i>95</i>&nbsp;            logger.warn(&quot;flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only&quot;,</b>
+<b class="nc"><i>96</i>&nbsp;                diskThresholdSettings.getFreeBytesThresholdFloodStage(), usage);</b>
+<b class="nc"><i>97</i>&nbsp;        } else if (usage.getFreeBytes() &lt; diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {</b>
+<b class="nc"><i>98</i>&nbsp;            logger.warn(&quot;high disk watermark [{}] exceeded on {}, shards will be relocated away from this node&quot;,</b>
+<b class="nc"><i>99</i>&nbsp;                diskThresholdSettings.getFreeBytesThresholdHigh(), usage);</b>
+<b class="nc"><i>100</i>&nbsp;        } else if (usage.getFreeBytes() &lt; diskThresholdSettings.getFreeBytesThresholdLow().getBytes()) {</b>
+<b class="nc"><i>101</i>&nbsp;            logger.info(&quot;low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node&quot;,</b>
+<b class="nc"><i>102</i>&nbsp;                diskThresholdSettings.getFreeBytesThresholdLow(), usage);</b>
+<i>103</i>&nbsp;        }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;        // Check percentage disk values
+<b class="nc"><i>106</i>&nbsp;        if (usage.getFreeDiskAsPercentage() &lt; diskThresholdSettings.getFreeDiskThresholdFloodStage()) {</b>
+<b class="nc"><i>107</i>&nbsp;            logger.warn(&quot;flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only&quot;,</b>
+<b class="nc"><i>108</i>&nbsp;                Strings.format1Decimals(100.0 - diskThresholdSettings.getFreeDiskThresholdFloodStage(), &quot;%&quot;), usage);</b>
+<b class="nc"><i>109</i>&nbsp;        } else if (usage.getFreeDiskAsPercentage() &lt; diskThresholdSettings.getFreeDiskThresholdHigh()) {</b>
+<b class="nc"><i>110</i>&nbsp;            logger.warn(&quot;high disk watermark [{}] exceeded on {}, shards will be relocated away from this node&quot;,</b>
+<b class="nc"><i>111</i>&nbsp;                Strings.format1Decimals(100.0 - diskThresholdSettings.getFreeDiskThresholdHigh(), &quot;%&quot;), usage);</b>
+<b class="nc"><i>112</i>&nbsp;        } else if (usage.getFreeDiskAsPercentage() &lt; diskThresholdSettings.getFreeDiskThresholdLow()) {</b>
+<b class="nc"><i>113</i>&nbsp;            logger.info(&quot;low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node&quot;,</b>
+<b class="nc"><i>114</i>&nbsp;                Strings.format1Decimals(100.0 - diskThresholdSettings.getFreeDiskThresholdLow(), &quot;%&quot;), usage);</b>
+<i>115</i>&nbsp;        }
+<b class="nc"><i>116</i>&nbsp;    }</b>
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    private void checkFinished() {
+<b class="nc"><i>119</i>&nbsp;        final boolean checkFinished = checkInProgress.compareAndSet(true, false);</b>
+<b class="nc"><i>120</i>&nbsp;        assert checkFinished;</b>
+<b class="nc"><i>121</i>&nbsp;    }</b>
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    public void onNewInfo(ClusterInfo info) {
+<i>124</i>&nbsp;
+<b class="nc"><i>125</i>&nbsp;        if (checkInProgress.compareAndSet(false, true) == false) {</b>
+<b class="nc"><i>126</i>&nbsp;            logger.info(&quot;skipping monitor as a check is already in progress&quot;);</b>
+<b class="nc"><i>127</i>&nbsp;            return;</b>
+<i>128</i>&nbsp;        }
+<i>129</i>&nbsp;
+<b class="nc"><i>130</i>&nbsp;        final ImmutableOpenMap&lt;String, DiskUsage&gt; usages = info.getNodeLeastAvailableDiskUsages();</b>
+<b class="nc"><i>131</i>&nbsp;        if (usages == null) {</b>
+<b class="nc"><i>132</i>&nbsp;            checkFinished();</b>
+<b class="nc"><i>133</i>&nbsp;            return;</b>
+<i>134</i>&nbsp;        }
+<i>135</i>&nbsp;
+<b class="nc"><i>136</i>&nbsp;        boolean reroute = false;</b>
+<b class="nc"><i>137</i>&nbsp;        String explanation = &quot;&quot;;</b>
+<b class="nc"><i>138</i>&nbsp;        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;        // Garbage collect nodes that have been removed from the cluster
+<i>141</i>&nbsp;        // from the map that tracks watermark crossing
+<b class="nc"><i>142</i>&nbsp;        final ObjectLookupContainer&lt;String&gt; nodes = usages.keys();</b>
+<b class="nc"><i>143</i>&nbsp;        for (String node : nodeHasPassedWatermark) {</b>
+<b class="nc"><i>144</i>&nbsp;            if (nodes.contains(node) == false) {</b>
+<b class="nc"><i>145</i>&nbsp;                nodeHasPassedWatermark.remove(node);</b>
+<i>146</i>&nbsp;            }
+<b class="nc"><i>147</i>&nbsp;        }</b>
+<b class="nc"><i>148</i>&nbsp;        final ClusterState state = clusterStateSupplier.get();</b>
+<b class="nc"><i>149</i>&nbsp;        final Set&lt;String&gt; indicesToMarkReadOnly = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>150</i>&nbsp;        RoutingNodes routingNodes = state.getRoutingNodes();</b>
+<b class="nc"><i>151</i>&nbsp;        Set&lt;String&gt; indicesNotToAutoRelease = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>152</i>&nbsp;        markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesNotToAutoRelease);</b>
+<i>153</i>&nbsp;
+<b class="nc"><i>154</i>&nbsp;        for (final ObjectObjectCursor&lt;String, DiskUsage&gt; entry : usages) {</b>
+<b class="nc"><i>155</i>&nbsp;            final String node = entry.key;</b>
+<b class="nc"><i>156</i>&nbsp;            final DiskUsage usage = entry.value;</b>
+<b class="nc"><i>157</i>&nbsp;            warnAboutDiskIfNeeded(usage);</b>
+<b class="nc"><i>158</i>&nbsp;            RoutingNode routingNode = routingNodes.node(node);</b>
+<i>159</i>&nbsp;            // Only unblock index if all nodes that contain shards of it are below the high disk watermark
+<b class="nc"><i>160</i>&nbsp;            if (usage.getFreeBytes() &lt; diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||</b>
+<b class="nc"><i>161</i>&nbsp;                usage.getFreeDiskAsPercentage() &lt; diskThresholdSettings.getFreeDiskThresholdFloodStage()) {</b>
+<b class="nc"><i>162</i>&nbsp;                if (routingNode != null) { // this might happen if we haven&#39;t got the full cluster-state yet?!</b>
+<b class="nc"><i>163</i>&nbsp;                    for (ShardRouting routing : routingNode) {</b>
+<b class="nc"><i>164</i>&nbsp;                        String indexName = routing.index().getName();</b>
+<b class="nc"><i>165</i>&nbsp;                        indicesToMarkReadOnly.add(indexName);</b>
+<b class="nc"><i>166</i>&nbsp;                        indicesNotToAutoRelease.add(indexName);</b>
+<b class="nc"><i>167</i>&nbsp;                    }</b>
+<i>168</i>&nbsp;                }
+<b class="nc"><i>169</i>&nbsp;            } else if (usage.getFreeBytes() &lt; diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||</b>
+<b class="nc"><i>170</i>&nbsp;                usage.getFreeDiskAsPercentage() &lt; diskThresholdSettings.getFreeDiskThresholdHigh()) {</b>
+<b class="nc"><i>171</i>&nbsp;                if (routingNode != null) {</b>
+<b class="nc"><i>172</i>&nbsp;                    for (ShardRouting routing : routingNode) {</b>
+<b class="nc"><i>173</i>&nbsp;                        String indexName = routing.index().getName();</b>
+<b class="nc"><i>174</i>&nbsp;                        indicesNotToAutoRelease.add(indexName);</b>
+<b class="nc"><i>175</i>&nbsp;                    }</b>
+<i>176</i>&nbsp;                }
+<b class="nc"><i>177</i>&nbsp;                if (lastRunTimeMillis.get() &lt; currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {</b>
+<b class="nc"><i>178</i>&nbsp;                    reroute = true;</b>
+<b class="nc"><i>179</i>&nbsp;                    explanation = &quot;high disk watermark exceeded on one or more nodes&quot;;</b>
+<i>180</i>&nbsp;                } else {
+<b class="nc"><i>181</i>&nbsp;                    logger.debug(&quot;high disk watermark exceeded on {} but an automatic reroute has occurred &quot; +</b>
+<i>182</i>&nbsp;                            &quot;in the last [{}], skipping reroute&quot;,
+<b class="nc"><i>183</i>&nbsp;                        node, diskThresholdSettings.getRerouteInterval());</b>
+<i>184</i>&nbsp;                }
+<b class="nc"><i>185</i>&nbsp;                nodeHasPassedWatermark.add(node);</b>
+<b class="nc"><i>186</i>&nbsp;            } else if (usage.getFreeBytes() &lt; diskThresholdSettings.getFreeBytesThresholdLow().getBytes() ||</b>
+<b class="nc"><i>187</i>&nbsp;                usage.getFreeDiskAsPercentage() &lt; diskThresholdSettings.getFreeDiskThresholdLow()) {</b>
+<b class="nc"><i>188</i>&nbsp;                nodeHasPassedWatermark.add(node);</b>
+<i>189</i>&nbsp;            } else {
+<b class="nc"><i>190</i>&nbsp;                if (nodeHasPassedWatermark.contains(node)) {</b>
+<i>191</i>&nbsp;                    // The node has previously been over the high or
+<i>192</i>&nbsp;                    // low watermark, but is no longer, so we should
+<i>193</i>&nbsp;                    // reroute so any unassigned shards can be allocated
+<i>194</i>&nbsp;                    // if they are able to be
+<b class="nc"><i>195</i>&nbsp;                    if (lastRunTimeMillis.get() &lt; currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {</b>
+<b class="nc"><i>196</i>&nbsp;                        reroute = true;</b>
+<b class="nc"><i>197</i>&nbsp;                        explanation = &quot;one or more nodes has gone under the high or low watermark&quot;;</b>
+<b class="nc"><i>198</i>&nbsp;                        nodeHasPassedWatermark.remove(node);</b>
+<i>199</i>&nbsp;                    } else {
+<b class="nc"><i>200</i>&nbsp;                        logger.debug(&quot;{} has gone below a disk threshold, but an automatic reroute has occurred &quot; +</b>
+<i>201</i>&nbsp;                                &quot;in the last [{}], skipping reroute&quot;,
+<b class="nc"><i>202</i>&nbsp;                            node, diskThresholdSettings.getRerouteInterval());</b>
+<i>203</i>&nbsp;                    }
+<i>204</i>&nbsp;                }
+<i>205</i>&nbsp;            }
+<b class="nc"><i>206</i>&nbsp;        }</b>
+<i>207</i>&nbsp;
+<b class="nc"><i>208</i>&nbsp;        final ActionListener&lt;Void&gt; listener = new GroupedActionListener&lt;&gt;(ActionListener.wrap(this::checkFinished), 3);</b>
+<i>209</i>&nbsp;
+<b class="nc"><i>210</i>&nbsp;        if (reroute) {</b>
+<b class="nc"><i>211</i>&nbsp;            logger.info(&quot;rerouting shards: [{}]&quot;, explanation);</b>
+<b class="nc"><i>212</i>&nbsp;            rerouteService.reroute(&quot;disk threshold monitor&quot;, Priority.HIGH, ActionListener.wrap(r -&gt; {</b>
+<b class="nc"><i>213</i>&nbsp;                setLastRunTimeMillis();</b>
+<b class="nc"><i>214</i>&nbsp;                listener.onResponse(r);</b>
+<b class="nc"><i>215</i>&nbsp;            }, e -&gt; {</b>
+<b class="nc"><i>216</i>&nbsp;                logger.debug(&quot;reroute failed&quot;, e);</b>
+<b class="nc"><i>217</i>&nbsp;                setLastRunTimeMillis();</b>
+<b class="nc"><i>218</i>&nbsp;                listener.onFailure(e);</b>
+<b class="nc"><i>219</i>&nbsp;            }));</b>
+<i>220</i>&nbsp;        } else {
+<b class="nc"><i>221</i>&nbsp;            listener.onResponse(null);</b>
+<i>222</i>&nbsp;        }
+<b class="nc"><i>223</i>&nbsp;        Set&lt;String&gt; indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()</b>
+<b class="nc"><i>224</i>&nbsp;            .spliterator(), false)</b>
+<b class="nc"><i>225</i>&nbsp;            .map(c -&gt; c.key)</b>
+<b class="nc"><i>226</i>&nbsp;            .filter(index -&gt; indicesNotToAutoRelease.contains(index) == false)</b>
+<b class="nc"><i>227</i>&nbsp;            .filter(index -&gt; state.getBlocks().hasIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))</b>
+<b class="nc"><i>228</i>&nbsp;            .collect(Collectors.toSet());</b>
+<i>229</i>&nbsp;
+<b class="nc"><i>230</i>&nbsp;        if (indicesToAutoRelease.isEmpty() == false) {</b>
+<b class="nc"><i>231</i>&nbsp;            if (diskThresholdSettings.isAutoReleaseIndexEnabled()) {</b>
+<b class="nc"><i>232</i>&nbsp;                logger.info(&quot;releasing read-only-allow-delete block on indices: [{}]&quot;, indicesToAutoRelease);</b>
+<b class="nc"><i>233</i>&nbsp;                updateIndicesReadOnly(indicesToAutoRelease, listener, false);</b>
+<i>234</i>&nbsp;            } else {
+<b class="nc"><i>235</i>&nbsp;                deprecationLogger.deprecated(&quot;[{}] will be removed in version {}&quot;,</b>
+<b class="nc"><i>236</i>&nbsp;                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);</b>
+<b class="nc"><i>237</i>&nbsp;                logger.debug(&quot;[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]&quot;,</b>
+<i>238</i>&nbsp;                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
+<b class="nc"><i>239</i>&nbsp;                listener.onResponse(null);</b>
+<i>240</i>&nbsp;            }
+<i>241</i>&nbsp;        } else {
+<b class="nc"><i>242</i>&nbsp;            listener.onResponse(null);</b>
+<i>243</i>&nbsp;        }
+<i>244</i>&nbsp;
+<b class="nc"><i>245</i>&nbsp;        indicesToMarkReadOnly.removeIf(index -&gt; state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));</b>
+<b class="nc"><i>246</i>&nbsp;        if (indicesToMarkReadOnly.isEmpty() == false) {</b>
+<b class="nc"><i>247</i>&nbsp;            updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);</b>
+<i>248</i>&nbsp;        } else {
+<b class="nc"><i>249</i>&nbsp;            listener.onResponse(null);</b>
+<i>250</i>&nbsp;        }
+<b class="nc"><i>251</i>&nbsp;    }</b>
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    private void markNodesMissingUsageIneligibleForRelease(RoutingNodes routingNodes, ImmutableOpenMap&lt;String, DiskUsage&gt; usages,
+<i>254</i>&nbsp;                                                           Set&lt;String&gt; indicesToMarkIneligibleForAutoRelease) {
+<b class="nc"><i>255</i>&nbsp;        for (RoutingNode routingNode : routingNodes) {</b>
+<b class="nc"><i>256</i>&nbsp;            if (usages.containsKey(routingNode.nodeId()) == false) {</b>
+<b class="nc"><i>257</i>&nbsp;                if (routingNode != null) {</b>
+<b class="nc"><i>258</i>&nbsp;                    for (ShardRouting routing : routingNode) {</b>
+<b class="nc"><i>259</i>&nbsp;                        String indexName = routing.index().getName();</b>
+<b class="nc"><i>260</i>&nbsp;                        indicesToMarkIneligibleForAutoRelease.add(indexName);</b>
+<b class="nc"><i>261</i>&nbsp;                    }</b>
+<i>262</i>&nbsp;                }
+<i>263</i>&nbsp;            }
+<b class="nc"><i>264</i>&nbsp;        }</b>
+<i>265</i>&nbsp;
+<b class="nc"><i>266</i>&nbsp;    }</b>
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    private void setLastRunTimeMillis() {
+<b class="nc"><i>269</i>&nbsp;        lastRunTimeMillis.getAndUpdate(l -&gt; Math.max(l, currentTimeMillisSupplier.getAsLong()));</b>
+<b class="nc"><i>270</i>&nbsp;    }</b>
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    protected void updateIndicesReadOnly(Set&lt;String&gt; indicesToUpdate, ActionListener&lt;Void&gt; listener, boolean readOnly) {
+<i>273</i>&nbsp;        // set read-only block but don&#39;t block on the response
+<b class="nc"><i>274</i>&nbsp;        ActionListener&lt;Void&gt; wrappedListener = ActionListener.wrap(r -&gt; {</b>
+<b class="nc"><i>275</i>&nbsp;            setLastRunTimeMillis();</b>
+<b class="nc"><i>276</i>&nbsp;            listener.onResponse(r);</b>
+<b class="nc"><i>277</i>&nbsp;        }, e -&gt; {</b>
+<b class="nc"><i>278</i>&nbsp;            logger.debug(new ParameterizedMessage(&quot;setting indices [{}] read-only failed&quot;, readOnly), e);</b>
+<b class="nc"><i>279</i>&nbsp;            setLastRunTimeMillis();</b>
+<b class="nc"><i>280</i>&nbsp;            listener.onFailure(e);</b>
+<b class="nc"><i>281</i>&nbsp;        });</b>
+<b class="nc"><i>282</i>&nbsp;        Settings readOnlySettings = readOnly ? Settings.builder()</b>
+<b class="nc"><i>283</i>&nbsp;            .put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :</b>
+<b class="nc"><i>284</i>&nbsp;            Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build();</b>
+<b class="nc"><i>285</i>&nbsp;        client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))</b>
+<b class="nc"><i>286</i>&nbsp;            .setSettings(readOnlySettings)</b>
+<b class="nc"><i>287</i>&nbsp;            .execute(ActionListener.map(wrappedListener, r -&gt; null));</b>
+<b class="nc"><i>288</i>&nbsp;    }</b>
+<i>289</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

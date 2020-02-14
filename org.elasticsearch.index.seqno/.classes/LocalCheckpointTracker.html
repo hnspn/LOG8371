@@ -1,0 +1,372 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: LocalCheckpointTracker</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.seqno</a> ]
+</div>
+
+<h1>Coverage Summary for Class: LocalCheckpointTracker (org.elasticsearch.index.seqno)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">LocalCheckpointTracker</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    27.8%
+  </span>
+  <span class="absValue">
+    (5/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (16/ 80)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.seqno;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.LongObjectHashMap;
+<i>23</i>&nbsp;import org.elasticsearch.common.SuppressForbidden;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>26</i>&nbsp;
+<i>27</i>&nbsp;/**
+<i>28</i>&nbsp; * This class generates sequences numbers and keeps track of the so-called &quot;local checkpoint&quot; which is the highest number for which all
+<i>29</i>&nbsp; * previous sequence numbers have been processed (inclusive).
+<i>30</i>&nbsp; */
+<b class="fc"><i>31</i>&nbsp;public class LocalCheckpointTracker {</b>
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;    /**
+<i>34</i>&nbsp;     * We keep a bit for each sequence number that is still pending. To optimize allocation, we do so in multiple sets allocating them on
+<i>35</i>&nbsp;     * demand and cleaning up while completed. This constant controls the size of the sets.
+<i>36</i>&nbsp;     */
+<i>37</i>&nbsp;    static final short BIT_SET_SIZE = 1024;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;    /**
+<i>40</i>&nbsp;     * A collection of bit sets representing processed sequence numbers. Each sequence number is mapped to a bit set by dividing by the
+<i>41</i>&nbsp;     * bit set size.
+<i>42</i>&nbsp;     */
+<b class="fc"><i>43</i>&nbsp;    final LongObjectHashMap&lt;CountedBitSet&gt; processedSeqNo = new LongObjectHashMap&lt;&gt;();</b>
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;    /**
+<i>46</i>&nbsp;     * A collection of bit sets representing durably persisted sequence numbers. Each sequence number is mapped to a bit set by dividing by
+<i>47</i>&nbsp;     * the bit set size.
+<i>48</i>&nbsp;     */
+<b class="fc"><i>49</i>&nbsp;    final LongObjectHashMap&lt;CountedBitSet&gt; persistedSeqNo = new LongObjectHashMap&lt;&gt;();</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    /**
+<i>52</i>&nbsp;     * The current local checkpoint, i.e., all sequence numbers no more than this number have been processed.
+<i>53</i>&nbsp;     */
+<b class="fc"><i>54</i>&nbsp;    final AtomicLong processedCheckpoint = new AtomicLong();</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    /**
+<i>57</i>&nbsp;     * The current persisted local checkpoint, i.e., all sequence numbers no more than this number have been durably persisted.
+<i>58</i>&nbsp;     */
+<b class="fc"><i>59</i>&nbsp;    final AtomicLong persistedCheckpoint = new AtomicLong();</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * The next available sequence number.
+<i>63</i>&nbsp;     */
+<b class="fc"><i>64</i>&nbsp;    final AtomicLong nextSeqNo = new AtomicLong();</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    /**
+<i>67</i>&nbsp;     * Initialize the local checkpoint service. The {@code maxSeqNo} should be set to the last sequence number assigned, or
+<i>68</i>&nbsp;     * {@link SequenceNumbers#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint,
+<i>69</i>&nbsp;     * or {@link SequenceNumbers#NO_OPS_PERFORMED}.
+<i>70</i>&nbsp;     *
+<i>71</i>&nbsp;     * @param maxSeqNo        the last sequence number assigned, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+<i>72</i>&nbsp;     * @param localCheckpoint the last known local checkpoint, or {@link SequenceNumbers#NO_OPS_PERFORMED}
+<i>73</i>&nbsp;     */
+<b class="fc"><i>74</i>&nbsp;    public LocalCheckpointTracker(final long maxSeqNo, final long localCheckpoint) {</b>
+<b class="fc"><i>75</i>&nbsp;        if (localCheckpoint &lt; 0 &amp;&amp; localCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {</b>
+<b class="nc"><i>76</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>77</i>&nbsp;                &quot;local checkpoint must be non-negative or [&quot; + SequenceNumbers.NO_OPS_PERFORMED + &quot;] &quot;
+<i>78</i>&nbsp;                    + &quot;but was [&quot; + localCheckpoint + &quot;]&quot;);
+<i>79</i>&nbsp;        }
+<b class="fc"><i>80</i>&nbsp;        if (maxSeqNo &lt; 0 &amp;&amp; maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED) {</b>
+<b class="nc"><i>81</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>82</i>&nbsp;                &quot;max seq. no. must be non-negative or [&quot; + SequenceNumbers.NO_OPS_PERFORMED + &quot;] but was [&quot; + maxSeqNo + &quot;]&quot;);
+<i>83</i>&nbsp;        }
+<b class="fc"><i>84</i>&nbsp;        nextSeqNo.set(maxSeqNo + 1);</b>
+<b class="fc"><i>85</i>&nbsp;        processedCheckpoint.set(localCheckpoint);</b>
+<b class="fc"><i>86</i>&nbsp;        persistedCheckpoint.set(localCheckpoint);</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /**
+<i>90</i>&nbsp;     * Issue the next sequence number.
+<i>91</i>&nbsp;     *
+<i>92</i>&nbsp;     * @return the next assigned sequence number
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public long generateSeqNo() {
+<b class="nc"><i>95</i>&nbsp;        return nextSeqNo.getAndIncrement();</b>
+<i>96</i>&nbsp;    }
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    /**
+<i>99</i>&nbsp;     * Marks the provided sequence number as seen and updates the max_seq_no if needed.
+<i>100</i>&nbsp;     */
+<i>101</i>&nbsp;    public void advanceMaxSeqNo(final long seqNo) {
+<b class="nc"><i>102</i>&nbsp;        nextSeqNo.accumulateAndGet(seqNo + 1, Math::max);</b>
+<b class="nc"><i>103</i>&nbsp;    }</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    /**
+<i>106</i>&nbsp;     * Marks the provided sequence number as processed and updates the processed checkpoint if possible.
+<i>107</i>&nbsp;     *
+<i>108</i>&nbsp;     * @param seqNo the sequence number to mark as processed
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    public synchronized void markSeqNoAsProcessed(final long seqNo) {
+<b class="nc"><i>111</i>&nbsp;        markSeqNo(seqNo, processedCheckpoint, processedSeqNo);</b>
+<b class="nc"><i>112</i>&nbsp;    }</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /**
+<i>115</i>&nbsp;     * Marks the provided sequence number as persisted and updates the checkpoint if possible.
+<i>116</i>&nbsp;     *
+<i>117</i>&nbsp;     * @param seqNo the sequence number to mark as persisted
+<i>118</i>&nbsp;     */
+<i>119</i>&nbsp;    public synchronized void markSeqNoAsPersisted(final long seqNo) {
+<b class="nc"><i>120</i>&nbsp;        markSeqNo(seqNo, persistedCheckpoint, persistedSeqNo);</b>
+<b class="nc"><i>121</i>&nbsp;    }</b>
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    private void markSeqNo(final long seqNo, final AtomicLong checkPoint, final LongObjectHashMap&lt;CountedBitSet&gt; bitSetMap) {
+<b class="nc"><i>124</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<i>125</i>&nbsp;        // make sure we track highest seen sequence number
+<b class="nc"><i>126</i>&nbsp;        advanceMaxSeqNo(seqNo);</b>
+<b class="nc"><i>127</i>&nbsp;        if (seqNo &lt;= checkPoint.get()) {</b>
+<i>128</i>&nbsp;            // this is possible during recovery where we might replay an operation that was also replicated
+<b class="nc"><i>129</i>&nbsp;            return;</b>
+<i>130</i>&nbsp;        }
+<b class="nc"><i>131</i>&nbsp;        final CountedBitSet bitSet = getBitSetForSeqNo(bitSetMap, seqNo);</b>
+<b class="nc"><i>132</i>&nbsp;        final int offset = seqNoToBitSetOffset(seqNo);</b>
+<b class="nc"><i>133</i>&nbsp;        bitSet.set(offset);</b>
+<b class="nc"><i>134</i>&nbsp;        if (seqNo == checkPoint.get() + 1) {</b>
+<b class="nc"><i>135</i>&nbsp;            updateCheckpoint(checkPoint, bitSetMap);</b>
+<i>136</i>&nbsp;        }
+<b class="nc"><i>137</i>&nbsp;    }</b>
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * The current checkpoint which can be advanced by {@link #markSeqNoAsProcessed(long)}.
+<i>141</i>&nbsp;     *
+<i>142</i>&nbsp;     * @return the current checkpoint
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public long getProcessedCheckpoint() {
+<b class="fc"><i>145</i>&nbsp;        return processedCheckpoint.get();</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /**
+<i>149</i>&nbsp;     * The current persisted checkpoint which can be advanced by {@link #markSeqNoAsPersisted(long)}.
+<i>150</i>&nbsp;     *
+<i>151</i>&nbsp;     * @return the current persisted checkpoint
+<i>152</i>&nbsp;     */
+<i>153</i>&nbsp;    public long getPersistedCheckpoint() {
+<b class="fc"><i>154</i>&nbsp;        return persistedCheckpoint.get();</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * The maximum sequence number issued so far.
+<i>159</i>&nbsp;     *
+<i>160</i>&nbsp;     * @return the maximum sequence number
+<i>161</i>&nbsp;     */
+<i>162</i>&nbsp;    public long getMaxSeqNo() {
+<b class="fc"><i>163</i>&nbsp;        return nextSeqNo.get() - 1;</b>
+<i>164</i>&nbsp;    }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    /**
+<i>168</i>&nbsp;     * constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
+<i>169</i>&nbsp;     *
+<i>170</i>&nbsp;     * This is needed to make sure the persisted local checkpoint and max seq no are consistent
+<i>171</i>&nbsp;     */
+<i>172</i>&nbsp;    public synchronized SeqNoStats getStats(final long globalCheckpoint) {
+<b class="nc"><i>173</i>&nbsp;        return new SeqNoStats(getMaxSeqNo(), getPersistedCheckpoint(), globalCheckpoint);</b>
+<i>174</i>&nbsp;    }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    /**
+<i>177</i>&nbsp;     * Waits for all operations up to the provided sequence number to complete.
+<i>178</i>&nbsp;     *
+<i>179</i>&nbsp;     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+<i>180</i>&nbsp;     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+<i>181</i>&nbsp;     */
+<i>182</i>&nbsp;    @SuppressForbidden(reason = &quot;Object#wait&quot;)
+<i>183</i>&nbsp;    public synchronized void waitForProcessedOpsToComplete(final long seqNo) throws InterruptedException {
+<b class="nc"><i>184</i>&nbsp;        while (processedCheckpoint.get() &lt; seqNo) {</b>
+<i>185</i>&nbsp;            // notified by updateCheckpoint
+<b class="nc"><i>186</i>&nbsp;            this.wait();</b>
+<i>187</i>&nbsp;        }
+<b class="nc"><i>188</i>&nbsp;    }</b>
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    /**
+<i>191</i>&nbsp;     * Checks if the given sequence number was marked as processed in this tracker.
+<i>192</i>&nbsp;     */
+<i>193</i>&nbsp;    public boolean hasProcessed(final long seqNo) {
+<b class="nc"><i>194</i>&nbsp;        assert seqNo &gt;= 0 : &quot;invalid seq_no=&quot; + seqNo;</b>
+<b class="nc"><i>195</i>&nbsp;        if (seqNo &gt;= nextSeqNo.get()) {</b>
+<b class="nc"><i>196</i>&nbsp;            return false;</b>
+<i>197</i>&nbsp;        }
+<b class="nc"><i>198</i>&nbsp;        if (seqNo &lt;= processedCheckpoint.get()) {</b>
+<b class="nc"><i>199</i>&nbsp;            return true;</b>
+<i>200</i>&nbsp;        }
+<b class="nc"><i>201</i>&nbsp;        final long bitSetKey = getBitSetKey(seqNo);</b>
+<b class="nc"><i>202</i>&nbsp;        final int bitSetOffset = seqNoToBitSetOffset(seqNo);</b>
+<b class="nc"><i>203</i>&nbsp;        synchronized (this) {</b>
+<i>204</i>&nbsp;            // check again under lock
+<b class="nc"><i>205</i>&nbsp;            if (seqNo &lt;= processedCheckpoint.get()) {</b>
+<b class="nc"><i>206</i>&nbsp;                return true;</b>
+<i>207</i>&nbsp;            }
+<b class="nc"><i>208</i>&nbsp;            final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);</b>
+<b class="nc"><i>209</i>&nbsp;            return bitSet != null &amp;&amp; bitSet.get(bitSetOffset);</b>
+<b class="nc"><i>210</i>&nbsp;        }</b>
+<i>211</i>&nbsp;    }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    /**
+<i>214</i>&nbsp;     * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number
+<i>215</i>&nbsp;     * following the current checkpoint is processed.
+<i>216</i>&nbsp;     */
+<i>217</i>&nbsp;    @SuppressForbidden(reason = &quot;Object#notifyAll&quot;)
+<i>218</i>&nbsp;    private void updateCheckpoint(AtomicLong checkPoint, LongObjectHashMap&lt;CountedBitSet&gt; bitSetMap) {
+<b class="nc"><i>219</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>220</i>&nbsp;        assert getBitSetForSeqNo(bitSetMap, checkPoint.get() + 1).get(seqNoToBitSetOffset(checkPoint.get() + 1)) :</b>
+<i>221</i>&nbsp;            &quot;updateCheckpoint is called but the bit following the checkpoint is not set&quot;;
+<i>222</i>&nbsp;        try {
+<i>223</i>&nbsp;            // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
+<b class="nc"><i>224</i>&nbsp;            long bitSetKey = getBitSetKey(checkPoint.get());</b>
+<b class="nc"><i>225</i>&nbsp;            CountedBitSet current = bitSetMap.get(bitSetKey);</b>
+<b class="nc"><i>226</i>&nbsp;            if (current == null) {</b>
+<i>227</i>&nbsp;                // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
+<b class="nc"><i>228</i>&nbsp;                assert checkPoint.get() % BIT_SET_SIZE == BIT_SET_SIZE - 1;</b>
+<b class="nc"><i>229</i>&nbsp;                current = bitSetMap.get(++bitSetKey);</b>
+<i>230</i>&nbsp;            }
+<i>231</i>&nbsp;            do {
+<b class="nc"><i>232</i>&nbsp;                checkPoint.incrementAndGet();</b>
+<i>233</i>&nbsp;                /*
+<i>234</i>&nbsp;                 * The checkpoint always falls in the current bit set or we have already cleaned it; if it falls on the last bit of the
+<i>235</i>&nbsp;                 * current bit set, we can clean it.
+<i>236</i>&nbsp;                 */
+<b class="nc"><i>237</i>&nbsp;                if (checkPoint.get() == lastSeqNoInBitSet(bitSetKey)) {</b>
+<b class="nc"><i>238</i>&nbsp;                    assert current != null;</b>
+<b class="nc"><i>239</i>&nbsp;                    final CountedBitSet removed = bitSetMap.remove(bitSetKey);</b>
+<b class="nc"><i>240</i>&nbsp;                    assert removed == current;</b>
+<b class="nc"><i>241</i>&nbsp;                    current = bitSetMap.get(++bitSetKey);</b>
+<i>242</i>&nbsp;                }
+<b class="nc"><i>243</i>&nbsp;            } while (current != null &amp;&amp; current.get(seqNoToBitSetOffset(checkPoint.get() + 1)));</b>
+<i>244</i>&nbsp;        } finally {
+<i>245</i>&nbsp;            // notifies waiters in waitForProcessedOpsToComplete
+<b class="nc"><i>246</i>&nbsp;            this.notifyAll();</b>
+<b class="nc"><i>247</i>&nbsp;        }</b>
+<b class="nc"><i>248</i>&nbsp;    }</b>
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;    private static long lastSeqNoInBitSet(final long bitSetKey) {
+<b class="nc"><i>251</i>&nbsp;        return (1 + bitSetKey) * BIT_SET_SIZE - 1;</b>
+<i>252</i>&nbsp;    }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    /**
+<i>255</i>&nbsp;     * Return the bit set for the provided sequence number, possibly allocating a new set if needed.
+<i>256</i>&nbsp;     *
+<i>257</i>&nbsp;     * @param seqNo the sequence number to obtain the bit set for
+<i>258</i>&nbsp;     * @return the bit set corresponding to the provided sequence number
+<i>259</i>&nbsp;     */
+<i>260</i>&nbsp;    private static long getBitSetKey(final long seqNo) {
+<b class="nc"><i>261</i>&nbsp;        return seqNo / BIT_SET_SIZE;</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    private CountedBitSet getBitSetForSeqNo(final LongObjectHashMap&lt;CountedBitSet&gt; bitSetMap, final long seqNo) {
+<b class="nc"><i>265</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>266</i>&nbsp;        final long bitSetKey = getBitSetKey(seqNo);</b>
+<b class="nc"><i>267</i>&nbsp;        final int index = bitSetMap.indexOf(bitSetKey);</b>
+<i>268</i>&nbsp;        final CountedBitSet bitSet;
+<b class="nc"><i>269</i>&nbsp;        if (bitSetMap.indexExists(index)) {</b>
+<b class="nc"><i>270</i>&nbsp;            bitSet = bitSetMap.indexGet(index);</b>
+<i>271</i>&nbsp;        } else {
+<b class="nc"><i>272</i>&nbsp;            bitSet = new CountedBitSet(BIT_SET_SIZE);</b>
+<b class="nc"><i>273</i>&nbsp;            bitSetMap.indexInsert(index, bitSetKey, bitSet);</b>
+<i>274</i>&nbsp;        }
+<b class="nc"><i>275</i>&nbsp;        return bitSet;</b>
+<i>276</i>&nbsp;    }
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;    /**
+<i>279</i>&nbsp;     * Obtain the position in the bit set corresponding to the provided sequence number. The bit set corresponding to the sequence number
+<i>280</i>&nbsp;     * can be obtained via {@link #getBitSetForSeqNo(LongObjectHashMap, long)}.
+<i>281</i>&nbsp;     *
+<i>282</i>&nbsp;     * @param seqNo the sequence number to obtain the position for
+<i>283</i>&nbsp;     * @return the position in the bit set corresponding to the provided sequence number
+<i>284</i>&nbsp;     */
+<i>285</i>&nbsp;    private static int seqNoToBitSetOffset(final long seqNo) {
+<b class="nc"><i>286</i>&nbsp;        return Math.toIntExact(seqNo % BIT_SET_SIZE);</b>
+<i>287</i>&nbsp;    }
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

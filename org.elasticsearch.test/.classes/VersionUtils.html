@@ -1,0 +1,345 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: VersionUtils</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.test</a> ]
+</div>
+
+<h1>Coverage Summary for Class: VersionUtils (org.elasticsearch.test)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">VersionUtils</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    31.6%
+  </span>
+  <span class="absValue">
+    (6/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    39.6%
+  </span>
+  <span class="absValue">
+    (36/ 91)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.test;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.Version;
+<i>23</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>24</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>25</i>&nbsp;
+<i>26</i>&nbsp;import java.util.ArrayList;
+<i>27</i>&nbsp;import java.util.Collections;
+<i>28</i>&nbsp;import java.util.List;
+<i>29</i>&nbsp;import java.util.Map;
+<i>30</i>&nbsp;import java.util.Optional;
+<i>31</i>&nbsp;import java.util.Random;
+<i>32</i>&nbsp;import java.util.stream.Collectors;
+<i>33</i>&nbsp;import java.util.stream.Stream;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;/** Utilities for selecting versions in tests */
+<b class="fc"><i>36</i>&nbsp;public class VersionUtils {</b>
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    /**
+<i>39</i>&nbsp;     * Sort versions that have backwards compatibility guarantees from
+<i>40</i>&nbsp;     * those that don&#39;t. Doesn&#39;t actually check whether or not the versions
+<i>41</i>&nbsp;     * are released, instead it relies on gradle to have already checked
+<i>42</i>&nbsp;     * this which it does in {@code :core:verifyVersions}. So long as the
+<i>43</i>&nbsp;     * rules here match up with the rules in gradle then this should
+<i>44</i>&nbsp;     * produce sensible results.
+<i>45</i>&nbsp;     * @return a tuple containing versions with backwards compatibility
+<i>46</i>&nbsp;     * guarantees in v1 and versions without the guarantees in v2
+<i>47</i>&nbsp;     */
+<i>48</i>&nbsp;    static Tuple&lt;List&lt;Version&gt;, List&lt;Version&gt;&gt; resolveReleasedVersions(Version current, Class&lt;?&gt; versionClass) {
+<i>49</i>&nbsp;        // group versions into major version
+<b class="fc"><i>50</i>&nbsp;        Map&lt;Integer, List&lt;Version&gt;&gt; majorVersions = Version.getDeclaredVersions(versionClass).stream()</b>
+<b class="fc"><i>51</i>&nbsp;            .collect(Collectors.groupingBy(v -&gt; (int)v.major));</b>
+<i>52</i>&nbsp;        // this breaks b/c 5.x is still in version list but master doesn&#39;t care about it!
+<i>53</i>&nbsp;        //assert majorVersions.size() == 2;
+<i>54</i>&nbsp;        // TODO: remove oldVersions, we should only ever have 2 majors in Version
+<b class="fc"><i>55</i>&nbsp;        List&lt;List&lt;Version&gt;&gt; oldVersions = splitByMinor(majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList()));</b>
+<b class="fc"><i>56</i>&nbsp;        List&lt;List&lt;Version&gt;&gt; previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));</b>
+<b class="fc"><i>57</i>&nbsp;        List&lt;List&lt;Version&gt;&gt; currentMajor = splitByMinor(majorVersions.get((int)current.major));</b>
+<i>58</i>&nbsp;
+<b class="fc"><i>59</i>&nbsp;        List&lt;Version&gt; unreleasedVersions = new ArrayList&lt;&gt;();</b>
+<i>60</i>&nbsp;        final List&lt;List&lt;Version&gt;&gt; stableVersions;
+<b class="fc"><i>61</i>&nbsp;        if (currentMajor.size() == 1) {</b>
+<i>62</i>&nbsp;            // on master branch
+<b class="nc"><i>63</i>&nbsp;            stableVersions = previousMajor;</b>
+<i>64</i>&nbsp;            // remove current
+<b class="nc"><i>65</i>&nbsp;            moveLastToUnreleased(currentMajor, unreleasedVersions);</b>
+<i>66</i>&nbsp;        } else {
+<i>67</i>&nbsp;            // on a stable or release branch, ie N.x
+<b class="fc"><i>68</i>&nbsp;            stableVersions = currentMajor;</b>
+<i>69</i>&nbsp;            // remove the next maintenance bugfix
+<b class="fc"><i>70</i>&nbsp;            final Version prevMajorLastMinor = moveLastToUnreleased(previousMajor, unreleasedVersions);</b>
+<b class="fc"><i>71</i>&nbsp;            if (prevMajorLastMinor.revision == 0 &amp;&amp; previousMajor.isEmpty() == false) {</b>
+<i>72</i>&nbsp;                // The latest minor in the previous major is a &quot;.0&quot; release, so there must be an unreleased bugfix for the minor before that
+<b class="nc"><i>73</i>&nbsp;                moveLastToUnreleased(previousMajor, unreleasedVersions);</b>
+<i>74</i>&nbsp;            }
+<i>75</i>&nbsp;        }
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;        // remove next minor
+<b class="fc"><i>78</i>&nbsp;        Version lastMinor = moveLastToUnreleased(stableVersions, unreleasedVersions);</b>
+<b class="fc"><i>79</i>&nbsp;        if (lastMinor.revision == 0) {</b>
+<b class="nc"><i>80</i>&nbsp;            if (stableVersions.get(stableVersions.size() - 1).size() == 1) {</b>
+<i>81</i>&nbsp;                // a minor is being staged, which is also unreleased
+<b class="nc"><i>82</i>&nbsp;                moveLastToUnreleased(stableVersions, unreleasedVersions);</b>
+<i>83</i>&nbsp;            }
+<i>84</i>&nbsp;            // remove the next bugfix
+<b class="nc"><i>85</i>&nbsp;            if (stableVersions.isEmpty() == false) {</b>
+<b class="nc"><i>86</i>&nbsp;                moveLastToUnreleased(stableVersions, unreleasedVersions);</b>
+<i>87</i>&nbsp;            }
+<i>88</i>&nbsp;        }
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;        // If none of the previous major was released, then the last minor and bugfix of the old version was not released either.
+<b class="fc"><i>91</i>&nbsp;        if (previousMajor.isEmpty()) {</b>
+<b class="nc"><i>92</i>&nbsp;            assert currentMajor.isEmpty() : currentMajor;</b>
+<i>93</i>&nbsp;            // minor of the old version is being staged
+<b class="nc"><i>94</i>&nbsp;            moveLastToUnreleased(oldVersions, unreleasedVersions);</b>
+<i>95</i>&nbsp;            // bugix of the old version is also being staged
+<b class="nc"><i>96</i>&nbsp;            moveLastToUnreleased(oldVersions, unreleasedVersions);</b>
+<i>97</i>&nbsp;        }
+<b class="fc"><i>98</i>&nbsp;        List&lt;Version&gt; releasedVersions = Stream.of(oldVersions, previousMajor, currentMajor)</b>
+<b class="fc"><i>99</i>&nbsp;            .flatMap(List::stream).flatMap(List::stream).collect(Collectors.toList());</b>
+<b class="fc"><i>100</i>&nbsp;        Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here</b>
+<b class="fc"><i>101</i>&nbsp;        return new Tuple&lt;&gt;(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    // split the given versions into sub lists grouped by minor version
+<i>105</i>&nbsp;    private static List&lt;List&lt;Version&gt;&gt; splitByMinor(List&lt;Version&gt; versions) {
+<b class="fc"><i>106</i>&nbsp;        Map&lt;Integer, List&lt;Version&gt;&gt; byMinor = versions.stream().collect(Collectors.groupingBy(v -&gt; (int)v.minor));</b>
+<b class="fc"><i>107</i>&nbsp;        return byMinor.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList());</b>
+<i>108</i>&nbsp;    }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    // move the last version of the last minor in versions to the unreleased versions
+<i>111</i>&nbsp;    private static Version moveLastToUnreleased(List&lt;List&lt;Version&gt;&gt; versions, List&lt;Version&gt; unreleasedVersions) {
+<b class="fc"><i>112</i>&nbsp;        List&lt;Version&gt; lastMinor = new ArrayList&lt;&gt;(versions.get(versions.size() - 1));</b>
+<b class="fc"><i>113</i>&nbsp;        Version lastVersion = lastMinor.remove(lastMinor.size() - 1);</b>
+<b class="fc"><i>114</i>&nbsp;        if (lastMinor.isEmpty()) {</b>
+<b class="nc"><i>115</i>&nbsp;            versions.remove(versions.size() - 1);</b>
+<i>116</i>&nbsp;        } else {
+<b class="fc"><i>117</i>&nbsp;            versions.set(versions.size() - 1, lastMinor);</b>
+<i>118</i>&nbsp;        }
+<b class="fc"><i>119</i>&nbsp;        unreleasedVersions.add(lastVersion);</b>
+<b class="fc"><i>120</i>&nbsp;        return lastVersion;</b>
+<i>121</i>&nbsp;    }
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    private static final List&lt;Version&gt; RELEASED_VERSIONS;
+<i>124</i>&nbsp;    private static final List&lt;Version&gt; UNRELEASED_VERSIONS;
+<i>125</i>&nbsp;    private static final List&lt;Version&gt; ALL_VERSIONS;
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    static {
+<b class="fc"><i>128</i>&nbsp;        Tuple&lt;List&lt;Version&gt;, List&lt;Version&gt;&gt; versions = resolveReleasedVersions(Version.CURRENT, Version.class);</b>
+<b class="fc"><i>129</i>&nbsp;        RELEASED_VERSIONS = versions.v1();</b>
+<b class="fc"><i>130</i>&nbsp;        UNRELEASED_VERSIONS = versions.v2();</b>
+<b class="fc"><i>131</i>&nbsp;        List&lt;Version&gt; allVersions = new ArrayList&lt;&gt;(RELEASED_VERSIONS.size() + UNRELEASED_VERSIONS.size());</b>
+<b class="fc"><i>132</i>&nbsp;        allVersions.addAll(RELEASED_VERSIONS);</b>
+<b class="fc"><i>133</i>&nbsp;        allVersions.addAll(UNRELEASED_VERSIONS);</b>
+<b class="fc"><i>134</i>&nbsp;        Collections.sort(allVersions);</b>
+<b class="fc"><i>135</i>&nbsp;        ALL_VERSIONS = Collections.unmodifiableList(allVersions);</b>
+<b class="fc"><i>136</i>&nbsp;    }</b>
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * Returns an immutable, sorted list containing all released versions.
+<i>140</i>&nbsp;     */
+<i>141</i>&nbsp;    public static List&lt;Version&gt; allReleasedVersions() {
+<b class="fc"><i>142</i>&nbsp;        return RELEASED_VERSIONS;</b>
+<i>143</i>&nbsp;    }
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;    /**
+<i>146</i>&nbsp;     * Returns an immutable, sorted list containing all unreleased versions.
+<i>147</i>&nbsp;     */
+<i>148</i>&nbsp;    public static List&lt;Version&gt; allUnreleasedVersions() {
+<b class="nc"><i>149</i>&nbsp;        return UNRELEASED_VERSIONS;</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /**
+<i>153</i>&nbsp;     * Returns an immutable, sorted list containing all versions, both released and unreleased.
+<i>154</i>&nbsp;     */
+<i>155</i>&nbsp;    public static List&lt;Version&gt; allVersions() {
+<b class="nc"><i>156</i>&nbsp;        return ALL_VERSIONS;</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    /**
+<i>160</i>&nbsp;     * Get the released version before {@code version}.
+<i>161</i>&nbsp;     */
+<i>162</i>&nbsp;    public static Version getPreviousVersion(Version version) {
+<b class="nc"><i>163</i>&nbsp;        for (int i = RELEASED_VERSIONS.size() - 1; i &gt;= 0; i--) {</b>
+<b class="nc"><i>164</i>&nbsp;            Version v = RELEASED_VERSIONS.get(i);</b>
+<b class="nc"><i>165</i>&nbsp;            if (v.before(version)) {</b>
+<b class="nc"><i>166</i>&nbsp;                return v;</b>
+<i>167</i>&nbsp;            }
+<i>168</i>&nbsp;        }
+<b class="nc"><i>169</i>&nbsp;        throw new IllegalArgumentException(&quot;couldn&#39;t find any released versions before [&quot; + version + &quot;]&quot;);</b>
+<i>170</i>&nbsp;    }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    /**
+<i>173</i>&nbsp;     * Get the released version before {@link Version#CURRENT}.
+<i>174</i>&nbsp;     */
+<i>175</i>&nbsp;    public static Version getPreviousVersion() {
+<b class="nc"><i>176</i>&nbsp;        Version version = getPreviousVersion(Version.CURRENT);</b>
+<b class="nc"><i>177</i>&nbsp;        assert version.before(Version.CURRENT);</b>
+<b class="nc"><i>178</i>&nbsp;        return version;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Returns the released {@link Version} before the {@link Version#CURRENT}
+<i>183</i>&nbsp;     * where the minor version is less than the currents minor version.
+<i>184</i>&nbsp;     */
+<i>185</i>&nbsp;    public static Version getPreviousMinorVersion() {
+<b class="nc"><i>186</i>&nbsp;        for (int i = RELEASED_VERSIONS.size() - 1; i &gt;= 0; i--) {</b>
+<b class="nc"><i>187</i>&nbsp;            Version v = RELEASED_VERSIONS.get(i);</b>
+<b class="nc"><i>188</i>&nbsp;            if (v.minor &lt; Version.CURRENT.minor || v.major &lt; Version.CURRENT.major) {</b>
+<b class="nc"><i>189</i>&nbsp;                return v;</b>
+<i>190</i>&nbsp;            }
+<i>191</i>&nbsp;        }
+<b class="nc"><i>192</i>&nbsp;        throw new IllegalArgumentException(&quot;couldn&#39;t find any released versions of the minor before [&quot; + Version.CURRENT + &quot;]&quot;);</b>
+<i>193</i>&nbsp;    }
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    /** Returns the oldest released {@link Version} */
+<i>196</i>&nbsp;    public static Version getFirstVersion() {
+<b class="nc"><i>197</i>&nbsp;        return RELEASED_VERSIONS.get(0);</b>
+<i>198</i>&nbsp;    }
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    /** Returns a random {@link Version} from all available versions. */
+<i>201</i>&nbsp;    public static Version randomVersion(Random random) {
+<b class="nc"><i>202</i>&nbsp;        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));</b>
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+<i>206</i>&nbsp;    public static Version randomCompatibleVersion(Random random, Version version) {
+<b class="nc"><i>207</i>&nbsp;        final List&lt;Version&gt; compatible = ALL_VERSIONS.stream().filter(version::isCompatible).collect(Collectors.toList());</b>
+<b class="nc"><i>208</i>&nbsp;        return compatible.get(random.nextInt(compatible.size()));</b>
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    /** Returns a random {@link Version} between &lt;code&gt;minVersion&lt;/code&gt; and &lt;code&gt;maxVersion&lt;/code&gt; (inclusive). */
+<i>212</i>&nbsp;    public static Version randomVersionBetween(Random random, @Nullable Version minVersion, @Nullable Version maxVersion) {
+<b class="nc"><i>213</i>&nbsp;        int minVersionIndex = 0;</b>
+<b class="nc"><i>214</i>&nbsp;        if (minVersion != null) {</b>
+<b class="nc"><i>215</i>&nbsp;            minVersionIndex = ALL_VERSIONS.indexOf(minVersion);</b>
+<i>216</i>&nbsp;        }
+<b class="nc"><i>217</i>&nbsp;        int maxVersionIndex = ALL_VERSIONS.size() - 1;</b>
+<b class="nc"><i>218</i>&nbsp;        if (maxVersion != null) {</b>
+<b class="nc"><i>219</i>&nbsp;            maxVersionIndex = ALL_VERSIONS.indexOf(maxVersion);</b>
+<i>220</i>&nbsp;        }
+<b class="nc"><i>221</i>&nbsp;        if (minVersionIndex == -1) {</b>
+<b class="nc"><i>222</i>&nbsp;            throw new IllegalArgumentException(&quot;minVersion [&quot; + minVersion + &quot;] does not exist.&quot;);</b>
+<b class="nc"><i>223</i>&nbsp;        } else if (maxVersionIndex == -1) {</b>
+<b class="nc"><i>224</i>&nbsp;            throw new IllegalArgumentException(&quot;maxVersion [&quot; + maxVersion + &quot;] does not exist.&quot;);</b>
+<b class="nc"><i>225</i>&nbsp;        } else if (minVersionIndex &gt; maxVersionIndex) {</b>
+<b class="nc"><i>226</i>&nbsp;            throw new IllegalArgumentException(&quot;maxVersion [&quot; + maxVersion + &quot;] cannot be less than minVersion [&quot; + minVersion + &quot;]&quot;);</b>
+<i>227</i>&nbsp;        } else {
+<i>228</i>&nbsp;            // minVersionIndex is inclusive so need to add 1 to this index
+<b class="nc"><i>229</i>&nbsp;            int range = maxVersionIndex + 1 - minVersionIndex;</b>
+<b class="nc"><i>230</i>&nbsp;            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));</b>
+<i>231</i>&nbsp;        }
+<i>232</i>&nbsp;    }
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    /** returns the first future incompatible version */
+<i>235</i>&nbsp;    public static Version incompatibleFutureVersion(Version version) {
+<b class="nc"><i>236</i>&nbsp;        final Optional&lt;Version&gt; opt = ALL_VERSIONS.stream().filter(version::before).filter(v -&gt; v.isCompatible(version) == false).findAny();</b>
+<b class="nc"><i>237</i>&nbsp;        assert opt.isPresent() : &quot;no future incompatible version for &quot; + version;</b>
+<b class="nc"><i>238</i>&nbsp;        return opt.get();</b>
+<i>239</i>&nbsp;    }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;    /** returns the first future compatible version */
+<i>242</i>&nbsp;    public static Version compatibleFutureVersion(Version version) {
+<b class="nc"><i>243</i>&nbsp;        final Optional&lt;Version&gt; opt = ALL_VERSIONS.stream().filter(version::before).filter(v -&gt; v.isCompatible(version)).findAny();</b>
+<b class="nc"><i>244</i>&nbsp;        assert opt.isPresent() : &quot;no future compatible version for &quot; + version;</b>
+<b class="nc"><i>245</i>&nbsp;        return opt.get();</b>
+<i>246</i>&nbsp;    }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    /** Returns the maximum {@link Version} that is compatible with the given version. */
+<i>249</i>&nbsp;    public static Version maxCompatibleVersion(Version version) {
+<b class="nc"><i>250</i>&nbsp;        final List&lt;Version&gt; compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)</b>
+<b class="nc"><i>251</i>&nbsp;            .collect(Collectors.toList());</b>
+<b class="nc"><i>252</i>&nbsp;        assert compatible.size() &gt; 0;</b>
+<b class="nc"><i>253</i>&nbsp;        return compatible.get(compatible.size() - 1);</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    /**
+<i>257</i>&nbsp;     * Returns a random version index compatible with the current version.
+<i>258</i>&nbsp;     */
+<i>259</i>&nbsp;    public static Version randomIndexCompatibleVersion(Random random) {
+<b class="nc"><i>260</i>&nbsp;        return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);</b>
+<i>261</i>&nbsp;    }
+<i>262</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

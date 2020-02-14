@@ -1,0 +1,369 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Repository</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.repositories</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Repository (org.elasticsearch.repositories)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">Repository</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">Repository$Factory</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 3)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.repositories;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.index.IndexCommit;
+<i>22</i>&nbsp;import org.elasticsearch.Version;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>28</i>&nbsp;import org.elasticsearch.common.component.LifecycleComponent;
+<i>29</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>30</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>31</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>32</i>&nbsp;import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+<i>33</i>&nbsp;import org.elasticsearch.index.store.Store;
+<i>34</i>&nbsp;import org.elasticsearch.indices.recovery.RecoveryState;
+<i>35</i>&nbsp;import org.elasticsearch.snapshots.SnapshotId;
+<i>36</i>&nbsp;import org.elasticsearch.snapshots.SnapshotInfo;
+<i>37</i>&nbsp;import org.elasticsearch.snapshots.SnapshotShardFailure;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.util.List;
+<i>41</i>&nbsp;import java.util.Map;
+<i>42</i>&nbsp;import java.util.function.Function;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;/**
+<i>45</i>&nbsp; * An interface for interacting with a repository in snapshot and restore.
+<i>46</i>&nbsp; * &lt;p&gt;
+<i>47</i>&nbsp; * Implementations are responsible for reading and writing both metadata and shard data to and from
+<i>48</i>&nbsp; * a repository backend.
+<i>49</i>&nbsp; * &lt;p&gt;
+<i>50</i>&nbsp; * To perform a snapshot:
+<i>51</i>&nbsp; * &lt;ul&gt;
+<i>52</i>&nbsp; * &lt;li&gt;Data nodes call {@link Repository#snapshotShard}
+<i>53</i>&nbsp; * for each shard&lt;/li&gt;
+<i>54</i>&nbsp; * &lt;li&gt;When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures&lt;/li&gt;
+<i>55</i>&nbsp; * &lt;/ul&gt;
+<i>56</i>&nbsp; */
+<i>57</i>&nbsp;public interface Repository extends LifecycleComponent {
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    /**
+<i>60</i>&nbsp;     * An factory interface for constructing repositories.
+<i>61</i>&nbsp;     * See {@link org.elasticsearch.plugins.RepositoryPlugin}.
+<i>62</i>&nbsp;     */
+<i>63</i>&nbsp;    interface Factory {
+<i>64</i>&nbsp;        /**
+<i>65</i>&nbsp;         * Constructs a repository.
+<i>66</i>&nbsp;         * @param metadata    metadata for the repository including name and settings
+<i>67</i>&nbsp;         */
+<i>68</i>&nbsp;        Repository create(RepositoryMetaData metadata) throws Exception;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;        default Repository create(RepositoryMetaData metaData, Function&lt;String, Repository.Factory&gt; typeLookup) throws Exception {
+<b class="nc"><i>71</i>&nbsp;            return create(metaData);</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;    }
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * Returns metadata about this repository.
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    RepositoryMetaData getMetadata();
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    /**
+<i>81</i>&nbsp;     * Reads snapshot description from repository.
+<i>82</i>&nbsp;     *
+<i>83</i>&nbsp;     * @param snapshotId  snapshot id
+<i>84</i>&nbsp;     * @return information about snapshot
+<i>85</i>&nbsp;     */
+<i>86</i>&nbsp;    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    /**
+<i>89</i>&nbsp;     * Returns global metadata associated with the snapshot.
+<i>90</i>&nbsp;     *
+<i>91</i>&nbsp;     * @param snapshotId the snapshot id to load the global metadata from
+<i>92</i>&nbsp;     * @return the global metadata about the snapshot
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId);
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    /**
+<i>97</i>&nbsp;     * Returns the index metadata associated with the snapshot.
+<i>98</i>&nbsp;     *
+<i>99</i>&nbsp;     * @param snapshotId the snapshot id to load the index metadata from
+<i>100</i>&nbsp;     * @param index      the {@link IndexId} to load the metadata from
+<i>101</i>&nbsp;     * @return the index metadata about the given index for the given snapshot
+<i>102</i>&nbsp;     */
+<i>103</i>&nbsp;    IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException;
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    /**
+<i>106</i>&nbsp;     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
+<i>107</i>&nbsp;     * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
+<i>108</i>&nbsp;     * if there was an error in reading the data.
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    RepositoryData getRepositoryData();
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    /**
+<i>113</i>&nbsp;     * Starts snapshotting process
+<i>114</i>&nbsp;     *
+<i>115</i>&nbsp;     * @param snapshotId snapshot id
+<i>116</i>&nbsp;     * @param indices    list of indices to be snapshotted
+<i>117</i>&nbsp;     * @param metaData   cluster metadata
+<i>118</i>&nbsp;     *
+<i>119</i>&nbsp;     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a master node older than
+<i>120</i>&nbsp;     *             {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
+<i>121</i>&nbsp;     */
+<i>122</i>&nbsp;    @Deprecated
+<i>123</i>&nbsp;    void initializeSnapshot(SnapshotId snapshotId, List&lt;IndexId&gt; indices, MetaData metaData);
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    /**
+<i>126</i>&nbsp;     * Finalizes snapshotting process
+<i>127</i>&nbsp;     * &lt;p&gt;
+<i>128</i>&nbsp;     * This method is called on master after all shards are snapshotted.
+<i>129</i>&nbsp;     *
+<i>130</i>&nbsp;     * @param snapshotId    snapshot id
+<i>131</i>&nbsp;     * @param indices       list of indices in the snapshot
+<i>132</i>&nbsp;     * @param startTime     start time of the snapshot
+<i>133</i>&nbsp;     * @param failure       global failure reason or null
+<i>134</i>&nbsp;     * @param totalShards   total number of shards
+<i>135</i>&nbsp;     * @param shardFailures list of shard failures
+<i>136</i>&nbsp;     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
+<i>137</i>&nbsp;     * @param includeGlobalState include cluster global state
+<i>138</i>&nbsp;     * @param listener listener to be called on completion of the snapshot
+<i>139</i>&nbsp;     */
+<i>140</i>&nbsp;    void finalizeSnapshot(SnapshotId snapshotId, List&lt;IndexId&gt; indices, long startTime, String failure, int totalShards,
+<i>141</i>&nbsp;                          List&lt;SnapshotShardFailure&gt; shardFailures, long repositoryStateId, boolean includeGlobalState,
+<i>142</i>&nbsp;                          MetaData clusterMetaData, Map&lt;String, Object&gt; userMetadata, ActionListener&lt;SnapshotInfo&gt; listener);
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    /**
+<i>145</i>&nbsp;     * Deletes snapshot
+<i>146</i>&nbsp;     *
+<i>147</i>&nbsp;     * @param snapshotId snapshot id
+<i>148</i>&nbsp;     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
+<i>149</i>&nbsp;     * @param listener completion listener
+<i>150</i>&nbsp;     */
+<i>151</i>&nbsp;    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener&lt;Void&gt; listener);
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    /**
+<i>154</i>&nbsp;     * Returns snapshot throttle time in nanoseconds
+<i>155</i>&nbsp;     */
+<i>156</i>&nbsp;    long getSnapshotThrottleTimeInNanos();
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /**
+<i>159</i>&nbsp;     * Returns restore throttle time in nanoseconds
+<i>160</i>&nbsp;     */
+<i>161</i>&nbsp;    long getRestoreThrottleTimeInNanos();
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    /**
+<i>165</i>&nbsp;     * Verifies repository on the master node and returns the verification token.
+<i>166</i>&nbsp;     * &lt;p&gt;
+<i>167</i>&nbsp;     * If the verification token is not null, it&#39;s passed to all data nodes for verification. If it&#39;s null - no
+<i>168</i>&nbsp;     * additional verification is required
+<i>169</i>&nbsp;     *
+<i>170</i>&nbsp;     * @return verification token that should be passed to all Index Shard Repositories for additional verification or null
+<i>171</i>&nbsp;     */
+<i>172</i>&nbsp;    String startVerification();
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * Called at the end of repository verification process.
+<i>176</i>&nbsp;     * &lt;p&gt;
+<i>177</i>&nbsp;     * This method should perform all necessary cleanup of the temporary files created in the repository
+<i>178</i>&nbsp;     *
+<i>179</i>&nbsp;     * @param verificationToken verification request generated by {@link #startVerification} command
+<i>180</i>&nbsp;     */
+<i>181</i>&nbsp;    void endVerification(String verificationToken);
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    /**
+<i>184</i>&nbsp;     * Verifies repository settings on data node.
+<i>185</i>&nbsp;     * @param verificationToken value returned by {@link org.elasticsearch.repositories.Repository#startVerification()}
+<i>186</i>&nbsp;     * @param localNode         the local node information, for inclusion in verification errors
+<i>187</i>&nbsp;     */
+<i>188</i>&nbsp;    void verify(String verificationToken, DiscoveryNode localNode);
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    /**
+<i>191</i>&nbsp;     * Returns true if the repository supports only read operations
+<i>192</i>&nbsp;     * @return true if the repository is read/only
+<i>193</i>&nbsp;     */
+<i>194</i>&nbsp;    boolean isReadOnly();
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    /**
+<i>197</i>&nbsp;     * Creates a snapshot of the shard based on the index commit point.
+<i>198</i>&nbsp;     * &lt;p&gt;
+<i>199</i>&nbsp;     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
+<i>200</i>&nbsp;     * Repository implementations shouldn&#39;t release the snapshot index commit point. It is done by the method caller.
+<i>201</i>&nbsp;     * &lt;p&gt;
+<i>202</i>&nbsp;     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+<i>203</i>&nbsp;     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+<i>204</i>&nbsp;     * @param store               store to be snapshotted
+<i>205</i>&nbsp;     * @param mapperService       the shards mapper service
+<i>206</i>&nbsp;     * @param snapshotId          snapshot id
+<i>207</i>&nbsp;     * @param indexId             id for the index being snapshotted
+<i>208</i>&nbsp;     * @param snapshotIndexCommit commit point
+<i>209</i>&nbsp;     * @param snapshotStatus      snapshot status
+<i>210</i>&nbsp;     * @param listener            listener invoked on completion
+<i>211</i>&nbsp;     */
+<i>212</i>&nbsp;    void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+<i>213</i>&nbsp;                       IndexShardSnapshotStatus snapshotStatus, ActionListener&lt;Void&gt; listener);
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    /**
+<i>216</i>&nbsp;     * Restores snapshot of the shard.
+<i>217</i>&nbsp;     * &lt;p&gt;
+<i>218</i>&nbsp;     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+<i>219</i>&nbsp;     * @param shard           the shard to restore the index into
+<i>220</i>&nbsp;     * @param store           the store to restore the index into
+<i>221</i>&nbsp;     * @param snapshotId      snapshot id
+<i>222</i>&nbsp;     * @param version         version of elasticsearch that created this snapshot
+<i>223</i>&nbsp;     * @param indexId         id of the index in the repository from which the restore is occurring
+<i>224</i>&nbsp;     * @param snapshotShardId shard id (in the snapshot)
+<i>225</i>&nbsp;     * @param recoveryState   recovery state
+<i>226</i>&nbsp;     * @deprecated use {@link #restoreShard(Store, SnapshotId, Version, IndexId, ShardId, RecoveryState)} instead
+<i>227</i>&nbsp;     */
+<i>228</i>&nbsp;    @Deprecated
+<i>229</i>&nbsp;    default void restoreShard(IndexShard shard, Store store, SnapshotId snapshotId, Version version, IndexId indexId,
+<i>230</i>&nbsp;                              ShardId snapshotShardId, RecoveryState recoveryState) {
+<b class="nc"><i>231</i>&nbsp;        restoreShard(store, snapshotId, version, indexId, snapshotShardId, recoveryState);</b>
+<b class="nc"><i>232</i>&nbsp;    }</b>
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    /**
+<i>235</i>&nbsp;     * Restores snapshot of the shard.
+<i>236</i>&nbsp;     * &lt;p&gt;
+<i>237</i>&nbsp;     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+<i>238</i>&nbsp;     * @param store           the store to restore the index into
+<i>239</i>&nbsp;     * @param snapshotId      snapshot id
+<i>240</i>&nbsp;     * @param version         version of elasticsearch that created this snapshot
+<i>241</i>&nbsp;     * @param indexId         id of the index in the repository from which the restore is occurring
+<i>242</i>&nbsp;     * @param snapshotShardId shard id (in the snapshot)
+<i>243</i>&nbsp;     * @param recoveryState   recovery state
+<i>244</i>&nbsp;     */
+<i>245</i>&nbsp;    void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
+<i>246</i>&nbsp;                      RecoveryState recoveryState);
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    /**
+<i>249</i>&nbsp;     * Retrieve shard snapshot status for the stored snapshot
+<i>250</i>&nbsp;     *
+<i>251</i>&nbsp;     * @param snapshotId snapshot id
+<i>252</i>&nbsp;     * @param version    version of elasticsearch that created this snapshot
+<i>253</i>&nbsp;     * @param indexId    the snapshotted index id for the shard to get status for
+<i>254</i>&nbsp;     * @param shardId    shard id
+<i>255</i>&nbsp;     * @return snapshot status
+<i>256</i>&nbsp;     */
+<i>257</i>&nbsp;    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

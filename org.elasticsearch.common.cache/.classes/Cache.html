@@ -1,0 +1,989 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Cache</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.cache</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Cache (org.elasticsearch.common.cache)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">Cache</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.4%
+  </span>
+  <span class="absValue">
+    (6/ 39)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    18.5%
+  </span>
+  <span class="absValue">
+    (43/ 233)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">Cache$CacheSegment</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (1/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    9.2%
+  </span>
+  <span class="absValue">
+    (6/ 65)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">Cache$CacheSegment$SegmentStats</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (1/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (4/ 10)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    16.3%
+  </span>
+  <span class="absValue">
+    (8/ 49)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    17.2%
+  </span>
+  <span class="absValue">
+    (53/ 308)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.cache;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>23</i>&nbsp;import org.elasticsearch.common.util.concurrent.ReleasableLock;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.util.Arrays;
+<i>26</i>&nbsp;import java.util.HashMap;
+<i>27</i>&nbsp;import java.util.Iterator;
+<i>28</i>&nbsp;import java.util.Map;
+<i>29</i>&nbsp;import java.util.Objects;
+<i>30</i>&nbsp;import java.util.concurrent.CompletableFuture;
+<i>31</i>&nbsp;import java.util.concurrent.ExecutionException;
+<i>32</i>&nbsp;import java.util.concurrent.atomic.LongAdder;
+<i>33</i>&nbsp;import java.util.concurrent.locks.ReadWriteLock;
+<i>34</i>&nbsp;import java.util.concurrent.locks.ReentrantLock;
+<i>35</i>&nbsp;import java.util.concurrent.locks.ReentrantReadWriteLock;
+<i>36</i>&nbsp;import java.util.function.BiFunction;
+<i>37</i>&nbsp;import java.util.function.Consumer;
+<i>38</i>&nbsp;import java.util.function.Predicate;
+<i>39</i>&nbsp;import java.util.function.ToLongBiFunction;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;/**
+<i>42</i>&nbsp; * A simple concurrent cache.
+<i>43</i>&nbsp; * &lt;p&gt;
+<i>44</i>&nbsp; * Cache is a simple concurrent cache that supports time-based and weight-based evictions, with notifications for all
+<i>45</i>&nbsp; * evictions. The design goals for this cache were simplicity and read performance. This means that we are willing to
+<i>46</i>&nbsp; * accept reduced write performance in exchange for easy-to-understand code. Cache statistics for hits, misses and
+<i>47</i>&nbsp; * evictions are exposed.
+<i>48</i>&nbsp; * &lt;p&gt;
+<i>49</i>&nbsp; * The design of the cache is relatively simple. The cache is segmented into 256 segments which are backed by HashMaps.
+<i>50</i>&nbsp; * Each segment is protected by a re-entrant read/write lock. The read/write locks permit multiple concurrent readers
+<i>51</i>&nbsp; * without contention, and the segments gives us write throughput without impacting readers (so readers are blocked only
+<i>52</i>&nbsp; * if they are reading a segment that a writer is writing to).
+<i>53</i>&nbsp; * &lt;p&gt;
+<i>54</i>&nbsp; * The LRU functionality is backed by a single doubly-linked list chaining the entries in order of insertion. This
+<i>55</i>&nbsp; * LRU list is protected by a lock that serializes all writes to it. There are opportunities for improvements
+<i>56</i>&nbsp; * here if write throughput is a concern.
+<i>57</i>&nbsp; * &lt;ol&gt;
+<i>58</i>&nbsp; * &lt;li&gt;LRU list mutations could be inserted into a blocking queue that a single thread is reading from
+<i>59</i>&nbsp; * and applying to the LRU list.&lt;/li&gt;
+<i>60</i>&nbsp; * &lt;li&gt;Promotions could be deferred for entries that were &quot;recently&quot; promoted.&lt;/li&gt;
+<i>61</i>&nbsp; * &lt;li&gt;Locks on the list could be taken per node being modified instead of globally.&lt;/li&gt;
+<i>62</i>&nbsp; * &lt;/ol&gt;
+<i>63</i>&nbsp; * &lt;p&gt;
+<i>64</i>&nbsp; * Evictions only occur after a mutation to the cache (meaning an entry promotion, a cache insertion, or a manual
+<i>65</i>&nbsp; * invalidation) or an explicit call to {@link #refresh()}.
+<i>66</i>&nbsp; *
+<i>67</i>&nbsp; * @param &lt;K&gt; The type of the keys
+<i>68</i>&nbsp; * @param &lt;V&gt; The type of the values
+<i>69</i>&nbsp; */
+<b class="fc"><i>70</i>&nbsp;public class Cache&lt;K, V&gt; {</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    // positive if entries have an expiration
+<b class="fc"><i>73</i>&nbsp;    private long expireAfterAccessNanos = -1;</b>
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    // true if entries can expire after access
+<i>76</i>&nbsp;    private boolean entriesExpireAfterAccess;
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    // positive if entries have an expiration after write
+<b class="fc"><i>79</i>&nbsp;    private long expireAfterWriteNanos = -1;</b>
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    // true if entries can expire after initial insertion
+<i>82</i>&nbsp;    private boolean entriesExpireAfterWrite;
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    // the number of entries in the cache
+<b class="fc"><i>85</i>&nbsp;    private int count = 0;</b>
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    // the weight of the entries in the cache
+<b class="fc"><i>88</i>&nbsp;    private long weight = 0;</b>
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    // the maximum weight that this cache supports
+<b class="fc"><i>91</i>&nbsp;    private long maximumWeight = -1;</b>
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    // the weigher of entries
+<b class="fc"><i>94</i>&nbsp;    private ToLongBiFunction&lt;K, V&gt; weigher = (k, v) -&gt; 1;</b>
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    // the removal callback
+<b class="fc"><i>97</i>&nbsp;    private RemovalListener&lt;K, V&gt; removalListener = notification -&gt; {</b>
+<b class="nc"><i>98</i>&nbsp;    };</b>
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    // use CacheBuilder to construct
+<b class="fc"><i>101</i>&nbsp;    Cache() {</b>
+<b class="fc"><i>102</i>&nbsp;    }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    void setExpireAfterAccessNanos(long expireAfterAccessNanos) {
+<b class="nc"><i>105</i>&nbsp;        if (expireAfterAccessNanos &lt;= 0) {</b>
+<b class="nc"><i>106</i>&nbsp;            throw new IllegalArgumentException(&quot;expireAfterAccessNanos &lt;= 0&quot;);</b>
+<i>107</i>&nbsp;        }
+<b class="nc"><i>108</i>&nbsp;        this.expireAfterAccessNanos = expireAfterAccessNanos;</b>
+<b class="nc"><i>109</i>&nbsp;        this.entriesExpireAfterAccess = true;</b>
+<b class="nc"><i>110</i>&nbsp;    }</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    // pkg-private for testing
+<i>113</i>&nbsp;    long getExpireAfterAccessNanos() {
+<b class="nc"><i>114</i>&nbsp;        return this.expireAfterAccessNanos;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    void setExpireAfterWriteNanos(long expireAfterWriteNanos) {
+<b class="nc"><i>118</i>&nbsp;        if (expireAfterWriteNanos &lt;= 0) {</b>
+<b class="nc"><i>119</i>&nbsp;            throw new IllegalArgumentException(&quot;expireAfterWriteNanos &lt;= 0&quot;);</b>
+<i>120</i>&nbsp;        }
+<b class="nc"><i>121</i>&nbsp;        this.expireAfterWriteNanos = expireAfterWriteNanos;</b>
+<b class="nc"><i>122</i>&nbsp;        this.entriesExpireAfterWrite = true;</b>
+<b class="nc"><i>123</i>&nbsp;    }</b>
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    // pkg-private for testing
+<i>126</i>&nbsp;    long getExpireAfterWriteNanos() {
+<b class="nc"><i>127</i>&nbsp;        return this.expireAfterWriteNanos;</b>
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    void setMaximumWeight(long maximumWeight) {
+<b class="fc"><i>131</i>&nbsp;        if (maximumWeight &lt; 0) {</b>
+<b class="nc"><i>132</i>&nbsp;            throw new IllegalArgumentException(&quot;maximumWeight &lt; 0&quot;);</b>
+<i>133</i>&nbsp;        }
+<b class="fc"><i>134</i>&nbsp;        this.maximumWeight = maximumWeight;</b>
+<b class="fc"><i>135</i>&nbsp;    }</b>
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    void setWeigher(ToLongBiFunction&lt;K, V&gt; weigher) {
+<b class="fc"><i>138</i>&nbsp;        Objects.requireNonNull(weigher);</b>
+<b class="fc"><i>139</i>&nbsp;        this.weigher = weigher;</b>
+<b class="fc"><i>140</i>&nbsp;    }</b>
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;    void setRemovalListener(RemovalListener&lt;K, V&gt; removalListener) {
+<b class="fc"><i>143</i>&nbsp;        Objects.requireNonNull(removalListener);</b>
+<b class="fc"><i>144</i>&nbsp;        this.removalListener = removalListener;</b>
+<b class="fc"><i>145</i>&nbsp;    }</b>
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;    /**
+<i>148</i>&nbsp;     * The relative time used to track time-based evictions.
+<i>149</i>&nbsp;     *
+<i>150</i>&nbsp;     * @return the current relative time
+<i>151</i>&nbsp;     */
+<i>152</i>&nbsp;    protected long now() {
+<i>153</i>&nbsp;        // System.nanoTime takes non-negligible time, so we only use it if we need it
+<i>154</i>&nbsp;        // use System.nanoTime because we want relative time, not absolute time
+<b class="nc"><i>155</i>&nbsp;        return entriesExpireAfterAccess || entriesExpireAfterWrite ? System.nanoTime() : 0;</b>
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    // the state of an entry in the LRU list
+<i>159</i>&nbsp;    enum State {
+<i>160</i>&nbsp;        NEW, EXISTING, DELETED
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    static class Entry&lt;K, V&gt; {
+<i>164</i>&nbsp;        final K key;
+<i>165</i>&nbsp;        final V value;
+<i>166</i>&nbsp;        long writeTime;
+<i>167</i>&nbsp;        volatile long accessTime;
+<i>168</i>&nbsp;        Entry&lt;K, V&gt; before;
+<i>169</i>&nbsp;        Entry&lt;K, V&gt; after;
+<i>170</i>&nbsp;        State state = State.NEW;
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;        Entry(K key, V value, long writeTime) {
+<i>173</i>&nbsp;            this.key = key;
+<i>174</i>&nbsp;            this.value = value;
+<i>175</i>&nbsp;            this.writeTime = this.accessTime = writeTime;
+<i>176</i>&nbsp;        }
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    /**
+<i>180</i>&nbsp;     * A cache segment.
+<i>181</i>&nbsp;     * &lt;p&gt;
+<i>182</i>&nbsp;     * A CacheSegment is backed by a HashMap and is protected by a read/write lock.
+<i>183</i>&nbsp;     *
+<i>184</i>&nbsp;     * @param &lt;K&gt; the type of the keys
+<i>185</i>&nbsp;     * @param &lt;V&gt; the type of the values
+<i>186</i>&nbsp;     */
+<b class="fc"><i>187</i>&nbsp;    private static class CacheSegment&lt;K, V&gt; {</b>
+<i>188</i>&nbsp;        // read/write lock protecting mutations to the segment
+<b class="fc"><i>189</i>&nbsp;        ReadWriteLock segmentLock = new ReentrantReadWriteLock();</b>
+<i>190</i>&nbsp;
+<b class="fc"><i>191</i>&nbsp;        ReleasableLock readLock = new ReleasableLock(segmentLock.readLock());</b>
+<b class="fc"><i>192</i>&nbsp;        ReleasableLock writeLock = new ReleasableLock(segmentLock.writeLock());</b>
+<i>193</i>&nbsp;
+<b class="fc"><i>194</i>&nbsp;        Map&lt;K, CompletableFuture&lt;Entry&lt;K, V&gt;&gt;&gt; map = new HashMap&lt;&gt;();</b>
+<i>195</i>&nbsp;
+<b class="fc"><i>196</i>&nbsp;        SegmentStats segmentStats = new SegmentStats();</b>
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;        /**
+<i>199</i>&nbsp;         * get an entry from the segment; expired entries will be returned as null but not removed from the cache until the LRU list is
+<i>200</i>&nbsp;         * pruned or a manual {@link Cache#refresh()} is performed however a caller can take action using the provided callback
+<i>201</i>&nbsp;         *
+<i>202</i>&nbsp;         * @param key       the key of the entry to get from the cache
+<i>203</i>&nbsp;         * @param now       the access time of this entry
+<i>204</i>&nbsp;         * @param isExpired test if the entry is expired
+<i>205</i>&nbsp;         * @param onExpiration a callback if the entry associated to the key is expired
+<i>206</i>&nbsp;         * @return the entry if there was one, otherwise null
+<i>207</i>&nbsp;         */
+<i>208</i>&nbsp;        Entry&lt;K, V&gt; get(K key, long now, Predicate&lt;Entry&lt;K, V&gt;&gt; isExpired, Consumer&lt;Entry&lt;K, V&gt;&gt; onExpiration) {
+<i>209</i>&nbsp;            CompletableFuture&lt;Entry&lt;K, V&gt;&gt; future;
+<b class="nc"><i>210</i>&nbsp;            try (ReleasableLock ignored = readLock.acquire()) {</b>
+<b class="nc"><i>211</i>&nbsp;                future = map.get(key);</b>
+<b class="nc"><i>212</i>&nbsp;            }</b>
+<b class="nc"><i>213</i>&nbsp;            if (future != null) {</b>
+<i>214</i>&nbsp;                Entry&lt;K, V&gt; entry;
+<i>215</i>&nbsp;                try {
+<b class="nc"><i>216</i>&nbsp;                    entry = future.get();</b>
+<b class="nc"><i>217</i>&nbsp;                } catch (ExecutionException e) {</b>
+<b class="nc"><i>218</i>&nbsp;                    assert future.isCompletedExceptionally();</b>
+<b class="nc"><i>219</i>&nbsp;                    segmentStats.miss();</b>
+<b class="nc"><i>220</i>&nbsp;                    return null;</b>
+<b class="nc"><i>221</i>&nbsp;                } catch (InterruptedException e) {</b>
+<b class="nc"><i>222</i>&nbsp;                    throw new IllegalStateException(e);</b>
+<b class="nc"><i>223</i>&nbsp;                }</b>
+<b class="nc"><i>224</i>&nbsp;                if (isExpired.test(entry)) {</b>
+<b class="nc"><i>225</i>&nbsp;                    segmentStats.miss();</b>
+<b class="nc"><i>226</i>&nbsp;                    onExpiration.accept(entry);</b>
+<b class="nc"><i>227</i>&nbsp;                    return null;</b>
+<i>228</i>&nbsp;                } else {
+<b class="nc"><i>229</i>&nbsp;                    segmentStats.hit();</b>
+<b class="nc"><i>230</i>&nbsp;                    entry.accessTime = now;</b>
+<b class="nc"><i>231</i>&nbsp;                    return entry;</b>
+<i>232</i>&nbsp;                }
+<i>233</i>&nbsp;            } else {
+<b class="nc"><i>234</i>&nbsp;                segmentStats.miss();</b>
+<b class="nc"><i>235</i>&nbsp;                return null;</b>
+<i>236</i>&nbsp;            }
+<i>237</i>&nbsp;        }
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;        /**
+<i>240</i>&nbsp;         * put an entry into the segment
+<i>241</i>&nbsp;         *
+<i>242</i>&nbsp;         * @param key   the key of the entry to add to the cache
+<i>243</i>&nbsp;         * @param value the value of the entry to add to the cache
+<i>244</i>&nbsp;         * @param now   the access time of this entry
+<i>245</i>&nbsp;         * @return a tuple of the new entry and the existing entry, if there was one otherwise null
+<i>246</i>&nbsp;         */
+<i>247</i>&nbsp;        Tuple&lt;Entry&lt;K, V&gt;, Entry&lt;K, V&gt;&gt; put(K key, V value, long now) {
+<b class="nc"><i>248</i>&nbsp;            Entry&lt;K, V&gt; entry = new Entry&lt;&gt;(key, value, now);</b>
+<b class="nc"><i>249</i>&nbsp;            Entry&lt;K, V&gt; existing = null;</b>
+<b class="nc"><i>250</i>&nbsp;            try (ReleasableLock ignored = writeLock.acquire()) {</b>
+<i>251</i>&nbsp;                try {
+<b class="nc"><i>252</i>&nbsp;                    CompletableFuture&lt;Entry&lt;K, V&gt;&gt; future = map.put(key, CompletableFuture.completedFuture(entry));</b>
+<b class="nc"><i>253</i>&nbsp;                    if (future != null) {</b>
+<b class="nc"><i>254</i>&nbsp;                        existing = future.handle((ok, ex) -&gt; {</b>
+<b class="nc"><i>255</i>&nbsp;                            if (ok != null) {</b>
+<b class="nc"><i>256</i>&nbsp;                                return ok;</b>
+<i>257</i>&nbsp;                            } else {
+<b class="nc"><i>258</i>&nbsp;                                return null;</b>
+<i>259</i>&nbsp;                            }
+<b class="nc"><i>260</i>&nbsp;                        }).get();</b>
+<i>261</i>&nbsp;                    }
+<b class="nc"><i>262</i>&nbsp;                } catch (ExecutionException | InterruptedException e) {</b>
+<b class="nc"><i>263</i>&nbsp;                    throw new IllegalStateException(e);</b>
+<b class="nc"><i>264</i>&nbsp;                }</b>
+<b class="nc"><i>265</i>&nbsp;            }</b>
+<b class="nc"><i>266</i>&nbsp;            return Tuple.tuple(entry, existing);</b>
+<i>267</i>&nbsp;        }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;        /**
+<i>270</i>&nbsp;         * remove an entry from the segment
+<i>271</i>&nbsp;         *
+<i>272</i>&nbsp;         * @param key       the key of the entry to remove from the cache
+<i>273</i>&nbsp;         * @param onRemoval a callback for the removed entry
+<i>274</i>&nbsp;         */
+<i>275</i>&nbsp;        void remove(K key, Consumer&lt;CompletableFuture&lt;Entry&lt;K, V&gt;&gt;&gt; onRemoval) {
+<i>276</i>&nbsp;            CompletableFuture&lt;Entry&lt;K, V&gt;&gt; future;
+<b class="nc"><i>277</i>&nbsp;            try (ReleasableLock ignored = writeLock.acquire()) {</b>
+<b class="nc"><i>278</i>&nbsp;                future = map.remove(key);</b>
+<b class="nc"><i>279</i>&nbsp;            }</b>
+<b class="nc"><i>280</i>&nbsp;            if (future != null) {</b>
+<b class="nc"><i>281</i>&nbsp;                segmentStats.eviction();</b>
+<b class="nc"><i>282</i>&nbsp;                onRemoval.accept(future);</b>
+<i>283</i>&nbsp;            }
+<b class="nc"><i>284</i>&nbsp;        }</b>
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;        /**
+<i>287</i>&nbsp;         * remove an entry from the segment iff the future is done and the value is equal to the
+<i>288</i>&nbsp;         * expected value
+<i>289</i>&nbsp;         *
+<i>290</i>&nbsp;         * @param key the key of the entry to remove from the cache
+<i>291</i>&nbsp;         * @param value the value expected to be associated with the key
+<i>292</i>&nbsp;         * @param onRemoval a callback for the removed entry
+<i>293</i>&nbsp;         */
+<i>294</i>&nbsp;        void remove(K key, V value, Consumer&lt;CompletableFuture&lt;Entry&lt;K, V&gt;&gt;&gt; onRemoval) {
+<i>295</i>&nbsp;            CompletableFuture&lt;Entry&lt;K, V&gt;&gt; future;
+<b class="nc"><i>296</i>&nbsp;            boolean removed = false;</b>
+<b class="nc"><i>297</i>&nbsp;            try (ReleasableLock ignored = writeLock.acquire()) {</b>
+<b class="nc"><i>298</i>&nbsp;                future = map.get(key);</b>
+<i>299</i>&nbsp;                try {
+<b class="nc"><i>300</i>&nbsp;                    if (future != null) {</b>
+<b class="nc"><i>301</i>&nbsp;                        if (future.isDone()) {</b>
+<b class="nc"><i>302</i>&nbsp;                            Entry&lt;K, V&gt; entry = future.get();</b>
+<b class="nc"><i>303</i>&nbsp;                            if (Objects.equals(value, entry.value)) {</b>
+<b class="nc"><i>304</i>&nbsp;                                removed = map.remove(key, future);</b>
+<i>305</i>&nbsp;                            }
+<i>306</i>&nbsp;                        }
+<i>307</i>&nbsp;                    }
+<b class="nc"><i>308</i>&nbsp;                } catch (ExecutionException | InterruptedException e) {</b>
+<b class="nc"><i>309</i>&nbsp;                    throw new IllegalStateException(e);</b>
+<b class="nc"><i>310</i>&nbsp;                }</b>
+<b class="nc"><i>311</i>&nbsp;            }</b>
+<i>312</i>&nbsp;
+<b class="nc"><i>313</i>&nbsp;            if (future != null &amp;&amp; removed) {</b>
+<b class="nc"><i>314</i>&nbsp;                segmentStats.eviction();</b>
+<b class="nc"><i>315</i>&nbsp;                onRemoval.accept(future);</b>
+<i>316</i>&nbsp;            }
+<b class="nc"><i>317</i>&nbsp;        }</b>
+<i>318</i>&nbsp;
+<b class="fc"><i>319</i>&nbsp;        private static class SegmentStats {</b>
+<b class="fc"><i>320</i>&nbsp;            private final LongAdder hits = new LongAdder();</b>
+<b class="fc"><i>321</i>&nbsp;            private final LongAdder misses = new LongAdder();</b>
+<b class="fc"><i>322</i>&nbsp;            private final LongAdder evictions = new LongAdder();</b>
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;            void hit() {
+<b class="nc"><i>325</i>&nbsp;                hits.increment();</b>
+<b class="nc"><i>326</i>&nbsp;            }</b>
+<i>327</i>&nbsp;
+<i>328</i>&nbsp;            void miss() {
+<b class="nc"><i>329</i>&nbsp;                misses.increment();</b>
+<b class="nc"><i>330</i>&nbsp;            }</b>
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;            void eviction() {
+<b class="nc"><i>333</i>&nbsp;                evictions.increment();</b>
+<b class="nc"><i>334</i>&nbsp;            }</b>
+<i>335</i>&nbsp;        }
+<i>336</i>&nbsp;    }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    public static final int NUMBER_OF_SEGMENTS = 256;
+<b class="fc"><i>339</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;) private final CacheSegment&lt;K, V&gt;[] segments = new CacheSegment[NUMBER_OF_SEGMENTS];</b>
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;    {
+<b class="fc"><i>342</i>&nbsp;        for (int i = 0; i &lt; segments.length; i++) {</b>
+<b class="fc"><i>343</i>&nbsp;            segments[i] = new CacheSegment&lt;&gt;();</b>
+<i>344</i>&nbsp;        }
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    Entry&lt;K, V&gt; head;
+<i>348</i>&nbsp;    Entry&lt;K, V&gt; tail;
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    // lock protecting mutations to the LRU list
+<b class="fc"><i>351</i>&nbsp;    private final ReleasableLock lruLock = new ReleasableLock(new ReentrantLock());</b>
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    /**
+<i>354</i>&nbsp;     * Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
+<i>355</i>&nbsp;     *
+<i>356</i>&nbsp;     * @param key the key whose associated value is to be returned
+<i>357</i>&nbsp;     * @return the value to which the specified key is mapped, or null if this map contains no mapping for the key
+<i>358</i>&nbsp;     */
+<i>359</i>&nbsp;    public V get(K key) {
+<b class="nc"><i>360</i>&nbsp;        return get(key, now(), e -&gt; {});</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    private V get(K key, long now, Consumer&lt;Entry&lt;K, V&gt;&gt; onExpiration) {
+<b class="nc"><i>364</i>&nbsp;        CacheSegment&lt;K, V&gt; segment = getCacheSegment(key);</b>
+<b class="nc"><i>365</i>&nbsp;        Entry&lt;K, V&gt; entry = segment.get(key, now, e -&gt; isExpired(e, now), onExpiration);</b>
+<b class="nc"><i>366</i>&nbsp;        if (entry == null) {</b>
+<b class="nc"><i>367</i>&nbsp;            return null;</b>
+<i>368</i>&nbsp;        } else {
+<b class="nc"><i>369</i>&nbsp;            promote(entry, now);</b>
+<b class="nc"><i>370</i>&nbsp;            return entry.value;</b>
+<i>371</i>&nbsp;        }
+<i>372</i>&nbsp;    }
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;    /**
+<i>375</i>&nbsp;     * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
+<i>376</i>&nbsp;     * value using the given mapping function and enters it into this map unless null. The load method for a given key
+<i>377</i>&nbsp;     * will be invoked at most once.
+<i>378</i>&nbsp;     *
+<i>379</i>&nbsp;     * Use of different {@link CacheLoader} implementations on the same key concurrently may result in only the first
+<i>380</i>&nbsp;     * loader function being called and the second will be returned the result provided by the first including any exceptions
+<i>381</i>&nbsp;     * thrown during the execution of the first.
+<i>382</i>&nbsp;     *
+<i>383</i>&nbsp;     * @param key    the key whose associated value is to be returned or computed for if non-existent
+<i>384</i>&nbsp;     * @param loader the function to compute a value given a key
+<i>385</i>&nbsp;     * @return the current (existing or computed) non-null value associated with the specified key
+<i>386</i>&nbsp;     * @throws ExecutionException thrown if loader throws an exception or returns a null value
+<i>387</i>&nbsp;     */
+<i>388</i>&nbsp;    public V computeIfAbsent(K key, CacheLoader&lt;K, V&gt; loader) throws ExecutionException {
+<b class="nc"><i>389</i>&nbsp;        long now = now();</b>
+<i>390</i>&nbsp;        // we have to eagerly evict expired entries or our putIfAbsent call below will fail
+<b class="nc"><i>391</i>&nbsp;        V value = get(key, now, e -&gt; {</b>
+<b class="nc"><i>392</i>&nbsp;            try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="nc"><i>393</i>&nbsp;                evictEntry(e);</b>
+<b class="nc"><i>394</i>&nbsp;            }</b>
+<b class="nc"><i>395</i>&nbsp;        });</b>
+<b class="nc"><i>396</i>&nbsp;        if (value == null) {</b>
+<i>397</i>&nbsp;            // we need to synchronize loading of a value for a given key; however, holding the segment lock while
+<i>398</i>&nbsp;            // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
+<i>399</i>&nbsp;            // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
+<i>400</i>&nbsp;            // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
+<i>401</i>&nbsp;            // get the value from this future on the thread that won the race to place the future into the segment map
+<b class="nc"><i>402</i>&nbsp;            CacheSegment&lt;K, V&gt; segment = getCacheSegment(key);</b>
+<i>403</i>&nbsp;            CompletableFuture&lt;Entry&lt;K, V&gt;&gt; future;
+<b class="nc"><i>404</i>&nbsp;            CompletableFuture&lt;Entry&lt;K, V&gt;&gt; completableFuture = new CompletableFuture&lt;&gt;();</b>
+<i>405</i>&nbsp;
+<b class="nc"><i>406</i>&nbsp;            try (ReleasableLock ignored = segment.writeLock.acquire()) {</b>
+<b class="nc"><i>407</i>&nbsp;                future = segment.map.putIfAbsent(key, completableFuture);</b>
+<b class="nc"><i>408</i>&nbsp;            }</b>
+<i>409</i>&nbsp;
+<b class="nc"><i>410</i>&nbsp;            BiFunction&lt;? super Entry&lt;K, V&gt;, Throwable, ? extends V&gt; handler = (ok, ex) -&gt; {</b>
+<b class="nc"><i>411</i>&nbsp;                if (ok != null) {</b>
+<b class="nc"><i>412</i>&nbsp;                    try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="nc"><i>413</i>&nbsp;                        promote(ok, now);</b>
+<b class="nc"><i>414</i>&nbsp;                    }</b>
+<b class="nc"><i>415</i>&nbsp;                    return ok.value;</b>
+<i>416</i>&nbsp;                } else {
+<b class="nc"><i>417</i>&nbsp;                    try (ReleasableLock ignored = segment.writeLock.acquire()) {</b>
+<b class="nc"><i>418</i>&nbsp;                        CompletableFuture&lt;Entry&lt;K, V&gt;&gt; sanity = segment.map.get(key);</b>
+<b class="nc"><i>419</i>&nbsp;                        if (sanity != null &amp;&amp; sanity.isCompletedExceptionally()) {</b>
+<b class="nc"><i>420</i>&nbsp;                            segment.map.remove(key);</b>
+<i>421</i>&nbsp;                        }
+<b class="nc"><i>422</i>&nbsp;                    }</b>
+<b class="nc"><i>423</i>&nbsp;                    return null;</b>
+<i>424</i>&nbsp;                }
+<i>425</i>&nbsp;            };
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;            CompletableFuture&lt;V&gt; completableValue;
+<b class="nc"><i>428</i>&nbsp;            if (future == null) {</b>
+<b class="nc"><i>429</i>&nbsp;                future = completableFuture;</b>
+<b class="nc"><i>430</i>&nbsp;                completableValue = future.handle(handler);</b>
+<i>431</i>&nbsp;                V loaded;
+<i>432</i>&nbsp;                try {
+<b class="nc"><i>433</i>&nbsp;                    loaded = loader.load(key);</b>
+<b class="nc"><i>434</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>435</i>&nbsp;                    future.completeExceptionally(e);</b>
+<b class="nc"><i>436</i>&nbsp;                    throw new ExecutionException(e);</b>
+<b class="nc"><i>437</i>&nbsp;                }</b>
+<b class="nc"><i>438</i>&nbsp;                if (loaded == null) {</b>
+<b class="nc"><i>439</i>&nbsp;                    NullPointerException npe = new NullPointerException(&quot;loader returned a null value&quot;);</b>
+<b class="nc"><i>440</i>&nbsp;                    future.completeExceptionally(npe);</b>
+<b class="nc"><i>441</i>&nbsp;                    throw new ExecutionException(npe);</b>
+<i>442</i>&nbsp;                } else {
+<b class="nc"><i>443</i>&nbsp;                    future.complete(new Entry&lt;&gt;(key, loaded, now));</b>
+<i>444</i>&nbsp;                }
+<b class="nc"><i>445</i>&nbsp;            } else {</b>
+<b class="nc"><i>446</i>&nbsp;                completableValue = future.handle(handler);</b>
+<i>447</i>&nbsp;            }
+<i>448</i>&nbsp;
+<i>449</i>&nbsp;            try {
+<b class="nc"><i>450</i>&nbsp;                value = completableValue.get();</b>
+<i>451</i>&nbsp;                // check to ensure the future hasn&#39;t been completed with an exception
+<b class="nc"><i>452</i>&nbsp;                if (future.isCompletedExceptionally()) {</b>
+<b class="nc"><i>453</i>&nbsp;                    future.get(); // call get to force the exception to be thrown for other concurrent callers</b>
+<b class="nc"><i>454</i>&nbsp;                    throw new IllegalStateException(&quot;the future was completed exceptionally but no exception was thrown&quot;);</b>
+<i>455</i>&nbsp;                }
+<b class="nc"><i>456</i>&nbsp;            } catch (InterruptedException e) {</b>
+<b class="nc"><i>457</i>&nbsp;                throw new IllegalStateException(e);</b>
+<b class="nc"><i>458</i>&nbsp;            }</b>
+<i>459</i>&nbsp;        }
+<b class="nc"><i>460</i>&nbsp;        return value;</b>
+<i>461</i>&nbsp;    }
+<i>462</i>&nbsp;
+<i>463</i>&nbsp;    /**
+<i>464</i>&nbsp;     * Associates the specified value with the specified key in this map. If the map previously contained a mapping for
+<i>465</i>&nbsp;     * the key, the old value is replaced.
+<i>466</i>&nbsp;     *
+<i>467</i>&nbsp;     * @param key   key with which the specified value is to be associated
+<i>468</i>&nbsp;     * @param value value to be associated with the specified key
+<i>469</i>&nbsp;     */
+<i>470</i>&nbsp;    public void put(K key, V value) {
+<b class="nc"><i>471</i>&nbsp;        long now = now();</b>
+<b class="nc"><i>472</i>&nbsp;        put(key, value, now);</b>
+<b class="nc"><i>473</i>&nbsp;    }</b>
+<i>474</i>&nbsp;
+<i>475</i>&nbsp;    private void put(K key, V value, long now) {
+<b class="nc"><i>476</i>&nbsp;        CacheSegment&lt;K, V&gt; segment = getCacheSegment(key);</b>
+<b class="nc"><i>477</i>&nbsp;        Tuple&lt;Entry&lt;K, V&gt;, Entry&lt;K, V&gt;&gt; tuple = segment.put(key, value, now);</b>
+<b class="nc"><i>478</i>&nbsp;        boolean replaced = false;</b>
+<b class="nc"><i>479</i>&nbsp;        try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="nc"><i>480</i>&nbsp;            if (tuple.v2() != null &amp;&amp; tuple.v2().state == State.EXISTING) {</b>
+<b class="nc"><i>481</i>&nbsp;                if (unlink(tuple.v2())) {</b>
+<b class="nc"><i>482</i>&nbsp;                    replaced = true;</b>
+<i>483</i>&nbsp;                }
+<i>484</i>&nbsp;            }
+<b class="nc"><i>485</i>&nbsp;            promote(tuple.v1(), now);</b>
+<b class="nc"><i>486</i>&nbsp;        }</b>
+<b class="nc"><i>487</i>&nbsp;        if (replaced) {</b>
+<b class="nc"><i>488</i>&nbsp;            removalListener.onRemoval(new RemovalNotification&lt;&gt;(tuple.v2().key, tuple.v2().value,</b>
+<i>489</i>&nbsp;                RemovalNotification.RemovalReason.REPLACED));
+<i>490</i>&nbsp;        }
+<b class="nc"><i>491</i>&nbsp;    }</b>
+<i>492</i>&nbsp;
+<b class="fc"><i>493</i>&nbsp;    private final Consumer&lt;CompletableFuture&lt;Entry&lt;K, V&gt;&gt;&gt; invalidationConsumer = f -&gt; {</b>
+<i>494</i>&nbsp;        try {
+<b class="nc"><i>495</i>&nbsp;            Entry&lt;K, V&gt; entry = f.get();</b>
+<b class="nc"><i>496</i>&nbsp;            try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="nc"><i>497</i>&nbsp;                delete(entry, RemovalNotification.RemovalReason.INVALIDATED);</b>
+<b class="nc"><i>498</i>&nbsp;            }</b>
+<b class="nc"><i>499</i>&nbsp;        } catch (ExecutionException e) {</b>
+<i>500</i>&nbsp;            // ok
+<b class="nc"><i>501</i>&nbsp;        } catch (InterruptedException e) {</b>
+<b class="nc"><i>502</i>&nbsp;            throw new IllegalStateException(e);</b>
+<b class="nc"><i>503</i>&nbsp;        }</b>
+<b class="nc"><i>504</i>&nbsp;    };</b>
+<i>505</i>&nbsp;
+<i>506</i>&nbsp;    /**
+<i>507</i>&nbsp;     * Invalidate the association for the specified key. A removal notification will be issued for invalidated
+<i>508</i>&nbsp;     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+<i>509</i>&nbsp;     *
+<i>510</i>&nbsp;     * @param key the key whose mapping is to be invalidated from the cache
+<i>511</i>&nbsp;     */
+<i>512</i>&nbsp;    public void invalidate(K key) {
+<b class="nc"><i>513</i>&nbsp;        CacheSegment&lt;K, V&gt; segment = getCacheSegment(key);</b>
+<b class="nc"><i>514</i>&nbsp;        segment.remove(key, invalidationConsumer);</b>
+<b class="nc"><i>515</i>&nbsp;    }</b>
+<i>516</i>&nbsp;
+<i>517</i>&nbsp;    /**
+<i>518</i>&nbsp;     * Invalidate the entry for the specified key and value. If the value provided is not equal to the value in
+<i>519</i>&nbsp;     * the cache, no removal will occur. A removal notification will be issued for invalidated
+<i>520</i>&nbsp;     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+<i>521</i>&nbsp;     *
+<i>522</i>&nbsp;     * @param key the key whose mapping is to be invalidated from the cache
+<i>523</i>&nbsp;     * @param value the expected value that should be associated with the key
+<i>524</i>&nbsp;     */
+<i>525</i>&nbsp;    public void invalidate(K key, V value) {
+<b class="nc"><i>526</i>&nbsp;        CacheSegment&lt;K, V&gt; segment = getCacheSegment(key);</b>
+<b class="nc"><i>527</i>&nbsp;        segment.remove(key, value, invalidationConsumer);</b>
+<b class="nc"><i>528</i>&nbsp;    }</b>
+<i>529</i>&nbsp;
+<i>530</i>&nbsp;    /**
+<i>531</i>&nbsp;     * Invalidate all cache entries. A removal notification will be issued for invalidated entries with
+<i>532</i>&nbsp;     * {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+<i>533</i>&nbsp;     */
+<i>534</i>&nbsp;    public void invalidateAll() {
+<i>535</i>&nbsp;        Entry&lt;K, V&gt; h;
+<i>536</i>&nbsp;
+<b class="fc"><i>537</i>&nbsp;        boolean[] haveSegmentLock = new boolean[NUMBER_OF_SEGMENTS];</b>
+<i>538</i>&nbsp;        try {
+<b class="fc"><i>539</i>&nbsp;            for (int i = 0; i &lt; NUMBER_OF_SEGMENTS; i++) {</b>
+<b class="fc"><i>540</i>&nbsp;                segments[i].segmentLock.writeLock().lock();</b>
+<b class="fc"><i>541</i>&nbsp;                haveSegmentLock[i] = true;</b>
+<i>542</i>&nbsp;            }
+<b class="fc"><i>543</i>&nbsp;            try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="fc"><i>544</i>&nbsp;                h = head;</b>
+<b class="fc"><i>545</i>&nbsp;                Arrays.stream(segments).forEach(segment -&gt; segment.map = new HashMap&lt;&gt;());</b>
+<b class="fc"><i>546</i>&nbsp;                Entry&lt;K, V&gt; current = head;</b>
+<b class="fc"><i>547</i>&nbsp;                while (current != null) {</b>
+<b class="nc"><i>548</i>&nbsp;                    current.state = State.DELETED;</b>
+<b class="nc"><i>549</i>&nbsp;                    current = current.after;</b>
+<i>550</i>&nbsp;                }
+<b class="fc"><i>551</i>&nbsp;                head = tail = null;</b>
+<b class="fc"><i>552</i>&nbsp;                count = 0;</b>
+<b class="fc"><i>553</i>&nbsp;                weight = 0;</b>
+<b class="fc"><i>554</i>&nbsp;            }</b>
+<i>555</i>&nbsp;        } finally {
+<b class="fc"><i>556</i>&nbsp;            for (int i = NUMBER_OF_SEGMENTS - 1; i &gt;= 0; i--) {</b>
+<b class="fc"><i>557</i>&nbsp;                if (haveSegmentLock[i]) {</b>
+<b class="fc"><i>558</i>&nbsp;                    segments[i].segmentLock.writeLock().unlock();</b>
+<i>559</i>&nbsp;                }
+<i>560</i>&nbsp;            }
+<b class="fc"><i>561</i>&nbsp;        }</b>
+<b class="fc"><i>562</i>&nbsp;        while (h != null) {</b>
+<b class="nc"><i>563</i>&nbsp;            removalListener.onRemoval(new RemovalNotification&lt;&gt;(h.key, h.value, RemovalNotification.RemovalReason.INVALIDATED));</b>
+<b class="nc"><i>564</i>&nbsp;            h = h.after;</b>
+<i>565</i>&nbsp;        }
+<b class="fc"><i>566</i>&nbsp;    }</b>
+<i>567</i>&nbsp;
+<i>568</i>&nbsp;    /**
+<i>569</i>&nbsp;     * Force any outstanding size-based and time-based evictions to occur
+<i>570</i>&nbsp;     */
+<i>571</i>&nbsp;    public void refresh() {
+<b class="nc"><i>572</i>&nbsp;        long now = now();</b>
+<b class="nc"><i>573</i>&nbsp;        try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="nc"><i>574</i>&nbsp;            evict(now);</b>
+<b class="nc"><i>575</i>&nbsp;        }</b>
+<b class="nc"><i>576</i>&nbsp;    }</b>
+<i>577</i>&nbsp;
+<i>578</i>&nbsp;    /**
+<i>579</i>&nbsp;     * The number of entries in the cache.
+<i>580</i>&nbsp;     *
+<i>581</i>&nbsp;     * @return the number of entries in the cache
+<i>582</i>&nbsp;     */
+<i>583</i>&nbsp;    public int count() {
+<b class="nc"><i>584</i>&nbsp;        return count;</b>
+<i>585</i>&nbsp;    }
+<i>586</i>&nbsp;
+<i>587</i>&nbsp;    /**
+<i>588</i>&nbsp;     * The weight of the entries in the cache.
+<i>589</i>&nbsp;     *
+<i>590</i>&nbsp;     * @return the weight of the entries in the cache
+<i>591</i>&nbsp;     */
+<i>592</i>&nbsp;    public long weight() {
+<b class="nc"><i>593</i>&nbsp;        return weight;</b>
+<i>594</i>&nbsp;    }
+<i>595</i>&nbsp;
+<i>596</i>&nbsp;    /**
+<i>597</i>&nbsp;     * An LRU sequencing of the keys in the cache that supports removal. This sequence is not protected from mutations
+<i>598</i>&nbsp;     * to the cache (except for {@link Iterator#remove()}. The result of iteration under any other mutation is
+<i>599</i>&nbsp;     * undefined.
+<i>600</i>&nbsp;     *
+<i>601</i>&nbsp;     * @return an LRU-ordered {@link Iterable} over the keys in the cache
+<i>602</i>&nbsp;     */
+<i>603</i>&nbsp;    public Iterable&lt;K&gt; keys() {
+<b class="nc"><i>604</i>&nbsp;        return () -&gt; new Iterator&lt;K&gt;() {</b>
+<i>605</i>&nbsp;            private CacheIterator iterator = new CacheIterator(head);
+<i>606</i>&nbsp;
+<i>607</i>&nbsp;            @Override
+<i>608</i>&nbsp;            public boolean hasNext() {
+<i>609</i>&nbsp;                return iterator.hasNext();
+<i>610</i>&nbsp;            }
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;            @Override
+<i>613</i>&nbsp;            public K next() {
+<i>614</i>&nbsp;                return iterator.next().key;
+<i>615</i>&nbsp;            }
+<i>616</i>&nbsp;
+<i>617</i>&nbsp;            @Override
+<i>618</i>&nbsp;            public void remove() {
+<i>619</i>&nbsp;                iterator.remove();
+<i>620</i>&nbsp;            }
+<i>621</i>&nbsp;        };
+<i>622</i>&nbsp;    }
+<i>623</i>&nbsp;
+<i>624</i>&nbsp;    /**
+<i>625</i>&nbsp;     * An LRU sequencing of the values in the cache. This sequence is not protected from mutations
+<i>626</i>&nbsp;     * to the cache (except for {@link Iterator#remove()}. The result of iteration under any other mutation is
+<i>627</i>&nbsp;     * undefined.
+<i>628</i>&nbsp;     *
+<i>629</i>&nbsp;     * @return an LRU-ordered {@link Iterable} over the values in the cache
+<i>630</i>&nbsp;     */
+<i>631</i>&nbsp;    public Iterable&lt;V&gt; values() {
+<b class="nc"><i>632</i>&nbsp;        return () -&gt; new Iterator&lt;V&gt;() {</b>
+<i>633</i>&nbsp;            private CacheIterator iterator = new CacheIterator(head);
+<i>634</i>&nbsp;
+<i>635</i>&nbsp;            @Override
+<i>636</i>&nbsp;            public boolean hasNext() {
+<i>637</i>&nbsp;                return iterator.hasNext();
+<i>638</i>&nbsp;            }
+<i>639</i>&nbsp;
+<i>640</i>&nbsp;            @Override
+<i>641</i>&nbsp;            public V next() {
+<i>642</i>&nbsp;                return iterator.next().value;
+<i>643</i>&nbsp;            }
+<i>644</i>&nbsp;
+<i>645</i>&nbsp;            @Override
+<i>646</i>&nbsp;            public void remove() {
+<i>647</i>&nbsp;                iterator.remove();
+<i>648</i>&nbsp;            }
+<i>649</i>&nbsp;        };
+<i>650</i>&nbsp;    }
+<i>651</i>&nbsp;
+<i>652</i>&nbsp;    private class CacheIterator implements Iterator&lt;Entry&lt;K, V&gt;&gt; {
+<i>653</i>&nbsp;        private Entry&lt;K, V&gt; current;
+<i>654</i>&nbsp;        private Entry&lt;K, V&gt; next;
+<i>655</i>&nbsp;
+<i>656</i>&nbsp;        CacheIterator(Entry&lt;K, V&gt; head) {
+<i>657</i>&nbsp;            current = null;
+<i>658</i>&nbsp;            next = head;
+<i>659</i>&nbsp;        }
+<i>660</i>&nbsp;
+<i>661</i>&nbsp;        @Override
+<i>662</i>&nbsp;        public boolean hasNext() {
+<i>663</i>&nbsp;            return next != null;
+<i>664</i>&nbsp;        }
+<i>665</i>&nbsp;
+<i>666</i>&nbsp;        @Override
+<i>667</i>&nbsp;        public Entry&lt;K, V&gt; next() {
+<i>668</i>&nbsp;            current = next;
+<i>669</i>&nbsp;            next = next.after;
+<i>670</i>&nbsp;            return current;
+<i>671</i>&nbsp;        }
+<i>672</i>&nbsp;
+<i>673</i>&nbsp;        @Override
+<i>674</i>&nbsp;        public void remove() {
+<i>675</i>&nbsp;            Entry&lt;K, V&gt; entry = current;
+<i>676</i>&nbsp;            if (entry != null) {
+<i>677</i>&nbsp;                CacheSegment&lt;K, V&gt; segment = getCacheSegment(entry.key);
+<i>678</i>&nbsp;                segment.remove(entry.key, entry.value, f -&gt; {});
+<i>679</i>&nbsp;                try (ReleasableLock ignored = lruLock.acquire()) {
+<i>680</i>&nbsp;                    current = null;
+<i>681</i>&nbsp;                    delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
+<i>682</i>&nbsp;                }
+<i>683</i>&nbsp;            }
+<i>684</i>&nbsp;        }
+<i>685</i>&nbsp;    }
+<i>686</i>&nbsp;
+<i>687</i>&nbsp;    /**
+<i>688</i>&nbsp;     * The cache statistics tracking hits, misses and evictions. These are taken on a best-effort basis meaning that
+<i>689</i>&nbsp;     * they could be out-of-date mid-flight.
+<i>690</i>&nbsp;     *
+<i>691</i>&nbsp;     * @return the current cache statistics
+<i>692</i>&nbsp;     */
+<i>693</i>&nbsp;    public CacheStats stats() {
+<b class="nc"><i>694</i>&nbsp;        long hits = 0;</b>
+<b class="nc"><i>695</i>&nbsp;        long misses = 0;</b>
+<b class="nc"><i>696</i>&nbsp;        long evictions = 0;</b>
+<b class="nc"><i>697</i>&nbsp;        for (int i = 0; i &lt; segments.length; i++) {</b>
+<b class="nc"><i>698</i>&nbsp;            hits += segments[i].segmentStats.hits.longValue();</b>
+<b class="nc"><i>699</i>&nbsp;            misses += segments[i].segmentStats.misses.longValue();</b>
+<b class="nc"><i>700</i>&nbsp;            evictions += segments[i].segmentStats.evictions.longValue();</b>
+<i>701</i>&nbsp;        }
+<b class="nc"><i>702</i>&nbsp;        return new CacheStats(hits, misses, evictions);</b>
+<i>703</i>&nbsp;    }
+<i>704</i>&nbsp;
+<i>705</i>&nbsp;    public static class CacheStats {
+<i>706</i>&nbsp;        private long hits;
+<i>707</i>&nbsp;        private long misses;
+<i>708</i>&nbsp;        private long evictions;
+<i>709</i>&nbsp;
+<i>710</i>&nbsp;        public CacheStats(long hits, long misses, long evictions) {
+<i>711</i>&nbsp;            this.hits = hits;
+<i>712</i>&nbsp;            this.misses = misses;
+<i>713</i>&nbsp;            this.evictions = evictions;
+<i>714</i>&nbsp;        }
+<i>715</i>&nbsp;
+<i>716</i>&nbsp;        public long getHits() {
+<i>717</i>&nbsp;            return hits;
+<i>718</i>&nbsp;        }
+<i>719</i>&nbsp;
+<i>720</i>&nbsp;        public long getMisses() {
+<i>721</i>&nbsp;            return misses;
+<i>722</i>&nbsp;        }
+<i>723</i>&nbsp;
+<i>724</i>&nbsp;        public long getEvictions() {
+<i>725</i>&nbsp;            return evictions;
+<i>726</i>&nbsp;        }
+<i>727</i>&nbsp;    }
+<i>728</i>&nbsp;
+<i>729</i>&nbsp;    private boolean promote(Entry&lt;K, V&gt; entry, long now) {
+<b class="nc"><i>730</i>&nbsp;        boolean promoted = true;</b>
+<b class="nc"><i>731</i>&nbsp;        try (ReleasableLock ignored = lruLock.acquire()) {</b>
+<b class="nc"><i>732</i>&nbsp;            switch (entry.state) {</b>
+<i>733</i>&nbsp;                case DELETED:
+<b class="nc"><i>734</i>&nbsp;                    promoted = false;</b>
+<b class="nc"><i>735</i>&nbsp;                    break;</b>
+<i>736</i>&nbsp;                case EXISTING:
+<b class="nc"><i>737</i>&nbsp;                    relinkAtHead(entry);</b>
+<b class="nc"><i>738</i>&nbsp;                    break;</b>
+<i>739</i>&nbsp;                case NEW:
+<b class="nc"><i>740</i>&nbsp;                    linkAtHead(entry);</b>
+<i>741</i>&nbsp;                    break;
+<i>742</i>&nbsp;            }
+<b class="nc"><i>743</i>&nbsp;            if (promoted) {</b>
+<b class="nc"><i>744</i>&nbsp;                evict(now);</b>
+<i>745</i>&nbsp;            }
+<b class="nc"><i>746</i>&nbsp;        }</b>
+<b class="nc"><i>747</i>&nbsp;        return promoted;</b>
+<i>748</i>&nbsp;    }
+<i>749</i>&nbsp;
+<i>750</i>&nbsp;    private void evict(long now) {
+<b class="nc"><i>751</i>&nbsp;        assert lruLock.isHeldByCurrentThread();</b>
+<i>752</i>&nbsp;
+<b class="nc"><i>753</i>&nbsp;        while (tail != null &amp;&amp; shouldPrune(tail, now)) {</b>
+<b class="nc"><i>754</i>&nbsp;            evictEntry(tail);</b>
+<i>755</i>&nbsp;        }
+<b class="nc"><i>756</i>&nbsp;    }</b>
+<i>757</i>&nbsp;
+<i>758</i>&nbsp;    private void evictEntry(Entry&lt;K, V&gt; entry) {
+<b class="nc"><i>759</i>&nbsp;        assert lruLock.isHeldByCurrentThread();</b>
+<i>760</i>&nbsp;
+<b class="nc"><i>761</i>&nbsp;        CacheSegment&lt;K, V&gt; segment = getCacheSegment(entry.key);</b>
+<b class="nc"><i>762</i>&nbsp;        if (segment != null) {</b>
+<b class="nc"><i>763</i>&nbsp;            segment.remove(entry.key, entry.value, f -&gt; {});</b>
+<i>764</i>&nbsp;        }
+<b class="nc"><i>765</i>&nbsp;        delete(entry, RemovalNotification.RemovalReason.EVICTED);</b>
+<b class="nc"><i>766</i>&nbsp;    }</b>
+<i>767</i>&nbsp;
+<i>768</i>&nbsp;    private void delete(Entry&lt;K, V&gt; entry, RemovalNotification.RemovalReason removalReason) {
+<b class="nc"><i>769</i>&nbsp;        assert lruLock.isHeldByCurrentThread();</b>
+<i>770</i>&nbsp;
+<b class="nc"><i>771</i>&nbsp;        if (unlink(entry)) {</b>
+<b class="nc"><i>772</i>&nbsp;            removalListener.onRemoval(new RemovalNotification&lt;&gt;(entry.key, entry.value, removalReason));</b>
+<i>773</i>&nbsp;        }
+<b class="nc"><i>774</i>&nbsp;    }</b>
+<i>775</i>&nbsp;
+<i>776</i>&nbsp;    private boolean shouldPrune(Entry&lt;K, V&gt; entry, long now) {
+<b class="nc"><i>777</i>&nbsp;        return exceedsWeight() || isExpired(entry, now);</b>
+<i>778</i>&nbsp;    }
+<i>779</i>&nbsp;
+<i>780</i>&nbsp;    private boolean exceedsWeight() {
+<b class="nc"><i>781</i>&nbsp;        return maximumWeight != -1 &amp;&amp; weight &gt; maximumWeight;</b>
+<i>782</i>&nbsp;    }
+<i>783</i>&nbsp;
+<i>784</i>&nbsp;    private boolean isExpired(Entry&lt;K, V&gt; entry, long now) {
+<b class="nc"><i>785</i>&nbsp;        return (entriesExpireAfterAccess &amp;&amp; now - entry.accessTime &gt; expireAfterAccessNanos) ||</b>
+<i>786</i>&nbsp;                (entriesExpireAfterWrite &amp;&amp; now - entry.writeTime &gt; expireAfterWriteNanos);
+<i>787</i>&nbsp;    }
+<i>788</i>&nbsp;
+<i>789</i>&nbsp;    private boolean unlink(Entry&lt;K, V&gt; entry) {
+<b class="nc"><i>790</i>&nbsp;        assert lruLock.isHeldByCurrentThread();</b>
+<i>791</i>&nbsp;
+<b class="nc"><i>792</i>&nbsp;        if (entry.state == State.EXISTING) {</b>
+<b class="nc"><i>793</i>&nbsp;            final Entry&lt;K, V&gt; before = entry.before;</b>
+<b class="nc"><i>794</i>&nbsp;            final Entry&lt;K, V&gt; after = entry.after;</b>
+<i>795</i>&nbsp;
+<b class="nc"><i>796</i>&nbsp;            if (before == null) {</b>
+<i>797</i>&nbsp;                // removing the head
+<b class="nc"><i>798</i>&nbsp;                assert head == entry;</b>
+<b class="nc"><i>799</i>&nbsp;                head = after;</b>
+<b class="nc"><i>800</i>&nbsp;                if (head != null) {</b>
+<b class="nc"><i>801</i>&nbsp;                    head.before = null;</b>
+<i>802</i>&nbsp;                }
+<i>803</i>&nbsp;            } else {
+<i>804</i>&nbsp;                // removing inner element
+<b class="nc"><i>805</i>&nbsp;                before.after = after;</b>
+<b class="nc"><i>806</i>&nbsp;                entry.before = null;</b>
+<i>807</i>&nbsp;            }
+<i>808</i>&nbsp;
+<b class="nc"><i>809</i>&nbsp;            if (after == null) {</b>
+<i>810</i>&nbsp;                // removing tail
+<b class="nc"><i>811</i>&nbsp;                assert tail == entry;</b>
+<b class="nc"><i>812</i>&nbsp;                tail = before;</b>
+<b class="nc"><i>813</i>&nbsp;                if (tail != null) {</b>
+<b class="nc"><i>814</i>&nbsp;                    tail.after = null;</b>
+<i>815</i>&nbsp;                }
+<i>816</i>&nbsp;            } else {
+<i>817</i>&nbsp;                // removing inner element
+<b class="nc"><i>818</i>&nbsp;                after.before = before;</b>
+<b class="nc"><i>819</i>&nbsp;                entry.after = null;</b>
+<i>820</i>&nbsp;            }
+<i>821</i>&nbsp;
+<b class="nc"><i>822</i>&nbsp;            count--;</b>
+<b class="nc"><i>823</i>&nbsp;            weight -= weigher.applyAsLong(entry.key, entry.value);</b>
+<b class="nc"><i>824</i>&nbsp;            entry.state = State.DELETED;</b>
+<b class="nc"><i>825</i>&nbsp;            return true;</b>
+<i>826</i>&nbsp;        } else {
+<b class="nc"><i>827</i>&nbsp;            return false;</b>
+<i>828</i>&nbsp;        }
+<i>829</i>&nbsp;    }
+<i>830</i>&nbsp;
+<i>831</i>&nbsp;    private void linkAtHead(Entry&lt;K, V&gt; entry) {
+<b class="nc"><i>832</i>&nbsp;        assert lruLock.isHeldByCurrentThread();</b>
+<i>833</i>&nbsp;
+<b class="nc"><i>834</i>&nbsp;        Entry&lt;K, V&gt; h = head;</b>
+<b class="nc"><i>835</i>&nbsp;        entry.before = null;</b>
+<b class="nc"><i>836</i>&nbsp;        entry.after = head;</b>
+<b class="nc"><i>837</i>&nbsp;        head = entry;</b>
+<b class="nc"><i>838</i>&nbsp;        if (h == null) {</b>
+<b class="nc"><i>839</i>&nbsp;            tail = entry;</b>
+<i>840</i>&nbsp;        } else {
+<b class="nc"><i>841</i>&nbsp;            h.before = entry;</b>
+<i>842</i>&nbsp;        }
+<i>843</i>&nbsp;
+<b class="nc"><i>844</i>&nbsp;        count++;</b>
+<b class="nc"><i>845</i>&nbsp;        weight += weigher.applyAsLong(entry.key, entry.value);</b>
+<b class="nc"><i>846</i>&nbsp;        entry.state = State.EXISTING;</b>
+<b class="nc"><i>847</i>&nbsp;    }</b>
+<i>848</i>&nbsp;
+<i>849</i>&nbsp;    private void relinkAtHead(Entry&lt;K, V&gt; entry) {
+<b class="nc"><i>850</i>&nbsp;        assert lruLock.isHeldByCurrentThread();</b>
+<i>851</i>&nbsp;
+<b class="nc"><i>852</i>&nbsp;        if (head != entry) {</b>
+<b class="nc"><i>853</i>&nbsp;            unlink(entry);</b>
+<b class="nc"><i>854</i>&nbsp;            linkAtHead(entry);</b>
+<i>855</i>&nbsp;        }
+<b class="nc"><i>856</i>&nbsp;    }</b>
+<i>857</i>&nbsp;
+<i>858</i>&nbsp;    private CacheSegment&lt;K, V&gt; getCacheSegment(K key) {
+<b class="nc"><i>859</i>&nbsp;        return segments[key.hashCode() &amp; 0xff];</b>
+<i>860</i>&nbsp;    }
+<i>861</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

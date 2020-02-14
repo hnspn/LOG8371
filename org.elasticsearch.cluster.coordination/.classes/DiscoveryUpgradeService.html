@@ -1,0 +1,430 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DiscoveryUpgradeService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.coordination</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DiscoveryUpgradeService (org.elasticsearch.cluster.coordination)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DiscoveryUpgradeService</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    83.3%
+  </span>
+  <span class="absValue">
+    (5/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.2%
+  </span>
+  <span class="absValue">
+    (23/ 37)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.cluster.coordination;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>24</i>&nbsp;import org.elasticsearch.Version;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>30</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>33</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>35</i>&nbsp;import org.elasticsearch.common.util.concurrent.CountDown;
+<i>36</i>&nbsp;import org.elasticsearch.discovery.zen.ElectMasterService;
+<i>37</i>&nbsp;import org.elasticsearch.discovery.zen.ElectMasterService.MasterCandidate;
+<i>38</i>&nbsp;import org.elasticsearch.discovery.zen.UnicastZenPing;
+<i>39</i>&nbsp;import org.elasticsearch.discovery.zen.UnicastZenPing.UnicastPingRequest;
+<i>40</i>&nbsp;import org.elasticsearch.discovery.zen.UnicastZenPing.UnicastPingResponse;
+<i>41</i>&nbsp;import org.elasticsearch.discovery.zen.ZenPing.PingResponse;
+<i>42</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>43</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool.Names;
+<i>44</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>45</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions;
+<i>46</i>&nbsp;import org.elasticsearch.transport.TransportResponseHandler;
+<i>47</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import java.io.IOException;
+<i>50</i>&nbsp;import java.util.HashSet;
+<i>51</i>&nbsp;import java.util.Iterator;
+<i>52</i>&nbsp;import java.util.Optional;
+<i>53</i>&nbsp;import java.util.Set;
+<i>54</i>&nbsp;import java.util.function.BooleanSupplier;
+<i>55</i>&nbsp;import java.util.function.Consumer;
+<i>56</i>&nbsp;import java.util.function.Supplier;
+<i>57</i>&nbsp;import java.util.stream.Collectors;
+<i>58</i>&nbsp;import java.util.stream.Stream;
+<i>59</i>&nbsp;import java.util.stream.StreamSupport;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;import static java.lang.Math.max;
+<i>62</i>&nbsp;import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+<i>63</i>&nbsp;import static org.elasticsearch.cluster.ClusterState.UNKNOWN_VERSION;
+<i>64</i>&nbsp;import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+<i>65</i>&nbsp;import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+<i>66</i>&nbsp;import static org.elasticsearch.discovery.zen.ZenDiscovery.PING_TIMEOUT_SETTING;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;/**
+<i>69</i>&nbsp; * Deals with rolling upgrades of the cluster coordination layer. In mixed clusters we prefer to elect the older nodes, but
+<i>70</i>&nbsp; * when the last old node shuts down then as long as there are enough new nodes we can assume that they form the whole cluster and
+<i>71</i>&nbsp; * define them as the initial configuration.
+<i>72</i>&nbsp; */
+<b class="fc"><i>73</i>&nbsp;public class DiscoveryUpgradeService {</b>
+<i>74</i>&nbsp;
+<b class="fc"><i>75</i>&nbsp;    private static Logger logger = LogManager.getLogger(DiscoveryUpgradeService.class);</b>
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    // how long to wait after activation before attempting to join a master or perform a bootstrap upgrade
+<b class="fc"><i>78</i>&nbsp;    public static final Setting&lt;TimeValue&gt; BWC_PING_TIMEOUT_SETTING =</b>
+<b class="fc"><i>79</i>&nbsp;        Setting.timeSetting(&quot;discovery.zen.bwc_ping_timeout&quot;,</b>
+<b class="fc"><i>80</i>&nbsp;            PING_TIMEOUT_SETTING, TimeValue.timeValueMillis(1), Setting.Property.NodeScope, Setting.Property.Deprecated);</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    // whether to try and bootstrap all the discovered Zen2 nodes when the last Zen1 node leaves the cluster.
+<b class="fc"><i>83</i>&nbsp;    public static final Setting&lt;Boolean&gt; ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING =</b>
+<b class="fc"><i>84</i>&nbsp;        Setting.boolSetting(&quot;discovery.zen.unsafe_rolling_upgrades_enabled&quot;, true, Setting.Property.NodeScope, Setting.Property.Deprecated);</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    /**
+<i>87</i>&nbsp;     * Dummy {@link ElectMasterService} that is only used to choose the best 6.x master from the discovered nodes, ignoring the
+<i>88</i>&nbsp;     * `minimum_master_nodes` setting.
+<i>89</i>&nbsp;     */
+<b class="fc"><i>90</i>&nbsp;    private static final ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY);</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    private final TransportService transportService;
+<i>93</i>&nbsp;    private final BooleanSupplier isBootstrappedSupplier;
+<i>94</i>&nbsp;    private final JoinHelper joinHelper;
+<i>95</i>&nbsp;    private final Supplier&lt;Iterable&lt;DiscoveryNode&gt;&gt; peersSupplier;
+<i>96</i>&nbsp;    private final Consumer&lt;VotingConfiguration&gt; initialConfigurationConsumer;
+<i>97</i>&nbsp;    private final TimeValue bwcPingTimeout;
+<i>98</i>&nbsp;    private final boolean enableUnsafeBootstrappingOnUpgrade;
+<i>99</i>&nbsp;    private final ClusterName clusterName;
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    @Nullable // null if no active joining round
+<i>102</i>&nbsp;    private volatile JoiningRound joiningRound;
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    public DiscoveryUpgradeService(Settings settings, TransportService transportService,
+<i>105</i>&nbsp;                                   BooleanSupplier isBootstrappedSupplier, JoinHelper joinHelper,
+<i>106</i>&nbsp;                                   Supplier&lt;Iterable&lt;DiscoveryNode&gt;&gt; peersSupplier,
+<b class="fc"><i>107</i>&nbsp;                                   Consumer&lt;VotingConfiguration&gt; initialConfigurationConsumer) {</b>
+<b class="fc"><i>108</i>&nbsp;        assert Version.CURRENT.major == Version.V_6_6_0.major + 1 : &quot;remove this service once unsafe upgrades are no longer needed&quot;;</b>
+<b class="fc"><i>109</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>110</i>&nbsp;        this.isBootstrappedSupplier = isBootstrappedSupplier;</b>
+<b class="fc"><i>111</i>&nbsp;        this.joinHelper = joinHelper;</b>
+<b class="fc"><i>112</i>&nbsp;        this.peersSupplier = peersSupplier;</b>
+<b class="fc"><i>113</i>&nbsp;        this.initialConfigurationConsumer = initialConfigurationConsumer;</b>
+<b class="fc"><i>114</i>&nbsp;        this.bwcPingTimeout = BWC_PING_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>115</i>&nbsp;        this.enableUnsafeBootstrappingOnUpgrade = ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING.get(settings);</b>
+<b class="fc"><i>116</i>&nbsp;        this.clusterName = CLUSTER_NAME_SETTING.get(settings);</b>
+<b class="fc"><i>117</i>&nbsp;    }</b>
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    public void activate(Optional&lt;DiscoveryNode&gt; lastKnownLeader, ClusterState lastAcceptedClusterState) {
+<i>120</i>&nbsp;        // called under coordinator mutex
+<i>121</i>&nbsp;
+<b class="fc"><i>122</i>&nbsp;        if (isBootstrappedSupplier.getAsBoolean()) {</b>
+<b class="fc"><i>123</i>&nbsp;            return;</b>
+<i>124</i>&nbsp;        }
+<i>125</i>&nbsp;
+<b class="nc"><i>126</i>&nbsp;        assert lastKnownLeader.isPresent() == false || Coordinator.isZen1Node(lastKnownLeader.get()) : lastKnownLeader;</b>
+<i>127</i>&nbsp;        // if there was a leader and it&#39;s not a old node then we must have been bootstrapped
+<i>128</i>&nbsp;
+<b class="nc"><i>129</i>&nbsp;        final Settings dynamicSettings = lastAcceptedClusterState.metaData().settings();</b>
+<b class="nc"><i>130</i>&nbsp;        final int minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(dynamicSettings)</b>
+<b class="nc"><i>131</i>&nbsp;            ? DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(dynamicSettings)</b>
+<b class="nc"><i>132</i>&nbsp;            : lastAcceptedClusterState.getMinimumMasterNodesOnPublishingMaster();</b>
+<i>133</i>&nbsp;
+<b class="nc"><i>134</i>&nbsp;        assert joiningRound == null : joiningRound;</b>
+<b class="nc"><i>135</i>&nbsp;        final Set&lt;String&gt; knownMasterNodeIds = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>136</i>&nbsp;        lastAcceptedClusterState.nodes().getMasterNodes().forEach(c -&gt; knownMasterNodeIds.add(c.key));</b>
+<i>137</i>&nbsp;
+<b class="nc"><i>138</i>&nbsp;        joiningRound</b>
+<b class="nc"><i>139</i>&nbsp;            = new JoiningRound(enableUnsafeBootstrappingOnUpgrade &amp;&amp; lastKnownLeader.isPresent(), minimumMasterNodes, knownMasterNodeIds);</b>
+<b class="nc"><i>140</i>&nbsp;        joiningRound.scheduleNextAttempt();</b>
+<b class="nc"><i>141</i>&nbsp;    }</b>
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    public void deactivate() {
+<i>144</i>&nbsp;        // called under coordinator mutex
+<b class="fc"><i>145</i>&nbsp;        joiningRound = null;</b>
+<b class="fc"><i>146</i>&nbsp;    }</b>
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /**
+<i>149</i>&nbsp;     * Waits for some number of calls to {@link ListenableCountDown#countDown()} and then notifies a listener. The listener
+<i>150</i>&nbsp;     * is only ever notified once, whether successful or not.
+<i>151</i>&nbsp;     */
+<i>152</i>&nbsp;    private static class ListenableCountDown {
+<i>153</i>&nbsp;        private final CountDown countDown;
+<i>154</i>&nbsp;        private final ActionListener&lt;Void&gt; listener;
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;        ListenableCountDown(int count, ActionListener&lt;Void&gt; listener) {
+<i>157</i>&nbsp;            this.countDown = new CountDown(count);
+<i>158</i>&nbsp;            this.listener = listener;
+<i>159</i>&nbsp;        }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;        void onFailure(Exception e) {
+<i>162</i>&nbsp;            if (countDown.fastForward()) {
+<i>163</i>&nbsp;                listener.onFailure(e);
+<i>164</i>&nbsp;            }
+<i>165</i>&nbsp;        }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;        void countDown() {
+<i>168</i>&nbsp;            if (countDown.countDown()) {
+<i>169</i>&nbsp;                listener.onResponse(null);
+<i>170</i>&nbsp;            }
+<i>171</i>&nbsp;        }
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    private class JoiningRound {
+<i>175</i>&nbsp;        private final boolean upgrading;
+<i>176</i>&nbsp;        private final int minimumMasterNodes;
+<i>177</i>&nbsp;        private final Set&lt;String&gt; knownMasterNodeIds;
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;        JoiningRound(boolean upgrading, int minimumMasterNodes, Set&lt;String&gt; knownMasterNodeIds) {
+<i>180</i>&nbsp;            this.upgrading = upgrading;
+<i>181</i>&nbsp;            this.minimumMasterNodes = minimumMasterNodes;
+<i>182</i>&nbsp;            this.knownMasterNodeIds = knownMasterNodeIds;
+<i>183</i>&nbsp;        }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;        private boolean isRunning() {
+<i>186</i>&nbsp;            return joiningRound == this &amp;&amp; isBootstrappedSupplier.getAsBoolean() == false;
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;        private boolean canBootstrap(Set&lt;DiscoveryNode&gt; discoveryNodes) {
+<i>190</i>&nbsp;            return upgrading &amp;&amp; minimumMasterNodes &lt;= discoveryNodes.stream().filter(DiscoveryNode::isMasterNode).count();
+<i>191</i>&nbsp;        }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;        void scheduleNextAttempt() {
+<i>194</i>&nbsp;            if (isRunning() == false) {
+<i>195</i>&nbsp;                return;
+<i>196</i>&nbsp;            }
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;            final ThreadPool threadPool = transportService.getThreadPool();
+<i>199</i>&nbsp;            threadPool.scheduleUnlessShuttingDown(bwcPingTimeout, Names.SAME, new Runnable() {
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;                @Override
+<i>202</i>&nbsp;                public void run() {
+<i>203</i>&nbsp;                    if (isRunning() == false) {
+<i>204</i>&nbsp;                        return;
+<i>205</i>&nbsp;                    }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;                    final Set&lt;DiscoveryNode&gt; discoveryNodes = Stream.concat(StreamSupport.stream(peersSupplier.get().spliterator(), false),
+<i>208</i>&nbsp;                        Stream.of(transportService.getLocalNode())).filter(DiscoveryNode::isMasterNode).collect(Collectors.toSet());
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;                    // this set of nodes is reasonably fresh - the PeerFinder cleans up nodes to which the transport service is not
+<i>211</i>&nbsp;                    // connected each time it wakes up (every second by default)
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;                    logger.debug(&quot;upgrading={}, minimumMasterNodes={}, nodes={}&quot;, upgrading, minimumMasterNodes, discoveryNodes);
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;                    if (discoveryNodes.stream().anyMatch(Coordinator::isZen1Node)) {
+<i>216</i>&nbsp;                        electBestOldMaster(discoveryNodes);
+<i>217</i>&nbsp;                    } else if (canBootstrap(discoveryNodes)) {
+<i>218</i>&nbsp;                        // no Zen1 nodes found, but the last-known master was a Zen1 node, so this is a rolling upgrade
+<i>219</i>&nbsp;                        transportService.getThreadPool().generic().execute(() -&gt; {
+<i>220</i>&nbsp;                            try {
+<i>221</i>&nbsp;                                Set&lt;String&gt; nodeIds = new HashSet&lt;&gt;();
+<i>222</i>&nbsp;                                discoveryNodes.forEach(n -&gt; nodeIds.add(n.getId()));
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;                                final Iterator&lt;String&gt; knownNodeIdIterator = knownMasterNodeIds.iterator();
+<i>225</i>&nbsp;                                while (nodeIds.size() &lt; 2 * minimumMasterNodes - 1 &amp;&amp; knownNodeIdIterator.hasNext()) {
+<i>226</i>&nbsp;                                    nodeIds.add(knownNodeIdIterator.next());
+<i>227</i>&nbsp;                                }
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;                                final VotingConfiguration votingConfiguration = new VotingConfiguration(nodeIds);
+<i>230</i>&nbsp;                                assert votingConfiguration.hasQuorum(
+<i>231</i>&nbsp;                                    discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()));
+<i>232</i>&nbsp;                                assert 2 * minimumMasterNodes - 2 &lt;= nodeIds.size() : nodeIds + &quot; too small for &quot; + minimumMasterNodes;
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;                                initialConfigurationConsumer.accept(votingConfiguration);
+<i>235</i>&nbsp;                            } catch (Exception e) {
+<i>236</i>&nbsp;                                logger.debug(&quot;exception during bootstrapping upgrade, retrying&quot;, e);
+<i>237</i>&nbsp;                            } finally {
+<i>238</i>&nbsp;                                scheduleNextAttempt();
+<i>239</i>&nbsp;                            }
+<i>240</i>&nbsp;                        });
+<i>241</i>&nbsp;                    } else {
+<i>242</i>&nbsp;                        scheduleNextAttempt();
+<i>243</i>&nbsp;                    }
+<i>244</i>&nbsp;                }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;                /**
+<i>247</i>&nbsp;                 * Ping all the old discovered masters one more time to obtain their cluster state versions, and then vote for the best one.
+<i>248</i>&nbsp;                 * @param discoveryNodes The master nodes (old and new).
+<i>249</i>&nbsp;                 */
+<i>250</i>&nbsp;                private void electBestOldMaster(Set&lt;DiscoveryNode&gt; discoveryNodes) {
+<i>251</i>&nbsp;                    final Set&lt;MasterCandidate&gt; masterCandidates = newConcurrentSet();
+<i>252</i>&nbsp;                    final ListenableCountDown listenableCountDown
+<i>253</i>&nbsp;                        = new ListenableCountDown(discoveryNodes.size(), new ActionListener&lt;Void&gt;() {
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;                        @Override
+<i>256</i>&nbsp;                        public void onResponse(Void value) {
+<i>257</i>&nbsp;                            assert masterCandidates.size() == discoveryNodes.size()
+<i>258</i>&nbsp;                                : masterCandidates + &quot; does not match &quot; + discoveryNodes;
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;                            // TODO we shouldn&#39;t elect a master with a version that&#39;s older than ours
+<i>261</i>&nbsp;                            // If the only Zen1 nodes left are stale, and we can bootstrap, maybe we should bootstrap?
+<i>262</i>&nbsp;                            // Do we ever need to elect a freshly-started Zen1 node?
+<i>263</i>&nbsp;                            if (isRunning()) {
+<i>264</i>&nbsp;                                final MasterCandidate electedMaster = electMasterService.electMaster(masterCandidates);
+<i>265</i>&nbsp;                                logger.debug(&quot;elected {}, sending join&quot;, electedMaster);
+<i>266</i>&nbsp;                                joinHelper.sendJoinRequest(electedMaster.getNode(), Optional.empty(),
+<i>267</i>&nbsp;                                    JoiningRound.this::scheduleNextAttempt);
+<i>268</i>&nbsp;                            }
+<i>269</i>&nbsp;                        }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;                        @Override
+<i>272</i>&nbsp;                        public void onFailure(Exception e) {
+<i>273</i>&nbsp;                            scheduleNextAttempt();
+<i>274</i>&nbsp;                        }
+<i>275</i>&nbsp;                    });
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;                    boolean foundOldMaster = false;
+<i>278</i>&nbsp;                    for (final DiscoveryNode discoveryNode : discoveryNodes) {
+<i>279</i>&nbsp;                        assert discoveryNode.isMasterNode() : discoveryNode;
+<i>280</i>&nbsp;                        if (Coordinator.isZen1Node(discoveryNode)) {
+<i>281</i>&nbsp;                            foundOldMaster = true;
+<i>282</i>&nbsp;                            transportService.sendRequest(discoveryNode, UnicastZenPing.ACTION_NAME,
+<i>283</i>&nbsp;                                new UnicastPingRequest(0, TimeValue.ZERO,
+<i>284</i>&nbsp;                                    new PingResponse(createDiscoveryNodeWithImpossiblyHighId(transportService.getLocalNode()),
+<i>285</i>&nbsp;                                        null, clusterName, UNKNOWN_VERSION)),
+<i>286</i>&nbsp;                                TransportRequestOptions.builder().withTimeout(bwcPingTimeout).build(),
+<i>287</i>&nbsp;                                new TransportResponseHandler&lt;UnicastPingResponse&gt;() {
+<i>288</i>&nbsp;                                    @Override
+<i>289</i>&nbsp;                                    public void handleResponse(UnicastPingResponse response) {
+<i>290</i>&nbsp;                                        long clusterStateVersion = UNKNOWN_VERSION;
+<i>291</i>&nbsp;                                        for (PingResponse pingResponse : response.pingResponses) {
+<i>292</i>&nbsp;                                            if (discoveryNode.equals(pingResponse.node())) {
+<i>293</i>&nbsp;                                                clusterStateVersion
+<i>294</i>&nbsp;                                                    = max(clusterStateVersion, pingResponse.getClusterStateVersion());
+<i>295</i>&nbsp;                                            }
+<i>296</i>&nbsp;                                        }
+<i>297</i>&nbsp;                                        masterCandidates.add(new MasterCandidate(discoveryNode, clusterStateVersion));
+<i>298</i>&nbsp;                                        listenableCountDown.countDown();
+<i>299</i>&nbsp;                                    }
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;                                    @Override
+<i>302</i>&nbsp;                                    public void handleException(TransportException exp) {
+<i>303</i>&nbsp;                                        logger.debug(
+<i>304</i>&nbsp;                                            new ParameterizedMessage(&quot;unexpected exception when pinging {}&quot;, discoveryNode), exp);
+<i>305</i>&nbsp;                                        listenableCountDown.onFailure(exp);
+<i>306</i>&nbsp;                                    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;                                    @Override
+<i>309</i>&nbsp;                                    public String executor() {
+<i>310</i>&nbsp;                                        return Names.SAME;
+<i>311</i>&nbsp;                                    }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;                                    @Override
+<i>314</i>&nbsp;                                    public UnicastPingResponse read(StreamInput in) throws IOException {
+<i>315</i>&nbsp;                                        return new UnicastPingResponse(in);
+<i>316</i>&nbsp;                                    }
+<i>317</i>&nbsp;                                });
+<i>318</i>&nbsp;
+<i>319</i>&nbsp;                        } else {
+<i>320</i>&nbsp;                            masterCandidates.add(
+<i>321</i>&nbsp;                                new MasterCandidate(createDiscoveryNodeWithImpossiblyHighId(discoveryNode), UNKNOWN_VERSION));
+<i>322</i>&nbsp;                            listenableCountDown.countDown();
+<i>323</i>&nbsp;                        }
+<i>324</i>&nbsp;                    }
+<i>325</i>&nbsp;                    assert foundOldMaster;
+<i>326</i>&nbsp;                }
+<i>327</i>&nbsp;
+<i>328</i>&nbsp;                @Override
+<i>329</i>&nbsp;                public String toString() {
+<i>330</i>&nbsp;                    return &quot;discovery upgrade service retry&quot;;
+<i>331</i>&nbsp;                }
+<i>332</i>&nbsp;            });
+<i>333</i>&nbsp;        }
+<i>334</i>&nbsp;    }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    /**
+<i>337</i>&nbsp;     * Pre-7.0 nodes select the best master by comparing their IDs (as strings) and selecting the lowest one amongst those nodes with
+<i>338</i>&nbsp;     * the best cluster state version. We want 7.0+ nodes to participate in these elections in a mixed cluster but never to win one, so
+<i>339</i>&nbsp;     * we lie and claim to have an impossible ID that compares above all genuine IDs.
+<i>340</i>&nbsp;     */
+<i>341</i>&nbsp;    public static DiscoveryNode createDiscoveryNodeWithImpossiblyHighId(DiscoveryNode node) {
+<i>342</i>&nbsp;        // IDs are base-64-encoded UUIDs, which means they use the character set [0-9A-Za-z_-]. The highest character in this set is &#39;z&#39;,
+<i>343</i>&nbsp;        // and &#39;z&#39; &lt; &#39;{&#39;, so by starting the ID with &#39;{&#39; we can be sure it&#39;s greater. This is terrible.
+<b class="nc"><i>344</i>&nbsp;        return new DiscoveryNode(node.getName(), &quot;{zen2}&quot; + node.getId(), node.getEphemeralId(), node.getHostName(),</b>
+<b class="nc"><i>345</i>&nbsp;            node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());</b>
+<i>346</i>&nbsp;    }
+<i>347</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

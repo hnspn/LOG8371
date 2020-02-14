@@ -1,0 +1,185 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Gateway</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Gateway (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+</tr>
+  <tr>
+    <td class="name">Gateway$GatewayStateRecoveredListener</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectFloatHashMap;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectCursor;
+<i>24</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>25</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>26</i>&nbsp;import org.elasticsearch.action.FailedNodeException;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>32</i>&nbsp;import org.elasticsearch.discovery.zen.ElectMasterService;
+<i>33</i>&nbsp;import org.elasticsearch.index.Index;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.util.Arrays;
+<i>36</i>&nbsp;import java.util.function.Function;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;public class Gateway {
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    private static final Logger logger = LogManager.getLogger(Gateway.class);
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    private final ClusterService clusterService;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    private final TransportNodesListGatewayMetaState listGatewayMetaState;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    private final int minimumMasterNodes;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    public Gateway(final Settings settings, final ClusterService clusterService,
+<i>49</i>&nbsp;                   final TransportNodesListGatewayMetaState listGatewayMetaState) {
+<i>50</i>&nbsp;        this.clusterService = clusterService;
+<i>51</i>&nbsp;        this.listGatewayMetaState = listGatewayMetaState;
+<i>52</i>&nbsp;        this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
+<i>53</i>&nbsp;    }
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+<i>56</i>&nbsp;        final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
+<i>57</i>&nbsp;        logger.trace(&quot;performing state recovery from {}&quot;, Arrays.toString(nodesIds));
+<i>58</i>&nbsp;        final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;        final int requiredAllocation = Math.max(1, minimumMasterNodes);
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;        if (nodesState.hasFailures()) {
+<i>63</i>&nbsp;            for (final FailedNodeException failedNodeException : nodesState.failures()) {
+<i>64</i>&nbsp;                logger.warn(&quot;failed to fetch state from node&quot;, failedNodeException);
+<i>65</i>&nbsp;            }
+<i>66</i>&nbsp;        }
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;        final ObjectFloatHashMap&lt;Index&gt; indices = new ObjectFloatHashMap&lt;&gt;();
+<i>69</i>&nbsp;        MetaData electedGlobalState = null;
+<i>70</i>&nbsp;        int found = 0;
+<i>71</i>&nbsp;        for (final TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
+<i>72</i>&nbsp;            if (nodeState.metaData() == null) {
+<i>73</i>&nbsp;                continue;
+<i>74</i>&nbsp;            }
+<i>75</i>&nbsp;            found++;
+<i>76</i>&nbsp;            if (electedGlobalState == null) {
+<i>77</i>&nbsp;                electedGlobalState = nodeState.metaData();
+<i>78</i>&nbsp;            } else if (nodeState.metaData().version() &gt; electedGlobalState.version()) {
+<i>79</i>&nbsp;                electedGlobalState = nodeState.metaData();
+<i>80</i>&nbsp;            }
+<i>81</i>&nbsp;            for (final ObjectCursor&lt;IndexMetaData&gt; cursor : nodeState.metaData().indices().values()) {
+<i>82</i>&nbsp;                indices.addTo(cursor.value.getIndex(), 1);
+<i>83</i>&nbsp;            }
+<i>84</i>&nbsp;        }
+<i>85</i>&nbsp;        if (found &lt; requiredAllocation) {
+<i>86</i>&nbsp;            listener.onFailure(&quot;found [&quot; + found + &quot;] metadata states, required [&quot; + requiredAllocation + &quot;]&quot;);
+<i>87</i>&nbsp;            return;
+<i>88</i>&nbsp;        }
+<i>89</i>&nbsp;        // update the global state, and clean the indices, we elect them in the next phase
+<i>90</i>&nbsp;        final MetaData.Builder metaDataBuilder = MetaData.builder(electedGlobalState).removeAllIndices();
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;        assert !indices.containsKey(null);
+<i>93</i>&nbsp;        final Object[] keys = indices.keys;
+<i>94</i>&nbsp;        for (int i = 0; i &lt; keys.length; i++) {
+<i>95</i>&nbsp;            if (keys[i] != null) {
+<i>96</i>&nbsp;                final Index index = (Index) keys[i];
+<i>97</i>&nbsp;                IndexMetaData electedIndexMetaData = null;
+<i>98</i>&nbsp;                int indexMetaDataCount = 0;
+<i>99</i>&nbsp;                for (final TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
+<i>100</i>&nbsp;                    if (nodeState.metaData() == null) {
+<i>101</i>&nbsp;                        continue;
+<i>102</i>&nbsp;                    }
+<i>103</i>&nbsp;                    final IndexMetaData indexMetaData = nodeState.metaData().index(index);
+<i>104</i>&nbsp;                    if (indexMetaData == null) {
+<i>105</i>&nbsp;                        continue;
+<i>106</i>&nbsp;                    }
+<i>107</i>&nbsp;                    if (electedIndexMetaData == null) {
+<i>108</i>&nbsp;                        electedIndexMetaData = indexMetaData;
+<i>109</i>&nbsp;                    } else if (indexMetaData.getVersion() &gt; electedIndexMetaData.getVersion()) {
+<i>110</i>&nbsp;                        electedIndexMetaData = indexMetaData;
+<i>111</i>&nbsp;                    }
+<i>112</i>&nbsp;                    indexMetaDataCount++;
+<i>113</i>&nbsp;                }
+<i>114</i>&nbsp;                if (electedIndexMetaData != null) {
+<i>115</i>&nbsp;                    if (indexMetaDataCount &lt; requiredAllocation) {
+<i>116</i>&nbsp;                        logger.debug(&quot;[{}] found [{}], required [{}], not adding&quot;, index, indexMetaDataCount, requiredAllocation);
+<i>117</i>&nbsp;                    } // TODO if this logging statement is correct then we are missing an else here
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;                    metaDataBuilder.put(electedIndexMetaData, false);
+<i>120</i>&nbsp;                }
+<i>121</i>&nbsp;            }
+<i>122</i>&nbsp;        }
+<i>123</i>&nbsp;        ClusterState recoveredState = Function.&lt;ClusterState&gt;identity()
+<i>124</i>&nbsp;            .andThen(state -&gt; ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
+<i>125</i>&nbsp;            .apply(ClusterState.builder(clusterService.getClusterName()).metaData(metaDataBuilder).build());
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;        listener.onSuccess(recoveredState);
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    public interface GatewayStateRecoveredListener {
+<i>131</i>&nbsp;        void onSuccess(ClusterState build);
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;        void onFailure(String s);
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

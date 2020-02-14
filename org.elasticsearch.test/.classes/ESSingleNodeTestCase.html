@@ -1,0 +1,446 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ESSingleNodeTestCase</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.test</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ESSingleNodeTestCase (org.elasticsearch.test)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ESSingleNodeTestCase</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    72.4%
+  </span>
+  <span class="absValue">
+    (21/ 29)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    78.8%
+  </span>
+  <span class="absValue">
+    (104/ 132)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.test;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import com.carrotsearch.randomizedtesting.RandomizedContext;
+<i>22</i>&nbsp;import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+<i>25</i>&nbsp;import org.elasticsearch.client.Client;
+<i>26</i>&nbsp;import org.elasticsearch.client.Requests;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.health.ClusterHealthStatus;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+<i>32</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>33</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>34</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>35</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>36</i>&nbsp;import org.elasticsearch.common.util.BigArrays;
+<i>37</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>38</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>39</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>40</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>41</i>&nbsp;import org.elasticsearch.env.Environment;
+<i>42</i>&nbsp;import org.elasticsearch.env.NodeEnvironment;
+<i>43</i>&nbsp;import org.elasticsearch.index.Index;
+<i>44</i>&nbsp;import org.elasticsearch.index.IndexService;
+<i>45</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>46</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>47</i>&nbsp;import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+<i>48</i>&nbsp;import org.elasticsearch.node.MockNode;
+<i>49</i>&nbsp;import org.elasticsearch.node.Node;
+<i>50</i>&nbsp;import org.elasticsearch.node.NodeValidationException;
+<i>51</i>&nbsp;import org.elasticsearch.plugins.Plugin;
+<i>52</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>53</i>&nbsp;import org.elasticsearch.search.internal.SearchContext;
+<i>54</i>&nbsp;import org.elasticsearch.transport.TransportSettings;
+<i>55</i>&nbsp;import org.junit.AfterClass;
+<i>56</i>&nbsp;import org.junit.BeforeClass;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;import java.io.IOException;
+<i>59</i>&nbsp;import java.nio.file.Path;
+<i>60</i>&nbsp;import java.util.ArrayList;
+<i>61</i>&nbsp;import java.util.Arrays;
+<i>62</i>&nbsp;import java.util.Collection;
+<i>63</i>&nbsp;import java.util.Collections;
+<i>64</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+<i>67</i>&nbsp;import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+<i>68</i>&nbsp;import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+<i>69</i>&nbsp;import static org.hamcrest.Matchers.equalTo;
+<i>70</i>&nbsp;import static org.hamcrest.Matchers.lessThanOrEqualTo;
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;/**
+<i>73</i>&nbsp; * A test that keep a singleton node started for all tests that can be used to get
+<i>74</i>&nbsp; * references to Guice injectors in unit tests.
+<i>75</i>&nbsp; */
+<b class="fc"><i>76</i>&nbsp;public abstract class ESSingleNodeTestCase extends ESTestCase {</b>
+<i>77</i>&nbsp;
+<b class="fc"><i>78</i>&nbsp;    private static Node NODE = null;</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    protected void startNode(long seed) throws Exception {
+<b class="fc"><i>81</i>&nbsp;        assert NODE == null;</b>
+<b class="fc"><i>82</i>&nbsp;        NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);</b>
+<i>83</i>&nbsp;        // we must wait for the node to actually be up and running. otherwise the node might have started,
+<i>84</i>&nbsp;        // elected itself master but might not yet have removed the
+<i>85</i>&nbsp;        // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
+<b class="fc"><i>86</i>&nbsp;        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();</b>
+<b class="fc"><i>87</i>&nbsp;        assertFalse(clusterHealthResponse.isTimedOut());</b>
+<b class="fc"><i>88</i>&nbsp;        client().admin().indices()</b>
+<b class="fc"><i>89</i>&nbsp;            .preparePutTemplate(&quot;one_shard_index_template&quot;)</b>
+<b class="fc"><i>90</i>&nbsp;            .setPatterns(Collections.singletonList(&quot;*&quot;))</b>
+<b class="fc"><i>91</i>&nbsp;            .setOrder(0)</b>
+<b class="fc"><i>92</i>&nbsp;            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)</b>
+<b class="fc"><i>93</i>&nbsp;            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();</b>
+<b class="fc"><i>94</i>&nbsp;        client().admin().indices()</b>
+<b class="fc"><i>95</i>&nbsp;            .preparePutTemplate(&quot;random-soft-deletes-template&quot;)</b>
+<b class="fc"><i>96</i>&nbsp;            .setPatterns(Collections.singletonList(&quot;*&quot;))</b>
+<b class="fc"><i>97</i>&nbsp;            .setOrder(0)</b>
+<b class="fc"><i>98</i>&nbsp;            .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())</b>
+<b class="fc"><i>99</i>&nbsp;                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),</b>
+<b class="fc"><i>100</i>&nbsp;                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))</b>
+<b class="fc"><i>101</i>&nbsp;            ).get();</b>
+<b class="fc"><i>102</i>&nbsp;    }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    private static void stopNode() throws IOException, InterruptedException {
+<b class="fc"><i>105</i>&nbsp;        Node node = NODE;</b>
+<b class="fc"><i>106</i>&nbsp;        NODE = null;</b>
+<b class="fc"><i>107</i>&nbsp;        IOUtils.close(node);</b>
+<b class="fc"><i>108</i>&nbsp;        if (node != null &amp;&amp; node.awaitClose(10, TimeUnit.SECONDS) == false) {</b>
+<b class="nc"><i>109</i>&nbsp;            throw new AssertionError(&quot;Node couldn&#39;t close within 10 seconds.&quot;);</b>
+<i>110</i>&nbsp;        }
+<b class="fc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    @Override
+<i>114</i>&nbsp;    public void setUp() throws Exception {
+<b class="fc"><i>115</i>&nbsp;        super.setUp();</b>
+<i>116</i>&nbsp;        //the seed has to be created regardless of whether it will be used or not, for repeatability
+<b class="fc"><i>117</i>&nbsp;        long seed = random().nextLong();</b>
+<i>118</i>&nbsp;        // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
+<i>119</i>&nbsp;        // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
+<b class="fc"><i>120</i>&nbsp;        if (NODE == null) {</b>
+<b class="fc"><i>121</i>&nbsp;            startNode(seed);</b>
+<i>122</i>&nbsp;        }
+<b class="fc"><i>123</i>&nbsp;    }</b>
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    @Override
+<i>126</i>&nbsp;    public void tearDown() throws Exception {
+<b class="fc"><i>127</i>&nbsp;        logger.trace(&quot;[{}#{}]: cleaning up after test&quot;, getTestClass().getSimpleName(), getTestName());</b>
+<b class="fc"><i>128</i>&nbsp;        super.tearDown();</b>
+<b class="fc"><i>129</i>&nbsp;        assertAcked(client().admin().indices().prepareDelete(&quot;*&quot;).get());</b>
+<b class="fc"><i>130</i>&nbsp;        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();</b>
+<b class="fc"><i>131</i>&nbsp;        assertThat(&quot;test leaves persistent cluster metadata behind: &quot; + metaData.persistentSettings().keySet(),</b>
+<b class="fc"><i>132</i>&nbsp;                metaData.persistentSettings().size(), equalTo(0));</b>
+<b class="fc"><i>133</i>&nbsp;        assertThat(&quot;test leaves transient cluster metadata behind: &quot; + metaData.transientSettings().keySet(),</b>
+<b class="fc"><i>134</i>&nbsp;                metaData.transientSettings().size(), equalTo(0));</b>
+<b class="fc"><i>135</i>&nbsp;        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices(&quot;*&quot;).get();</b>
+<b class="fc"><i>136</i>&nbsp;        assertThat(&quot;test leaves indices that were not deleted: &quot; + Strings.arrayToCommaDelimitedString(indices.indices()),</b>
+<b class="fc"><i>137</i>&nbsp;            indices.indices(), equalTo(Strings.EMPTY_ARRAY));</b>
+<b class="fc"><i>138</i>&nbsp;        if (resetNodeAfterTest()) {</b>
+<b class="nc"><i>139</i>&nbsp;            assert NODE != null;</b>
+<b class="nc"><i>140</i>&nbsp;            stopNode();</b>
+<i>141</i>&nbsp;            //the seed can be created within this if as it will either be executed before every test method or will never be.
+<b class="nc"><i>142</i>&nbsp;            startNode(random().nextLong());</b>
+<i>143</i>&nbsp;        }
+<b class="fc"><i>144</i>&nbsp;    }</b>
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    @BeforeClass
+<i>147</i>&nbsp;    public static void setUpClass() throws Exception {
+<b class="fc"><i>148</i>&nbsp;        stopNode();</b>
+<b class="fc"><i>149</i>&nbsp;    }</b>
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;    @AfterClass
+<i>152</i>&nbsp;    public static void tearDownClass() throws Exception {
+<b class="fc"><i>153</i>&nbsp;        stopNode();</b>
+<b class="fc"><i>154</i>&nbsp;    }</b>
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    /**
+<i>157</i>&nbsp;     * This method returns &lt;code&gt;true&lt;/code&gt; if the node that is used in the background should be reset
+<i>158</i>&nbsp;     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+<i>159</i>&nbsp;     * &lt;code&gt;false&lt;/code&gt;.
+<i>160</i>&nbsp;     */
+<i>161</i>&nbsp;    protected boolean resetNodeAfterTest() {
+<b class="fc"><i>162</i>&nbsp;        return false;</b>
+<i>163</i>&nbsp;    }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    /** The plugin classes that should be added to the node. */
+<i>166</i>&nbsp;    protected Collection&lt;Class&lt;? extends Plugin&gt;&gt; getPlugins() {
+<b class="nc"><i>167</i>&nbsp;        return Collections.emptyList();</b>
+<i>168</i>&nbsp;    }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    /** Helper method to create list of plugins without specifying generic types. */
+<i>171</i>&nbsp;    @SafeVarargs
+<i>172</i>&nbsp;    @SuppressWarnings(&quot;varargs&quot;) // due to type erasure, the varargs type is non-reifiable, which causes this warning
+<i>173</i>&nbsp;    protected final Collection&lt;Class&lt;? extends Plugin&gt;&gt; pluginList(Class&lt;? extends Plugin&gt;... plugins) {
+<b class="nc"><i>174</i>&nbsp;        return Arrays.asList(plugins);</b>
+<i>175</i>&nbsp;    }
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;    /** Additional settings to add when creating the node. Also allows overriding the default settings. */
+<i>178</i>&nbsp;    protected Settings nodeSettings() {
+<b class="fc"><i>179</i>&nbsp;        return Settings.EMPTY;</b>
+<i>180</i>&nbsp;    }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;    /** True if a dummy http transport should be used, or false if the real http transport should be used. */
+<i>183</i>&nbsp;    protected boolean addMockHttpTransport() {
+<b class="fc"><i>184</i>&nbsp;        return true;</b>
+<i>185</i>&nbsp;    }
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;    private Node newNode() {
+<b class="fc"><i>188</i>&nbsp;        final Path tempDir = createTempDir();</b>
+<b class="fc"><i>189</i>&nbsp;        final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), &quot;node_s_0&quot;);</b>
+<i>190</i>&nbsp;
+<b class="fc"><i>191</i>&nbsp;        Settings settings = Settings.builder()</b>
+<b class="fc"><i>192</i>&nbsp;            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName(&quot;single-node-cluster&quot;, random().nextLong()))</b>
+<b class="fc"><i>193</i>&nbsp;            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)</b>
+<b class="fc"><i>194</i>&nbsp;            .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve(&quot;repo&quot;))</b>
+<i>195</i>&nbsp;            // TODO: use a consistent data path for custom paths
+<i>196</i>&nbsp;            // This needs to tie into the ESIntegTestCase#indexSettings() method
+<b class="fc"><i>197</i>&nbsp;            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())</b>
+<b class="fc"><i>198</i>&nbsp;            .put(Node.NODE_NAME_SETTING.getKey(), nodeName)</b>
+<b class="fc"><i>199</i>&nbsp;            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), &quot;1000/1m&quot;)</b>
+<b class="fc"><i>200</i>&nbsp;            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created</b>
+<b class="fc"><i>201</i>&nbsp;            .put(&quot;transport.type&quot;, getTestTransportType())</b>
+<b class="fc"><i>202</i>&nbsp;            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())</b>
+<b class="fc"><i>203</i>&nbsp;            .put(Node.NODE_DATA_SETTING.getKey(), true)</b>
+<b class="fc"><i>204</i>&nbsp;            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())</b>
+<i>205</i>&nbsp;            // default the watermarks low values to prevent tests from failing on nodes without enough disk space
+<b class="fc"><i>206</i>&nbsp;            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), &quot;1b&quot;)</b>
+<b class="fc"><i>207</i>&nbsp;            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), &quot;1b&quot;)</b>
+<b class="fc"><i>208</i>&nbsp;            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), &quot;1b&quot;)</b>
+<i>209</i>&nbsp;            // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
+<i>210</i>&nbsp;            // turn it off for these tests.
+<b class="fc"><i>211</i>&nbsp;            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)</b>
+<b class="fc"><i>212</i>&nbsp;            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes</b>
+<b class="fc"><i>213</i>&nbsp;            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)</b>
+<b class="fc"><i>214</i>&nbsp;            .put(nodeSettings()) // allow test cases to provide their own settings or override these</b>
+<b class="fc"><i>215</i>&nbsp;            .build();</b>
+<i>216</i>&nbsp;
+<b class="fc"><i>217</i>&nbsp;        Collection&lt;Class&lt;? extends Plugin&gt;&gt; plugins = getPlugins();</b>
+<b class="fc"><i>218</i>&nbsp;        if (plugins.contains(getTestTransportPlugin()) == false) {</b>
+<b class="fc"><i>219</i>&nbsp;            plugins = new ArrayList&lt;&gt;(plugins);</b>
+<b class="fc"><i>220</i>&nbsp;            plugins.add(getTestTransportPlugin());</b>
+<i>221</i>&nbsp;        }
+<b class="fc"><i>222</i>&nbsp;        if (addMockHttpTransport()) {</b>
+<b class="fc"><i>223</i>&nbsp;            plugins.add(MockHttpTransport.TestPlugin.class);</b>
+<i>224</i>&nbsp;        }
+<b class="fc"><i>225</i>&nbsp;        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());</b>
+<i>226</i>&nbsp;        try {
+<b class="fc"><i>227</i>&nbsp;            node.start();</b>
+<b class="nc"><i>228</i>&nbsp;        } catch (NodeValidationException e) {</b>
+<b class="nc"><i>229</i>&nbsp;            throw new RuntimeException(e);</b>
+<b class="fc"><i>230</i>&nbsp;        }</b>
+<b class="fc"><i>231</i>&nbsp;        return node;</b>
+<i>232</i>&nbsp;    }
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    /**
+<i>235</i>&nbsp;     * Returns a client to the single-node cluster.
+<i>236</i>&nbsp;     */
+<i>237</i>&nbsp;    public Client client() {
+<b class="fc"><i>238</i>&nbsp;        return wrapClient(NODE.client());</b>
+<i>239</i>&nbsp;    }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;    public Client wrapClient(final Client client) {
+<b class="fc"><i>242</i>&nbsp;        return client;</b>
+<i>243</i>&nbsp;    }
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;    /**
+<i>246</i>&nbsp;     * Return a reference to the singleton node.
+<i>247</i>&nbsp;     */
+<i>248</i>&nbsp;    protected Node node() {
+<b class="nc"><i>249</i>&nbsp;        return NODE;</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    /**
+<i>253</i>&nbsp;     * Get an instance for a particular class using the injector of the singleton node.
+<i>254</i>&nbsp;     */
+<i>255</i>&nbsp;    protected &lt;T&gt; T getInstanceFromNode(Class&lt;T&gt; clazz) {
+<b class="fc"><i>256</i>&nbsp;        return NODE.injector().getInstance(clazz);</b>
+<i>257</i>&nbsp;    }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    /**
+<i>260</i>&nbsp;     * Create a new index on the singleton node with empty index settings.
+<i>261</i>&nbsp;     */
+<i>262</i>&nbsp;    protected IndexService createIndex(String index) {
+<b class="fc"><i>263</i>&nbsp;        return createIndex(index, Settings.EMPTY);</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    /**
+<i>267</i>&nbsp;     * Create a new index on the singleton node with the provided index settings.
+<i>268</i>&nbsp;     */
+<i>269</i>&nbsp;    protected IndexService createIndex(String index, Settings settings) {
+<b class="fc"><i>270</i>&nbsp;        return createIndex(index, settings, null, (XContentBuilder) null);</b>
+<i>271</i>&nbsp;    }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;    /**
+<i>274</i>&nbsp;     * Create a new index on the singleton node with the provided index settings.
+<i>275</i>&nbsp;     */
+<i>276</i>&nbsp;    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+<b class="fc"><i>277</i>&nbsp;        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);</b>
+<b class="fc"><i>278</i>&nbsp;        if (type != null &amp;&amp; mappings != null) {</b>
+<b class="nc"><i>279</i>&nbsp;            createIndexRequestBuilder.addMapping(type, mappings);</b>
+<i>280</i>&nbsp;        }
+<b class="fc"><i>281</i>&nbsp;        return createIndex(index, createIndexRequestBuilder);</b>
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    /**
+<i>285</i>&nbsp;     * Create a new index on the singleton node with the provided index settings.
+<i>286</i>&nbsp;     */
+<i>287</i>&nbsp;    protected IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+<b class="nc"><i>288</i>&nbsp;        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);</b>
+<b class="nc"><i>289</i>&nbsp;        if (type != null) {</b>
+<b class="nc"><i>290</i>&nbsp;            createIndexRequestBuilder.addMapping(type, mappings);</b>
+<i>291</i>&nbsp;        }
+<b class="nc"><i>292</i>&nbsp;        return createIndex(index, createIndexRequestBuilder);</b>
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;    protected IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
+<b class="fc"><i>296</i>&nbsp;        assertAcked(createIndexRequestBuilder.get());</b>
+<i>297</i>&nbsp;        // Wait for the index to be allocated so that cluster state updates don&#39;t override
+<i>298</i>&nbsp;        // changes that would have been done locally
+<b class="fc"><i>299</i>&nbsp;        ClusterHealthResponse health = client().admin().cluster()</b>
+<b class="fc"><i>300</i>&nbsp;                .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID)</b>
+<b class="fc"><i>301</i>&nbsp;                        .waitForNoRelocatingShards(true)).actionGet();</b>
+<b class="fc"><i>302</i>&nbsp;        assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));</b>
+<b class="fc"><i>303</i>&nbsp;        assertThat(&quot;Cluster must be a single node cluster&quot;, health.getNumberOfDataNodes(), equalTo(1));</b>
+<b class="fc"><i>304</i>&nbsp;        IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);</b>
+<b class="fc"><i>305</i>&nbsp;        return instanceFromNode.indexServiceSafe(resolveIndex(index));</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    public Index resolveIndex(String index) {
+<b class="fc"><i>309</i>&nbsp;        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();</b>
+<b class="fc"><i>310</i>&nbsp;        assertTrue(&quot;index &quot; + index + &quot; not found&quot;, getIndexResponse.getSettings().containsKey(index));</b>
+<b class="fc"><i>311</i>&nbsp;        String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);</b>
+<b class="fc"><i>312</i>&nbsp;        return new Index(index, uuid);</b>
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    /**
+<i>316</i>&nbsp;     * Create a new search context.
+<i>317</i>&nbsp;     */
+<i>318</i>&nbsp;    protected SearchContext createSearchContext(IndexService indexService) {
+<b class="nc"><i>319</i>&nbsp;        BigArrays bigArrays = indexService.getBigArrays();</b>
+<b class="nc"><i>320</i>&nbsp;        return new TestSearchContext(bigArrays, indexService);</b>
+<i>321</i>&nbsp;    }
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    /**
+<i>324</i>&nbsp;     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+<i>325</i>&nbsp;     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+<i>326</i>&nbsp;     * are now allocated and started.
+<i>327</i>&nbsp;     */
+<i>328</i>&nbsp;    public ClusterHealthStatus ensureGreen(String... indices) {
+<b class="nc"><i>329</i>&nbsp;        return ensureGreen(TimeValue.timeValueSeconds(30), indices);</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    /**
+<i>334</i>&nbsp;     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+<i>335</i>&nbsp;     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+<i>336</i>&nbsp;     * are now allocated and started.
+<i>337</i>&nbsp;     *
+<i>338</i>&nbsp;     * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
+<i>339</i>&nbsp;     */
+<i>340</i>&nbsp;    public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
+<b class="nc"><i>341</i>&nbsp;        ClusterHealthResponse actionGet = client().admin().cluster()</b>
+<b class="nc"><i>342</i>&nbsp;                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID)</b>
+<b class="nc"><i>343</i>&nbsp;                        .waitForNoRelocatingShards(true)).actionGet();</b>
+<b class="nc"><i>344</i>&nbsp;        if (actionGet.isTimedOut()) {</b>
+<b class="nc"><i>345</i>&nbsp;            logger.info(&quot;ensureGreen timed out, cluster state:\n{}\n{}&quot;, client().admin().cluster().prepareState().get().getState(),</b>
+<b class="nc"><i>346</i>&nbsp;                client().admin().cluster().preparePendingClusterTasks().get());</b>
+<b class="nc"><i>347</i>&nbsp;            assertThat(&quot;timed out waiting for green state&quot;, actionGet.isTimedOut(), equalTo(false));</b>
+<i>348</i>&nbsp;        }
+<b class="nc"><i>349</i>&nbsp;        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));</b>
+<b class="nc"><i>350</i>&nbsp;        logger.debug(&quot;indices {} are green&quot;, indices.length == 0 ? &quot;[_all]&quot; : indices);</b>
+<b class="nc"><i>351</i>&nbsp;        return actionGet.getStatus();</b>
+<i>352</i>&nbsp;    }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;    @Override
+<i>355</i>&nbsp;    protected NamedXContentRegistry xContentRegistry() {
+<b class="nc"><i>356</i>&nbsp;        return getInstanceFromNode(NamedXContentRegistry.class);</b>
+<i>357</i>&nbsp;    }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;    protected boolean forbidPrivateIndexSettings() {
+<b class="fc"><i>360</i>&nbsp;        return true;</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

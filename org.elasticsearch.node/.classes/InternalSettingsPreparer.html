@@ -1,0 +1,238 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InternalSettingsPreparer</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.node</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InternalSettingsPreparer (org.elasticsearch.node)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InternalSettingsPreparer</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    83.3%
+  </span>
+  <span class="absValue">
+    (5/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    65.3%
+  </span>
+  <span class="absValue">
+    (32/ 49)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.node;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.io.IOException;
+<i>23</i>&nbsp;import java.nio.file.Files;
+<i>24</i>&nbsp;import java.nio.file.Path;
+<i>25</i>&nbsp;import java.util.ArrayList;
+<i>26</i>&nbsp;import java.util.Collections;
+<i>27</i>&nbsp;import java.util.List;
+<i>28</i>&nbsp;import java.util.Map;
+<i>29</i>&nbsp;import java.util.function.Supplier;
+<i>30</i>&nbsp;import java.util.function.Function;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import org.elasticsearch.Version;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>34</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>35</i>&nbsp;import org.elasticsearch.common.settings.SettingsException;
+<i>36</i>&nbsp;import org.elasticsearch.env.Environment;
+<i>37</i>&nbsp;import org.elasticsearch.node.Node;
+<i>38</i>&nbsp;
+<b class="fc"><i>39</i>&nbsp;public class InternalSettingsPreparer {</b>
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;    private static final String SECRET_PROMPT_VALUE = &quot;${prompt.secret}&quot;;
+<i>42</i>&nbsp;    private static final String TEXT_PROMPT_VALUE = &quot;${prompt.text}&quot;;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    /**
+<i>45</i>&nbsp;     * Prepares settings for the transport client by gathering all
+<i>46</i>&nbsp;     * elasticsearch system properties and setting defaults.
+<i>47</i>&nbsp;     */
+<i>48</i>&nbsp;    public static Settings prepareSettings(Settings input) {
+<b class="nc"><i>49</i>&nbsp;        Settings.Builder output = Settings.builder();</b>
+<b class="nc"><i>50</i>&nbsp;        initializeSettings(output, input, Collections.emptyMap());</b>
+<b class="nc"><i>51</i>&nbsp;        finalizeSettings(output, () -&gt; null);</b>
+<b class="nc"><i>52</i>&nbsp;        return output.build();</b>
+<i>53</i>&nbsp;    }
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    /**
+<i>56</i>&nbsp;     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings.
+<i>57</i>&nbsp;     *
+<i>58</i>&nbsp;     * @param input      the custom settings to use; these are not overwritten by settings in the configuration file
+<i>59</i>&nbsp;     * @param properties map of properties key/value pairs (usually from the command-line)
+<i>60</i>&nbsp;     * @param configPath path to config directory; (use null to indicate the default)
+<i>61</i>&nbsp;     * @param defaultNodeName supplier for the default node.name if the setting isn&#39;t defined
+<i>62</i>&nbsp;     * @return the {@link Environment}
+<i>63</i>&nbsp;     */
+<i>64</i>&nbsp;    public static Environment prepareEnvironment(Settings input, Map&lt;String, String&gt; properties,
+<i>65</i>&nbsp;            Path configPath, Supplier&lt;String&gt; defaultNodeName) {
+<i>66</i>&nbsp;        // just create enough settings to build the environment, to get the config dir
+<b class="fc"><i>67</i>&nbsp;        Settings.Builder output = Settings.builder();</b>
+<b class="fc"><i>68</i>&nbsp;        initializeSettings(output, input, properties);</b>
+<b class="fc"><i>69</i>&nbsp;        Environment environment = new Environment(output.build(), configPath);</b>
+<i>70</i>&nbsp;
+<b class="fc"><i>71</i>&nbsp;        if (Files.exists(environment.configFile().resolve(&quot;elasticsearch.yaml&quot;))) {</b>
+<b class="nc"><i>72</i>&nbsp;            throw new SettingsException(&quot;elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml&quot;);</b>
+<i>73</i>&nbsp;        }
+<i>74</i>&nbsp;
+<b class="fc"><i>75</i>&nbsp;        if (Files.exists(environment.configFile().resolve(&quot;elasticsearch.json&quot;))) {</b>
+<b class="nc"><i>76</i>&nbsp;            throw new SettingsException(&quot;elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml&quot;);</b>
+<i>77</i>&nbsp;        }
+<i>78</i>&nbsp;
+<b class="fc"><i>79</i>&nbsp;        output = Settings.builder(); // start with a fresh output</b>
+<b class="fc"><i>80</i>&nbsp;        Path path = environment.configFile().resolve(&quot;elasticsearch.yml&quot;);</b>
+<b class="fc"><i>81</i>&nbsp;        if (Files.exists(path)) {</b>
+<i>82</i>&nbsp;            try {
+<b class="nc"><i>83</i>&nbsp;                output.loadFromPath(path);</b>
+<b class="nc"><i>84</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>85</i>&nbsp;                throw new SettingsException(&quot;Failed to load settings from &quot; + path.toString(), e);</b>
+<b class="nc"><i>86</i>&nbsp;            }</b>
+<i>87</i>&nbsp;        }
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;        // re-initialize settings now that the config file has been loaded
+<b class="fc"><i>90</i>&nbsp;        initializeSettings(output, input, properties);</b>
+<b class="fc"><i>91</i>&nbsp;        checkSettingsForTerminalDeprecation(output);</b>
+<b class="fc"><i>92</i>&nbsp;        finalizeSettings(output, defaultNodeName);</b>
+<i>93</i>&nbsp;
+<b class="fc"><i>94</i>&nbsp;        return new Environment(output.build(), configPath);</b>
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    /**
+<i>98</i>&nbsp;     * Initializes the builder with the given input settings, and applies settings from the specified map (these settings typically come
+<i>99</i>&nbsp;     * from the command line).
+<i>100</i>&nbsp;     *
+<i>101</i>&nbsp;     * @param output the settings builder to apply the input and default settings to
+<i>102</i>&nbsp;     * @param input the input settings
+<i>103</i>&nbsp;     * @param esSettings a map from which to apply settings
+<i>104</i>&nbsp;     */
+<i>105</i>&nbsp;    static void initializeSettings(final Settings.Builder output, final Settings input, final Map&lt;String, String&gt; esSettings) {
+<b class="fc"><i>106</i>&nbsp;        output.put(input);</b>
+<b class="fc"><i>107</i>&nbsp;        output.putProperties(esSettings, Function.identity());</b>
+<b class="fc"><i>108</i>&nbsp;        output.replacePropertyPlaceholders();</b>
+<b class="fc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    /**
+<i>112</i>&nbsp;     * Checks all settings values to make sure they do not have the old prompt settings. These were deprecated in 6.0.0.
+<i>113</i>&nbsp;     * This check should be removed in 8.0.0.
+<i>114</i>&nbsp;     */
+<i>115</i>&nbsp;    private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
+<i>116</i>&nbsp;        // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
+<b class="fc"><i>117</i>&nbsp;        assert Version.CURRENT.major != 8: &quot;Logic pertaining to config driven prompting should be removed&quot;;</b>
+<b class="fc"><i>118</i>&nbsp;        for (String setting : output.keys()) {</b>
+<b class="fc"><i>119</i>&nbsp;            switch (output.get(setting)) {</b>
+<i>120</i>&nbsp;                case SECRET_PROMPT_VALUE:
+<b class="nc"><i>121</i>&nbsp;                    throw new SettingsException(&quot;Config driven secret prompting was deprecated in 6.0.0. Use the keystore&quot; +</b>
+<i>122</i>&nbsp;                        &quot; for secure settings.&quot;);
+<i>123</i>&nbsp;                case TEXT_PROMPT_VALUE:
+<b class="nc"><i>124</i>&nbsp;                    throw new SettingsException(&quot;Config driven text prompting was deprecated in 6.0.0. Use the keystore&quot; +</b>
+<i>125</i>&nbsp;                        &quot; for secure settings.&quot;);
+<i>126</i>&nbsp;            }
+<b class="fc"><i>127</i>&nbsp;        }</b>
+<b class="fc"><i>128</i>&nbsp;    }</b>
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    /**
+<i>131</i>&nbsp;     * Finish preparing settings by replacing forced settings and any defaults that need to be added.
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    private static void finalizeSettings(Settings.Builder output, Supplier&lt;String&gt; defaultNodeName) {
+<i>134</i>&nbsp;        // allow to force set properties based on configuration of the settings provided
+<b class="fc"><i>135</i>&nbsp;        List&lt;String&gt; forcedSettings = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>136</i>&nbsp;        for (String setting : output.keys()) {</b>
+<b class="fc"><i>137</i>&nbsp;            if (setting.startsWith(&quot;force.&quot;)) {</b>
+<b class="nc"><i>138</i>&nbsp;                forcedSettings.add(setting);</b>
+<i>139</i>&nbsp;            }
+<b class="fc"><i>140</i>&nbsp;        }</b>
+<b class="fc"><i>141</i>&nbsp;        for (String forcedSetting : forcedSettings) {</b>
+<b class="nc"><i>142</i>&nbsp;            String value = output.remove(forcedSetting);</b>
+<b class="nc"><i>143</i>&nbsp;            output.put(forcedSetting.substring(&quot;force.&quot;.length()), value);</b>
+<b class="nc"><i>144</i>&nbsp;        }</b>
+<b class="fc"><i>145</i>&nbsp;        output.replacePropertyPlaceholders();</b>
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;        // put the cluster and node name if they aren&#39;t set
+<b class="fc"><i>148</i>&nbsp;        if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {</b>
+<b class="fc"><i>149</i>&nbsp;            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());</b>
+<i>150</i>&nbsp;        }
+<b class="fc"><i>151</i>&nbsp;        if (output.get(Node.NODE_NAME_SETTING.getKey()) == null) {</b>
+<b class="nc"><i>152</i>&nbsp;            output.put(Node.NODE_NAME_SETTING.getKey(), defaultNodeName.get());</b>
+<i>153</i>&nbsp;        }
+<b class="fc"><i>154</i>&nbsp;    }</b>
+<i>155</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

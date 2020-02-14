@@ -1,0 +1,241 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BaseTranslogReader</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.translog</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BaseTranslogReader (org.elasticsearch.index.translog)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BaseTranslogReader</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (7/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.3%
+  </span>
+  <span class="absValue">
+    (13/ 46)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.translog;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+<i>23</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.io.IOException;
+<i>26</i>&nbsp;import java.nio.ByteBuffer;
+<i>27</i>&nbsp;import java.nio.channels.FileChannel;
+<i>28</i>&nbsp;import java.nio.file.Files;
+<i>29</i>&nbsp;import java.nio.file.Path;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;/**
+<i>32</i>&nbsp; * A base class for all classes that allows reading ops from translog files
+<i>33</i>&nbsp; */
+<b class="fc"><i>34</i>&nbsp;public abstract class BaseTranslogReader implements Comparable&lt;BaseTranslogReader&gt; {</b>
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;    protected final long generation;
+<i>37</i>&nbsp;    protected final FileChannel channel;
+<i>38</i>&nbsp;    protected final Path path;
+<i>39</i>&nbsp;    protected final TranslogHeader header;
+<i>40</i>&nbsp;
+<b class="fc"><i>41</i>&nbsp;    public BaseTranslogReader(long generation, FileChannel channel, Path path, TranslogHeader header) {</b>
+<b class="fc"><i>42</i>&nbsp;        assert Translog.parseIdFromFileName(path) == generation : &quot;generation mismatch. Path: &quot; +</b>
+<b class="nc"><i>43</i>&nbsp;            Translog.parseIdFromFileName(path) + &quot; but generation: &quot; + generation;</b>
+<i>44</i>&nbsp;
+<b class="fc"><i>45</i>&nbsp;        this.generation = generation;</b>
+<b class="fc"><i>46</i>&nbsp;        this.path = path;</b>
+<b class="fc"><i>47</i>&nbsp;        this.channel = channel;</b>
+<b class="fc"><i>48</i>&nbsp;        this.header = header;</b>
+<b class="fc"><i>49</i>&nbsp;    }</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    public long getGeneration() {
+<b class="fc"><i>52</i>&nbsp;        return this.generation;</b>
+<i>53</i>&nbsp;    }
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    public abstract long sizeInBytes();
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    public abstract int totalOperations();
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    abstract Checkpoint getCheckpoint();
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    public final long getFirstOperationOffset() {
+<b class="fc"><i>62</i>&nbsp;        return header.sizeInBytes();</b>
+<i>63</i>&nbsp;    }
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    /**
+<i>66</i>&nbsp;     * Returns the primary term associated with this translog reader.
+<i>67</i>&nbsp;     */
+<i>68</i>&nbsp;    public final long getPrimaryTerm() {
+<b class="fc"><i>69</i>&nbsp;        return header.getPrimaryTerm();</b>
+<i>70</i>&nbsp;    }
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    /** read the size of the op (i.e., number of bytes, including the op size) written at the given position */
+<i>73</i>&nbsp;    protected final int readSize(ByteBuffer reusableBuffer, long position) throws IOException {
+<i>74</i>&nbsp;        // read op size from disk
+<b class="nc"><i>75</i>&nbsp;        assert reusableBuffer.capacity() &gt;= 4 : &quot;reusable buffer must have capacity &gt;=4 when reading opSize. got [&quot; +</b>
+<b class="nc"><i>76</i>&nbsp;            reusableBuffer.capacity() + &quot;]&quot;;</b>
+<b class="nc"><i>77</i>&nbsp;        reusableBuffer.clear();</b>
+<b class="nc"><i>78</i>&nbsp;        reusableBuffer.limit(4);</b>
+<b class="nc"><i>79</i>&nbsp;        readBytes(reusableBuffer, position);</b>
+<b class="nc"><i>80</i>&nbsp;        reusableBuffer.flip();</b>
+<i>81</i>&nbsp;        // Add an extra 4 to account for the operation size integer itself
+<b class="nc"><i>82</i>&nbsp;        final int size = reusableBuffer.getInt() + 4;</b>
+<b class="nc"><i>83</i>&nbsp;        final long maxSize = sizeInBytes() - position;</b>
+<b class="nc"><i>84</i>&nbsp;        if (size &lt; 0 || size &gt; maxSize) {</b>
+<b class="nc"><i>85</i>&nbsp;            throw new TranslogCorruptedException(</b>
+<b class="nc"><i>86</i>&nbsp;                    path.toString(),</b>
+<i>87</i>&nbsp;                    &quot;operation size is corrupted must be [0..&quot; + maxSize + &quot;] but was: &quot; + size);
+<i>88</i>&nbsp;        }
+<b class="nc"><i>89</i>&nbsp;        return size;</b>
+<i>90</i>&nbsp;    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    public TranslogSnapshot newSnapshot() {
+<b class="fc"><i>93</i>&nbsp;        return new TranslogSnapshot(this, sizeInBytes());</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    /**
+<i>97</i>&nbsp;     * reads an operation at the given position and returns it. The buffer length is equal to the number
+<i>98</i>&nbsp;     * of bytes reads.
+<i>99</i>&nbsp;     */
+<i>100</i>&nbsp;    protected final BufferedChecksumStreamInput checksummedStream(ByteBuffer reusableBuffer, long position, int opSize,
+<i>101</i>&nbsp;                                                                        BufferedChecksumStreamInput reuse) throws IOException {
+<i>102</i>&nbsp;        final ByteBuffer buffer;
+<b class="nc"><i>103</i>&nbsp;        if (reusableBuffer.capacity() &gt;= opSize) {</b>
+<b class="nc"><i>104</i>&nbsp;            buffer = reusableBuffer;</b>
+<i>105</i>&nbsp;        } else {
+<b class="nc"><i>106</i>&nbsp;            buffer = ByteBuffer.allocate(opSize);</b>
+<i>107</i>&nbsp;        }
+<b class="nc"><i>108</i>&nbsp;        buffer.clear();</b>
+<b class="nc"><i>109</i>&nbsp;        buffer.limit(opSize);</b>
+<b class="nc"><i>110</i>&nbsp;        readBytes(buffer, position);</b>
+<b class="nc"><i>111</i>&nbsp;        buffer.flip();</b>
+<b class="nc"><i>112</i>&nbsp;        return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), path.toString(), reuse);</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
+<b class="nc"><i>116</i>&nbsp;        final Translog.Operation op = Translog.readOperation(inStream);</b>
+<b class="nc"><i>117</i>&nbsp;        if (op.primaryTerm() &gt; getPrimaryTerm() &amp;&amp; getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {</b>
+<b class="nc"><i>118</i>&nbsp;            throw new TranslogCorruptedException(</b>
+<b class="nc"><i>119</i>&nbsp;                    path.toString(),</b>
+<i>120</i>&nbsp;                    &quot;operation&#39;s term is newer than translog header term; &quot; +
+<b class="nc"><i>121</i>&nbsp;                    &quot;operation term[&quot; + op.primaryTerm() + &quot;], translog header term [&quot; + getPrimaryTerm() + &quot;]&quot;);</b>
+<i>122</i>&nbsp;        }
+<b class="nc"><i>123</i>&nbsp;        return op;</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    /**
+<i>127</i>&nbsp;     * reads bytes at position into the given buffer, filling it.
+<i>128</i>&nbsp;     */
+<i>129</i>&nbsp;    protected abstract void readBytes(ByteBuffer buffer, long position) throws IOException;
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    @Override
+<i>132</i>&nbsp;    public String toString() {
+<b class="nc"><i>133</i>&nbsp;        return &quot;translog [&quot; + generation + &quot;][&quot; + path + &quot;]&quot;;</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    @Override
+<i>137</i>&nbsp;    public int compareTo(BaseTranslogReader o) {
+<b class="nc"><i>138</i>&nbsp;        return Long.compare(getGeneration(), o.getGeneration());</b>
+<i>139</i>&nbsp;    }
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;    public Path path() {
+<b class="nc"><i>143</i>&nbsp;        return path;</b>
+<i>144</i>&nbsp;    }
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    public long getLastModifiedTime() throws IOException {
+<b class="fc"><i>147</i>&nbsp;        return Files.getLastModifiedTime(path).toMillis();</b>
+<i>148</i>&nbsp;    }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    /**
+<i>151</i>&nbsp;     * Reads a single operation from the given location.
+<i>152</i>&nbsp;     */
+<i>153</i>&nbsp;    Translog.Operation read(Translog.Location location) throws IOException {
+<b class="nc"><i>154</i>&nbsp;        assert location.generation == this.generation : &quot;generation mismatch expected: &quot; + generation + &quot; got: &quot; + location.generation;</b>
+<b class="nc"><i>155</i>&nbsp;        ByteBuffer buffer = ByteBuffer.allocate(location.size);</b>
+<b class="nc"><i>156</i>&nbsp;        return read(checksummedStream(buffer, location.translogLocation, location.size, null));</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

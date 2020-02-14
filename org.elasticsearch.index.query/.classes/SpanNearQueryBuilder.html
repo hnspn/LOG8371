@@ -1,0 +1,555 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SpanNearQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SpanNearQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SpanNearQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 129)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">SpanNearQueryBuilder$SpanGapQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 52)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 34)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 181)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.Query;
+<i>23</i>&nbsp;import org.apache.lucene.search.spans.SpanNearQuery;
+<i>24</i>&nbsp;import org.apache.lucene.search.spans.SpanQuery;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>26</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>27</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentLocation;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>33</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.io.IOException;
+<i>36</i>&nbsp;import java.util.ArrayList;
+<i>37</i>&nbsp;import java.util.Collections;
+<i>38</i>&nbsp;import java.util.List;
+<i>39</i>&nbsp;import java.util.Objects;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;/**
+<i>44</i>&nbsp; * Matches spans which are near one another. One can specify slop, the maximum number
+<i>45</i>&nbsp; * of intervening unmatched positions, as well as whether matches are required to be in-order.
+<i>46</i>&nbsp; * The span near query maps to Lucene {@link SpanNearQuery}.
+<i>47</i>&nbsp; */
+<b class="nc"><i>48</i>&nbsp;public class SpanNearQueryBuilder extends AbstractQueryBuilder&lt;SpanNearQueryBuilder&gt; implements SpanQueryBuilder {</b>
+<i>49</i>&nbsp;    public static final String NAME = &quot;span_near&quot;;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    /** Default for flag controlling whether matches are required to be in-order */
+<b class="nc"><i>52</i>&nbsp;    public static boolean DEFAULT_IN_ORDER = true;</b>
+<i>53</i>&nbsp;    /** Default slop value, this is the same that lucene {@link SpanNearQuery} uses if no slop is provided */
+<b class="nc"><i>54</i>&nbsp;    public static int DEFAULT_SLOP = 0;</b>
+<i>55</i>&nbsp;
+<b class="nc"><i>56</i>&nbsp;    private static final ParseField SLOP_FIELD = new ParseField(&quot;slop&quot;);</b>
+<b class="nc"><i>57</i>&nbsp;    private static final ParseField CLAUSES_FIELD = new ParseField(&quot;clauses&quot;);</b>
+<b class="nc"><i>58</i>&nbsp;    private static final ParseField IN_ORDER_FIELD = new ParseField(&quot;in_order&quot;);</b>
+<i>59</i>&nbsp;
+<b class="nc"><i>60</i>&nbsp;    private final List&lt;SpanQueryBuilder&gt; clauses = new ArrayList&lt;&gt;();</b>
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private final int slop;
+<i>63</i>&nbsp;
+<b class="nc"><i>64</i>&nbsp;    private boolean inOrder = DEFAULT_IN_ORDER;</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    /**
+<i>67</i>&nbsp;     * @param initialClause an initial span query clause
+<i>68</i>&nbsp;     * @param slop controls the maximum number of intervening unmatched positions permitted
+<i>69</i>&nbsp;     */
+<b class="nc"><i>70</i>&nbsp;    public SpanNearQueryBuilder(SpanQueryBuilder initialClause, int slop) {</b>
+<b class="nc"><i>71</i>&nbsp;        if (initialClause == null) {</b>
+<b class="nc"><i>72</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] must include at least one clause&quot;);</b>
+<i>73</i>&nbsp;        }
+<b class="nc"><i>74</i>&nbsp;        this.clauses.add(initialClause);</b>
+<b class="nc"><i>75</i>&nbsp;        this.slop = slop;</b>
+<b class="nc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    /**
+<i>79</i>&nbsp;     * Read from a stream.
+<i>80</i>&nbsp;     */
+<i>81</i>&nbsp;    public SpanNearQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>82</i>&nbsp;        super(in);</b>
+<b class="nc"><i>83</i>&nbsp;        for (QueryBuilder clause : readQueries(in)) {</b>
+<b class="nc"><i>84</i>&nbsp;            this.clauses.add((SpanQueryBuilder) clause);</b>
+<b class="nc"><i>85</i>&nbsp;        }</b>
+<b class="nc"><i>86</i>&nbsp;        slop = in.readVInt();</b>
+<b class="nc"><i>87</i>&nbsp;        inOrder = in.readBoolean();</b>
+<b class="nc"><i>88</i>&nbsp;    }</b>
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    @Override
+<i>91</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>92</i>&nbsp;        writeQueries(out, clauses);</b>
+<b class="nc"><i>93</i>&nbsp;        out.writeVInt(slop);</b>
+<b class="nc"><i>94</i>&nbsp;        out.writeBoolean(inOrder);</b>
+<b class="nc"><i>95</i>&nbsp;    }</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    /**
+<i>98</i>&nbsp;     * @return the maximum number of intervening unmatched positions permitted
+<i>99</i>&nbsp;     */
+<i>100</i>&nbsp;    public int slop() {
+<b class="nc"><i>101</i>&nbsp;        return this.slop;</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    /**
+<i>105</i>&nbsp;     * Add a span clause to the current list of clauses
+<i>106</i>&nbsp;     */
+<i>107</i>&nbsp;    public SpanNearQueryBuilder addClause(SpanQueryBuilder clause) {
+<b class="nc"><i>108</i>&nbsp;        if (clause == null) {</b>
+<b class="nc"><i>109</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;]  clauses cannot be null&quot;);</b>
+<i>110</i>&nbsp;        }
+<b class="nc"><i>111</i>&nbsp;        clauses.add(clause);</b>
+<b class="nc"><i>112</i>&nbsp;        return this;</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    /**
+<i>116</i>&nbsp;     * @return the {@link SpanQueryBuilder} clauses that were set for this query
+<i>117</i>&nbsp;     */
+<i>118</i>&nbsp;    public List&lt;SpanQueryBuilder&gt; clauses() {
+<b class="nc"><i>119</i>&nbsp;        return Collections.unmodifiableList(this.clauses);</b>
+<i>120</i>&nbsp;    }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    /**
+<i>123</i>&nbsp;     * When &lt;code&gt;inOrder&lt;/code&gt; is true, the spans from each clause
+<i>124</i>&nbsp;     * must be in the same order as in &lt;code&gt;clauses&lt;/code&gt; and must be non-overlapping.
+<i>125</i>&nbsp;     * Defaults to &lt;code&gt;true&lt;/code&gt;
+<i>126</i>&nbsp;     */
+<i>127</i>&nbsp;    public SpanNearQueryBuilder inOrder(boolean inOrder) {
+<b class="nc"><i>128</i>&nbsp;        this.inOrder = inOrder;</b>
+<b class="nc"><i>129</i>&nbsp;        return this;</b>
+<i>130</i>&nbsp;    }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    /**
+<i>133</i>&nbsp;     * @see SpanNearQueryBuilder#inOrder(boolean)
+<i>134</i>&nbsp;     */
+<i>135</i>&nbsp;    public boolean inOrder() {
+<b class="nc"><i>136</i>&nbsp;        return this.inOrder;</b>
+<i>137</i>&nbsp;    }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    @Override
+<i>140</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>141</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>142</i>&nbsp;        builder.startArray(CLAUSES_FIELD.getPreferredName());</b>
+<b class="nc"><i>143</i>&nbsp;        for (SpanQueryBuilder clause : clauses) {</b>
+<b class="nc"><i>144</i>&nbsp;            clause.toXContent(builder, params);</b>
+<b class="nc"><i>145</i>&nbsp;        }</b>
+<b class="nc"><i>146</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>147</i>&nbsp;        builder.field(SLOP_FIELD.getPreferredName(), slop);</b>
+<b class="nc"><i>148</i>&nbsp;        builder.field(IN_ORDER_FIELD.getPreferredName(), inOrder);</b>
+<b class="nc"><i>149</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>150</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>151</i>&nbsp;    }</b>
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    public static SpanNearQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>154</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>155</i>&nbsp;        int slop = DEFAULT_SLOP;</b>
+<b class="nc"><i>156</i>&nbsp;        boolean inOrder = DEFAULT_IN_ORDER;</b>
+<b class="nc"><i>157</i>&nbsp;        String queryName = null;</b>
+<i>158</i>&nbsp;
+<b class="nc"><i>159</i>&nbsp;        List&lt;SpanQueryBuilder&gt; clauses = new ArrayList&lt;&gt;();</b>
+<i>160</i>&nbsp;
+<b class="nc"><i>161</i>&nbsp;        String currentFieldName = null;</b>
+<i>162</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>163</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>164</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>165</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>166</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>167</i>&nbsp;                if (CLAUSES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>168</i>&nbsp;                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>169</i>&nbsp;                        QueryBuilder query = parseInnerQueryBuilder(parser);</b>
+<b class="nc"><i>170</i>&nbsp;                        if (query instanceof SpanQueryBuilder == false) {</b>
+<b class="nc"><i>171</i>&nbsp;                            throw new ParsingException(parser.getTokenLocation(), &quot;span_near [clauses] must be of type span query&quot;);</b>
+<i>172</i>&nbsp;                        }
+<b class="nc"><i>173</i>&nbsp;                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;</b>
+<b class="nc"><i>174</i>&nbsp;                        checkNoBoost(NAME, currentFieldName, parser, clause);</b>
+<b class="nc"><i>175</i>&nbsp;                        clauses.add(clause);</b>
+<b class="nc"><i>176</i>&nbsp;                    }</b>
+<i>177</i>&nbsp;                } else {
+<b class="nc"><i>178</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[span_near] query does not support [&quot; + currentFieldName + &quot;]&quot;);</b>
+<i>179</i>&nbsp;                }
+<b class="nc"><i>180</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="nc"><i>181</i>&nbsp;                if (IN_ORDER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>182</i>&nbsp;                    inOrder = parser.booleanValue();</b>
+<b class="nc"><i>183</i>&nbsp;                } else if (SLOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>184</i>&nbsp;                    slop = parser.intValue();</b>
+<b class="nc"><i>185</i>&nbsp;                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>186</i>&nbsp;                    boost = parser.floatValue();</b>
+<b class="nc"><i>187</i>&nbsp;                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>188</i>&nbsp;                    queryName = parser.text();</b>
+<i>189</i>&nbsp;                } else {
+<b class="nc"><i>190</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[span_near] query does not support [&quot; + currentFieldName + &quot;]&quot;);</b>
+<i>191</i>&nbsp;                }
+<i>192</i>&nbsp;            } else {
+<b class="nc"><i>193</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(), &quot;[span_near] query does not support [&quot; + currentFieldName + &quot;]&quot;);</b>
+<i>194</i>&nbsp;            }
+<i>195</i>&nbsp;        }
+<i>196</i>&nbsp;
+<b class="nc"><i>197</i>&nbsp;        if (clauses.isEmpty()) {</b>
+<b class="nc"><i>198</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;span_near must include [clauses]&quot;);</b>
+<i>199</i>&nbsp;        }
+<i>200</i>&nbsp;
+<b class="nc"><i>201</i>&nbsp;        SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(clauses.get(0), slop);</b>
+<b class="nc"><i>202</i>&nbsp;        for (int i = 1; i &lt; clauses.size(); i++) {</b>
+<b class="nc"><i>203</i>&nbsp;            queryBuilder.addClause(clauses.get(i));</b>
+<i>204</i>&nbsp;        }
+<b class="nc"><i>205</i>&nbsp;        queryBuilder.inOrder(inOrder);</b>
+<b class="nc"><i>206</i>&nbsp;        queryBuilder.boost(boost);</b>
+<b class="nc"><i>207</i>&nbsp;        queryBuilder.queryName(queryName);</b>
+<b class="nc"><i>208</i>&nbsp;        return queryBuilder;</b>
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    @Override
+<i>212</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>213</i>&nbsp;        SpanQueryBuilder queryBuilder = clauses.get(0);</b>
+<b class="nc"><i>214</i>&nbsp;        boolean isGap = queryBuilder instanceof SpanGapQueryBuilder;</b>
+<b class="nc"><i>215</i>&nbsp;        Query query = null;</b>
+<b class="nc"><i>216</i>&nbsp;        if (!isGap) {</b>
+<b class="nc"><i>217</i>&nbsp;            query = queryBuilder.toQuery(context);</b>
+<b class="nc"><i>218</i>&nbsp;            assert query instanceof SpanQuery;</b>
+<i>219</i>&nbsp;        }
+<b class="nc"><i>220</i>&nbsp;        if (clauses.size() == 1) {</b>
+<b class="nc"><i>221</i>&nbsp;            assert !isGap;</b>
+<b class="nc"><i>222</i>&nbsp;            return query;</b>
+<i>223</i>&nbsp;        }
+<b class="nc"><i>224</i>&nbsp;        String spanNearFieldName = null;</b>
+<b class="nc"><i>225</i>&nbsp;        if (isGap) {</b>
+<b class="nc"><i>226</i>&nbsp;            String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();</b>
+<b class="nc"><i>227</i>&nbsp;            spanNearFieldName = queryFieldName(context, fieldName);</b>
+<b class="nc"><i>228</i>&nbsp;        } else {</b>
+<b class="nc"><i>229</i>&nbsp;            spanNearFieldName = ((SpanQuery) query).getField();</b>
+<i>230</i>&nbsp;        }
+<i>231</i>&nbsp;
+<b class="nc"><i>232</i>&nbsp;        SpanNearQuery.Builder builder = new SpanNearQuery.Builder(spanNearFieldName, inOrder);</b>
+<b class="nc"><i>233</i>&nbsp;        builder.setSlop(slop);</b>
+<i>234</i>&nbsp;        /*
+<i>235</i>&nbsp;         * Lucene SpanNearQuery throws exceptions for certain use cases like adding gap to a
+<i>236</i>&nbsp;         * unordered SpanNearQuery. Should ES have the same checks or wrap those thrown exceptions?
+<i>237</i>&nbsp;         */
+<b class="nc"><i>238</i>&nbsp;        if (isGap) {</b>
+<b class="nc"><i>239</i>&nbsp;            int gap = ((SpanGapQueryBuilder) queryBuilder).width();</b>
+<b class="nc"><i>240</i>&nbsp;            builder.addGap(gap);</b>
+<b class="nc"><i>241</i>&nbsp;        } else {</b>
+<b class="nc"><i>242</i>&nbsp;            builder.addClause((SpanQuery) query);</b>
+<i>243</i>&nbsp;        }
+<i>244</i>&nbsp;
+<b class="nc"><i>245</i>&nbsp;        for (int i = 1; i &lt; clauses.size(); i++) {</b>
+<b class="nc"><i>246</i>&nbsp;            queryBuilder = clauses.get(i);</b>
+<b class="nc"><i>247</i>&nbsp;            isGap = queryBuilder instanceof SpanGapQueryBuilder;</b>
+<b class="nc"><i>248</i>&nbsp;            if (isGap) {</b>
+<b class="nc"><i>249</i>&nbsp;                String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();</b>
+<b class="nc"><i>250</i>&nbsp;                String spanGapFieldName = queryFieldName(context, fieldName);</b>
+<i>251</i>&nbsp;
+<b class="nc"><i>252</i>&nbsp;                if (!spanNearFieldName.equals(spanGapFieldName)) {</b>
+<b class="nc"><i>253</i>&nbsp;                    throw new IllegalArgumentException(&quot;[span_near] clauses must have same field&quot;);</b>
+<i>254</i>&nbsp;                }
+<b class="nc"><i>255</i>&nbsp;                int gap = ((SpanGapQueryBuilder) queryBuilder).width();</b>
+<b class="nc"><i>256</i>&nbsp;                builder.addGap(gap);</b>
+<b class="nc"><i>257</i>&nbsp;            } else {</b>
+<b class="nc"><i>258</i>&nbsp;                query = clauses.get(i).toQuery(context);</b>
+<b class="nc"><i>259</i>&nbsp;                assert query instanceof SpanQuery;</b>
+<b class="nc"><i>260</i>&nbsp;                builder.addClause((SpanQuery)query);</b>
+<i>261</i>&nbsp;            }
+<i>262</i>&nbsp;        }
+<b class="nc"><i>263</i>&nbsp;        return builder.build();</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    private String queryFieldName(QueryShardContext context, String fieldName) {
+<b class="nc"><i>267</i>&nbsp;        MappedFieldType fieldType = context.fieldMapper(fieldName);</b>
+<b class="nc"><i>268</i>&nbsp;        return fieldType != null ? fieldType.name() : fieldName;</b>
+<i>269</i>&nbsp;    }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;    @Override
+<i>272</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>273</i>&nbsp;        return Objects.hash(clauses, slop, inOrder);</b>
+<i>274</i>&nbsp;    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    @Override
+<i>277</i>&nbsp;    protected boolean doEquals(SpanNearQueryBuilder other) {
+<b class="nc"><i>278</i>&nbsp;        return Objects.equals(clauses, other.clauses) &amp;&amp;</b>
+<b class="nc"><i>279</i>&nbsp;               Objects.equals(slop, other.slop) &amp;&amp;</b>
+<b class="nc"><i>280</i>&nbsp;               Objects.equals(inOrder, other.inOrder);</b>
+<i>281</i>&nbsp;    }
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    @Override
+<i>284</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>285</i>&nbsp;        return NAME;</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    /**
+<i>289</i>&nbsp;     * SpanGapQueryBuilder enables gaps in a SpanNearQuery.
+<i>290</i>&nbsp;     * Since, SpanGapQuery is private to SpanNearQuery, SpanGapQueryBuilder cannot
+<i>291</i>&nbsp;     * be used to generate a Query (SpanGapQuery) like another QueryBuilder.
+<i>292</i>&nbsp;     * Instead, it just identifies a span_gap clause so that SpanNearQuery.addGap(int)
+<i>293</i>&nbsp;     * can be invoked for it.
+<i>294</i>&nbsp;     * This QueryBuilder is only applicable as a clause in SpanGapQueryBuilder but
+<i>295</i>&nbsp;     * yet to enforce this restriction.
+<i>296</i>&nbsp;     */
+<i>297</i>&nbsp;    public static class SpanGapQueryBuilder implements SpanQueryBuilder {
+<i>298</i>&nbsp;        public static final String NAME = &quot;span_gap&quot;;
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;        /** Name of field to match against. */
+<i>301</i>&nbsp;        private final String fieldName;
+<i>302</i>&nbsp;
+<i>303</i>&nbsp;        /** Width of the gap introduced. */
+<i>304</i>&nbsp;        private final int width;
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;        /**
+<i>307</i>&nbsp;         * Constructs a new SpanGapQueryBuilder term query.
+<i>308</i>&nbsp;         *
+<i>309</i>&nbsp;         * @param fieldName  The name of the field
+<i>310</i>&nbsp;         * @param width The width of the gap introduced
+<i>311</i>&nbsp;         */
+<b class="nc"><i>312</i>&nbsp;        public SpanGapQueryBuilder(String fieldName, int width) {</b>
+<b class="nc"><i>313</i>&nbsp;            if (Strings.isEmpty(fieldName)) {</b>
+<b class="nc"><i>314</i>&nbsp;                throw new IllegalArgumentException(&quot;[span_gap] field name is null or empty&quot;);</b>
+<i>315</i>&nbsp;            }
+<i>316</i>&nbsp;            //lucene has not coded any restriction on value of width.
+<i>317</i>&nbsp;            //to-do : find if theoretically it makes sense to apply restrictions.
+<b class="nc"><i>318</i>&nbsp;            this.fieldName = fieldName;</b>
+<b class="nc"><i>319</i>&nbsp;            this.width = width;</b>
+<b class="nc"><i>320</i>&nbsp;        }</b>
+<i>321</i>&nbsp;
+<i>322</i>&nbsp;        /**
+<i>323</i>&nbsp;         * Read from a stream.
+<i>324</i>&nbsp;         */
+<b class="nc"><i>325</i>&nbsp;        public SpanGapQueryBuilder(StreamInput in) throws IOException {</b>
+<b class="nc"><i>326</i>&nbsp;            fieldName = in.readString();</b>
+<b class="nc"><i>327</i>&nbsp;            width = in.readInt();</b>
+<b class="nc"><i>328</i>&nbsp;        }</b>
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;        /**
+<i>331</i>&nbsp;         * @return fieldName  The name of the field
+<i>332</i>&nbsp;         */
+<i>333</i>&nbsp;        public String fieldName() {
+<b class="nc"><i>334</i>&nbsp;            return fieldName;</b>
+<i>335</i>&nbsp;        }
+<i>336</i>&nbsp;
+<i>337</i>&nbsp;        /**
+<i>338</i>&nbsp;         * @return width The width of the gap introduced
+<i>339</i>&nbsp;         */
+<i>340</i>&nbsp;        public int width() {
+<b class="nc"><i>341</i>&nbsp;            return width;</b>
+<i>342</i>&nbsp;        }
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;        @Override
+<i>345</i>&nbsp;        public Query toQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>346</i>&nbsp;            throw new UnsupportedOperationException();</b>
+<i>347</i>&nbsp;        }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;        @Override
+<i>350</i>&nbsp;        public String queryName() {
+<b class="nc"><i>351</i>&nbsp;            throw new UnsupportedOperationException();</b>
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        @Override
+<i>355</i>&nbsp;        public QueryBuilder queryName(String queryName) {
+<b class="nc"><i>356</i>&nbsp;            throw new UnsupportedOperationException();</b>
+<i>357</i>&nbsp;        }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;        @Override
+<i>360</i>&nbsp;        public float boost() {
+<b class="nc"><i>361</i>&nbsp;            throw new UnsupportedOperationException();</b>
+<i>362</i>&nbsp;        }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;        @Override
+<i>365</i>&nbsp;        public QueryBuilder boost(float boost) {
+<b class="nc"><i>366</i>&nbsp;            throw new UnsupportedOperationException();</b>
+<i>367</i>&nbsp;        }
+<i>368</i>&nbsp;
+<i>369</i>&nbsp;        @Override
+<i>370</i>&nbsp;        public String getName() {
+<b class="nc"><i>371</i>&nbsp;            return NAME;</b>
+<i>372</i>&nbsp;        }
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;        @Override
+<i>375</i>&nbsp;        public String getWriteableName() {
+<b class="nc"><i>376</i>&nbsp;            return NAME;</b>
+<i>377</i>&nbsp;        }
+<i>378</i>&nbsp;
+<i>379</i>&nbsp;        @Override
+<i>380</i>&nbsp;        public final void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>381</i>&nbsp;            out.writeString(fieldName);</b>
+<b class="nc"><i>382</i>&nbsp;            out.writeInt(width);</b>
+<b class="nc"><i>383</i>&nbsp;        }</b>
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;        @Override
+<i>386</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>387</i>&nbsp;            builder.startObject();</b>
+<b class="nc"><i>388</i>&nbsp;            builder.startObject(getName());</b>
+<b class="nc"><i>389</i>&nbsp;            builder.field(fieldName, width);</b>
+<b class="nc"><i>390</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>391</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>392</i>&nbsp;            return builder;</b>
+<i>393</i>&nbsp;        }
+<i>394</i>&nbsp;
+<i>395</i>&nbsp;        public static SpanGapQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>396</i>&nbsp;            String fieldName = null;</b>
+<b class="nc"><i>397</i>&nbsp;            int width = 0;</b>
+<b class="nc"><i>398</i>&nbsp;            String currentFieldName = null;</b>
+<i>399</i>&nbsp;            XContentParser.Token token;
+<b class="nc"><i>400</i>&nbsp;            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>401</i>&nbsp;                if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>402</i>&nbsp;                    currentFieldName = parser.currentName();</b>
+<b class="nc"><i>403</i>&nbsp;                    throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);</b>
+<b class="nc"><i>404</i>&nbsp;                    fieldName = currentFieldName;</b>
+<b class="nc"><i>405</i>&nbsp;                } else if (token.isValue()) {</b>
+<b class="nc"><i>406</i>&nbsp;                    width = parser.intValue();</b>
+<i>407</i>&nbsp;                }
+<i>408</i>&nbsp;            }
+<b class="nc"><i>409</i>&nbsp;            SpanGapQueryBuilder result = new SpanGapQueryBuilder(fieldName, width);</b>
+<b class="nc"><i>410</i>&nbsp;            return result;</b>
+<i>411</i>&nbsp;        }
+<i>412</i>&nbsp;
+<i>413</i>&nbsp;        @Override
+<i>414</i>&nbsp;        public final boolean equals(Object obj) {
+<b class="nc"><i>415</i>&nbsp;            if (this == obj) {</b>
+<b class="nc"><i>416</i>&nbsp;                return true;</b>
+<i>417</i>&nbsp;            }
+<b class="nc"><i>418</i>&nbsp;            if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="nc"><i>419</i>&nbsp;                return false;</b>
+<i>420</i>&nbsp;            }
+<b class="nc"><i>421</i>&nbsp;            SpanGapQueryBuilder other = (SpanGapQueryBuilder) obj;</b>
+<b class="nc"><i>422</i>&nbsp;            return Objects.equals(fieldName, other.fieldName) &amp;&amp;</b>
+<b class="nc"><i>423</i>&nbsp;                Objects.equals(width, other.width);</b>
+<i>424</i>&nbsp;        }
+<i>425</i>&nbsp;
+<i>426</i>&nbsp;        @Override
+<i>427</i>&nbsp;        public final int hashCode() {
+<b class="nc"><i>428</i>&nbsp;            return Objects.hash(getClass(), fieldName, width);</b>
+<i>429</i>&nbsp;        }
+<i>430</i>&nbsp;
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;        @Override
+<i>433</i>&nbsp;        public final String toString() {
+<b class="nc"><i>434</i>&nbsp;            return Strings.toString(this, true, true);</b>
+<i>435</i>&nbsp;        }
+<i>436</i>&nbsp;
+<i>437</i>&nbsp;        //copied from AbstractQueryBuilder
+<i>438</i>&nbsp;        protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
+<i>439</i>&nbsp;                String processedFieldName, String currentFieldName) {
+<b class="nc"><i>440</i>&nbsp;            if (processedFieldName != null) {</b>
+<b class="nc"><i>441</i>&nbsp;                throw new ParsingException(contentLocation, &quot;[&quot; + queryName + &quot;] query doesn&#39;t support multiple fields, found [&quot;</b>
+<i>442</i>&nbsp;                        + processedFieldName + &quot;] and [&quot; + currentFieldName + &quot;]&quot;);
+<i>443</i>&nbsp;            }
+<b class="nc"><i>444</i>&nbsp;        }</b>
+<i>445</i>&nbsp;    }
+<i>446</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

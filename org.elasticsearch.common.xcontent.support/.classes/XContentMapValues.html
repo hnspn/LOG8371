@@ -1,0 +1,567 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: XContentMapValues</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.xcontent.support</a> ]
+</div>
+
+<h1>Coverage Summary for Class: XContentMapValues (org.elasticsearch.common.xcontent.support)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">XContentMapValues</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (6/ 36)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    6.4%
+  </span>
+  <span class="absValue">
+    (13/ 203)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.xcontent.support;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.util.automaton.Automata;
+<i>23</i>&nbsp;import org.apache.lucene.util.automaton.Automaton;
+<i>24</i>&nbsp;import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+<i>25</i>&nbsp;import org.apache.lucene.util.automaton.Operations;
+<i>26</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>27</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>28</i>&nbsp;import org.elasticsearch.common.Numbers;
+<i>29</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>30</i>&nbsp;import org.elasticsearch.common.regex.Regex;
+<i>31</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.util.ArrayList;
+<i>34</i>&nbsp;import java.util.Arrays;
+<i>35</i>&nbsp;import java.util.HashMap;
+<i>36</i>&nbsp;import java.util.List;
+<i>37</i>&nbsp;import java.util.Map;
+<i>38</i>&nbsp;import java.util.function.Function;
+<i>39</i>&nbsp;
+<b class="nc"><i>40</i>&nbsp;public class XContentMapValues {</b>
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    /**
+<i>43</i>&nbsp;     * Extracts raw values (string, int, and so on) based on the path provided returning all of them
+<i>44</i>&nbsp;     * as a single list.
+<i>45</i>&nbsp;     */
+<i>46</i>&nbsp;    public static List&lt;Object&gt; extractRawValues(String path, Map&lt;String, Object&gt; map) {
+<b class="nc"><i>47</i>&nbsp;        List&lt;Object&gt; values = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>48</i>&nbsp;        String[] pathElements = path.split(&quot;\\.&quot;);</b>
+<b class="nc"><i>49</i>&nbsp;        if (pathElements.length == 0) {</b>
+<b class="nc"><i>50</i>&nbsp;            return values;</b>
+<i>51</i>&nbsp;        }
+<b class="nc"><i>52</i>&nbsp;        extractRawValues(values, map, pathElements, 0);</b>
+<b class="nc"><i>53</i>&nbsp;        return values;</b>
+<i>54</i>&nbsp;    }
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    @SuppressWarnings({&quot;unchecked&quot;})
+<i>57</i>&nbsp;    private static void extractRawValues(List values, Map&lt;String, Object&gt; part, String[] pathElements, int index) {
+<b class="nc"><i>58</i>&nbsp;        if (index == pathElements.length) {</b>
+<b class="nc"><i>59</i>&nbsp;            return;</b>
+<i>60</i>&nbsp;        }
+<i>61</i>&nbsp;
+<b class="nc"><i>62</i>&nbsp;        String key = pathElements[index];</b>
+<b class="nc"><i>63</i>&nbsp;        Object currentValue = part.get(key);</b>
+<b class="nc"><i>64</i>&nbsp;        int nextIndex = index + 1;</b>
+<b class="nc"><i>65</i>&nbsp;        while (currentValue == null &amp;&amp; nextIndex != pathElements.length) {</b>
+<b class="nc"><i>66</i>&nbsp;            key += &quot;.&quot; + pathElements[nextIndex];</b>
+<b class="nc"><i>67</i>&nbsp;            currentValue = part.get(key);</b>
+<b class="nc"><i>68</i>&nbsp;            nextIndex++;</b>
+<i>69</i>&nbsp;        }
+<i>70</i>&nbsp;
+<b class="nc"><i>71</i>&nbsp;        if (currentValue == null) {</b>
+<b class="nc"><i>72</i>&nbsp;            return;</b>
+<i>73</i>&nbsp;        }
+<i>74</i>&nbsp;
+<b class="nc"><i>75</i>&nbsp;        if (currentValue instanceof Map) {</b>
+<b class="nc"><i>76</i>&nbsp;            extractRawValues(values, (Map&lt;String, Object&gt;) currentValue, pathElements, nextIndex);</b>
+<b class="nc"><i>77</i>&nbsp;        } else if (currentValue instanceof List) {</b>
+<b class="nc"><i>78</i>&nbsp;            extractRawValues(values, (List) currentValue, pathElements, nextIndex);</b>
+<i>79</i>&nbsp;        } else {
+<b class="nc"><i>80</i>&nbsp;            values.add(currentValue);</b>
+<i>81</i>&nbsp;        }
+<b class="nc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    @SuppressWarnings({&quot;unchecked&quot;})
+<i>85</i>&nbsp;    private static void extractRawValues(List values, List&lt;Object&gt; part, String[] pathElements, int index) {
+<b class="nc"><i>86</i>&nbsp;        for (Object value : part) {</b>
+<b class="nc"><i>87</i>&nbsp;            if (value == null) {</b>
+<b class="nc"><i>88</i>&nbsp;                continue;</b>
+<i>89</i>&nbsp;            }
+<b class="nc"><i>90</i>&nbsp;            if (value instanceof Map) {</b>
+<b class="nc"><i>91</i>&nbsp;                extractRawValues(values, (Map&lt;String, Object&gt;) value, pathElements, index);</b>
+<b class="nc"><i>92</i>&nbsp;            } else if (value instanceof List) {</b>
+<b class="nc"><i>93</i>&nbsp;                extractRawValues(values, (List) value, pathElements, index);</b>
+<i>94</i>&nbsp;            } else {
+<b class="nc"><i>95</i>&nbsp;                values.add(value);</b>
+<i>96</i>&nbsp;            }
+<b class="nc"><i>97</i>&nbsp;        }</b>
+<b class="nc"><i>98</i>&nbsp;    }</b>
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    public static Object extractValue(String path, Map&lt;?, ?&gt; map) {
+<b class="nc"><i>101</i>&nbsp;        return extractValue(map, path.split(&quot;\\.&quot;));</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    public static Object extractValue(Map&lt;?, ?&gt; map, String... pathElements) {
+<b class="nc"><i>105</i>&nbsp;        if (pathElements.length == 0) {</b>
+<b class="nc"><i>106</i>&nbsp;            return null;</b>
+<i>107</i>&nbsp;        }
+<b class="nc"><i>108</i>&nbsp;        return extractValue(pathElements, 0, map);</b>
+<i>109</i>&nbsp;    }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    @SuppressWarnings({&quot;unchecked&quot;})
+<i>112</i>&nbsp;    private static Object extractValue(String[] pathElements, int index, Object currentValue) {
+<b class="nc"><i>113</i>&nbsp;        if (index == pathElements.length) {</b>
+<b class="nc"><i>114</i>&nbsp;            return currentValue;</b>
+<i>115</i>&nbsp;        }
+<b class="nc"><i>116</i>&nbsp;        if (currentValue == null) {</b>
+<b class="nc"><i>117</i>&nbsp;            return null;</b>
+<i>118</i>&nbsp;        }
+<b class="nc"><i>119</i>&nbsp;        if (currentValue instanceof Map) {</b>
+<b class="nc"><i>120</i>&nbsp;            Map map = (Map) currentValue;</b>
+<b class="nc"><i>121</i>&nbsp;            String key = pathElements[index];</b>
+<b class="nc"><i>122</i>&nbsp;            Object mapValue = map.get(key);</b>
+<b class="nc"><i>123</i>&nbsp;            int nextIndex = index + 1;</b>
+<b class="nc"><i>124</i>&nbsp;            while (mapValue == null &amp;&amp; nextIndex != pathElements.length) {</b>
+<b class="nc"><i>125</i>&nbsp;                key += &quot;.&quot; + pathElements[nextIndex];</b>
+<b class="nc"><i>126</i>&nbsp;                mapValue = map.get(key);</b>
+<b class="nc"><i>127</i>&nbsp;                nextIndex++;</b>
+<i>128</i>&nbsp;            }
+<b class="nc"><i>129</i>&nbsp;            return extractValue(pathElements, nextIndex, mapValue);</b>
+<i>130</i>&nbsp;        }
+<b class="nc"><i>131</i>&nbsp;        if (currentValue instanceof List) {</b>
+<b class="nc"><i>132</i>&nbsp;            List valueList = (List) currentValue;</b>
+<b class="nc"><i>133</i>&nbsp;            List newList = new ArrayList(valueList.size());</b>
+<b class="nc"><i>134</i>&nbsp;            for (Object o : valueList) {</b>
+<b class="nc"><i>135</i>&nbsp;                Object listValue = extractValue(pathElements, index, o);</b>
+<b class="nc"><i>136</i>&nbsp;                if (listValue != null) {</b>
+<b class="nc"><i>137</i>&nbsp;                    newList.add(listValue);</b>
+<i>138</i>&nbsp;                }
+<b class="nc"><i>139</i>&nbsp;            }</b>
+<b class="nc"><i>140</i>&nbsp;            return newList;</b>
+<i>141</i>&nbsp;        }
+<b class="nc"><i>142</i>&nbsp;        return null;</b>
+<i>143</i>&nbsp;    }
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;    /**
+<i>146</i>&nbsp;     * Only keep properties in {@code map} that match the {@code includes} but
+<i>147</i>&nbsp;     * not the {@code excludes}. An empty list of includes is interpreted as a
+<i>148</i>&nbsp;     * wildcard while an empty list of excludes does not match anything.
+<i>149</i>&nbsp;     *
+<i>150</i>&nbsp;     * If a property matches both an include and an exclude, then the exclude
+<i>151</i>&nbsp;     * wins.
+<i>152</i>&nbsp;     *
+<i>153</i>&nbsp;     * If an object matches, then any of its sub properties are automatically
+<i>154</i>&nbsp;     * considered as matching as well, both for includes and excludes.
+<i>155</i>&nbsp;     *
+<i>156</i>&nbsp;     * Dots in field names are treated as sub objects. So for instance if a
+<i>157</i>&nbsp;     * document contains {@code a.b} as a property and {@code a} is an include,
+<i>158</i>&nbsp;     * then {@code a.b} will be kept in the filtered map.
+<i>159</i>&nbsp;     */
+<i>160</i>&nbsp;    public static Map&lt;String, Object&gt; filter(Map&lt;String, ?&gt; map, String[] includes, String[] excludes) {
+<b class="nc"><i>161</i>&nbsp;        return filter(includes, excludes).apply(map);</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    /**
+<i>165</i>&nbsp;     * Returns a function that filters a document map based on the given include and exclude rules.
+<i>166</i>&nbsp;     * @see #filter(Map, String[], String[]) for details
+<i>167</i>&nbsp;     */
+<i>168</i>&nbsp;    public static Function&lt;Map&lt;String, ?&gt;, Map&lt;String, Object&gt;&gt; filter(String[] includes, String[] excludes) {
+<b class="nc"><i>169</i>&nbsp;        CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());</b>
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        CharacterRunAutomaton include;
+<b class="nc"><i>172</i>&nbsp;        if (includes == null || includes.length == 0) {</b>
+<b class="nc"><i>173</i>&nbsp;            include = matchAllAutomaton;</b>
+<i>174</i>&nbsp;        } else {
+<b class="nc"><i>175</i>&nbsp;            Automaton includeA = Regex.simpleMatchToAutomaton(includes);</b>
+<b class="nc"><i>176</i>&nbsp;            includeA = makeMatchDotsInFieldNames(includeA);</b>
+<b class="nc"><i>177</i>&nbsp;            include = new CharacterRunAutomaton(includeA);</b>
+<i>178</i>&nbsp;        }
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;        Automaton excludeA;
+<b class="nc"><i>181</i>&nbsp;        if (excludes == null || excludes.length == 0) {</b>
+<b class="nc"><i>182</i>&nbsp;            excludeA = Automata.makeEmpty();</b>
+<i>183</i>&nbsp;        } else {
+<b class="nc"><i>184</i>&nbsp;            excludeA = Regex.simpleMatchToAutomaton(excludes);</b>
+<b class="nc"><i>185</i>&nbsp;            excludeA = makeMatchDotsInFieldNames(excludeA);</b>
+<i>186</i>&nbsp;        }
+<b class="nc"><i>187</i>&nbsp;        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);</b>
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;        // NOTE: We cannot use Operations.minus because of the special case that
+<i>190</i>&nbsp;        // we want all sub properties to match as soon as an object matches
+<i>191</i>&nbsp;
+<b class="nc"><i>192</i>&nbsp;        return (map) -&gt; filter(map,</b>
+<i>193</i>&nbsp;            include, 0,
+<i>194</i>&nbsp;            exclude, 0,
+<i>195</i>&nbsp;            matchAllAutomaton);
+<i>196</i>&nbsp;    }
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;    /** Make matches on objects also match dots in field names.
+<i>199</i>&nbsp;     *  For instance, if the original simple regex is `foo`, this will translate
+<i>200</i>&nbsp;     *  it into `foo` OR `foo.*`. */
+<i>201</i>&nbsp;    private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
+<b class="nc"><i>202</i>&nbsp;        return Operations.union(</b>
+<i>203</i>&nbsp;                automaton,
+<b class="nc"><i>204</i>&nbsp;                Operations.concatenate(Arrays.asList(automaton, Automata.makeChar(&#39;.&#39;), Automata.makeAnyString())));</b>
+<i>205</i>&nbsp;    }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;    private static int step(CharacterRunAutomaton automaton, String key, int state) {
+<b class="nc"><i>208</i>&nbsp;        for (int i = 0; state != -1 &amp;&amp; i &lt; key.length(); ++i) {</b>
+<b class="nc"><i>209</i>&nbsp;            state = automaton.step(state, key.charAt(i));</b>
+<i>210</i>&nbsp;        }
+<b class="nc"><i>211</i>&nbsp;        return state;</b>
+<i>212</i>&nbsp;    }
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;    private static Map&lt;String, Object&gt; filter(Map&lt;String, ?&gt; map,
+<i>215</i>&nbsp;            CharacterRunAutomaton includeAutomaton, int initialIncludeState,
+<i>216</i>&nbsp;            CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
+<i>217</i>&nbsp;            CharacterRunAutomaton matchAllAutomaton) {
+<b class="nc"><i>218</i>&nbsp;        Map&lt;String, Object&gt; filtered = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>219</i>&nbsp;        for (Map.Entry&lt;String, ?&gt; entry : map.entrySet()) {</b>
+<b class="nc"><i>220</i>&nbsp;            String key = entry.getKey();</b>
+<i>221</i>&nbsp;
+<b class="nc"><i>222</i>&nbsp;            int includeState = step(includeAutomaton, key, initialIncludeState);</b>
+<b class="nc"><i>223</i>&nbsp;            if (includeState == -1) {</b>
+<b class="nc"><i>224</i>&nbsp;                continue;</b>
+<i>225</i>&nbsp;            }
+<i>226</i>&nbsp;
+<b class="nc"><i>227</i>&nbsp;            int excludeState = step(excludeAutomaton, key, initialExcludeState);</b>
+<b class="nc"><i>228</i>&nbsp;            if (excludeState != -1 &amp;&amp; excludeAutomaton.isAccept(excludeState)) {</b>
+<b class="nc"><i>229</i>&nbsp;                continue;</b>
+<i>230</i>&nbsp;            }
+<i>231</i>&nbsp;
+<b class="nc"><i>232</i>&nbsp;            Object value = entry.getValue();</b>
+<i>233</i>&nbsp;
+<b class="nc"><i>234</i>&nbsp;            CharacterRunAutomaton subIncludeAutomaton = includeAutomaton;</b>
+<b class="nc"><i>235</i>&nbsp;            int subIncludeState = includeState;</b>
+<b class="nc"><i>236</i>&nbsp;            if (includeAutomaton.isAccept(includeState)) {</b>
+<b class="nc"><i>237</i>&nbsp;                if (excludeState == -1 || excludeAutomaton.step(excludeState, &#39;.&#39;) == -1) {</b>
+<i>238</i>&nbsp;                    // the exclude has no chances to match inner properties
+<b class="nc"><i>239</i>&nbsp;                    filtered.put(key, value);</b>
+<b class="nc"><i>240</i>&nbsp;                    continue;</b>
+<i>241</i>&nbsp;                } else {
+<i>242</i>&nbsp;                    // the object matched, so consider that the include matches every inner property
+<i>243</i>&nbsp;                    // we only care about excludes now
+<b class="nc"><i>244</i>&nbsp;                    subIncludeAutomaton = matchAllAutomaton;</b>
+<b class="nc"><i>245</i>&nbsp;                    subIncludeState = 0;</b>
+<i>246</i>&nbsp;                }
+<i>247</i>&nbsp;            }
+<i>248</i>&nbsp;
+<b class="nc"><i>249</i>&nbsp;            if (value instanceof Map) {</b>
+<i>250</i>&nbsp;
+<b class="nc"><i>251</i>&nbsp;                subIncludeState = subIncludeAutomaton.step(subIncludeState, &#39;.&#39;);</b>
+<b class="nc"><i>252</i>&nbsp;                if (subIncludeState == -1) {</b>
+<b class="nc"><i>253</i>&nbsp;                    continue;</b>
+<i>254</i>&nbsp;                }
+<b class="nc"><i>255</i>&nbsp;                if (excludeState != -1) {</b>
+<b class="nc"><i>256</i>&nbsp;                    excludeState = excludeAutomaton.step(excludeState, &#39;.&#39;);</b>
+<i>257</i>&nbsp;                }
+<i>258</i>&nbsp;
+<b class="nc"><i>259</i>&nbsp;                Map&lt;String, Object&gt; valueAsMap = (Map&lt;String, Object&gt;) value;</b>
+<b class="nc"><i>260</i>&nbsp;                Map&lt;String, Object&gt; filteredValue = filter(valueAsMap,</b>
+<i>261</i>&nbsp;                        subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
+<b class="nc"><i>262</i>&nbsp;                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {</b>
+<b class="nc"><i>263</i>&nbsp;                    filtered.put(key, filteredValue);</b>
+<i>264</i>&nbsp;                }
+<i>265</i>&nbsp;
+<b class="nc"><i>266</i>&nbsp;            } else if (value instanceof Iterable) {</b>
+<i>267</i>&nbsp;
+<b class="nc"><i>268</i>&nbsp;                List&lt;Object&gt; filteredValue = filter((Iterable&lt;?&gt;) value,</b>
+<i>269</i>&nbsp;                        subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
+<b class="nc"><i>270</i>&nbsp;                if (filteredValue.isEmpty() == false) {</b>
+<b class="nc"><i>271</i>&nbsp;                    filtered.put(key, filteredValue);</b>
+<i>272</i>&nbsp;                }
+<i>273</i>&nbsp;
+<b class="nc"><i>274</i>&nbsp;            } else {</b>
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;                // leaf property
+<b class="nc"><i>277</i>&nbsp;                if (includeAutomaton.isAccept(includeState)</b>
+<b class="nc"><i>278</i>&nbsp;                        &amp;&amp; (excludeState == -1 || excludeAutomaton.isAccept(excludeState) == false)) {</b>
+<b class="nc"><i>279</i>&nbsp;                    filtered.put(key, value);</b>
+<i>280</i>&nbsp;                }
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;            }
+<i>283</i>&nbsp;
+<b class="nc"><i>284</i>&nbsp;        }</b>
+<b class="nc"><i>285</i>&nbsp;        return filtered;</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    private static List&lt;Object&gt; filter(Iterable&lt;?&gt; iterable,
+<i>289</i>&nbsp;            CharacterRunAutomaton includeAutomaton, int initialIncludeState,
+<i>290</i>&nbsp;            CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
+<i>291</i>&nbsp;            CharacterRunAutomaton matchAllAutomaton) {
+<b class="nc"><i>292</i>&nbsp;        List&lt;Object&gt; filtered = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>293</i>&nbsp;        boolean isInclude = includeAutomaton.isAccept(initialIncludeState);</b>
+<b class="nc"><i>294</i>&nbsp;        for (Object value : iterable) {</b>
+<b class="nc"><i>295</i>&nbsp;            if (value instanceof Map) {</b>
+<b class="nc"><i>296</i>&nbsp;                int includeState = includeAutomaton.step(initialIncludeState, &#39;.&#39;);</b>
+<b class="nc"><i>297</i>&nbsp;                int excludeState = initialExcludeState;</b>
+<b class="nc"><i>298</i>&nbsp;                if (excludeState != -1) {</b>
+<b class="nc"><i>299</i>&nbsp;                    excludeState = excludeAutomaton.step(excludeState, &#39;.&#39;);</b>
+<i>300</i>&nbsp;                }
+<b class="nc"><i>301</i>&nbsp;                Map&lt;String, Object&gt; filteredValue = filter((Map&lt;String, ?&gt;)value,</b>
+<i>302</i>&nbsp;                        includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
+<b class="nc"><i>303</i>&nbsp;                if (filteredValue.isEmpty() == false) {</b>
+<b class="nc"><i>304</i>&nbsp;                    filtered.add(filteredValue);</b>
+<i>305</i>&nbsp;                }
+<b class="nc"><i>306</i>&nbsp;            } else if (value instanceof Iterable) {</b>
+<b class="nc"><i>307</i>&nbsp;                List&lt;Object&gt; filteredValue = filter((Iterable&lt;?&gt;) value,</b>
+<i>308</i>&nbsp;                        includeAutomaton, initialIncludeState, excludeAutomaton, initialExcludeState, matchAllAutomaton);
+<b class="nc"><i>309</i>&nbsp;                if (filteredValue.isEmpty() == false) {</b>
+<b class="nc"><i>310</i>&nbsp;                    filtered.add(filteredValue);</b>
+<i>311</i>&nbsp;                }
+<b class="nc"><i>312</i>&nbsp;            } else if (isInclude) {</b>
+<i>313</i>&nbsp;                // #22557: only accept this array value if the key we are on is accepted:
+<b class="nc"><i>314</i>&nbsp;                filtered.add(value);</b>
+<i>315</i>&nbsp;            }
+<b class="nc"><i>316</i>&nbsp;        }</b>
+<b class="nc"><i>317</i>&nbsp;        return filtered;</b>
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    public static boolean isObject(Object node) {
+<b class="nc"><i>321</i>&nbsp;        return node instanceof Map;</b>
+<i>322</i>&nbsp;    }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    public static boolean isArray(Object node) {
+<b class="fc"><i>325</i>&nbsp;        return node instanceof List;</b>
+<i>326</i>&nbsp;    }
+<i>327</i>&nbsp;
+<i>328</i>&nbsp;    public static String nodeStringValue(Object node, String defaultValue) {
+<b class="fc"><i>329</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>330</i>&nbsp;            return defaultValue;</b>
+<i>331</i>&nbsp;        }
+<b class="fc"><i>332</i>&nbsp;        return node.toString();</b>
+<i>333</i>&nbsp;    }
+<i>334</i>&nbsp;
+<i>335</i>&nbsp;    public static float nodeFloatValue(Object node, float defaultValue) {
+<b class="nc"><i>336</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>337</i>&nbsp;            return defaultValue;</b>
+<i>338</i>&nbsp;        }
+<b class="nc"><i>339</i>&nbsp;        return nodeFloatValue(node);</b>
+<i>340</i>&nbsp;    }
+<i>341</i>&nbsp;
+<i>342</i>&nbsp;    public static float nodeFloatValue(Object node) {
+<b class="nc"><i>343</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>344</i>&nbsp;            return ((Number) node).floatValue();</b>
+<i>345</i>&nbsp;        }
+<b class="nc"><i>346</i>&nbsp;        return Float.parseFloat(node.toString());</b>
+<i>347</i>&nbsp;    }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;    public static double nodeDoubleValue(Object node, double defaultValue) {
+<b class="nc"><i>350</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>351</i>&nbsp;            return defaultValue;</b>
+<i>352</i>&nbsp;        }
+<b class="nc"><i>353</i>&nbsp;        return nodeDoubleValue(node);</b>
+<i>354</i>&nbsp;    }
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;    public static double nodeDoubleValue(Object node) {
+<b class="nc"><i>357</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>358</i>&nbsp;            return ((Number) node).doubleValue();</b>
+<i>359</i>&nbsp;        }
+<b class="nc"><i>360</i>&nbsp;        return Double.parseDouble(node.toString());</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    public static int nodeIntegerValue(Object node) {
+<b class="nc"><i>364</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>365</i>&nbsp;            return Numbers.toIntExact((Number) node);</b>
+<i>366</i>&nbsp;        }
+<b class="nc"><i>367</i>&nbsp;        return Integer.parseInt(node.toString());</b>
+<i>368</i>&nbsp;    }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;    public static int nodeIntegerValue(Object node, int defaultValue) {
+<b class="nc"><i>371</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>372</i>&nbsp;            return defaultValue;</b>
+<i>373</i>&nbsp;        }
+<b class="nc"><i>374</i>&nbsp;        return nodeIntegerValue(node);</b>
+<i>375</i>&nbsp;    }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;    public static short nodeShortValue(Object node, short defaultValue) {
+<b class="nc"><i>378</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>379</i>&nbsp;            return defaultValue;</b>
+<i>380</i>&nbsp;        }
+<b class="nc"><i>381</i>&nbsp;        return nodeShortValue(node);</b>
+<i>382</i>&nbsp;    }
+<i>383</i>&nbsp;
+<i>384</i>&nbsp;    public static short nodeShortValue(Object node) {
+<b class="nc"><i>385</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>386</i>&nbsp;            return Numbers.toShortExact((Number) node);</b>
+<i>387</i>&nbsp;        }
+<b class="nc"><i>388</i>&nbsp;        return Short.parseShort(node.toString());</b>
+<i>389</i>&nbsp;    }
+<i>390</i>&nbsp;
+<i>391</i>&nbsp;    public static byte nodeByteValue(Object node, byte defaultValue) {
+<b class="nc"><i>392</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>393</i>&nbsp;            return defaultValue;</b>
+<i>394</i>&nbsp;        }
+<b class="nc"><i>395</i>&nbsp;        return nodeByteValue(node);</b>
+<i>396</i>&nbsp;    }
+<i>397</i>&nbsp;
+<i>398</i>&nbsp;    public static byte nodeByteValue(Object node) {
+<b class="nc"><i>399</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>400</i>&nbsp;            return Numbers.toByteExact((Number) node);</b>
+<i>401</i>&nbsp;        }
+<b class="nc"><i>402</i>&nbsp;        return Byte.parseByte(node.toString());</b>
+<i>403</i>&nbsp;    }
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;    public static long nodeLongValue(Object node, long defaultValue) {
+<b class="nc"><i>406</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>407</i>&nbsp;            return defaultValue;</b>
+<i>408</i>&nbsp;        }
+<b class="nc"><i>409</i>&nbsp;        return nodeLongValue(node);</b>
+<i>410</i>&nbsp;    }
+<i>411</i>&nbsp;
+<i>412</i>&nbsp;    public static long nodeLongValue(Object node) {
+<b class="nc"><i>413</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>414</i>&nbsp;            return Numbers.toLongExact((Number) node);</b>
+<i>415</i>&nbsp;        }
+<b class="nc"><i>416</i>&nbsp;        return Long.parseLong(node.toString());</b>
+<i>417</i>&nbsp;    }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    public static boolean nodeBooleanValue(Object node, String name, boolean defaultValue) {
+<i>420</i>&nbsp;        try {
+<b class="nc"><i>421</i>&nbsp;            return nodeBooleanValue(node, defaultValue);</b>
+<b class="nc"><i>422</i>&nbsp;        } catch (IllegalArgumentException ex) {</b>
+<b class="nc"><i>423</i>&nbsp;            throw new IllegalArgumentException(&quot;Could not convert [&quot; + name + &quot;] to boolean&quot;, ex);</b>
+<i>424</i>&nbsp;        }
+<i>425</i>&nbsp;    }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
+<b class="nc"><i>428</i>&nbsp;        String nodeValue = node == null ? null : node.toString();</b>
+<b class="nc"><i>429</i>&nbsp;        return Booleans.parseBoolean(nodeValue, defaultValue);</b>
+<i>430</i>&nbsp;    }
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;    public static boolean nodeBooleanValue(Object node, String name) {
+<i>433</i>&nbsp;        try {
+<b class="fc"><i>434</i>&nbsp;            return nodeBooleanValue(node);</b>
+<b class="nc"><i>435</i>&nbsp;        } catch (IllegalArgumentException ex) {</b>
+<b class="nc"><i>436</i>&nbsp;            throw new IllegalArgumentException(&quot;Could not convert [&quot; + name + &quot;] to boolean&quot;, ex);</b>
+<i>437</i>&nbsp;        }
+<i>438</i>&nbsp;    }
+<i>439</i>&nbsp;
+<i>440</i>&nbsp;    public static boolean nodeBooleanValue(Object node) {
+<b class="fc"><i>441</i>&nbsp;        return Booleans.parseBoolean(node.toString());</b>
+<i>442</i>&nbsp;    }
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {
+<b class="nc"><i>445</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>446</i>&nbsp;            return defaultValue;</b>
+<i>447</i>&nbsp;        }
+<b class="nc"><i>448</i>&nbsp;        return nodeTimeValue(node);</b>
+<i>449</i>&nbsp;    }
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;    public static TimeValue nodeTimeValue(Object node) {
+<b class="nc"><i>452</i>&nbsp;        if (node instanceof Number) {</b>
+<b class="nc"><i>453</i>&nbsp;            return TimeValue.timeValueMillis(((Number) node).longValue());</b>
+<i>454</i>&nbsp;        }
+<b class="nc"><i>455</i>&nbsp;        return TimeValue.parseTimeValue(node.toString(), null, XContentMapValues.class.getSimpleName() + &quot;.nodeTimeValue&quot;);</b>
+<i>456</i>&nbsp;    }
+<i>457</i>&nbsp;
+<i>458</i>&nbsp;    public static Map&lt;String, Object&gt; nodeMapValue(Object node, String desc) {
+<b class="fc"><i>459</i>&nbsp;        if (node instanceof Map) {</b>
+<b class="fc"><i>460</i>&nbsp;            return (Map&lt;String, Object&gt;) node;</b>
+<i>461</i>&nbsp;        } else {
+<b class="nc"><i>462</i>&nbsp;            throw new ElasticsearchParseException(desc + &quot; should be a hash but was of type: &quot; + node.getClass());</b>
+<i>463</i>&nbsp;        }
+<i>464</i>&nbsp;    }
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;    /**
+<i>467</i>&nbsp;     * Returns an array of string value from a node value.
+<i>468</i>&nbsp;     *
+<i>469</i>&nbsp;     * If the node represents an array the corresponding array of strings is returned.
+<i>470</i>&nbsp;     * Otherwise the node is treated as a comma-separated string.
+<i>471</i>&nbsp;     */
+<i>472</i>&nbsp;    public static String[] nodeStringArrayValue(Object node) {
+<b class="fc"><i>473</i>&nbsp;        if (isArray(node)) {</b>
+<b class="fc"><i>474</i>&nbsp;            List list = (List) node;</b>
+<b class="fc"><i>475</i>&nbsp;            String[] arr = new String[list.size()];</b>
+<b class="fc"><i>476</i>&nbsp;            for (int i = 0; i &lt; arr.length; i++) {</b>
+<b class="fc"><i>477</i>&nbsp;                arr[i] = nodeStringValue(list.get(i), null);</b>
+<i>478</i>&nbsp;            }
+<b class="fc"><i>479</i>&nbsp;            return arr;</b>
+<i>480</i>&nbsp;        } else {
+<b class="nc"><i>481</i>&nbsp;            return Strings.splitStringByCommaToArray(node.toString());</b>
+<i>482</i>&nbsp;        }
+<i>483</i>&nbsp;    }
+<i>484</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

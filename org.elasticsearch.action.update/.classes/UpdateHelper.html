@@ -1,0 +1,506 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: UpdateHelper</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.update</a> ]
+</div>
+
+<h1>Coverage Summary for Class: UpdateHelper (org.elasticsearch.action.update)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">UpdateHelper</td>
+<td class="coverageStat">
+  <span class="percent">
+    18.2%
+  </span>
+  <span class="absValue">
+    (2/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    3%
+  </span>
+  <span class="absValue">
+    (4/ 132)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">UpdateHelper$Result</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 10)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (2/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    2.8%
+  </span>
+  <span class="absValue">
+    (4/ 142)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.update;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>25</i>&nbsp;import org.elasticsearch.action.DocWriteResponse;
+<i>26</i>&nbsp;import org.elasticsearch.action.delete.DeleteRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.index.IndexRequest;
+<i>28</i>&nbsp;import org.elasticsearch.client.Requests;
+<i>29</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>30</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>31</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>32</i>&nbsp;import org.elasticsearch.common.io.stream.BytesStreamOutput;
+<i>33</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>37</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>38</i>&nbsp;import org.elasticsearch.index.engine.DocumentMissingException;
+<i>39</i>&nbsp;import org.elasticsearch.index.engine.DocumentSourceMissingException;
+<i>40</i>&nbsp;import org.elasticsearch.index.get.GetResult;
+<i>41</i>&nbsp;import org.elasticsearch.index.mapper.RoutingFieldMapper;
+<i>42</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>43</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>44</i>&nbsp;import org.elasticsearch.script.Script;
+<i>45</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>46</i>&nbsp;import org.elasticsearch.script.UpdateScript;
+<i>47</i>&nbsp;import org.elasticsearch.search.lookup.SourceLookup;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import java.io.IOException;
+<i>50</i>&nbsp;import java.util.Collections;
+<i>51</i>&nbsp;import java.util.HashMap;
+<i>52</i>&nbsp;import java.util.Map;
+<i>53</i>&nbsp;import java.util.function.LongSupplier;
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;/**
+<i>56</i>&nbsp; * Helper for translating an update request to an index, delete request or update response.
+<i>57</i>&nbsp; */
+<i>58</i>&nbsp;public class UpdateHelper {
+<i>59</i>&nbsp;
+<b class="fc"><i>60</i>&nbsp;    private static final Logger logger = LogManager.getLogger(UpdateHelper.class);</b>
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private final ScriptService scriptService;
+<i>63</i>&nbsp;
+<b class="fc"><i>64</i>&nbsp;    public UpdateHelper(ScriptService scriptService) {</b>
+<b class="fc"><i>65</i>&nbsp;        this.scriptService = scriptService;</b>
+<b class="fc"><i>66</i>&nbsp;    }</b>
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    /**
+<i>69</i>&nbsp;     * Prepares an update request by converting it into an index or delete request or an update response (no action).
+<i>70</i>&nbsp;     */
+<i>71</i>&nbsp;    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
+<b class="nc"><i>72</i>&nbsp;        final GetResult getResult = indexShard.getService().getForUpdate(</b>
+<b class="nc"><i>73</i>&nbsp;            request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());</b>
+<b class="nc"><i>74</i>&nbsp;        return prepare(indexShard.shardId(), request, getResult, nowInMillis);</b>
+<i>75</i>&nbsp;    }
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    /**
+<i>78</i>&nbsp;     * Prepares an update request by converting it into an index or delete request or an update response (no action, in the event of a
+<i>79</i>&nbsp;     * noop).
+<i>80</i>&nbsp;     */
+<i>81</i>&nbsp;    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+<b class="nc"><i>82</i>&nbsp;        if (getResult.isExists() == false) {</b>
+<i>83</i>&nbsp;            // If the document didn&#39;t exist, execute the update request as an upsert
+<b class="nc"><i>84</i>&nbsp;            return prepareUpsert(shardId, request, getResult, nowInMillis);</b>
+<b class="nc"><i>85</i>&nbsp;        } else if (getResult.internalSourceRef() == null) {</b>
+<i>86</i>&nbsp;            // no source, we can&#39;t do anything, throw a failure...
+<b class="nc"><i>87</i>&nbsp;            throw new DocumentSourceMissingException(shardId, request.type(), request.id());</b>
+<b class="nc"><i>88</i>&nbsp;        } else if (request.script() == null &amp;&amp; request.doc() != null) {</b>
+<i>89</i>&nbsp;            // The request has no script, it is a new doc that should be merged with the old document
+<b class="nc"><i>90</i>&nbsp;            return prepareUpdateIndexRequest(shardId, request, getResult, request.detectNoop());</b>
+<i>91</i>&nbsp;        } else {
+<i>92</i>&nbsp;            // The request has a script (or empty script), execute the script and prepare a new index request
+<b class="nc"><i>93</i>&nbsp;            return prepareUpdateScriptRequest(shardId, request, getResult, nowInMillis);</b>
+<i>94</i>&nbsp;        }
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    /**
+<i>98</i>&nbsp;     * Execute a scripted upsert, where there is an existing upsert document and a script to be executed. The script is executed and a new
+<i>99</i>&nbsp;     * Tuple of operation and updated {@code _source} is returned.
+<i>100</i>&nbsp;     */
+<i>101</i>&nbsp;    Tuple&lt;UpdateOpType, Map&lt;String, Object&gt;&gt; executeScriptedUpsert(Map&lt;String, Object&gt; upsertDoc, Script script, LongSupplier nowInMillis) {
+<b class="nc"><i>102</i>&nbsp;        Map&lt;String, Object&gt; ctx = new HashMap&lt;&gt;(3);</b>
+<i>103</i>&nbsp;        // Tell the script that this is a create and not an update
+<b class="nc"><i>104</i>&nbsp;        ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());</b>
+<b class="nc"><i>105</i>&nbsp;        ctx.put(ContextFields.SOURCE, upsertDoc);</b>
+<b class="nc"><i>106</i>&nbsp;        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());</b>
+<b class="nc"><i>107</i>&nbsp;        ctx = executeScript(script, ctx);</b>
+<i>108</i>&nbsp;
+<b class="nc"><i>109</i>&nbsp;        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());</b>
+<i>110</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<b class="nc"><i>111</i>&nbsp;        Map&lt;String, Object&gt; newSource = (Map&lt;String, Object&gt;) ctx.get(ContextFields.SOURCE);</b>
+<i>112</i>&nbsp;
+<b class="nc"><i>113</i>&nbsp;        if (operation != UpdateOpType.CREATE &amp;&amp; operation != UpdateOpType.NONE) {</b>
+<i>114</i>&nbsp;            // Only valid options for an upsert script are &quot;create&quot; (the default) or &quot;none&quot;, meaning abort upsert
+<b class="nc"><i>115</i>&nbsp;            logger.warn(&quot;Invalid upsert operation [{}] for script [{}], doing nothing...&quot;, operation, script.getIdOrCode());</b>
+<b class="nc"><i>116</i>&nbsp;            operation = UpdateOpType.NONE;</b>
+<i>117</i>&nbsp;        }
+<i>118</i>&nbsp;
+<b class="nc"><i>119</i>&nbsp;        return new Tuple&lt;&gt;(operation, newSource);</b>
+<i>120</i>&nbsp;    }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    /**
+<i>123</i>&nbsp;     * Prepare the request for upsert, executing the upsert script if present, and returning a {@code Result} containing a new
+<i>124</i>&nbsp;     * {@code IndexRequest} to be executed on the primary and replicas.
+<i>125</i>&nbsp;     */
+<i>126</i>&nbsp;    Result prepareUpsert(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+<b class="nc"><i>127</i>&nbsp;            if (request.upsertRequest() == null &amp;&amp; !request.docAsUpsert()) {</b>
+<b class="nc"><i>128</i>&nbsp;                throw new DocumentMissingException(shardId, request.type(), request.id());</b>
+<i>129</i>&nbsp;            }
+<b class="nc"><i>130</i>&nbsp;            IndexRequest indexRequest = request.docAsUpsert() ? request.doc() : request.upsertRequest();</b>
+<b class="nc"><i>131</i>&nbsp;            if (request.scriptedUpsert() &amp;&amp; request.script() != null) {</b>
+<i>132</i>&nbsp;                // Run the script to perform the create logic
+<b class="nc"><i>133</i>&nbsp;                IndexRequest upsert = request.upsertRequest();</b>
+<b class="nc"><i>134</i>&nbsp;                Tuple&lt;UpdateOpType, Map&lt;String, Object&gt;&gt; upsertResult = executeScriptedUpsert(upsert.sourceAsMap(), request.script,</b>
+<i>135</i>&nbsp;                    nowInMillis);
+<b class="nc"><i>136</i>&nbsp;                switch (upsertResult.v1()) {</b>
+<i>137</i>&nbsp;                    case CREATE:
+<b class="nc"><i>138</i>&nbsp;                        indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());</b>
+<b class="nc"><i>139</i>&nbsp;                        break;</b>
+<i>140</i>&nbsp;                    case NONE:
+<b class="nc"><i>141</i>&nbsp;                        UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),</b>
+<b class="nc"><i>142</i>&nbsp;                                getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);</b>
+<b class="nc"><i>143</i>&nbsp;                        update.setGetResult(getResult);</b>
+<b class="nc"><i>144</i>&nbsp;                        return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);</b>
+<i>145</i>&nbsp;                    default:
+<i>146</i>&nbsp;                        // It&#39;s fine to throw an exception here, the leniency is handled/logged by `executeScriptedUpsert`
+<b class="nc"><i>147</i>&nbsp;                        throw new IllegalArgumentException(&quot;unknown upsert operation, got: &quot; + upsertResult.v1());</b>
+<i>148</i>&nbsp;                }
+<i>149</i>&nbsp;            }
+<i>150</i>&nbsp;
+<b class="nc"><i>151</i>&nbsp;            indexRequest.index(request.index())</b>
+<b class="nc"><i>152</i>&nbsp;                    .type(request.type()).id(request.id()).setRefreshPolicy(request.getRefreshPolicy()).routing(request.routing())</b>
+<b class="nc"><i>153</i>&nbsp;                    .timeout(request.timeout()).waitForActiveShards(request.waitForActiveShards())</b>
+<i>154</i>&nbsp;                    // it has to be a &quot;create!&quot;
+<b class="nc"><i>155</i>&nbsp;                    .create(true);</b>
+<i>156</i>&nbsp;
+<b class="nc"><i>157</i>&nbsp;            if (request.versionType() != VersionType.INTERNAL) {</b>
+<i>158</i>&nbsp;                // in all but the internal versioning mode, we want to create the new document using the given version.
+<b class="nc"><i>159</i>&nbsp;                indexRequest.version(request.version()).versionType(request.versionType());</b>
+<i>160</i>&nbsp;            }
+<i>161</i>&nbsp;
+<b class="nc"><i>162</i>&nbsp;            return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);</b>
+<i>163</i>&nbsp;    }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    /**
+<i>166</i>&nbsp;     * Calculate a routing value to be used, either the included index request&#39;s routing, or retrieved document&#39;s routing when defined.
+<i>167</i>&nbsp;     */
+<i>168</i>&nbsp;    @Nullable
+<i>169</i>&nbsp;    static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest) {
+<b class="nc"><i>170</i>&nbsp;        if (updateIndexRequest != null &amp;&amp; updateIndexRequest.routing() != null) {</b>
+<b class="nc"><i>171</i>&nbsp;            return updateIndexRequest.routing();</b>
+<b class="nc"><i>172</i>&nbsp;        } else if (getResult.getFields().containsKey(RoutingFieldMapper.NAME)) {</b>
+<b class="nc"><i>173</i>&nbsp;            return getResult.field(RoutingFieldMapper.NAME).getValue().toString();</b>
+<i>174</i>&nbsp;        } else {
+<b class="nc"><i>175</i>&nbsp;            return null;</b>
+<i>176</i>&nbsp;        }
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    /**
+<i>180</i>&nbsp;     * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
+<i>181</i>&nbsp;     * containing a new {@code IndexRequest} to be executed on the primary and replicas.
+<i>182</i>&nbsp;     */
+<i>183</i>&nbsp;    Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
+<b class="nc"><i>184</i>&nbsp;        final IndexRequest currentRequest = request.doc();</b>
+<b class="nc"><i>185</i>&nbsp;        final String routing = calculateRouting(getResult, currentRequest);</b>
+<b class="nc"><i>186</i>&nbsp;        final Tuple&lt;XContentType, Map&lt;String, Object&gt;&gt; sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);</b>
+<b class="nc"><i>187</i>&nbsp;        final XContentType updateSourceContentType = sourceAndContent.v1();</b>
+<b class="nc"><i>188</i>&nbsp;        final Map&lt;String, Object&gt; updatedSourceAsMap = sourceAndContent.v2();</b>
+<i>189</i>&nbsp;
+<b class="nc"><i>190</i>&nbsp;        final boolean noop = !XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop);</b>
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;        // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
+<i>193</i>&nbsp;        // where users repopulating multi-fields or adding synonyms, etc.
+<b class="nc"><i>194</i>&nbsp;        if (detectNoop &amp;&amp; noop) {</b>
+<b class="nc"><i>195</i>&nbsp;            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),</b>
+<b class="nc"><i>196</i>&nbsp;                getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);</b>
+<b class="nc"><i>197</i>&nbsp;            update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),</b>
+<b class="nc"><i>198</i>&nbsp;                getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));</b>
+<b class="nc"><i>199</i>&nbsp;            return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);</b>
+<i>200</i>&nbsp;        } else {
+<b class="nc"><i>201</i>&nbsp;            final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())</b>
+<b class="nc"><i>202</i>&nbsp;                    .type(request.type()).id(request.id()).routing(routing)</b>
+<b class="nc"><i>203</i>&nbsp;                    .source(updatedSourceAsMap, updateSourceContentType)</b>
+<b class="nc"><i>204</i>&nbsp;                    .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())</b>
+<b class="nc"><i>205</i>&nbsp;                    .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())</b>
+<b class="nc"><i>206</i>&nbsp;                    .setRefreshPolicy(request.getRefreshPolicy());</b>
+<b class="nc"><i>207</i>&nbsp;            return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);</b>
+<i>208</i>&nbsp;        }
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    /**
+<i>212</i>&nbsp;     * Prepare the request for updating an existing document using a script. Executes the script and returns a {@code Result} containing
+<i>213</i>&nbsp;     * either a new {@code IndexRequest} or {@code DeleteRequest} (depending on the script&#39;s returned &quot;op&quot; value) to be executed on the
+<i>214</i>&nbsp;     * primary and replicas.
+<i>215</i>&nbsp;     */
+<i>216</i>&nbsp;    Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
+<b class="nc"><i>217</i>&nbsp;        final IndexRequest currentRequest = request.doc();</b>
+<b class="nc"><i>218</i>&nbsp;        final String routing = calculateRouting(getResult, currentRequest);</b>
+<b class="nc"><i>219</i>&nbsp;        final Tuple&lt;XContentType, Map&lt;String, Object&gt;&gt; sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);</b>
+<b class="nc"><i>220</i>&nbsp;        final XContentType updateSourceContentType = sourceAndContent.v1();</b>
+<b class="nc"><i>221</i>&nbsp;        final Map&lt;String, Object&gt; sourceAsMap = sourceAndContent.v2();</b>
+<i>222</i>&nbsp;
+<b class="nc"><i>223</i>&nbsp;        Map&lt;String, Object&gt; ctx = new HashMap&lt;&gt;(16);</b>
+<b class="nc"><i>224</i>&nbsp;        ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is &quot;index&quot;</b>
+<b class="nc"><i>225</i>&nbsp;        ctx.put(ContextFields.INDEX, getResult.getIndex());</b>
+<b class="nc"><i>226</i>&nbsp;        ctx.put(ContextFields.TYPE, getResult.getType());</b>
+<b class="nc"><i>227</i>&nbsp;        ctx.put(ContextFields.ID, getResult.getId());</b>
+<b class="nc"><i>228</i>&nbsp;        ctx.put(ContextFields.VERSION, getResult.getVersion());</b>
+<b class="nc"><i>229</i>&nbsp;        ctx.put(ContextFields.ROUTING, routing);</b>
+<b class="nc"><i>230</i>&nbsp;        ctx.put(ContextFields.SOURCE, sourceAsMap);</b>
+<b class="nc"><i>231</i>&nbsp;        ctx.put(ContextFields.NOW, nowInMillis.getAsLong());</b>
+<i>232</i>&nbsp;
+<b class="nc"><i>233</i>&nbsp;        ctx = executeScript(request.script, ctx);</b>
+<i>234</i>&nbsp;
+<b class="nc"><i>235</i>&nbsp;        UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());</b>
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<b class="nc"><i>238</i>&nbsp;        final Map&lt;String, Object&gt; updatedSourceAsMap = (Map&lt;String, Object&gt;) ctx.get(ContextFields.SOURCE);</b>
+<i>239</i>&nbsp;
+<b class="nc"><i>240</i>&nbsp;        switch (operation) {</b>
+<i>241</i>&nbsp;            case INDEX:
+<b class="nc"><i>242</i>&nbsp;                final IndexRequest indexRequest = Requests.indexRequest(request.index())</b>
+<b class="nc"><i>243</i>&nbsp;                        .type(request.type()).id(request.id()).routing(routing)</b>
+<b class="nc"><i>244</i>&nbsp;                        .source(updatedSourceAsMap, updateSourceContentType)</b>
+<b class="nc"><i>245</i>&nbsp;                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())</b>
+<b class="nc"><i>246</i>&nbsp;                        .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())</b>
+<b class="nc"><i>247</i>&nbsp;                        .setRefreshPolicy(request.getRefreshPolicy());</b>
+<b class="nc"><i>248</i>&nbsp;                return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);</b>
+<i>249</i>&nbsp;            case DELETE:
+<b class="nc"><i>250</i>&nbsp;                DeleteRequest deleteRequest = Requests.deleteRequest(request.index())</b>
+<b class="nc"><i>251</i>&nbsp;                        .type(request.type()).id(request.id()).routing(routing)</b>
+<b class="nc"><i>252</i>&nbsp;                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())</b>
+<b class="nc"><i>253</i>&nbsp;                        .waitForActiveShards(request.waitForActiveShards())</b>
+<b class="nc"><i>254</i>&nbsp;                        .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());</b>
+<b class="nc"><i>255</i>&nbsp;                return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);</b>
+<i>256</i>&nbsp;            default:
+<i>257</i>&nbsp;                // If it was neither an INDEX or DELETE operation, treat it as a noop
+<b class="nc"><i>258</i>&nbsp;                UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),</b>
+<b class="nc"><i>259</i>&nbsp;                        getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);</b>
+<b class="nc"><i>260</i>&nbsp;                update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),</b>
+<b class="nc"><i>261</i>&nbsp;                    getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));</b>
+<b class="nc"><i>262</i>&nbsp;                return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);</b>
+<i>263</i>&nbsp;        }
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    private Map&lt;String, Object&gt; executeScript(Script script, Map&lt;String, Object&gt; ctx) {
+<i>267</i>&nbsp;        try {
+<b class="nc"><i>268</i>&nbsp;            if (scriptService != null) {</b>
+<b class="nc"><i>269</i>&nbsp;                UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);</b>
+<b class="nc"><i>270</i>&nbsp;                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);</b>
+<b class="nc"><i>271</i>&nbsp;                executableScript.execute();</b>
+<i>272</i>&nbsp;            }
+<b class="nc"><i>273</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>274</i>&nbsp;            throw new IllegalArgumentException(&quot;failed to execute script&quot;, e);</b>
+<b class="nc"><i>275</i>&nbsp;        }</b>
+<b class="nc"><i>276</i>&nbsp;        return ctx;</b>
+<i>277</i>&nbsp;    }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;    /**
+<i>280</i>&nbsp;     * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
+<i>281</i>&nbsp;     */
+<i>282</i>&nbsp;    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long seqNo, long primaryTerm, long version,
+<i>283</i>&nbsp;                                             final Map&lt;String, Object&gt; source, XContentType sourceContentType,
+<i>284</i>&nbsp;                                             @Nullable final BytesReference sourceAsBytes) {
+<b class="nc"><i>285</i>&nbsp;        if (request.fetchSource() == null || request.fetchSource().fetchSource() == false) {</b>
+<b class="nc"><i>286</i>&nbsp;            return null;</b>
+<i>287</i>&nbsp;        }
+<i>288</i>&nbsp;
+<b class="nc"><i>289</i>&nbsp;        BytesReference sourceFilteredAsBytes = sourceAsBytes;</b>
+<b class="nc"><i>290</i>&nbsp;        if (request.fetchSource().includes().length &gt; 0 || request.fetchSource().excludes().length &gt; 0) {</b>
+<b class="nc"><i>291</i>&nbsp;            SourceLookup sourceLookup = new SourceLookup();</b>
+<b class="nc"><i>292</i>&nbsp;            sourceLookup.setSource(source);</b>
+<b class="nc"><i>293</i>&nbsp;            Object value = sourceLookup.filter(request.fetchSource());</b>
+<i>294</i>&nbsp;            try {
+<b class="nc"><i>295</i>&nbsp;                final int initialCapacity = Math.min(1024, sourceAsBytes.length());</b>
+<b class="nc"><i>296</i>&nbsp;                BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);</b>
+<b class="nc"><i>297</i>&nbsp;                try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {</b>
+<b class="nc"><i>298</i>&nbsp;                    builder.value(value);</b>
+<b class="nc"><i>299</i>&nbsp;                    sourceFilteredAsBytes = BytesReference.bytes(builder);</b>
+<b class="nc"><i>300</i>&nbsp;                }</b>
+<b class="nc"><i>301</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>302</i>&nbsp;                throw new ElasticsearchException(&quot;Error filtering source&quot;, e);</b>
+<b class="nc"><i>303</i>&nbsp;            }</b>
+<i>304</i>&nbsp;        }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;        // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
+<b class="nc"><i>307</i>&nbsp;        return new GetResult(concreteIndex, request.type(), request.id(), seqNo, primaryTerm, version, true, sourceFilteredAsBytes,</b>
+<b class="nc"><i>308</i>&nbsp;            Collections.emptyMap(), Collections.emptyMap());</b>
+<i>309</i>&nbsp;    }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;    public static class Result {
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;        private final Writeable action;
+<i>314</i>&nbsp;        private final DocWriteResponse.Result result;
+<i>315</i>&nbsp;        private final Map&lt;String, Object&gt; updatedSourceAsMap;
+<i>316</i>&nbsp;        private final XContentType updateSourceContentType;
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;        public Result(Writeable action, DocWriteResponse.Result result, Map&lt;String, Object&gt; updatedSourceAsMap,
+<b class="nc"><i>319</i>&nbsp;                      XContentType updateSourceContentType) {</b>
+<b class="nc"><i>320</i>&nbsp;            this.action = action;</b>
+<b class="nc"><i>321</i>&nbsp;            this.result = result;</b>
+<b class="nc"><i>322</i>&nbsp;            this.updatedSourceAsMap = updatedSourceAsMap;</b>
+<b class="nc"><i>323</i>&nbsp;            this.updateSourceContentType = updateSourceContentType;</b>
+<b class="nc"><i>324</i>&nbsp;        }</b>
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<i>327</i>&nbsp;        public &lt;T extends Writeable&gt; T action() {
+<b class="nc"><i>328</i>&nbsp;            return (T) action;</b>
+<i>329</i>&nbsp;        }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;        public DocWriteResponse.Result getResponseResult() {
+<b class="nc"><i>332</i>&nbsp;            return result;</b>
+<i>333</i>&nbsp;        }
+<i>334</i>&nbsp;
+<i>335</i>&nbsp;        public Map&lt;String, Object&gt; updatedSourceAsMap() {
+<b class="nc"><i>336</i>&nbsp;            return updatedSourceAsMap;</b>
+<i>337</i>&nbsp;        }
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;        public XContentType updateSourceContentType() {
+<b class="nc"><i>340</i>&nbsp;            return updateSourceContentType;</b>
+<i>341</i>&nbsp;        }
+<i>342</i>&nbsp;    }
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    /**
+<i>345</i>&nbsp;     * After executing the script, this is the type of operation that will be used for subsequent actions. This corresponds to the &quot;ctx.op&quot;
+<i>346</i>&nbsp;     * variable inside of scripts.
+<i>347</i>&nbsp;     */
+<i>348</i>&nbsp;    enum UpdateOpType {
+<i>349</i>&nbsp;        CREATE(&quot;create&quot;),
+<i>350</i>&nbsp;        INDEX(&quot;index&quot;),
+<i>351</i>&nbsp;        DELETE(&quot;delete&quot;),
+<i>352</i>&nbsp;        NONE(&quot;none&quot;);
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        private final String name;
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;        UpdateOpType(String name) {
+<i>357</i>&nbsp;            this.name = name;
+<i>358</i>&nbsp;        }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;        public static UpdateOpType lenientFromString(String operation, Logger logger, String scriptId) {
+<i>361</i>&nbsp;            switch (operation) {
+<i>362</i>&nbsp;                case &quot;create&quot;:
+<i>363</i>&nbsp;                    return UpdateOpType.CREATE;
+<i>364</i>&nbsp;                case &quot;index&quot;:
+<i>365</i>&nbsp;                    return UpdateOpType.INDEX;
+<i>366</i>&nbsp;                case &quot;delete&quot;:
+<i>367</i>&nbsp;                    return UpdateOpType.DELETE;
+<i>368</i>&nbsp;                case &quot;none&quot;:
+<i>369</i>&nbsp;                    return UpdateOpType.NONE;
+<i>370</i>&nbsp;                default:
+<i>371</i>&nbsp;                    // TODO: can we remove this leniency yet??
+<i>372</i>&nbsp;                    logger.warn(&quot;Used upsert operation [{}] for script [{}], doing nothing...&quot;, operation, scriptId);
+<i>373</i>&nbsp;                    return UpdateOpType.NONE;
+<i>374</i>&nbsp;            }
+<i>375</i>&nbsp;        }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;        @Override
+<i>378</i>&nbsp;        public String toString() {
+<i>379</i>&nbsp;            return name;
+<i>380</i>&nbsp;        }
+<i>381</i>&nbsp;    }
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;    /**
+<i>384</i>&nbsp;     * Field names used to populate the script context
+<i>385</i>&nbsp;     */
+<i>386</i>&nbsp;    public static class ContextFields {
+<i>387</i>&nbsp;        public static final String CTX = &quot;ctx&quot;;
+<i>388</i>&nbsp;        public static final String OP = &quot;op&quot;;
+<i>389</i>&nbsp;        public static final String SOURCE = &quot;_source&quot;;
+<i>390</i>&nbsp;        public static final String NOW = &quot;_now&quot;;
+<i>391</i>&nbsp;        public static final String INDEX = &quot;_index&quot;;
+<i>392</i>&nbsp;        public static final String TYPE = &quot;_type&quot;;
+<i>393</i>&nbsp;        public static final String ID = &quot;_id&quot;;
+<i>394</i>&nbsp;        public static final String VERSION = &quot;_version&quot;;
+<i>395</i>&nbsp;        public static final String ROUTING = &quot;_routing&quot;;
+<i>396</i>&nbsp;    }
+<i>397</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

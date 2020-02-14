@@ -1,0 +1,238 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestSegmentsAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.cat</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestSegmentsAction (org.elasticsearch.rest.action.cat)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestSegmentsAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.6%
+  </span>
+  <span class="absValue">
+    (2/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    10.9%
+  </span>
+  <span class="absValue">
+    (7/ 64)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.cat;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+<i>25</i>&nbsp;import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+<i>29</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>31</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>32</i>&nbsp;import org.elasticsearch.common.Table;
+<i>33</i>&nbsp;import org.elasticsearch.index.engine.Segment;
+<i>34</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>35</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>36</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>37</i>&nbsp;import org.elasticsearch.rest.action.RestActionListener;
+<i>38</i>&nbsp;import org.elasticsearch.rest.action.RestResponseListener;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import java.util.List;
+<i>41</i>&nbsp;import java.util.Map;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>44</i>&nbsp;
+<b class="nc"><i>45</i>&nbsp;public class RestSegmentsAction extends AbstractCatAction {</b>
+<i>46</i>&nbsp;
+<b class="fc"><i>47</i>&nbsp;    public RestSegmentsAction(RestController controller) {</b>
+<b class="fc"><i>48</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/segments&quot;, this);</b>
+<b class="fc"><i>49</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/segments/{index}&quot;, this);</b>
+<b class="fc"><i>50</i>&nbsp;    }</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    @Override
+<i>53</i>&nbsp;    public String getName() {
+<b class="nc"><i>54</i>&nbsp;        return &quot;cat_segments_action&quot;;</b>
+<i>55</i>&nbsp;    }
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    @Override
+<i>58</i>&nbsp;    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+<b class="nc"><i>59</i>&nbsp;        final String[] indices = Strings.splitStringByCommaToArray(request.param(&quot;index&quot;));</b>
+<i>60</i>&nbsp;
+<b class="nc"><i>61</i>&nbsp;        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();</b>
+<b class="nc"><i>62</i>&nbsp;        clusterStateRequest.local(request.paramAsBoolean(&quot;local&quot;, clusterStateRequest.local()));</b>
+<b class="nc"><i>63</i>&nbsp;        clusterStateRequest.masterNodeTimeout(request.paramAsTime(&quot;master_timeout&quot;, clusterStateRequest.masterNodeTimeout()));</b>
+<b class="nc"><i>64</i>&nbsp;        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);</b>
+<i>65</i>&nbsp;
+<b class="nc"><i>66</i>&nbsp;        return channel -&gt; client.admin().cluster().state(clusterStateRequest, new RestActionListener&lt;ClusterStateResponse&gt;(channel) {</b>
+<i>67</i>&nbsp;            @Override
+<i>68</i>&nbsp;            public void processResponse(final ClusterStateResponse clusterStateResponse) {
+<i>69</i>&nbsp;                final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
+<i>70</i>&nbsp;                indicesSegmentsRequest.indices(indices);
+<i>71</i>&nbsp;                client.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener&lt;IndicesSegmentResponse&gt;(channel) {
+<i>72</i>&nbsp;                    @Override
+<i>73</i>&nbsp;                    public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
+<i>74</i>&nbsp;                        final Map&lt;String, IndexSegments&gt; indicesSegments = indicesSegmentResponse.getIndices();
+<i>75</i>&nbsp;                        Table tab = buildTable(request, clusterStateResponse, indicesSegments);
+<i>76</i>&nbsp;                        return RestTable.buildResponse(tab, channel);
+<i>77</i>&nbsp;                    }
+<i>78</i>&nbsp;                });
+<i>79</i>&nbsp;            }
+<i>80</i>&nbsp;        });
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    @Override
+<i>84</i>&nbsp;    protected void documentation(StringBuilder sb) {
+<b class="fc"><i>85</i>&nbsp;        sb.append(&quot;/_cat/segments\n&quot;);</b>
+<b class="fc"><i>86</i>&nbsp;        sb.append(&quot;/_cat/segments/{index}\n&quot;);</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    @Override
+<i>90</i>&nbsp;    protected Table getTableWithHeader(RestRequest request) {
+<b class="nc"><i>91</i>&nbsp;        Table table = new Table();</b>
+<b class="nc"><i>92</i>&nbsp;        table.startHeaders();</b>
+<b class="nc"><i>93</i>&nbsp;        table.addCell(&quot;index&quot;, &quot;default:true;alias:i,idx;desc:index name&quot;);</b>
+<b class="nc"><i>94</i>&nbsp;        table.addCell(&quot;shard&quot;, &quot;default:true;alias:s,sh;desc:shard name&quot;);</b>
+<b class="nc"><i>95</i>&nbsp;        table.addCell(&quot;prirep&quot;, &quot;alias:p,pr,primaryOrReplica;default:true;desc:primary or replica&quot;);</b>
+<b class="nc"><i>96</i>&nbsp;        table.addCell(&quot;ip&quot;, &quot;default:true;desc:ip of node where it lives&quot;);</b>
+<b class="nc"><i>97</i>&nbsp;        table.addCell(&quot;id&quot;, &quot;default:false;desc:unique id of node where it lives&quot;);</b>
+<b class="nc"><i>98</i>&nbsp;        table.addCell(&quot;segment&quot;, &quot;default:true;alias:seg;desc:segment name&quot;);</b>
+<b class="nc"><i>99</i>&nbsp;        table.addCell(&quot;generation&quot;, &quot;default:true;alias:g,gen;text-align:right;desc:segment generation&quot;);</b>
+<b class="nc"><i>100</i>&nbsp;        table.addCell(&quot;docs.count&quot;, &quot;default:true;alias:dc,docsCount;text-align:right;desc:number of docs in segment&quot;);</b>
+<b class="nc"><i>101</i>&nbsp;        table.addCell(&quot;docs.deleted&quot;, &quot;default:true;alias:dd,docsDeleted;text-align:right;desc:number of deleted docs in segment&quot;);</b>
+<b class="nc"><i>102</i>&nbsp;        table.addCell(&quot;size&quot;, &quot;default:true;alias:si;text-align:right;desc:segment size in bytes&quot;);</b>
+<b class="nc"><i>103</i>&nbsp;        table.addCell(&quot;size.memory&quot;, &quot;default:true;alias:sm,sizeMemory;text-align:right;desc:segment memory in bytes&quot;);</b>
+<b class="nc"><i>104</i>&nbsp;        table.addCell(&quot;committed&quot;, &quot;default:true;alias:ic,isCommitted;desc:is segment committed&quot;);</b>
+<b class="nc"><i>105</i>&nbsp;        table.addCell(&quot;searchable&quot;, &quot;default:true;alias:is,isSearchable;desc:is segment searched&quot;);</b>
+<b class="nc"><i>106</i>&nbsp;        table.addCell(&quot;version&quot;, &quot;default:true;alias:v,ver;desc:version&quot;);</b>
+<b class="nc"><i>107</i>&nbsp;        table.addCell(&quot;compound&quot;, &quot;default:true;alias:ico,isCompound;desc:is segment compound&quot;);</b>
+<b class="nc"><i>108</i>&nbsp;        table.endHeaders();</b>
+<b class="nc"><i>109</i>&nbsp;        return table;</b>
+<i>110</i>&nbsp;    }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    private Table buildTable(final RestRequest request, ClusterStateResponse state, Map&lt;String, IndexSegments&gt; indicesSegments) {
+<b class="nc"><i>113</i>&nbsp;        Table table = getTableWithHeader(request);</b>
+<i>114</i>&nbsp;
+<b class="nc"><i>115</i>&nbsp;        DiscoveryNodes nodes = state.getState().nodes();</b>
+<i>116</i>&nbsp;
+<b class="nc"><i>117</i>&nbsp;        for (IndexSegments indexSegments : indicesSegments.values()) {</b>
+<b class="nc"><i>118</i>&nbsp;            Map&lt;Integer, IndexShardSegments&gt; shards = indexSegments.getShards();</b>
+<i>119</i>&nbsp;
+<b class="nc"><i>120</i>&nbsp;            for (IndexShardSegments indexShardSegments : shards.values()) {</b>
+<b class="nc"><i>121</i>&nbsp;                ShardSegments[] shardSegments = indexShardSegments.getShards();</b>
+<i>122</i>&nbsp;
+<b class="nc"><i>123</i>&nbsp;                for (ShardSegments shardSegment : shardSegments) {</b>
+<b class="nc"><i>124</i>&nbsp;                    List&lt;Segment&gt; segments = shardSegment.getSegments();</b>
+<i>125</i>&nbsp;
+<b class="nc"><i>126</i>&nbsp;                    for (Segment segment : segments) {</b>
+<b class="nc"><i>127</i>&nbsp;                        table.startRow();</b>
+<i>128</i>&nbsp;
+<b class="nc"><i>129</i>&nbsp;                        table.addCell(shardSegment.getShardRouting().getIndexName());</b>
+<b class="nc"><i>130</i>&nbsp;                        table.addCell(shardSegment.getShardRouting().getId());</b>
+<b class="nc"><i>131</i>&nbsp;                        table.addCell(shardSegment.getShardRouting().primary() ? &quot;p&quot; : &quot;r&quot;);</b>
+<b class="nc"><i>132</i>&nbsp;                        table.addCell(nodes.get(shardSegment.getShardRouting().currentNodeId()).getHostAddress());</b>
+<b class="nc"><i>133</i>&nbsp;                        table.addCell(shardSegment.getShardRouting().currentNodeId());</b>
+<b class="nc"><i>134</i>&nbsp;                        table.addCell(segment.getName());</b>
+<b class="nc"><i>135</i>&nbsp;                        table.addCell(segment.getGeneration());</b>
+<b class="nc"><i>136</i>&nbsp;                        table.addCell(segment.getNumDocs());</b>
+<b class="nc"><i>137</i>&nbsp;                        table.addCell(segment.getDeletedDocs());</b>
+<b class="nc"><i>138</i>&nbsp;                        table.addCell(segment.getSize());</b>
+<b class="nc"><i>139</i>&nbsp;                        table.addCell(segment.getMemoryInBytes());</b>
+<b class="nc"><i>140</i>&nbsp;                        table.addCell(segment.isCommitted());</b>
+<b class="nc"><i>141</i>&nbsp;                        table.addCell(segment.isSearch());</b>
+<b class="nc"><i>142</i>&nbsp;                        table.addCell(segment.getVersion());</b>
+<b class="nc"><i>143</i>&nbsp;                        table.addCell(segment.isCompound());</b>
+<i>144</i>&nbsp;
+<b class="nc"><i>145</i>&nbsp;                        table.endRow();</b>
+<b class="nc"><i>146</i>&nbsp;                    }</b>
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;                }
+<b class="nc"><i>149</i>&nbsp;            }</b>
+<i>150</i>&nbsp;
+<b class="nc"><i>151</i>&nbsp;        }</b>
+<i>152</i>&nbsp;
+<b class="nc"><i>153</i>&nbsp;        return table;</b>
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

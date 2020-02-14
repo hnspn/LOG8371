@@ -1,0 +1,291 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexWarmer</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexWarmer (org.elasticsearch.index)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexWarmer</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (3/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75.8%
+  </span>
+  <span class="absValue">
+    (25/ 33)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndexWarmer$FieldDataWarmer</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    29.4%
+  </span>
+  <span class="absValue">
+    (10/ 34)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">IndexWarmer$Listener</td>
+  </tr>
+  <tr>
+    <td class="name">IndexWarmer$TerminationHandle</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    71.4%
+  </span>
+  <span class="absValue">
+    (5/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    51.5%
+  </span>
+  <span class="absValue">
+    (35/ 68)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+<i>26</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>27</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>28</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldDataService;
+<i>29</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>30</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>31</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>32</i>&nbsp;import org.elasticsearch.index.shard.IndexShardState;
+<i>33</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.util.ArrayList;
+<i>36</i>&nbsp;import java.util.Collections;
+<i>37</i>&nbsp;import java.util.HashMap;
+<i>38</i>&nbsp;import java.util.List;
+<i>39</i>&nbsp;import java.util.Map;
+<i>40</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>41</i>&nbsp;import java.util.concurrent.Executor;
+<i>42</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;public final class IndexWarmer {
+<i>45</i>&nbsp;
+<b class="fc"><i>46</i>&nbsp;    private static final Logger logger = LogManager.getLogger(IndexWarmer.class);</b>
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    private final List&lt;Listener&gt; listeners;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
+<b class="fc"><i>51</i>&nbsp;                Listener... listeners) {</b>
+<b class="fc"><i>52</i>&nbsp;        ArrayList&lt;Listener&gt; list = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>53</i>&nbsp;        final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);</b>
+<b class="fc"><i>54</i>&nbsp;        list.add(new FieldDataWarmer(executor, indexFieldDataService));</b>
+<i>55</i>&nbsp;
+<b class="fc"><i>56</i>&nbsp;        Collections.addAll(list, listeners);</b>
+<b class="fc"><i>57</i>&nbsp;        this.listeners = Collections.unmodifiableList(list);</b>
+<b class="fc"><i>58</i>&nbsp;    }</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    void warm(ElasticsearchDirectoryReader reader, IndexShard shard, IndexSettings settings) {
+<b class="fc"><i>61</i>&nbsp;        if (shard.state() == IndexShardState.CLOSED) {</b>
+<b class="nc"><i>62</i>&nbsp;            return;</b>
+<i>63</i>&nbsp;        }
+<b class="fc"><i>64</i>&nbsp;        if (settings.isWarmerEnabled() == false) {</b>
+<b class="nc"><i>65</i>&nbsp;            return;</b>
+<i>66</i>&nbsp;        }
+<b class="fc"><i>67</i>&nbsp;        if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>68</i>&nbsp;            logger.trace(&quot;{} top warming [{}]&quot;, shard.shardId(), reader);</b>
+<i>69</i>&nbsp;        }
+<b class="fc"><i>70</i>&nbsp;        shard.warmerService().onPreWarm();</b>
+<b class="fc"><i>71</i>&nbsp;        long time = System.nanoTime();</b>
+<b class="fc"><i>72</i>&nbsp;        final List&lt;TerminationHandle&gt; terminationHandles = new ArrayList&lt;&gt;();</b>
+<i>73</i>&nbsp;        // get a handle on pending tasks
+<b class="fc"><i>74</i>&nbsp;        for (final Listener listener : listeners) {</b>
+<b class="fc"><i>75</i>&nbsp;            terminationHandles.add(listener.warmReader(shard, reader));</b>
+<b class="fc"><i>76</i>&nbsp;        }</b>
+<i>77</i>&nbsp;        // wait for termination
+<b class="fc"><i>78</i>&nbsp;        for (TerminationHandle terminationHandle : terminationHandles) {</b>
+<i>79</i>&nbsp;            try {
+<b class="fc"><i>80</i>&nbsp;                terminationHandle.awaitTermination();</b>
+<b class="nc"><i>81</i>&nbsp;            } catch (InterruptedException e) {</b>
+<b class="nc"><i>82</i>&nbsp;                Thread.currentThread().interrupt();</b>
+<b class="nc"><i>83</i>&nbsp;                logger.warn(&quot;top warming has been interrupted&quot;, e);</b>
+<b class="nc"><i>84</i>&nbsp;                break;</b>
+<b class="fc"><i>85</i>&nbsp;            }</b>
+<b class="fc"><i>86</i>&nbsp;        }</b>
+<b class="fc"><i>87</i>&nbsp;        long took = System.nanoTime() - time;</b>
+<b class="fc"><i>88</i>&nbsp;        shard.warmerService().onPostWarm(took);</b>
+<b class="fc"><i>89</i>&nbsp;        if (shard.warmerService().logger().isTraceEnabled()) {</b>
+<b class="nc"><i>90</i>&nbsp;            shard.warmerService().logger().trace(&quot;top warming took [{}]&quot;, new TimeValue(took, TimeUnit.NANOSECONDS));</b>
+<i>91</i>&nbsp;        }
+<b class="fc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    /** A handle on the execution of  warm-up action. */
+<i>95</i>&nbsp;    public interface TerminationHandle {
+<i>96</i>&nbsp;
+<b class="nc"><i>97</i>&nbsp;        TerminationHandle NO_WAIT = () -&gt; {};</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;        /** Wait until execution of the warm-up action completes. */
+<i>100</i>&nbsp;        void awaitTermination() throws InterruptedException;
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;    public interface Listener {
+<i>103</i>&nbsp;        /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
+<i>104</i>&nbsp;         *  execution of those tasks. */
+<i>105</i>&nbsp;        TerminationHandle warmReader(IndexShard indexShard, ElasticsearchDirectoryReader reader);
+<i>106</i>&nbsp;    }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    private static class FieldDataWarmer implements IndexWarmer.Listener {
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;        private final Executor executor;
+<i>111</i>&nbsp;        private final IndexFieldDataService indexFieldDataService;
+<i>112</i>&nbsp;
+<b class="fc"><i>113</i>&nbsp;        FieldDataWarmer(Executor executor, IndexFieldDataService indexFieldDataService) {</b>
+<b class="fc"><i>114</i>&nbsp;            this.executor = executor;</b>
+<b class="fc"><i>115</i>&nbsp;            this.indexFieldDataService = indexFieldDataService;</b>
+<b class="fc"><i>116</i>&nbsp;        }</b>
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;        @Override
+<i>119</i>&nbsp;        public TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
+<b class="fc"><i>120</i>&nbsp;            final MapperService mapperService = indexShard.mapperService();</b>
+<b class="fc"><i>121</i>&nbsp;            final Map&lt;String, MappedFieldType&gt; warmUpGlobalOrdinals = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>122</i>&nbsp;            for (MappedFieldType fieldType : mapperService.fieldTypes()) {</b>
+<b class="nc"><i>123</i>&nbsp;                final String indexName = fieldType.name();</b>
+<b class="nc"><i>124</i>&nbsp;                if (fieldType.eagerGlobalOrdinals() == false) {</b>
+<b class="nc"><i>125</i>&nbsp;                    continue;</b>
+<i>126</i>&nbsp;                }
+<b class="nc"><i>127</i>&nbsp;                warmUpGlobalOrdinals.put(indexName, fieldType);</b>
+<b class="nc"><i>128</i>&nbsp;            }</b>
+<b class="fc"><i>129</i>&nbsp;            final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());</b>
+<b class="fc"><i>130</i>&nbsp;            for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {</b>
+<b class="nc"><i>131</i>&nbsp;                executor.execute(() -&gt; {</b>
+<i>132</i>&nbsp;                    try {
+<b class="nc"><i>133</i>&nbsp;                        final long start = System.nanoTime();</b>
+<b class="nc"><i>134</i>&nbsp;                        IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);</b>
+<b class="nc"><i>135</i>&nbsp;                        IndexFieldData&lt;?&gt; global = ifd.loadGlobal(reader);</b>
+<b class="nc"><i>136</i>&nbsp;                        if (reader.leaves().isEmpty() == false) {</b>
+<b class="nc"><i>137</i>&nbsp;                            global.load(reader.leaves().get(0));</b>
+<i>138</i>&nbsp;                        }
+<i>139</i>&nbsp;
+<b class="nc"><i>140</i>&nbsp;                        if (indexShard.warmerService().logger().isTraceEnabled()) {</b>
+<b class="nc"><i>141</i>&nbsp;                            indexShard.warmerService().logger().trace(</b>
+<i>142</i>&nbsp;                                &quot;warmed global ordinals for [{}], took [{}]&quot;,
+<b class="nc"><i>143</i>&nbsp;                                fieldType.name(),</b>
+<b class="nc"><i>144</i>&nbsp;                                TimeValue.timeValueNanos(System.nanoTime() - start));</b>
+<i>145</i>&nbsp;                        }
+<b class="nc"><i>146</i>&nbsp;                    } catch (Exception e) {</b>
+<b class="nc"><i>147</i>&nbsp;                        indexShard</b>
+<b class="nc"><i>148</i>&nbsp;                            .warmerService()</b>
+<b class="nc"><i>149</i>&nbsp;                            .logger()</b>
+<b class="nc"><i>150</i>&nbsp;                            .warn(() -&gt; new ParameterizedMessage(&quot;failed to warm-up global ordinals for [{}]&quot;, fieldType.name()), e);</b>
+<i>151</i>&nbsp;                    } finally {
+<b class="nc"><i>152</i>&nbsp;                        latch.countDown();</b>
+<b class="nc"><i>153</i>&nbsp;                    }</b>
+<b class="nc"><i>154</i>&nbsp;                });</b>
+<b class="nc"><i>155</i>&nbsp;            }</b>
+<b class="fc"><i>156</i>&nbsp;            return () -&gt; latch.await();</b>
+<i>157</i>&nbsp;        }
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

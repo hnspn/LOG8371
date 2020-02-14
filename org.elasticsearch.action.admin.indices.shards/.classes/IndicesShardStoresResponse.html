@@ -1,0 +1,472 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndicesShardStoresResponse</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.admin.indices.shards</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndicesShardStoresResponse (org.elasticsearch.action.admin.indices.shards)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndicesShardStoresResponse</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 73)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.admin.indices.shards;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.IntObjectCursor;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>24</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.action.ActionResponse;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>29</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+<i>30</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>32</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>33</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.io.IOException;
+<i>38</i>&nbsp;import java.util.ArrayList;
+<i>39</i>&nbsp;import java.util.Collections;
+<i>40</i>&nbsp;import java.util.List;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;/**
+<i>43</i>&nbsp; * Response for {@link IndicesShardStoresAction}
+<i>44</i>&nbsp; *
+<i>45</i>&nbsp; * Consists of {@link StoreStatus}s for requested indices grouped by
+<i>46</i>&nbsp; * indices and shard ids and a list of encountered node {@link Failure}s
+<i>47</i>&nbsp; */
+<i>48</i>&nbsp;public class IndicesShardStoresResponse extends ActionResponse implements ToXContentFragment {
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    /**
+<i>51</i>&nbsp;     * Shard store information from a node
+<i>52</i>&nbsp;     */
+<i>53</i>&nbsp;    public static class StoreStatus implements Writeable, ToXContentFragment, Comparable&lt;StoreStatus&gt; {
+<i>54</i>&nbsp;        private DiscoveryNode node;
+<i>55</i>&nbsp;        private String allocationId;
+<i>56</i>&nbsp;        private Exception storeException;
+<i>57</i>&nbsp;        private AllocationStatus allocationStatus;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;        /**
+<i>60</i>&nbsp;         * The status of the shard store with respect to the cluster
+<i>61</i>&nbsp;         */
+<i>62</i>&nbsp;        public enum AllocationStatus {
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;            /**
+<i>65</i>&nbsp;             * Allocated as primary
+<i>66</i>&nbsp;             */
+<i>67</i>&nbsp;            PRIMARY((byte) 0),
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;            /**
+<i>70</i>&nbsp;             * Allocated as a replica
+<i>71</i>&nbsp;             */
+<i>72</i>&nbsp;            REPLICA((byte) 1),
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;            /**
+<i>75</i>&nbsp;             * Not allocated
+<i>76</i>&nbsp;             */
+<i>77</i>&nbsp;            UNUSED((byte) 2);
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;            private final byte id;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;            AllocationStatus(byte id) {
+<i>82</i>&nbsp;                this.id = id;
+<i>83</i>&nbsp;            }
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;            private static AllocationStatus fromId(byte id) {
+<i>86</i>&nbsp;                switch (id) {
+<i>87</i>&nbsp;                    case 0: return PRIMARY;
+<i>88</i>&nbsp;                    case 1: return REPLICA;
+<i>89</i>&nbsp;                    case 2: return UNUSED;
+<i>90</i>&nbsp;                    default: throw new IllegalArgumentException(&quot;unknown id for allocation status [&quot; + id + &quot;]&quot;);
+<i>91</i>&nbsp;                }
+<i>92</i>&nbsp;            }
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;            public String value() {
+<i>95</i>&nbsp;                switch (id) {
+<i>96</i>&nbsp;                    case 0: return &quot;primary&quot;;
+<i>97</i>&nbsp;                    case 1: return &quot;replica&quot;;
+<i>98</i>&nbsp;                    case 2: return &quot;unused&quot;;
+<i>99</i>&nbsp;                    default: throw new IllegalArgumentException(&quot;unknown id for allocation status [&quot; + id + &quot;]&quot;);
+<i>100</i>&nbsp;                }
+<i>101</i>&nbsp;            }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;            private static AllocationStatus readFrom(StreamInput in) throws IOException {
+<i>104</i>&nbsp;                return fromId(in.readByte());
+<i>105</i>&nbsp;            }
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;            private void writeTo(StreamOutput out) throws IOException {
+<i>108</i>&nbsp;                out.writeByte(id);
+<i>109</i>&nbsp;            }
+<i>110</i>&nbsp;        }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;        public StoreStatus(StreamInput in) throws IOException {
+<i>113</i>&nbsp;            node = new DiscoveryNode(in);
+<i>114</i>&nbsp;            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+<i>115</i>&nbsp;                // legacy version
+<i>116</i>&nbsp;                in.readLong();
+<i>117</i>&nbsp;            }
+<i>118</i>&nbsp;            allocationId = in.readOptionalString();
+<i>119</i>&nbsp;            allocationStatus = AllocationStatus.readFrom(in);
+<i>120</i>&nbsp;            if (in.readBoolean()) {
+<i>121</i>&nbsp;                storeException = in.readException();
+<i>122</i>&nbsp;            }
+<i>123</i>&nbsp;        }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;        public StoreStatus(DiscoveryNode node, String allocationId, AllocationStatus allocationStatus, Exception storeException) {
+<i>126</i>&nbsp;            this.node = node;
+<i>127</i>&nbsp;            this.allocationId = allocationId;
+<i>128</i>&nbsp;            this.allocationStatus = allocationStatus;
+<i>129</i>&nbsp;            this.storeException = storeException;
+<i>130</i>&nbsp;        }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;        /**
+<i>133</i>&nbsp;         * Node the store belongs to
+<i>134</i>&nbsp;         */
+<i>135</i>&nbsp;        public DiscoveryNode getNode() {
+<i>136</i>&nbsp;            return node;
+<i>137</i>&nbsp;        }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;        /**
+<i>140</i>&nbsp;         * AllocationStatus id of the store, used to select the store that will be
+<i>141</i>&nbsp;         * used as a primary.
+<i>142</i>&nbsp;         */
+<i>143</i>&nbsp;        public String getAllocationId() {
+<i>144</i>&nbsp;            return allocationId;
+<i>145</i>&nbsp;        }
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;        /**
+<i>148</i>&nbsp;         * Exception while trying to open the
+<i>149</i>&nbsp;         * shard index or from when the shard failed
+<i>150</i>&nbsp;         */
+<i>151</i>&nbsp;        public Exception getStoreException() {
+<i>152</i>&nbsp;            return storeException;
+<i>153</i>&nbsp;        }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;        /**
+<i>156</i>&nbsp;         * The allocationStatus status of the store.
+<i>157</i>&nbsp;         * {@link AllocationStatus#PRIMARY} indicates a primary shard copy
+<i>158</i>&nbsp;         * {@link AllocationStatus#REPLICA} indicates a replica shard copy
+<i>159</i>&nbsp;         * {@link AllocationStatus#UNUSED} indicates an unused shard copy
+<i>160</i>&nbsp;         */
+<i>161</i>&nbsp;        public AllocationStatus getAllocationStatus() {
+<i>162</i>&nbsp;            return allocationStatus;
+<i>163</i>&nbsp;        }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;        @Override
+<i>166</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>167</i>&nbsp;            node.writeTo(out);
+<i>168</i>&nbsp;            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+<i>169</i>&nbsp;                // legacy version
+<i>170</i>&nbsp;                out.writeLong(-1L);
+<i>171</i>&nbsp;            }
+<i>172</i>&nbsp;            out.writeOptionalString(allocationId);
+<i>173</i>&nbsp;            allocationStatus.writeTo(out);
+<i>174</i>&nbsp;            if (storeException != null) {
+<i>175</i>&nbsp;                out.writeBoolean(true);
+<i>176</i>&nbsp;                out.writeException(storeException);
+<i>177</i>&nbsp;            } else {
+<i>178</i>&nbsp;                out.writeBoolean(false);
+<i>179</i>&nbsp;            }
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        @Override
+<i>183</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>184</i>&nbsp;            node.toXContent(builder, params);
+<i>185</i>&nbsp;            if (allocationId != null) {
+<i>186</i>&nbsp;                builder.field(Fields.ALLOCATION_ID, allocationId);
+<i>187</i>&nbsp;            }
+<i>188</i>&nbsp;            builder.field(Fields.ALLOCATED, allocationStatus.value());
+<i>189</i>&nbsp;            if (storeException != null) {
+<i>190</i>&nbsp;                builder.startObject(Fields.STORE_EXCEPTION);
+<i>191</i>&nbsp;                ElasticsearchException.generateThrowableXContent(builder, params, storeException);
+<i>192</i>&nbsp;                builder.endObject();
+<i>193</i>&nbsp;            }
+<i>194</i>&nbsp;            return builder;
+<i>195</i>&nbsp;        }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;        @Override
+<i>198</i>&nbsp;        public int compareTo(StoreStatus other) {
+<i>199</i>&nbsp;            if (storeException != null &amp;&amp; other.storeException == null) {
+<i>200</i>&nbsp;                return 1;
+<i>201</i>&nbsp;            } else if (other.storeException != null &amp;&amp; storeException == null) {
+<i>202</i>&nbsp;                return -1;
+<i>203</i>&nbsp;            }
+<i>204</i>&nbsp;            if (allocationId != null &amp;&amp; other.allocationId == null) {
+<i>205</i>&nbsp;                return -1;
+<i>206</i>&nbsp;            } else if (allocationId == null &amp;&amp; other.allocationId != null) {
+<i>207</i>&nbsp;                return 1;
+<i>208</i>&nbsp;            } else if (allocationId == null &amp;&amp; other.allocationId == null) {
+<i>209</i>&nbsp;                return Integer.compare(allocationStatus.id, other.allocationStatus.id);
+<i>210</i>&nbsp;            } else {
+<i>211</i>&nbsp;                int compare = Integer.compare(allocationStatus.id, other.allocationStatus.id);
+<i>212</i>&nbsp;                if (compare == 0) {
+<i>213</i>&nbsp;                    return allocationId.compareTo(other.allocationId);
+<i>214</i>&nbsp;                }
+<i>215</i>&nbsp;                return compare;
+<i>216</i>&nbsp;            }
+<i>217</i>&nbsp;        }
+<i>218</i>&nbsp;    }
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;    /**
+<i>221</i>&nbsp;     * Single node failure while retrieving shard store information
+<i>222</i>&nbsp;     */
+<i>223</i>&nbsp;    public static class Failure extends DefaultShardOperationFailedException {
+<i>224</i>&nbsp;        private String nodeId;
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        public Failure(String nodeId, String index, int shardId, Throwable reason) {
+<i>227</i>&nbsp;            super(index, shardId, reason);
+<i>228</i>&nbsp;            this.nodeId = nodeId;
+<i>229</i>&nbsp;        }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;        private Failure(StreamInput in) throws IOException {
+<i>232</i>&nbsp;            if (in.getVersion().before(Version.V_7_4_0)) {
+<i>233</i>&nbsp;                nodeId = in.readString();
+<i>234</i>&nbsp;            }
+<i>235</i>&nbsp;            readFrom(in, this);
+<i>236</i>&nbsp;            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+<i>237</i>&nbsp;                nodeId = in.readString();
+<i>238</i>&nbsp;            }
+<i>239</i>&nbsp;        }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;        public String nodeId() {
+<i>242</i>&nbsp;            return nodeId;
+<i>243</i>&nbsp;        }
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;        static Failure readFailure(StreamInput in) throws IOException {
+<i>246</i>&nbsp;            return new Failure(in);
+<i>247</i>&nbsp;        }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;        @Override
+<i>250</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>251</i>&nbsp;            if (out.getVersion().before(Version.V_7_4_0)) {
+<i>252</i>&nbsp;                out.writeString(nodeId);
+<i>253</i>&nbsp;            }
+<i>254</i>&nbsp;            super.writeTo(out);
+<i>255</i>&nbsp;            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+<i>256</i>&nbsp;                out.writeString(nodeId);
+<i>257</i>&nbsp;            }
+<i>258</i>&nbsp;        }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;        @Override
+<i>261</i>&nbsp;        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+<i>262</i>&nbsp;            builder.field(&quot;node&quot;, nodeId());
+<i>263</i>&nbsp;            return super.innerToXContent(builder, params);
+<i>264</i>&nbsp;        }
+<i>265</i>&nbsp;    }
+<i>266</i>&nbsp;
+<i>267</i>&nbsp;    private ImmutableOpenMap&lt;String, ImmutableOpenIntMap&lt;List&lt;StoreStatus&gt;&gt;&gt; storeStatuses;
+<i>268</i>&nbsp;    private List&lt;Failure&gt; failures;
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;    public IndicesShardStoresResponse(ImmutableOpenMap&lt;String, ImmutableOpenIntMap&lt;List&lt;StoreStatus&gt;&gt;&gt; storeStatuses,
+<b class="nc"><i>271</i>&nbsp;                                      List&lt;Failure&gt; failures) {</b>
+<b class="nc"><i>272</i>&nbsp;        this.storeStatuses = storeStatuses;</b>
+<b class="nc"><i>273</i>&nbsp;        this.failures = failures;</b>
+<b class="nc"><i>274</i>&nbsp;    }</b>
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    IndicesShardStoresResponse() {
+<b class="nc"><i>277</i>&nbsp;        this(ImmutableOpenMap.of(), Collections.emptyList());</b>
+<b class="nc"><i>278</i>&nbsp;    }</b>
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    public IndicesShardStoresResponse(StreamInput in) throws IOException {
+<b class="nc"><i>281</i>&nbsp;        super(in);</b>
+<b class="nc"><i>282</i>&nbsp;        int numResponse = in.readVInt();</b>
+<b class="nc"><i>283</i>&nbsp;        ImmutableOpenMap.Builder&lt;String, ImmutableOpenIntMap&lt;List&lt;StoreStatus&gt;&gt;&gt; storeStatusesBuilder = ImmutableOpenMap.builder();</b>
+<b class="nc"><i>284</i>&nbsp;        for (int i = 0; i &lt; numResponse; i++) {</b>
+<b class="nc"><i>285</i>&nbsp;            String index = in.readString();</b>
+<b class="nc"><i>286</i>&nbsp;            int indexEntries = in.readVInt();</b>
+<b class="nc"><i>287</i>&nbsp;            ImmutableOpenIntMap.Builder&lt;List&lt;StoreStatus&gt;&gt; shardEntries = ImmutableOpenIntMap.builder();</b>
+<b class="nc"><i>288</i>&nbsp;            for (int shardCount = 0; shardCount &lt; indexEntries; shardCount++) {</b>
+<b class="nc"><i>289</i>&nbsp;                int shardID = in.readInt();</b>
+<b class="nc"><i>290</i>&nbsp;                int nodeEntries = in.readVInt();</b>
+<b class="nc"><i>291</i>&nbsp;                List&lt;StoreStatus&gt; storeStatuses = new ArrayList&lt;&gt;(nodeEntries);</b>
+<b class="nc"><i>292</i>&nbsp;                for (int nodeCount = 0; nodeCount &lt; nodeEntries; nodeCount++) {</b>
+<b class="nc"><i>293</i>&nbsp;                    storeStatuses.add(new StoreStatus(in));</b>
+<i>294</i>&nbsp;                }
+<b class="nc"><i>295</i>&nbsp;                shardEntries.put(shardID, storeStatuses);</b>
+<i>296</i>&nbsp;            }
+<b class="nc"><i>297</i>&nbsp;            storeStatusesBuilder.put(index, shardEntries.build());</b>
+<i>298</i>&nbsp;        }
+<b class="nc"><i>299</i>&nbsp;        int numFailure = in.readVInt();</b>
+<b class="nc"><i>300</i>&nbsp;        List&lt;Failure&gt; failureBuilder = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>301</i>&nbsp;        for (int i = 0; i &lt; numFailure; i++) {</b>
+<b class="nc"><i>302</i>&nbsp;            failureBuilder.add(Failure.readFailure(in));</b>
+<i>303</i>&nbsp;        }
+<b class="nc"><i>304</i>&nbsp;        storeStatuses = storeStatusesBuilder.build();</b>
+<b class="nc"><i>305</i>&nbsp;        failures = Collections.unmodifiableList(failureBuilder);</b>
+<b class="nc"><i>306</i>&nbsp;    }</b>
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    /**
+<i>309</i>&nbsp;     * Returns {@link StoreStatus}s
+<i>310</i>&nbsp;     * grouped by their index names and shard ids.
+<i>311</i>&nbsp;     */
+<i>312</i>&nbsp;    public ImmutableOpenMap&lt;String, ImmutableOpenIntMap&lt;List&lt;StoreStatus&gt;&gt;&gt; getStoreStatuses() {
+<b class="nc"><i>313</i>&nbsp;        return storeStatuses;</b>
+<i>314</i>&nbsp;    }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;    /**
+<i>317</i>&nbsp;     * Returns node {@link Failure}s encountered
+<i>318</i>&nbsp;     * while executing the request
+<i>319</i>&nbsp;     */
+<i>320</i>&nbsp;    public List&lt;Failure&gt; getFailures() {
+<b class="nc"><i>321</i>&nbsp;        return failures;</b>
+<i>322</i>&nbsp;    }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    @Override
+<i>325</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>326</i>&nbsp;        out.writeVInt(storeStatuses.size());</b>
+<b class="nc"><i>327</i>&nbsp;        for (ObjectObjectCursor&lt;String, ImmutableOpenIntMap&lt;List&lt;StoreStatus&gt;&gt;&gt; indexShards : storeStatuses) {</b>
+<b class="nc"><i>328</i>&nbsp;            out.writeString(indexShards.key);</b>
+<b class="nc"><i>329</i>&nbsp;            out.writeVInt(indexShards.value.size());</b>
+<b class="nc"><i>330</i>&nbsp;            for (IntObjectCursor&lt;List&lt;StoreStatus&gt;&gt; shardStatusesEntry : indexShards.value) {</b>
+<b class="nc"><i>331</i>&nbsp;                out.writeInt(shardStatusesEntry.key);</b>
+<b class="nc"><i>332</i>&nbsp;                out.writeVInt(shardStatusesEntry.value.size());</b>
+<b class="nc"><i>333</i>&nbsp;                for (StoreStatus storeStatus : shardStatusesEntry.value) {</b>
+<b class="nc"><i>334</i>&nbsp;                    storeStatus.writeTo(out);</b>
+<b class="nc"><i>335</i>&nbsp;                }</b>
+<b class="nc"><i>336</i>&nbsp;            }</b>
+<b class="nc"><i>337</i>&nbsp;        }</b>
+<b class="nc"><i>338</i>&nbsp;        out.writeVInt(failures.size());</b>
+<b class="nc"><i>339</i>&nbsp;        for (Failure failure : failures) {</b>
+<b class="nc"><i>340</i>&nbsp;            failure.writeTo(out);</b>
+<b class="nc"><i>341</i>&nbsp;        }</b>
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    @Override
+<i>345</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>346</i>&nbsp;        if (failures.size() &gt; 0) {</b>
+<b class="nc"><i>347</i>&nbsp;            builder.startArray(Fields.FAILURES);</b>
+<b class="nc"><i>348</i>&nbsp;            for (Failure failure : failures) {</b>
+<b class="nc"><i>349</i>&nbsp;                failure.toXContent(builder, params);</b>
+<b class="nc"><i>350</i>&nbsp;            }</b>
+<b class="nc"><i>351</i>&nbsp;            builder.endArray();</b>
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<b class="nc"><i>354</i>&nbsp;        builder.startObject(Fields.INDICES);</b>
+<b class="nc"><i>355</i>&nbsp;        for (ObjectObjectCursor&lt;String, ImmutableOpenIntMap&lt;List&lt;StoreStatus&gt;&gt;&gt; indexShards : storeStatuses) {</b>
+<b class="nc"><i>356</i>&nbsp;            builder.startObject(indexShards.key);</b>
+<i>357</i>&nbsp;
+<b class="nc"><i>358</i>&nbsp;            builder.startObject(Fields.SHARDS);</b>
+<b class="nc"><i>359</i>&nbsp;            for (IntObjectCursor&lt;List&lt;StoreStatus&gt;&gt; shardStatusesEntry : indexShards.value) {</b>
+<b class="nc"><i>360</i>&nbsp;                builder.startObject(String.valueOf(shardStatusesEntry.key));</b>
+<b class="nc"><i>361</i>&nbsp;                builder.startArray(Fields.STORES);</b>
+<b class="nc"><i>362</i>&nbsp;                for (StoreStatus storeStatus : shardStatusesEntry.value) {</b>
+<b class="nc"><i>363</i>&nbsp;                    builder.startObject();</b>
+<b class="nc"><i>364</i>&nbsp;                    storeStatus.toXContent(builder, params);</b>
+<b class="nc"><i>365</i>&nbsp;                    builder.endObject();</b>
+<b class="nc"><i>366</i>&nbsp;                }</b>
+<b class="nc"><i>367</i>&nbsp;                builder.endArray();</b>
+<i>368</i>&nbsp;
+<b class="nc"><i>369</i>&nbsp;                builder.endObject();</b>
+<b class="nc"><i>370</i>&nbsp;            }</b>
+<b class="nc"><i>371</i>&nbsp;            builder.endObject();</b>
+<i>372</i>&nbsp;
+<b class="nc"><i>373</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>374</i>&nbsp;        }</b>
+<b class="nc"><i>375</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>376</i>&nbsp;        return builder;</b>
+<i>377</i>&nbsp;    }
+<i>378</i>&nbsp;
+<i>379</i>&nbsp;    static final class Fields {
+<i>380</i>&nbsp;        static final String INDICES = &quot;indices&quot;;
+<i>381</i>&nbsp;        static final String SHARDS = &quot;shards&quot;;
+<i>382</i>&nbsp;        static final String FAILURES = &quot;failures&quot;;
+<i>383</i>&nbsp;        static final String STORES = &quot;stores&quot;;
+<i>384</i>&nbsp;        // StoreStatus fields
+<i>385</i>&nbsp;        static final String ALLOCATION_ID = &quot;allocation_id&quot;;
+<i>386</i>&nbsp;        static final String STORE_EXCEPTION = &quot;store_exception&quot;;
+<i>387</i>&nbsp;        static final String ALLOCATED = &quot;allocation&quot;;
+<i>388</i>&nbsp;    }
+<i>389</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

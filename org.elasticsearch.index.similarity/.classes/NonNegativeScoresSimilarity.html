@@ -1,0 +1,179 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: NonNegativeScoresSimilarity</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.similarity</a> ]
+</div>
+
+<h1>Coverage Summary for Class: NonNegativeScoresSimilarity (org.elasticsearch.index.similarity)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">NonNegativeScoresSimilarity</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 15)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.similarity;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.FieldInvertState;
+<i>23</i>&nbsp;import org.apache.lucene.search.CollectionStatistics;
+<i>24</i>&nbsp;import org.apache.lucene.search.Explanation;
+<i>25</i>&nbsp;import org.apache.lucene.search.TermStatistics;
+<i>26</i>&nbsp;import org.apache.lucene.search.similarities.Similarity;
+<i>27</i>&nbsp;
+<i>28</i>&nbsp;/**
+<i>29</i>&nbsp; * A {@link Similarity} that rejects negative scores. This class exists so that users get
+<i>30</i>&nbsp; * an error instead of silently corrupt top hits. It should be applied to any custom or
+<i>31</i>&nbsp; * scripted similarity.
+<i>32</i>&nbsp; */
+<i>33</i>&nbsp;// public for testing
+<b class="nc"><i>34</i>&nbsp;public final class NonNegativeScoresSimilarity extends Similarity {</b>
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;    // Escape hatch
+<i>37</i>&nbsp;    private static final String ES_ENFORCE_POSITIVE_SCORES = &quot;es.enforce.positive.scores&quot;;
+<i>38</i>&nbsp;    private static final boolean ENFORCE_POSITIVE_SCORES;
+<i>39</i>&nbsp;    static {
+<b class="nc"><i>40</i>&nbsp;        String enforcePositiveScores = System.getProperty(ES_ENFORCE_POSITIVE_SCORES);</b>
+<b class="nc"><i>41</i>&nbsp;        if (enforcePositiveScores == null) {</b>
+<b class="nc"><i>42</i>&nbsp;            ENFORCE_POSITIVE_SCORES = true;</b>
+<b class="nc"><i>43</i>&nbsp;        } else if (&quot;false&quot;.equals(enforcePositiveScores)) {</b>
+<b class="nc"><i>44</i>&nbsp;            ENFORCE_POSITIVE_SCORES = false;</b>
+<i>45</i>&nbsp;        } else {
+<b class="nc"><i>46</i>&nbsp;            throw new IllegalArgumentException(ES_ENFORCE_POSITIVE_SCORES + &quot; may only be unset or set to [false], but got [&quot; +</b>
+<i>47</i>&nbsp;                    enforcePositiveScores + &quot;]&quot;);
+<i>48</i>&nbsp;        }
+<b class="nc"><i>49</i>&nbsp;    }</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    private final Similarity in;
+<i>52</i>&nbsp;
+<b class="nc"><i>53</i>&nbsp;    public NonNegativeScoresSimilarity(Similarity in) {</b>
+<b class="nc"><i>54</i>&nbsp;        this.in = in;</b>
+<b class="nc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    public Similarity getDelegate() {
+<b class="nc"><i>58</i>&nbsp;        return in;</b>
+<i>59</i>&nbsp;    }
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    @Override
+<i>62</i>&nbsp;    public long computeNorm(FieldInvertState state) {
+<b class="nc"><i>63</i>&nbsp;        return in.computeNorm(state);</b>
+<i>64</i>&nbsp;    }
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    @Override
+<i>67</i>&nbsp;    public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+<b class="nc"><i>68</i>&nbsp;        final SimScorer inScorer = in.scorer(boost, collectionStats, termStats);</b>
+<b class="nc"><i>69</i>&nbsp;        return new SimScorer() {</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;            @Override
+<i>72</i>&nbsp;            public float score(float freq, long norm) {
+<i>73</i>&nbsp;                float score = inScorer.score(freq, norm);
+<i>74</i>&nbsp;                if (score &lt; 0f) {
+<i>75</i>&nbsp;                    if (ENFORCE_POSITIVE_SCORES) {
+<i>76</i>&nbsp;                        throw new IllegalArgumentException(&quot;Similarities must not produce negative scores, but got:\n&quot; +
+<i>77</i>&nbsp;                                inScorer.explain(Explanation.match(freq, &quot;term frequency&quot;), norm));
+<i>78</i>&nbsp;                    } else {
+<i>79</i>&nbsp;                        return 0f;
+<i>80</i>&nbsp;                    }
+<i>81</i>&nbsp;                }
+<i>82</i>&nbsp;                return score;
+<i>83</i>&nbsp;            }
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;            @Override
+<i>86</i>&nbsp;            public Explanation explain(Explanation freq, long norm) {
+<i>87</i>&nbsp;                Explanation expl = inScorer.explain(freq, norm);
+<i>88</i>&nbsp;                if (expl.isMatch() &amp;&amp; expl.getValue().floatValue() &lt; 0) {
+<i>89</i>&nbsp;                    expl = Explanation.match(0f, &quot;max of:&quot;,
+<i>90</i>&nbsp;                            expl, Explanation.match(0f, &quot;Minimum allowed score&quot;));
+<i>91</i>&nbsp;                }
+<i>92</i>&nbsp;                return expl;
+<i>93</i>&nbsp;            }
+<i>94</i>&nbsp;        };
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

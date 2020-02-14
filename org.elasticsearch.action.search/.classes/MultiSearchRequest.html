@@ -1,0 +1,440 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MultiSearchRequest</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MultiSearchRequest (org.elasticsearch.action.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MultiSearchRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    5.6%
+  </span>
+  <span class="absValue">
+    (1/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0.6%
+  </span>
+  <span class="absValue">
+    (1/ 177)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionRequest;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>24</i>&nbsp;import org.elasticsearch.action.CompositeIndicesRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.support.IndicesOptions;
+<i>26</i>&nbsp;import org.elasticsearch.common.CheckedBiConsumer;
+<i>27</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>30</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.XContent;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.ByteArrayOutputStream;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.io.InputStream;
+<i>41</i>&nbsp;import java.util.ArrayList;
+<i>42</i>&nbsp;import java.util.List;
+<i>43</i>&nbsp;import java.util.Locale;
+<i>44</i>&nbsp;import java.util.Map;
+<i>45</i>&nbsp;import java.util.Objects;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import static org.elasticsearch.action.ValidateActions.addValidationError;
+<i>48</i>&nbsp;import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+<i>49</i>&nbsp;import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+<i>50</i>&nbsp;import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;/**
+<i>53</i>&nbsp; * A multi search API request.
+<i>54</i>&nbsp; */
+<b class="fc"><i>55</i>&nbsp;public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
+<i>58</i>&nbsp;
+<b class="nc"><i>59</i>&nbsp;    private int maxConcurrentSearchRequests = 0;</b>
+<b class="nc"><i>60</i>&nbsp;    private final List&lt;SearchRequest&gt; requests = new ArrayList&lt;&gt;();</b>
+<i>61</i>&nbsp;
+<b class="nc"><i>62</i>&nbsp;    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();</b>
+<i>63</i>&nbsp;
+<b class="nc"><i>64</i>&nbsp;    public MultiSearchRequest() {}</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    /**
+<i>67</i>&nbsp;     * Add a search request to execute. Note, the order is important, the search response will be returned in the
+<i>68</i>&nbsp;     * same order as the search requests.
+<i>69</i>&nbsp;     */
+<i>70</i>&nbsp;    public MultiSearchRequest add(SearchRequestBuilder request) {
+<b class="nc"><i>71</i>&nbsp;        requests.add(request.request());</b>
+<b class="nc"><i>72</i>&nbsp;        return this;</b>
+<i>73</i>&nbsp;    }
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * Add a search request to execute. Note, the order is important, the search response will be returned in the
+<i>77</i>&nbsp;     * same order as the search requests.
+<i>78</i>&nbsp;     */
+<i>79</i>&nbsp;    public MultiSearchRequest add(SearchRequest request) {
+<b class="nc"><i>80</i>&nbsp;        requests.add(request);</b>
+<b class="nc"><i>81</i>&nbsp;        return this;</b>
+<i>82</i>&nbsp;    }
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    /**
+<i>85</i>&nbsp;     * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
+<i>86</i>&nbsp;     */
+<i>87</i>&nbsp;    public int maxConcurrentSearchRequests() {
+<b class="nc"><i>88</i>&nbsp;        return maxConcurrentSearchRequests;</b>
+<i>89</i>&nbsp;    }
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public MultiSearchRequest maxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
+<b class="nc"><i>95</i>&nbsp;        if (maxConcurrentSearchRequests &lt; 1) {</b>
+<b class="nc"><i>96</i>&nbsp;            throw new IllegalArgumentException(&quot;maxConcurrentSearchRequests must be positive&quot;);</b>
+<i>97</i>&nbsp;        }
+<i>98</i>&nbsp;
+<b class="nc"><i>99</i>&nbsp;        this.maxConcurrentSearchRequests = maxConcurrentSearchRequests;</b>
+<b class="nc"><i>100</i>&nbsp;        return this;</b>
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    public List&lt;SearchRequest&gt; requests() {
+<b class="nc"><i>104</i>&nbsp;        return this.requests;</b>
+<i>105</i>&nbsp;    }
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    @Override
+<i>108</i>&nbsp;    public ActionRequestValidationException validate() {
+<b class="nc"><i>109</i>&nbsp;        ActionRequestValidationException validationException = null;</b>
+<b class="nc"><i>110</i>&nbsp;        if (requests.isEmpty()) {</b>
+<b class="nc"><i>111</i>&nbsp;            validationException = addValidationError(&quot;no requests added&quot;, validationException);</b>
+<i>112</i>&nbsp;        }
+<b class="nc"><i>113</i>&nbsp;        for (int i = 0; i &lt; requests.size(); i++) {</b>
+<b class="nc"><i>114</i>&nbsp;            ActionRequestValidationException ex = requests.get(i).validate();</b>
+<b class="nc"><i>115</i>&nbsp;            if (ex != null) {</b>
+<b class="nc"><i>116</i>&nbsp;                if (validationException == null) {</b>
+<b class="nc"><i>117</i>&nbsp;                    validationException = new ActionRequestValidationException();</b>
+<i>118</i>&nbsp;                }
+<b class="nc"><i>119</i>&nbsp;                validationException.addValidationErrors(ex.validationErrors());</b>
+<i>120</i>&nbsp;            }
+<i>121</i>&nbsp;        }
+<i>122</i>&nbsp;
+<b class="nc"><i>123</i>&nbsp;        return validationException;</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    public IndicesOptions indicesOptions() {
+<b class="nc"><i>127</i>&nbsp;        return indicesOptions;</b>
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    public MultiSearchRequest indicesOptions(IndicesOptions indicesOptions) {
+<b class="nc"><i>131</i>&nbsp;        this.indicesOptions = indicesOptions;</b>
+<b class="nc"><i>132</i>&nbsp;        return this;</b>
+<i>133</i>&nbsp;    }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    public MultiSearchRequest(StreamInput in) throws IOException {
+<b class="nc"><i>137</i>&nbsp;        super(in);</b>
+<b class="nc"><i>138</i>&nbsp;        maxConcurrentSearchRequests = in.readVInt();</b>
+<b class="nc"><i>139</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>140</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>141</i>&nbsp;            SearchRequest request = new SearchRequest(in);</b>
+<b class="nc"><i>142</i>&nbsp;            requests.add(request);</b>
+<i>143</i>&nbsp;        }
+<b class="nc"><i>144</i>&nbsp;    }</b>
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    @Override
+<i>147</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>148</i>&nbsp;        super.writeTo(out);</b>
+<b class="nc"><i>149</i>&nbsp;        out.writeVInt(maxConcurrentSearchRequests);</b>
+<b class="nc"><i>150</i>&nbsp;        out.writeVInt(requests.size());</b>
+<b class="nc"><i>151</i>&nbsp;        for (SearchRequest request : requests) {</b>
+<b class="nc"><i>152</i>&nbsp;            request.writeTo(out);</b>
+<b class="nc"><i>153</i>&nbsp;        }</b>
+<b class="nc"><i>154</i>&nbsp;    }</b>
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    @Override
+<i>157</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>158</i>&nbsp;        if (this == o) return true;</b>
+<b class="nc"><i>159</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<b class="nc"><i>160</i>&nbsp;        MultiSearchRequest that = (MultiSearchRequest) o;</b>
+<b class="nc"><i>161</i>&nbsp;        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &amp;&amp;</b>
+<b class="nc"><i>162</i>&nbsp;                Objects.equals(requests, that.requests) &amp;&amp;</b>
+<b class="nc"><i>163</i>&nbsp;                Objects.equals(indicesOptions, that.indicesOptions);</b>
+<i>164</i>&nbsp;    }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    @Override
+<i>167</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>168</i>&nbsp;        return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);</b>
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    public static void readMultiLineFormat(BytesReference data,
+<i>172</i>&nbsp;                                           XContent xContent,
+<i>173</i>&nbsp;                                           CheckedBiConsumer&lt;SearchRequest, XContentParser, IOException&gt; consumer,
+<i>174</i>&nbsp;                                           String[] indices,
+<i>175</i>&nbsp;                                           IndicesOptions indicesOptions,
+<i>176</i>&nbsp;                                           String[] types,
+<i>177</i>&nbsp;                                           String routing,
+<i>178</i>&nbsp;                                           String searchType,
+<i>179</i>&nbsp;                                           Boolean ccsMinimizeRoundtrips,
+<i>180</i>&nbsp;                                           NamedXContentRegistry registry,
+<i>181</i>&nbsp;                                           boolean allowExplicitIndex,
+<i>182</i>&nbsp;                                           DeprecationLogger deprecationLogger) throws IOException {
+<b class="nc"><i>183</i>&nbsp;        int from = 0;</b>
+<b class="nc"><i>184</i>&nbsp;        byte marker = xContent.streamSeparator();</b>
+<i>185</i>&nbsp;        while (true) {
+<b class="nc"><i>186</i>&nbsp;            int nextMarker = findNextMarker(marker, from, data);</b>
+<b class="nc"><i>187</i>&nbsp;            if (nextMarker == -1) {</b>
+<b class="nc"><i>188</i>&nbsp;                break;</b>
+<i>189</i>&nbsp;            }
+<i>190</i>&nbsp;            // support first line with \n
+<b class="nc"><i>191</i>&nbsp;            if (nextMarker == 0) {</b>
+<b class="nc"><i>192</i>&nbsp;                from = nextMarker + 1;</b>
+<b class="nc"><i>193</i>&nbsp;                deprecationLogger.deprecated(&quot;support for empty first line before any action metadata in msearch API is deprecated and &quot; +</b>
+<i>194</i>&nbsp;                    &quot;will be removed in the next major version&quot;);
+<b class="nc"><i>195</i>&nbsp;                continue;</b>
+<i>196</i>&nbsp;            }
+<i>197</i>&nbsp;
+<b class="nc"><i>198</i>&nbsp;            SearchRequest searchRequest = new SearchRequest();</b>
+<b class="nc"><i>199</i>&nbsp;            if (indices != null) {</b>
+<b class="nc"><i>200</i>&nbsp;                searchRequest.indices(indices);</b>
+<i>201</i>&nbsp;            }
+<b class="nc"><i>202</i>&nbsp;            if (indicesOptions != null) {</b>
+<b class="nc"><i>203</i>&nbsp;                searchRequest.indicesOptions(indicesOptions);</b>
+<i>204</i>&nbsp;            }
+<b class="nc"><i>205</i>&nbsp;            if (types != null &amp;&amp; types.length &gt; 0) {</b>
+<b class="nc"><i>206</i>&nbsp;                searchRequest.types(types);</b>
+<i>207</i>&nbsp;            }
+<b class="nc"><i>208</i>&nbsp;            if (routing != null) {</b>
+<b class="nc"><i>209</i>&nbsp;                searchRequest.routing(routing);</b>
+<i>210</i>&nbsp;            }
+<b class="nc"><i>211</i>&nbsp;            if (searchType != null) {</b>
+<b class="nc"><i>212</i>&nbsp;                searchRequest.searchType(searchType);</b>
+<i>213</i>&nbsp;            }
+<b class="nc"><i>214</i>&nbsp;            if (ccsMinimizeRoundtrips != null) {</b>
+<b class="nc"><i>215</i>&nbsp;                searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);</b>
+<i>216</i>&nbsp;            }
+<b class="nc"><i>217</i>&nbsp;            IndicesOptions defaultOptions = searchRequest.indicesOptions();</b>
+<i>218</i>&nbsp;            // now parse the action
+<b class="nc"><i>219</i>&nbsp;            if (nextMarker - from &gt; 0) {</b>
+<b class="nc"><i>220</i>&nbsp;                try (InputStream stream = data.slice(from, nextMarker - from).streamInput();</b>
+<b class="nc"><i>221</i>&nbsp;                     XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {</b>
+<b class="nc"><i>222</i>&nbsp;                    Map&lt;String, Object&gt; source = parser.map();</b>
+<b class="nc"><i>223</i>&nbsp;                    Object expandWildcards = null;</b>
+<b class="nc"><i>224</i>&nbsp;                    Object ignoreUnavailable = null;</b>
+<b class="nc"><i>225</i>&nbsp;                    Object ignoreThrottled = null;</b>
+<b class="nc"><i>226</i>&nbsp;                    Object allowNoIndices = null;</b>
+<b class="nc"><i>227</i>&nbsp;                    for (Map.Entry&lt;String, Object&gt; entry : source.entrySet()) {</b>
+<b class="nc"><i>228</i>&nbsp;                        Object value = entry.getValue();</b>
+<b class="nc"><i>229</i>&nbsp;                        if (&quot;index&quot;.equals(entry.getKey()) || &quot;indices&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>230</i>&nbsp;                            if (!allowExplicitIndex) {</b>
+<b class="nc"><i>231</i>&nbsp;                                throw new IllegalArgumentException(&quot;explicit index in multi search is not allowed&quot;);</b>
+<i>232</i>&nbsp;                            }
+<b class="nc"><i>233</i>&nbsp;                            searchRequest.indices(nodeStringArrayValue(value));</b>
+<b class="nc"><i>234</i>&nbsp;                        } else if (&quot;type&quot;.equals(entry.getKey()) || &quot;types&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>235</i>&nbsp;                            searchRequest.types(nodeStringArrayValue(value));</b>
+<b class="nc"><i>236</i>&nbsp;                        } else if (&quot;search_type&quot;.equals(entry.getKey()) || &quot;searchType&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>237</i>&nbsp;                            searchRequest.searchType(nodeStringValue(value, null));</b>
+<b class="nc"><i>238</i>&nbsp;                        } else if (&quot;ccs_minimize_roundtrips&quot;.equals(entry.getKey()) || &quot;ccsMinimizeRoundtrips&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>239</i>&nbsp;                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));</b>
+<b class="nc"><i>240</i>&nbsp;                        } else if (&quot;request_cache&quot;.equals(entry.getKey()) || &quot;requestCache&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>241</i>&nbsp;                            searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));</b>
+<b class="nc"><i>242</i>&nbsp;                        } else if (&quot;preference&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>243</i>&nbsp;                            searchRequest.preference(nodeStringValue(value, null));</b>
+<b class="nc"><i>244</i>&nbsp;                        } else if (&quot;routing&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>245</i>&nbsp;                            searchRequest.routing(nodeStringValue(value, null));</b>
+<b class="nc"><i>246</i>&nbsp;                        } else if (&quot;allow_partial_search_results&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>247</i>&nbsp;                            searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));</b>
+<b class="nc"><i>248</i>&nbsp;                        } else if (&quot;expand_wildcards&quot;.equals(entry.getKey()) || &quot;expandWildcards&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>249</i>&nbsp;                            expandWildcards = value;</b>
+<b class="nc"><i>250</i>&nbsp;                        } else if (&quot;ignore_unavailable&quot;.equals(entry.getKey()) || &quot;ignoreUnavailable&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>251</i>&nbsp;                            ignoreUnavailable = value;</b>
+<b class="nc"><i>252</i>&nbsp;                        } else if (&quot;allow_no_indices&quot;.equals(entry.getKey()) || &quot;allowNoIndices&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>253</i>&nbsp;                            allowNoIndices = value;</b>
+<b class="nc"><i>254</i>&nbsp;                        } else if (&quot;ignore_throttled&quot;.equals(entry.getKey()) || &quot;ignoreThrottled&quot;.equals(entry.getKey())) {</b>
+<b class="nc"><i>255</i>&nbsp;                            ignoreThrottled = value;</b>
+<i>256</i>&nbsp;                        } else {
+<b class="nc"><i>257</i>&nbsp;                            throw new IllegalArgumentException(&quot;key [&quot; + entry.getKey() + &quot;] is not supported in the metadata section&quot;);</b>
+<i>258</i>&nbsp;                        }
+<b class="nc"><i>259</i>&nbsp;                    }</b>
+<b class="nc"><i>260</i>&nbsp;                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,</b>
+<i>261</i>&nbsp;                        defaultOptions);
+<b class="nc"><i>262</i>&nbsp;                }</b>
+<i>263</i>&nbsp;            }
+<b class="nc"><i>264</i>&nbsp;            searchRequest.indicesOptions(defaultOptions);</b>
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;            // move pointers
+<b class="nc"><i>267</i>&nbsp;            from = nextMarker + 1;</b>
+<i>268</i>&nbsp;            // now for the body
+<b class="nc"><i>269</i>&nbsp;            nextMarker = findNextMarker(marker, from, data);</b>
+<b class="nc"><i>270</i>&nbsp;            if (nextMarker == -1) {</b>
+<b class="nc"><i>271</i>&nbsp;                break;</b>
+<i>272</i>&nbsp;            }
+<b class="nc"><i>273</i>&nbsp;            BytesReference bytes = data.slice(from, nextMarker - from);</b>
+<b class="nc"><i>274</i>&nbsp;            try (InputStream stream = bytes.streamInput();</b>
+<b class="nc"><i>275</i>&nbsp;                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {</b>
+<b class="nc"><i>276</i>&nbsp;                consumer.accept(searchRequest, parser);</b>
+<b class="nc"><i>277</i>&nbsp;            }</b>
+<i>278</i>&nbsp;            // move pointers
+<b class="nc"><i>279</i>&nbsp;            from = nextMarker + 1;</b>
+<b class="nc"><i>280</i>&nbsp;        }</b>
+<b class="nc"><i>281</i>&nbsp;    }</b>
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    private static int findNextMarker(byte marker, int from, BytesReference data) {
+<b class="nc"><i>284</i>&nbsp;        final int res = data.indexOf(marker, from);</b>
+<b class="nc"><i>285</i>&nbsp;        if (res != -1) {</b>
+<b class="nc"><i>286</i>&nbsp;            assert res &gt;= 0;</b>
+<b class="nc"><i>287</i>&nbsp;            return res;</b>
+<i>288</i>&nbsp;        }
+<b class="nc"><i>289</i>&nbsp;        if (from != data.length()) {</b>
+<b class="nc"><i>290</i>&nbsp;            throw new IllegalArgumentException(&quot;The msearch request must be terminated by a newline [\n]&quot;);</b>
+<i>291</i>&nbsp;        }
+<b class="nc"><i>292</i>&nbsp;        return -1;</b>
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;    public static byte[] writeMultiLineFormat(MultiSearchRequest multiSearchRequest, XContent xContent) throws IOException {
+<b class="nc"><i>296</i>&nbsp;        ByteArrayOutputStream output = new ByteArrayOutputStream();</b>
+<b class="nc"><i>297</i>&nbsp;        for (SearchRequest request : multiSearchRequest.requests()) {</b>
+<b class="nc"><i>298</i>&nbsp;            try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {</b>
+<b class="nc"><i>299</i>&nbsp;                writeSearchRequestParams(request, xContentBuilder);</b>
+<b class="nc"><i>300</i>&nbsp;                BytesReference.bytes(xContentBuilder).writeTo(output);</b>
+<b class="nc"><i>301</i>&nbsp;            }</b>
+<b class="nc"><i>302</i>&nbsp;            output.write(xContent.streamSeparator());</b>
+<b class="nc"><i>303</i>&nbsp;            try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {</b>
+<b class="nc"><i>304</i>&nbsp;                if (request.source() != null) {</b>
+<b class="nc"><i>305</i>&nbsp;                    request.source().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);</b>
+<i>306</i>&nbsp;                } else {
+<b class="nc"><i>307</i>&nbsp;                    xContentBuilder.startObject();</b>
+<b class="nc"><i>308</i>&nbsp;                    xContentBuilder.endObject();</b>
+<i>309</i>&nbsp;                }
+<b class="nc"><i>310</i>&nbsp;                BytesReference.bytes(xContentBuilder).writeTo(output);</b>
+<b class="nc"><i>311</i>&nbsp;            }</b>
+<b class="nc"><i>312</i>&nbsp;            output.write(xContent.streamSeparator());</b>
+<b class="nc"><i>313</i>&nbsp;        }</b>
+<b class="nc"><i>314</i>&nbsp;        return output.toByteArray();</b>
+<i>315</i>&nbsp;    }
+<i>316</i>&nbsp;
+<i>317</i>&nbsp;    public static void writeSearchRequestParams(SearchRequest request, XContentBuilder xContentBuilder) throws IOException {
+<b class="nc"><i>318</i>&nbsp;        xContentBuilder.startObject();</b>
+<b class="nc"><i>319</i>&nbsp;        if (request.indices() != null) {</b>
+<b class="nc"><i>320</i>&nbsp;            xContentBuilder.field(&quot;index&quot;, request.indices());</b>
+<i>321</i>&nbsp;        }
+<b class="nc"><i>322</i>&nbsp;        if (request.indicesOptions() != null &amp;&amp; request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {</b>
+<b class="nc"><i>323</i>&nbsp;            if (request.indicesOptions().expandWildcardsOpen() &amp;&amp; request.indicesOptions().expandWildcardsClosed()) {</b>
+<b class="nc"><i>324</i>&nbsp;                xContentBuilder.field(&quot;expand_wildcards&quot;, &quot;all&quot;);</b>
+<b class="nc"><i>325</i>&nbsp;            } else if (request.indicesOptions().expandWildcardsOpen()) {</b>
+<b class="nc"><i>326</i>&nbsp;                xContentBuilder.field(&quot;expand_wildcards&quot;, &quot;open&quot;);</b>
+<b class="nc"><i>327</i>&nbsp;            } else if (request.indicesOptions().expandWildcardsClosed()) {</b>
+<b class="nc"><i>328</i>&nbsp;                xContentBuilder.field(&quot;expand_wildcards&quot;, &quot;closed&quot;);</b>
+<i>329</i>&nbsp;            } else {
+<b class="nc"><i>330</i>&nbsp;                xContentBuilder.field(&quot;expand_wildcards&quot;, &quot;none&quot;);</b>
+<i>331</i>&nbsp;            }
+<b class="nc"><i>332</i>&nbsp;            xContentBuilder.field(&quot;ignore_unavailable&quot;, request.indicesOptions().ignoreUnavailable());</b>
+<b class="nc"><i>333</i>&nbsp;            xContentBuilder.field(&quot;allow_no_indices&quot;, request.indicesOptions().allowNoIndices());</b>
+<i>334</i>&nbsp;        }
+<b class="nc"><i>335</i>&nbsp;        if (request.types() != null) {</b>
+<b class="nc"><i>336</i>&nbsp;            xContentBuilder.field(&quot;types&quot;, request.types());</b>
+<i>337</i>&nbsp;        }
+<b class="nc"><i>338</i>&nbsp;        if (request.searchType() != null) {</b>
+<b class="nc"><i>339</i>&nbsp;            xContentBuilder.field(&quot;search_type&quot;, request.searchType().name().toLowerCase(Locale.ROOT));</b>
+<i>340</i>&nbsp;        }
+<b class="nc"><i>341</i>&nbsp;        xContentBuilder.field(&quot;ccs_minimize_roundtrips&quot;, request.isCcsMinimizeRoundtrips());</b>
+<b class="nc"><i>342</i>&nbsp;        if (request.requestCache() != null) {</b>
+<b class="nc"><i>343</i>&nbsp;            xContentBuilder.field(&quot;request_cache&quot;, request.requestCache());</b>
+<i>344</i>&nbsp;        }
+<b class="nc"><i>345</i>&nbsp;        if (request.preference() != null) {</b>
+<b class="nc"><i>346</i>&nbsp;            xContentBuilder.field(&quot;preference&quot;, request.preference());</b>
+<i>347</i>&nbsp;        }
+<b class="nc"><i>348</i>&nbsp;        if (request.routing() != null) {</b>
+<b class="nc"><i>349</i>&nbsp;            xContentBuilder.field(&quot;routing&quot;, request.routing());</b>
+<i>350</i>&nbsp;        }
+<b class="nc"><i>351</i>&nbsp;        if (request.allowPartialSearchResults() != null) {</b>
+<b class="nc"><i>352</i>&nbsp;            xContentBuilder.field(&quot;allow_partial_search_results&quot;, request.allowPartialSearchResults());</b>
+<i>353</i>&nbsp;        }
+<b class="nc"><i>354</i>&nbsp;        xContentBuilder.endObject();</b>
+<b class="nc"><i>355</i>&nbsp;    }</b>
+<i>356</i>&nbsp;
+<i>357</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

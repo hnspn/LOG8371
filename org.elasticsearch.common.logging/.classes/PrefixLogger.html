@@ -1,0 +1,191 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PrefixLogger</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.logging</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PrefixLogger (org.elasticsearch.common.logging)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PrefixLogger</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (3/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    73.7%
+  </span>
+  <span class="absValue">
+    (14/ 19)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.logging;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Level;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Marker;
+<i>25</i>&nbsp;import org.apache.logging.log4j.MarkerManager;
+<i>26</i>&nbsp;import org.apache.logging.log4j.message.Message;
+<i>27</i>&nbsp;import org.apache.logging.log4j.spi.ExtendedLogger;
+<i>28</i>&nbsp;import org.apache.logging.log4j.spi.ExtendedLoggerWrapper;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.util.WeakHashMap;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;/**
+<i>33</i>&nbsp; * A logger that prefixes all messages with a fixed prefix specified during construction. The prefix mechanism uses the marker construct, so
+<i>34</i>&nbsp; * for the prefixes to appear, the logging layout pattern must include the marker in its pattern.
+<i>35</i>&nbsp; */
+<b class="fc"><i>36</i>&nbsp;class PrefixLogger extends ExtendedLoggerWrapper {</b>
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    /*
+<i>39</i>&nbsp;     * We can not use the built-in Marker tracking (MarkerManager) because the MarkerManager holds a permanent reference to the marker;
+<i>40</i>&nbsp;     * however, we have transient markers from index-level and shard-level components so this would effectively be a memory leak. Since we
+<i>41</i>&nbsp;     * can not tie into the lifecycle of these components, we have to use a mechanism that enables garbage collection of such markers when
+<i>42</i>&nbsp;     * they are no longer in use.
+<i>43</i>&nbsp;     */
+<b class="fc"><i>44</i>&nbsp;    private static final WeakHashMap&lt;String, Marker&gt; markers = new WeakHashMap&lt;&gt;();</b>
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    /**
+<i>47</i>&nbsp;     * Return the size of the cached markers. This size can vary as markers are cached but collected during GC activity when a given prefix
+<i>48</i>&nbsp;     * is no longer in use.
+<i>49</i>&nbsp;     *
+<i>50</i>&nbsp;     * @return the size of the cached markers
+<i>51</i>&nbsp;     */
+<i>52</i>&nbsp;    static int markersSize() {
+<b class="nc"><i>53</i>&nbsp;        return markers.size();</b>
+<i>54</i>&nbsp;    }
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    /**
+<i>57</i>&nbsp;     * The marker for this prefix logger.
+<i>58</i>&nbsp;     */
+<i>59</i>&nbsp;    private final Marker marker;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * Obtain the prefix for this prefix logger. This can be used to create a logger with the same prefix as this one.
+<i>63</i>&nbsp;     *
+<i>64</i>&nbsp;     * @return the prefix
+<i>65</i>&nbsp;     */
+<i>66</i>&nbsp;    public String prefix() {
+<b class="fc"><i>67</i>&nbsp;        return marker.getName();</b>
+<i>68</i>&nbsp;    }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    /**
+<i>71</i>&nbsp;     * Construct a prefix logger with the specified name and prefix.
+<i>72</i>&nbsp;     *
+<i>73</i>&nbsp;     * @param logger the extended logger to wrap
+<i>74</i>&nbsp;     * @param prefix the prefix for this prefix logger
+<i>75</i>&nbsp;     */
+<i>76</i>&nbsp;    PrefixLogger(final Logger logger, final String prefix) {
+<b class="fc"><i>77</i>&nbsp;        super((ExtendedLogger) logger, logger.getName(), null);</b>
+<i>78</i>&nbsp;
+<b class="fc"><i>79</i>&nbsp;        if (prefix == null || prefix.isEmpty()) {</b>
+<b class="nc"><i>80</i>&nbsp;            throw new IllegalArgumentException(&quot;if you don&#39;t need a prefix then use a regular logger&quot;);</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;        final Marker actualMarker;
+<i>83</i>&nbsp;        // markers is not thread-safe, so we synchronize access
+<b class="fc"><i>84</i>&nbsp;        synchronized (markers) {</b>
+<b class="fc"><i>85</i>&nbsp;            final Marker maybeMarker = markers.get(prefix);</b>
+<b class="fc"><i>86</i>&nbsp;            if (maybeMarker == null) {</b>
+<b class="fc"><i>87</i>&nbsp;                actualMarker = new MarkerManager.Log4jMarker(prefix);</b>
+<i>88</i>&nbsp;                /*
+<i>89</i>&nbsp;                 * We must create a new instance here as otherwise the marker will hold a reference to the key in the weak hash map; as
+<i>90</i>&nbsp;                 * those references are held strongly, this would give a strong reference back to the key preventing them from ever being
+<i>91</i>&nbsp;                 * collected. This also guarantees that no other strong reference can be held to the prefix anywhere.
+<i>92</i>&nbsp;                 */
+<i>93</i>&nbsp;                // noinspection RedundantStringConstructorCall
+<b class="fc"><i>94</i>&nbsp;                markers.put(new String(prefix), actualMarker);</b>
+<i>95</i>&nbsp;            } else {
+<b class="fc"><i>96</i>&nbsp;                actualMarker = maybeMarker;</b>
+<i>97</i>&nbsp;            }
+<b class="fc"><i>98</i>&nbsp;        }</b>
+<b class="fc"><i>99</i>&nbsp;        this.marker = actualMarker;</b>
+<b class="fc"><i>100</i>&nbsp;    }</b>
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    @Override
+<i>103</i>&nbsp;    public void logMessage(final String fqcn, final Level level, final Marker marker, final Message message, final Throwable t) {
+<b class="nc"><i>104</i>&nbsp;        assert marker == null;</b>
+<b class="nc"><i>105</i>&nbsp;        super.logMessage(fqcn, level, this.marker, message, t);</b>
+<b class="nc"><i>106</i>&nbsp;    }</b>
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

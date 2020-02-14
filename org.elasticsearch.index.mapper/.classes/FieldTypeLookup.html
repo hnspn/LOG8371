@@ -1,0 +1,312 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FieldTypeLookup</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.mapper</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FieldTypeLookup (org.elasticsearch.index.mapper)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FieldTypeLookup</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (6/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    52.7%
+  </span>
+  <span class="absValue">
+    (48/ 91)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.mapper;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+<i>23</i>&nbsp;import org.elasticsearch.common.collect.Iterators;
+<i>24</i>&nbsp;import org.elasticsearch.common.regex.Regex;
+<i>25</i>&nbsp;
+<i>26</i>&nbsp;import java.util.Collection;
+<i>27</i>&nbsp;import java.util.HashSet;
+<i>28</i>&nbsp;import java.util.Iterator;
+<i>29</i>&nbsp;import java.util.Map;
+<i>30</i>&nbsp;import java.util.Objects;
+<i>31</i>&nbsp;import java.util.Set;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;/**
+<i>34</i>&nbsp; * An immutable container for looking up {@link MappedFieldType}s by their name.
+<i>35</i>&nbsp; */
+<i>36</i>&nbsp;class FieldTypeLookup implements Iterable&lt;MappedFieldType&gt; {
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    final CopyOnWriteHashMap&lt;String, MappedFieldType&gt; fullNameToFieldType;
+<i>39</i>&nbsp;    private final CopyOnWriteHashMap&lt;String, String&gt; aliasToConcreteName;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;    private final CopyOnWriteHashMap&lt;String, DynamicKeyFieldMapper&gt; dynamicKeyMappers;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;    /**
+<i>44</i>&nbsp;     * The maximum field depth of any mapper that implements {@link DynamicKeyFieldMapper}.
+<i>45</i>&nbsp;     * Allows us stop searching for a &#39;dynamic key&#39; mapper as soon as we&#39;ve passed the maximum
+<i>46</i>&nbsp;     * possible field depth.
+<i>47</i>&nbsp;     */
+<i>48</i>&nbsp;    private final int maxDynamicKeyDepth;
+<i>49</i>&nbsp;
+<b class="fc"><i>50</i>&nbsp;    FieldTypeLookup() {</b>
+<b class="fc"><i>51</i>&nbsp;        fullNameToFieldType = new CopyOnWriteHashMap&lt;&gt;();</b>
+<b class="fc"><i>52</i>&nbsp;        aliasToConcreteName = new CopyOnWriteHashMap&lt;&gt;();</b>
+<b class="fc"><i>53</i>&nbsp;        dynamicKeyMappers = new CopyOnWriteHashMap&lt;&gt;();</b>
+<b class="fc"><i>54</i>&nbsp;        maxDynamicKeyDepth = 0;</b>
+<b class="fc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    private FieldTypeLookup(CopyOnWriteHashMap&lt;String, MappedFieldType&gt; fullNameToFieldType,
+<i>58</i>&nbsp;                            CopyOnWriteHashMap&lt;String, String&gt; aliasToConcreteName,
+<i>59</i>&nbsp;                            CopyOnWriteHashMap&lt;String, DynamicKeyFieldMapper&gt; dynamicKeyMappers,
+<b class="fc"><i>60</i>&nbsp;                            int maxDynamicKeyDepth) {</b>
+<b class="fc"><i>61</i>&nbsp;        this.fullNameToFieldType = fullNameToFieldType;</b>
+<b class="fc"><i>62</i>&nbsp;        this.aliasToConcreteName = aliasToConcreteName;</b>
+<b class="fc"><i>63</i>&nbsp;        this.dynamicKeyMappers = dynamicKeyMappers;</b>
+<b class="fc"><i>64</i>&nbsp;        this.maxDynamicKeyDepth = maxDynamicKeyDepth;</b>
+<b class="fc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    /**
+<i>68</i>&nbsp;     * Return a new instance that contains the union of this instance and the field types
+<i>69</i>&nbsp;     * from the provided mappers. If a field already exists, its field type will be updated
+<i>70</i>&nbsp;     * to use the new type from the given field mapper. Similarly if an alias already
+<i>71</i>&nbsp;     * exists, it will be updated to reference the field type from the new mapper.
+<i>72</i>&nbsp;     */
+<i>73</i>&nbsp;    public FieldTypeLookup copyAndAddAll(String type,
+<i>74</i>&nbsp;                                         Collection&lt;FieldMapper&gt; fieldMappers,
+<i>75</i>&nbsp;                                         Collection&lt;FieldAliasMapper&gt; fieldAliasMappers) {
+<b class="fc"><i>76</i>&nbsp;        Objects.requireNonNull(type, &quot;type must not be null&quot;);</b>
+<b class="fc"><i>77</i>&nbsp;        if (MapperService.DEFAULT_MAPPING.equals(type)) {</b>
+<b class="nc"><i>78</i>&nbsp;            throw new IllegalArgumentException(&quot;Default mappings should not be added to the lookup&quot;);</b>
+<i>79</i>&nbsp;        }
+<i>80</i>&nbsp;
+<b class="fc"><i>81</i>&nbsp;        CopyOnWriteHashMap&lt;String, MappedFieldType&gt; fullName = this.fullNameToFieldType;</b>
+<b class="fc"><i>82</i>&nbsp;        CopyOnWriteHashMap&lt;String, String&gt; aliases = this.aliasToConcreteName;</b>
+<b class="fc"><i>83</i>&nbsp;        CopyOnWriteHashMap&lt;String, DynamicKeyFieldMapper&gt; dynamicKeyMappers = this.dynamicKeyMappers;</b>
+<i>84</i>&nbsp;
+<b class="fc"><i>85</i>&nbsp;        for (FieldMapper fieldMapper : fieldMappers) {</b>
+<b class="fc"><i>86</i>&nbsp;            String fieldName = fieldMapper.name();</b>
+<b class="fc"><i>87</i>&nbsp;            MappedFieldType fieldType = fieldMapper.fieldType();</b>
+<b class="fc"><i>88</i>&nbsp;            MappedFieldType fullNameFieldType = fullName.get(fieldType.name());</b>
+<i>89</i>&nbsp;
+<b class="fc"><i>90</i>&nbsp;            if (!Objects.equals(fieldType, fullNameFieldType)) {</b>
+<b class="fc"><i>91</i>&nbsp;                fullName = fullName.copyAndPut(fieldType.name(), fieldType);</b>
+<i>92</i>&nbsp;            }
+<i>93</i>&nbsp;
+<b class="fc"><i>94</i>&nbsp;            if (fieldMapper instanceof DynamicKeyFieldMapper) {</b>
+<b class="nc"><i>95</i>&nbsp;                DynamicKeyFieldMapper dynamicKeyMapper = (DynamicKeyFieldMapper) fieldMapper;</b>
+<b class="nc"><i>96</i>&nbsp;                dynamicKeyMappers = dynamicKeyMappers.copyAndPut(fieldName, dynamicKeyMapper);</b>
+<i>97</i>&nbsp;            }
+<b class="fc"><i>98</i>&nbsp;        }</b>
+<i>99</i>&nbsp;
+<b class="fc"><i>100</i>&nbsp;        for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {</b>
+<b class="fc"><i>101</i>&nbsp;            String aliasName = fieldAliasMapper.name();</b>
+<b class="fc"><i>102</i>&nbsp;            String path = fieldAliasMapper.path();</b>
+<b class="fc"><i>103</i>&nbsp;            aliases = aliases.copyAndPut(aliasName, path);</b>
+<b class="fc"><i>104</i>&nbsp;        }</b>
+<i>105</i>&nbsp;
+<b class="fc"><i>106</i>&nbsp;        int maxDynamicKeyDepth = getMaxDynamicKeyDepth(aliases, dynamicKeyMappers);</b>
+<i>107</i>&nbsp;
+<b class="fc"><i>108</i>&nbsp;        return new FieldTypeLookup(fullName, aliases, dynamicKeyMappers, maxDynamicKeyDepth);</b>
+<i>109</i>&nbsp;    }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    private static int getMaxDynamicKeyDepth(CopyOnWriteHashMap&lt;String, String&gt; aliases,
+<i>112</i>&nbsp;                                             CopyOnWriteHashMap&lt;String, DynamicKeyFieldMapper&gt; dynamicKeyMappers) {
+<b class="fc"><i>113</i>&nbsp;        int maxFieldDepth = 0;</b>
+<b class="fc"><i>114</i>&nbsp;        for (Map.Entry&lt;String, String&gt; entry : aliases.entrySet()) {</b>
+<b class="fc"><i>115</i>&nbsp;            String aliasName = entry.getKey();</b>
+<b class="fc"><i>116</i>&nbsp;            String path = entry.getValue();</b>
+<b class="fc"><i>117</i>&nbsp;            if (dynamicKeyMappers.containsKey(path)) {</b>
+<b class="nc"><i>118</i>&nbsp;                maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(aliasName));</b>
+<i>119</i>&nbsp;            }
+<b class="fc"><i>120</i>&nbsp;        }</b>
+<i>121</i>&nbsp;
+<b class="fc"><i>122</i>&nbsp;        for (String fieldName : dynamicKeyMappers.keySet()) {</b>
+<b class="nc"><i>123</i>&nbsp;            if (dynamicKeyMappers.containsKey(fieldName)) {</b>
+<b class="nc"><i>124</i>&nbsp;                maxFieldDepth = Math.max(maxFieldDepth, fieldDepth(fieldName));</b>
+<i>125</i>&nbsp;            }
+<b class="nc"><i>126</i>&nbsp;        }</b>
+<i>127</i>&nbsp;
+<b class="fc"><i>128</i>&nbsp;        return maxFieldDepth;</b>
+<i>129</i>&nbsp;    }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    /**
+<i>132</i>&nbsp;     * Computes the total depth of this field by counting the number of parent fields
+<i>133</i>&nbsp;     * in its path. As an example, the field &#39;parent1.parent2.field&#39; has depth 3.
+<i>134</i>&nbsp;     */
+<i>135</i>&nbsp;    private static int fieldDepth(String field) {
+<b class="nc"><i>136</i>&nbsp;        int numDots = 0;</b>
+<b class="nc"><i>137</i>&nbsp;        int dotIndex = -1;</b>
+<i>138</i>&nbsp;        while (true) {
+<b class="nc"><i>139</i>&nbsp;            dotIndex = field.indexOf(&#39;.&#39;, dotIndex + 1);</b>
+<b class="nc"><i>140</i>&nbsp;            if (dotIndex &lt; 0) {</b>
+<b class="nc"><i>141</i>&nbsp;                break;</b>
+<i>142</i>&nbsp;            }
+<b class="nc"><i>143</i>&nbsp;            numDots++;</b>
+<i>144</i>&nbsp;        }
+<b class="nc"><i>145</i>&nbsp;        return numDots + 1;</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /**
+<i>149</i>&nbsp;     * Returns the mapped field type for the given field name.
+<i>150</i>&nbsp;     */
+<i>151</i>&nbsp;    public MappedFieldType get(String field) {
+<b class="fc"><i>152</i>&nbsp;        String concreteField = aliasToConcreteName.getOrDefault(field, field);</b>
+<b class="fc"><i>153</i>&nbsp;        MappedFieldType fieldType = fullNameToFieldType.get(concreteField);</b>
+<b class="fc"><i>154</i>&nbsp;        if (fieldType != null) {</b>
+<b class="fc"><i>155</i>&nbsp;            return fieldType;</b>
+<i>156</i>&nbsp;        }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;        // If the mapping contains fields that support dynamic sub-key lookup, check
+<i>159</i>&nbsp;        // if this could correspond to a keyed field of the form &#39;path_to_field.path_to_key&#39;.
+<b class="fc"><i>160</i>&nbsp;        return !dynamicKeyMappers.isEmpty() ? getKeyedFieldType(field) : null;</b>
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    /**
+<i>164</i>&nbsp;     * Check if the given field corresponds to a dynamic lookup mapper of the
+<i>165</i>&nbsp;     * form &#39;path_to_field.path_to_key&#39;. If so, returns a field type that
+<i>166</i>&nbsp;     * can be used to perform searches on this field.
+<i>167</i>&nbsp;     */
+<i>168</i>&nbsp;    private MappedFieldType getKeyedFieldType(String field) {
+<b class="nc"><i>169</i>&nbsp;        int dotIndex = -1;</b>
+<b class="nc"><i>170</i>&nbsp;        int fieldDepth = 0;</b>
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;        while (true) {
+<b class="nc"><i>173</i>&nbsp;            if (++fieldDepth &gt; maxDynamicKeyDepth) {</b>
+<b class="nc"><i>174</i>&nbsp;                return null;</b>
+<i>175</i>&nbsp;            }
+<i>176</i>&nbsp;
+<b class="nc"><i>177</i>&nbsp;            dotIndex = field.indexOf(&#39;.&#39;, dotIndex + 1);</b>
+<b class="nc"><i>178</i>&nbsp;            if (dotIndex &lt; 0) {</b>
+<b class="nc"><i>179</i>&nbsp;                return null;</b>
+<i>180</i>&nbsp;            }
+<i>181</i>&nbsp;
+<b class="nc"><i>182</i>&nbsp;            String parentField = field.substring(0, dotIndex);</b>
+<b class="nc"><i>183</i>&nbsp;            String concreteField = aliasToConcreteName.getOrDefault(parentField, parentField);</b>
+<b class="nc"><i>184</i>&nbsp;            DynamicKeyFieldMapper mapper = dynamicKeyMappers.get(concreteField);</b>
+<i>185</i>&nbsp;
+<b class="nc"><i>186</i>&nbsp;            if (mapper != null) {</b>
+<b class="nc"><i>187</i>&nbsp;                String key = field.substring(dotIndex + 1);</b>
+<b class="nc"><i>188</i>&nbsp;                return mapper.keyedFieldType(key);</b>
+<i>189</i>&nbsp;            }
+<b class="nc"><i>190</i>&nbsp;        }</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    /**
+<i>194</i>&nbsp;     * Returns a list of the full names of a simple match regex like pattern against full name and index name.
+<i>195</i>&nbsp;     */
+<i>196</i>&nbsp;    public Set&lt;String&gt; simpleMatchToFullName(String pattern) {
+<b class="nc"><i>197</i>&nbsp;        Set&lt;String&gt; fields = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>198</i>&nbsp;        for (MappedFieldType fieldType : this) {</b>
+<b class="nc"><i>199</i>&nbsp;            if (Regex.simpleMatch(pattern, fieldType.name())) {</b>
+<b class="nc"><i>200</i>&nbsp;                fields.add(fieldType.name());</b>
+<i>201</i>&nbsp;            }
+<b class="nc"><i>202</i>&nbsp;        }</b>
+<b class="nc"><i>203</i>&nbsp;        for (String aliasName : aliasToConcreteName.keySet()) {</b>
+<b class="nc"><i>204</i>&nbsp;            if (Regex.simpleMatch(pattern, aliasName)) {</b>
+<b class="nc"><i>205</i>&nbsp;                fields.add(aliasName);</b>
+<i>206</i>&nbsp;            }
+<b class="nc"><i>207</i>&nbsp;        }</b>
+<b class="nc"><i>208</i>&nbsp;        return fields;</b>
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    @Override
+<i>212</i>&nbsp;    public Iterator&lt;MappedFieldType&gt; iterator() {
+<b class="fc"><i>213</i>&nbsp;        Iterator&lt;MappedFieldType&gt; concreteFieldTypes = fullNameToFieldType.values().iterator();</b>
+<i>214</i>&nbsp;
+<b class="fc"><i>215</i>&nbsp;        if (dynamicKeyMappers.isEmpty()) {</b>
+<b class="fc"><i>216</i>&nbsp;            return concreteFieldTypes;</b>
+<i>217</i>&nbsp;        } else {
+<b class="nc"><i>218</i>&nbsp;            Iterator&lt;MappedFieldType&gt; keyedFieldTypes = dynamicKeyMappers.values().stream()</b>
+<b class="nc"><i>219</i>&nbsp;                .&lt;MappedFieldType&gt;map(mapper -&gt; mapper.keyedFieldType(&quot;&quot;))</b>
+<b class="nc"><i>220</i>&nbsp;                .iterator();</b>
+<b class="nc"><i>221</i>&nbsp;            return Iterators.concat(concreteFieldTypes, keyedFieldTypes);</b>
+<i>222</i>&nbsp;        }
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    // Visible for testing.
+<i>226</i>&nbsp;    int maxKeyedLookupDepth() {
+<b class="nc"><i>227</i>&nbsp;        return maxDynamicKeyDepth;</b>
+<i>228</i>&nbsp;    }
+<i>229</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

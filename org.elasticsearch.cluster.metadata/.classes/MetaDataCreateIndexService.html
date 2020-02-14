@@ -1,0 +1,966 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MetaDataCreateIndexService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.metadata</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MetaDataCreateIndexService (org.elasticsearch.cluster.metadata)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MetaDataCreateIndexService</td>
+<td class="coverageStat">
+  <span class="percent">
+    68.4%
+  </span>
+  <span class="absValue">
+    (13/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.2%
+  </span>
+  <span class="absValue">
+    (74/ 184)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">MetaDataCreateIndexService$IndexCreationTask</td>
+<td class="coverageStat">
+  <span class="percent">
+    71.4%
+  </span>
+  <span class="absValue">
+    (5/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.2%
+  </span>
+  <span class="absValue">
+    (118/ 222)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">MetaDataCreateIndexService$IndexValidator</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    69.2%
+  </span>
+  <span class="absValue">
+    (18/ 26)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    47.3%
+  </span>
+  <span class="absValue">
+    (192/ 406)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.metadata;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>26</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>27</i>&nbsp;import org.elasticsearch.ResourceAlreadyExistsException;
+<i>28</i>&nbsp;import org.elasticsearch.Version;
+<i>29</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>30</i>&nbsp;import org.elasticsearch.action.admin.indices.alias.Alias;
+<i>31</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+<i>32</i>&nbsp;import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+<i>33</i>&nbsp;import org.elasticsearch.action.support.ActiveShardCount;
+<i>34</i>&nbsp;import org.elasticsearch.action.support.ActiveShardsObserver;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>37</i>&nbsp;import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+<i>38</i>&nbsp;import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
+<i>39</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlock;
+<i>40</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>41</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlocks;
+<i>42</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>43</i>&nbsp;import org.elasticsearch.cluster.routing.IndexRoutingTable;
+<i>44</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingTable;
+<i>45</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>46</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRoutingState;
+<i>47</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocationService;
+<i>48</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>49</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>50</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>51</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>52</i>&nbsp;import org.elasticsearch.common.ValidationException;
+<i>53</i>&nbsp;import org.elasticsearch.common.compress.CompressedXContent;
+<i>54</i>&nbsp;import org.elasticsearch.common.io.PathUtils;
+<i>55</i>&nbsp;import org.elasticsearch.common.settings.IndexScopedSettings;
+<i>56</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>57</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>58</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>59</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>60</i>&nbsp;import org.elasticsearch.env.Environment;
+<i>61</i>&nbsp;import org.elasticsearch.index.Index;
+<i>62</i>&nbsp;import org.elasticsearch.index.IndexNotFoundException;
+<i>63</i>&nbsp;import org.elasticsearch.index.IndexService;
+<i>64</i>&nbsp;import org.elasticsearch.index.mapper.DocumentMapper;
+<i>65</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>66</i>&nbsp;import org.elasticsearch.index.mapper.MapperService.MergeReason;
+<i>67</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>68</i>&nbsp;import org.elasticsearch.indices.IndexCreationException;
+<i>69</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>70</i>&nbsp;import org.elasticsearch.indices.InvalidIndexNameException;
+<i>71</i>&nbsp;import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+<i>72</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;import java.io.UnsupportedEncodingException;
+<i>75</i>&nbsp;import java.nio.file.Path;
+<i>76</i>&nbsp;import java.time.Instant;
+<i>77</i>&nbsp;import java.util.ArrayList;
+<i>78</i>&nbsp;import java.util.Arrays;
+<i>79</i>&nbsp;import java.util.Collections;
+<i>80</i>&nbsp;import java.util.HashMap;
+<i>81</i>&nbsp;import java.util.List;
+<i>82</i>&nbsp;import java.util.Locale;
+<i>83</i>&nbsp;import java.util.Map;
+<i>84</i>&nbsp;import java.util.Optional;
+<i>85</i>&nbsp;import java.util.Set;
+<i>86</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>87</i>&nbsp;import java.util.function.BiFunction;
+<i>88</i>&nbsp;import java.util.function.Predicate;
+<i>89</i>&nbsp;import java.util.stream.IntStream;
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
+<i>92</i>&nbsp;import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
+<i>93</i>&nbsp;import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
+<i>94</i>&nbsp;import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+<i>95</i>&nbsp;import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;/**
+<i>98</i>&nbsp; * Service responsible for submitting create index requests
+<i>99</i>&nbsp; */
+<b class="fc"><i>100</i>&nbsp;public class MetaDataCreateIndexService {</b>
+<b class="fc"><i>101</i>&nbsp;    private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    public static final int MAX_INDEX_NAME_BYTES = 255;
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    private final Settings settings;
+<i>106</i>&nbsp;    private final ClusterService clusterService;
+<i>107</i>&nbsp;    private final IndicesService indicesService;
+<i>108</i>&nbsp;    private final AllocationService allocationService;
+<i>109</i>&nbsp;    private final AliasValidator aliasValidator;
+<i>110</i>&nbsp;    private final Environment env;
+<i>111</i>&nbsp;    private final IndexScopedSettings indexScopedSettings;
+<i>112</i>&nbsp;    private final ActiveShardsObserver activeShardsObserver;
+<i>113</i>&nbsp;    private final NamedXContentRegistry xContentRegistry;
+<i>114</i>&nbsp;    private final boolean forbidPrivateIndexSettings;
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    public MetaDataCreateIndexService(
+<i>117</i>&nbsp;            final Settings settings,
+<i>118</i>&nbsp;            final ClusterService clusterService,
+<i>119</i>&nbsp;            final IndicesService indicesService,
+<i>120</i>&nbsp;            final AllocationService allocationService,
+<i>121</i>&nbsp;            final AliasValidator aliasValidator,
+<i>122</i>&nbsp;            final Environment env,
+<i>123</i>&nbsp;            final IndexScopedSettings indexScopedSettings,
+<i>124</i>&nbsp;            final ThreadPool threadPool,
+<i>125</i>&nbsp;            final NamedXContentRegistry xContentRegistry,
+<b class="fc"><i>126</i>&nbsp;            final boolean forbidPrivateIndexSettings) {</b>
+<b class="fc"><i>127</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>128</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>129</i>&nbsp;        this.indicesService = indicesService;</b>
+<b class="fc"><i>130</i>&nbsp;        this.allocationService = allocationService;</b>
+<b class="fc"><i>131</i>&nbsp;        this.aliasValidator = aliasValidator;</b>
+<b class="fc"><i>132</i>&nbsp;        this.env = env;</b>
+<b class="fc"><i>133</i>&nbsp;        this.indexScopedSettings = indexScopedSettings;</b>
+<b class="fc"><i>134</i>&nbsp;        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);</b>
+<b class="fc"><i>135</i>&nbsp;        this.xContentRegistry = xContentRegistry;</b>
+<b class="fc"><i>136</i>&nbsp;        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;</b>
+<b class="fc"><i>137</i>&nbsp;    }</b>
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * Validate the name for an index against some static rules and a cluster state.
+<i>141</i>&nbsp;     */
+<i>142</i>&nbsp;    public static void validateIndexName(String index, ClusterState state) {
+<b class="fc"><i>143</i>&nbsp;        validateIndexOrAliasName(index, InvalidIndexNameException::new);</b>
+<b class="fc"><i>144</i>&nbsp;        if (!index.toLowerCase(Locale.ROOT).equals(index)) {</b>
+<b class="nc"><i>145</i>&nbsp;            throw new InvalidIndexNameException(index, &quot;must be lowercase&quot;);</b>
+<i>146</i>&nbsp;        }
+<b class="fc"><i>147</i>&nbsp;        if (state.routingTable().hasIndex(index)) {</b>
+<b class="nc"><i>148</i>&nbsp;            throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());</b>
+<i>149</i>&nbsp;        }
+<b class="fc"><i>150</i>&nbsp;        if (state.metaData().hasIndex(index)) {</b>
+<b class="nc"><i>151</i>&nbsp;            throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());</b>
+<i>152</i>&nbsp;        }
+<b class="fc"><i>153</i>&nbsp;        if (state.metaData().hasAlias(index)) {</b>
+<b class="nc"><i>154</i>&nbsp;            throw new InvalidIndexNameException(index, &quot;already exists as alias&quot;);</b>
+<i>155</i>&nbsp;        }
+<b class="fc"><i>156</i>&nbsp;    }</b>
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /**
+<i>159</i>&nbsp;     * Validate the name for an index or alias against some static rules.
+<i>160</i>&nbsp;     */
+<i>161</i>&nbsp;    public static void validateIndexOrAliasName(String index, BiFunction&lt;String, String, ? extends RuntimeException&gt; exceptionCtor) {
+<b class="fc"><i>162</i>&nbsp;        if (!Strings.validFileName(index)) {</b>
+<b class="nc"><i>163</i>&nbsp;            throw exceptionCtor.apply(index, &quot;must not contain the following characters &quot; + Strings.INVALID_FILENAME_CHARS);</b>
+<i>164</i>&nbsp;        }
+<b class="fc"><i>165</i>&nbsp;        if (index.contains(&quot;#&quot;)) {</b>
+<b class="nc"><i>166</i>&nbsp;            throw exceptionCtor.apply(index, &quot;must not contain &#39;#&#39;&quot;);</b>
+<i>167</i>&nbsp;        }
+<b class="fc"><i>168</i>&nbsp;        if (index.contains(&quot;:&quot;)) {</b>
+<b class="nc"><i>169</i>&nbsp;            throw exceptionCtor.apply(index, &quot;must not contain &#39;:&#39;&quot;);</b>
+<i>170</i>&nbsp;        }
+<b class="fc"><i>171</i>&nbsp;        if (index.charAt(0) == &#39;_&#39; || index.charAt(0) == &#39;-&#39; || index.charAt(0) == &#39;+&#39;) {</b>
+<b class="nc"><i>172</i>&nbsp;            throw exceptionCtor.apply(index, &quot;must not start with &#39;_&#39;, &#39;-&#39;, or &#39;+&#39;&quot;);</b>
+<i>173</i>&nbsp;        }
+<b class="fc"><i>174</i>&nbsp;        int byteCount = 0;</b>
+<i>175</i>&nbsp;        try {
+<b class="fc"><i>176</i>&nbsp;            byteCount = index.getBytes(&quot;UTF-8&quot;).length;</b>
+<b class="nc"><i>177</i>&nbsp;        } catch (UnsupportedEncodingException e) {</b>
+<i>178</i>&nbsp;            // UTF-8 should always be supported, but rethrow this if it is not for some reason
+<b class="nc"><i>179</i>&nbsp;            throw new ElasticsearchException(&quot;Unable to determine length of index name&quot;, e);</b>
+<b class="fc"><i>180</i>&nbsp;        }</b>
+<b class="fc"><i>181</i>&nbsp;        if (byteCount &gt; MAX_INDEX_NAME_BYTES) {</b>
+<b class="nc"><i>182</i>&nbsp;            throw exceptionCtor.apply(index, &quot;index name is too long, (&quot; + byteCount + &quot; &gt; &quot; + MAX_INDEX_NAME_BYTES + &quot;)&quot;);</b>
+<i>183</i>&nbsp;        }
+<b class="fc"><i>184</i>&nbsp;        if (index.equals(&quot;.&quot;) || index.equals(&quot;..&quot;)) {</b>
+<b class="nc"><i>185</i>&nbsp;            throw exceptionCtor.apply(index, &quot;must not be &#39;.&#39; or &#39;..&#39;&quot;);</b>
+<i>186</i>&nbsp;        }
+<b class="fc"><i>187</i>&nbsp;    }</b>
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    /**
+<i>190</i>&nbsp;     * Creates an index in the cluster state and waits for the specified number of shard copies to
+<i>191</i>&nbsp;     * become active (as specified in {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()})
+<i>192</i>&nbsp;     * before sending the response on the listener. If the index creation was successfully applied on
+<i>193</i>&nbsp;     * the cluster state, then {@link CreateIndexClusterStateUpdateResponse#isAcknowledged()} will return
+<i>194</i>&nbsp;     * true, otherwise it will return false and no waiting will occur for started shards
+<i>195</i>&nbsp;     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will also be false).  If the index
+<i>196</i>&nbsp;     * creation in the cluster state was successful and the requisite shard copies were started before
+<i>197</i>&nbsp;     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will
+<i>198</i>&nbsp;     * return true, otherwise if the operation timed out, then it will return false.
+<i>199</i>&nbsp;     *
+<i>200</i>&nbsp;     * @param request the index creation cluster state update request
+<i>201</i>&nbsp;     * @param listener the listener on which to send the index creation cluster state update response
+<i>202</i>&nbsp;     */
+<i>203</i>&nbsp;    public void createIndex(final CreateIndexClusterStateUpdateRequest request,
+<i>204</i>&nbsp;                            final ActionListener&lt;CreateIndexClusterStateUpdateResponse&gt; listener) {
+<b class="fc"><i>205</i>&nbsp;        onlyCreateIndex(request, ActionListener.wrap(response -&gt; {</b>
+<b class="fc"><i>206</i>&nbsp;            if (response.isAcknowledged()) {</b>
+<b class="fc"><i>207</i>&nbsp;                activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),</b>
+<i>208</i>&nbsp;                    shardsAcknowledged -&gt; {
+<b class="fc"><i>209</i>&nbsp;                        if (shardsAcknowledged == false) {</b>
+<b class="nc"><i>210</i>&nbsp;                            logger.debug(&quot;[{}] index created, but the operation timed out while waiting for &quot; +</b>
+<b class="nc"><i>211</i>&nbsp;                                             &quot;enough shards to be started.&quot;, request.index());</b>
+<i>212</i>&nbsp;                        }
+<b class="fc"><i>213</i>&nbsp;                        listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));</b>
+<b class="fc"><i>214</i>&nbsp;                    }, listener::onFailure);</b>
+<i>215</i>&nbsp;            } else {
+<b class="nc"><i>216</i>&nbsp;                listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));</b>
+<i>217</i>&nbsp;            }
+<b class="fc"><i>218</i>&nbsp;        }, listener::onFailure));</b>
+<b class="fc"><i>219</i>&nbsp;    }</b>
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;    private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
+<i>222</i>&nbsp;                                 final ActionListener&lt;ClusterStateUpdateResponse&gt; listener) {
+<b class="fc"><i>223</i>&nbsp;        Settings.Builder updatedSettingsBuilder = Settings.builder();</b>
+<b class="fc"><i>224</i>&nbsp;        Settings build = updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();</b>
+<b class="fc"><i>225</i>&nbsp;        indexScopedSettings.validate(build, true); // we do validate here - index setting must be consistent</b>
+<b class="fc"><i>226</i>&nbsp;        request.settings(build);</b>
+<b class="fc"><i>227</i>&nbsp;        clusterService.submitStateUpdateTask(</b>
+<b class="fc"><i>228</i>&nbsp;                &quot;create-index [&quot; + request.index() + &quot;], cause [&quot; + request.cause() + &quot;]&quot;,</b>
+<i>229</i>&nbsp;                new IndexCreationTask(
+<i>230</i>&nbsp;                        logger,
+<i>231</i>&nbsp;                        allocationService,
+<i>232</i>&nbsp;                        request,
+<i>233</i>&nbsp;                        listener,
+<i>234</i>&nbsp;                        indicesService,
+<i>235</i>&nbsp;                        aliasValidator,
+<i>236</i>&nbsp;                        xContentRegistry,
+<i>237</i>&nbsp;                        settings,
+<i>238</i>&nbsp;                        this::validate,
+<i>239</i>&nbsp;                        indexScopedSettings));
+<b class="fc"><i>240</i>&nbsp;    }</b>
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    interface IndexValidator {
+<i>243</i>&nbsp;        void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state);
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<b class="fc"><i>246</i>&nbsp;    static class IndexCreationTask extends AckedClusterStateUpdateTask&lt;ClusterStateUpdateResponse&gt; {</b>
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;        private final IndicesService indicesService;
+<i>249</i>&nbsp;        private final AliasValidator aliasValidator;
+<i>250</i>&nbsp;        private final NamedXContentRegistry xContentRegistry;
+<i>251</i>&nbsp;        private final CreateIndexClusterStateUpdateRequest request;
+<i>252</i>&nbsp;        private final Logger logger;
+<i>253</i>&nbsp;        private final AllocationService allocationService;
+<i>254</i>&nbsp;        private final Settings settings;
+<i>255</i>&nbsp;        private final IndexValidator validator;
+<i>256</i>&nbsp;        private final IndexScopedSettings indexScopedSettings;
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;        IndexCreationTask(Logger logger, AllocationService allocationService, CreateIndexClusterStateUpdateRequest request,
+<i>259</i>&nbsp;                          ActionListener&lt;ClusterStateUpdateResponse&gt; listener, IndicesService indicesService,
+<i>260</i>&nbsp;                          AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+<i>261</i>&nbsp;                          Settings settings, IndexValidator validator, IndexScopedSettings indexScopedSettings) {
+<b class="fc"><i>262</i>&nbsp;            super(Priority.URGENT, request, listener);</b>
+<b class="fc"><i>263</i>&nbsp;            this.request = request;</b>
+<b class="fc"><i>264</i>&nbsp;            this.logger = logger;</b>
+<b class="fc"><i>265</i>&nbsp;            this.allocationService = allocationService;</b>
+<b class="fc"><i>266</i>&nbsp;            this.indicesService = indicesService;</b>
+<b class="fc"><i>267</i>&nbsp;            this.aliasValidator = aliasValidator;</b>
+<b class="fc"><i>268</i>&nbsp;            this.xContentRegistry = xContentRegistry;</b>
+<b class="fc"><i>269</i>&nbsp;            this.settings = settings;</b>
+<b class="fc"><i>270</i>&nbsp;            this.validator = validator;</b>
+<b class="fc"><i>271</i>&nbsp;            this.indexScopedSettings = indexScopedSettings;</b>
+<b class="fc"><i>272</i>&nbsp;        }</b>
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;        @Override
+<i>275</i>&nbsp;        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+<b class="fc"><i>276</i>&nbsp;            return new ClusterStateUpdateResponse(acknowledged);</b>
+<i>277</i>&nbsp;        }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;        @Override
+<i>280</i>&nbsp;        public ClusterState execute(ClusterState currentState) throws Exception {
+<b class="fc"><i>281</i>&nbsp;            Index createdIndex = null;</b>
+<b class="fc"><i>282</i>&nbsp;            String removalExtraInfo = null;</b>
+<b class="fc"><i>283</i>&nbsp;            IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;</b>
+<i>284</i>&nbsp;            try {
+<b class="fc"><i>285</i>&nbsp;                validator.validate(request, currentState);</b>
+<i>286</i>&nbsp;
+<b class="fc"><i>287</i>&nbsp;                for (Alias alias : request.aliases()) {</b>
+<b class="nc"><i>288</i>&nbsp;                    aliasValidator.validateAlias(alias, request.index(), currentState.metaData());</b>
+<b class="nc"><i>289</i>&nbsp;                }</b>
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;                // we only find a template when its an API call (a new index)
+<i>292</i>&nbsp;                // find templates, highest order are better matching
+<b class="fc"><i>293</i>&nbsp;                List&lt;IndexTemplateMetaData&gt; templates =</b>
+<b class="fc"><i>294</i>&nbsp;                        MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());</b>
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;                // add the request mapping
+<b class="fc"><i>297</i>&nbsp;                Map&lt;String, Map&lt;String, Object&gt;&gt; mappings = new HashMap&lt;&gt;();</b>
+<i>298</i>&nbsp;
+<b class="fc"><i>299</i>&nbsp;                Map&lt;String, AliasMetaData&gt; templatesAliases = new HashMap&lt;&gt;();</b>
+<i>300</i>&nbsp;
+<b class="fc"><i>301</i>&nbsp;                List&lt;String&gt; templateNames = new ArrayList&lt;&gt;();</b>
+<i>302</i>&nbsp;
+<b class="fc"><i>303</i>&nbsp;                for (Map.Entry&lt;String, String&gt; entry : request.mappings().entrySet()) {</b>
+<b class="nc"><i>304</i>&nbsp;                    Map&lt;String, Object&gt; mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());</b>
+<b class="nc"><i>305</i>&nbsp;                    assert mapping.size() == 1 : mapping;</b>
+<b class="nc"><i>306</i>&nbsp;                    assert entry.getKey().equals(mapping.keySet().iterator().next()) : entry.getKey() + &quot; != &quot; + mapping;</b>
+<b class="nc"><i>307</i>&nbsp;                    mappings.put(entry.getKey(), mapping);</b>
+<b class="nc"><i>308</i>&nbsp;                }</b>
+<i>309</i>&nbsp;
+<b class="fc"><i>310</i>&nbsp;                final Index recoverFromIndex = request.recoverFrom();</b>
+<i>311</i>&nbsp;
+<b class="fc"><i>312</i>&nbsp;                if (recoverFromIndex == null) {</b>
+<i>313</i>&nbsp;                    // apply templates, merging the mappings into the request mapping if exists
+<b class="fc"><i>314</i>&nbsp;                    for (IndexTemplateMetaData template : templates) {</b>
+<b class="fc"><i>315</i>&nbsp;                        templateNames.add(template.getName());</b>
+<b class="fc"><i>316</i>&nbsp;                        for (ObjectObjectCursor&lt;String, CompressedXContent&gt; cursor : template.mappings()) {</b>
+<b class="nc"><i>317</i>&nbsp;                            String mappingString = cursor.value.string();</b>
+<b class="nc"><i>318</i>&nbsp;                            if (mappings.containsKey(cursor.key)) {</b>
+<b class="nc"><i>319</i>&nbsp;                                XContentHelper.mergeDefaults(mappings.get(cursor.key),</b>
+<b class="nc"><i>320</i>&nbsp;                                    MapperService.parseMapping(xContentRegistry, mappingString));</b>
+<b class="nc"><i>321</i>&nbsp;                            } else if (mappings.size() == 1 &amp;&amp; cursor.key.equals(MapperService.SINGLE_MAPPING_NAME)) {</b>
+<i>322</i>&nbsp;                                // Typeless template with typed mapping
+<b class="nc"><i>323</i>&nbsp;                                Map&lt;String, Object&gt; templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);</b>
+<b class="nc"><i>324</i>&nbsp;                                assert templateMapping.size() == 1 : templateMapping;</b>
+<b class="nc"><i>325</i>&nbsp;                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :</b>
+<i>326</i>&nbsp;                                    cursor.key + &quot; != &quot; + templateMapping;
+<b class="nc"><i>327</i>&nbsp;                                Map.Entry&lt;String, Map&lt;String, Object&gt;&gt; mappingEntry = mappings.entrySet().iterator().next();</b>
+<b class="nc"><i>328</i>&nbsp;                                templateMapping = Collections.singletonMap(</b>
+<b class="nc"><i>329</i>&nbsp;                                        mappingEntry.getKey(),                       // reuse type name from the mapping</b>
+<b class="nc"><i>330</i>&nbsp;                                        templateMapping.values().iterator().next()); // but actual mappings from the template</b>
+<b class="nc"><i>331</i>&nbsp;                                XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);</b>
+<b class="nc"><i>332</i>&nbsp;                            } else if (template.mappings().size() == 1 &amp;&amp; mappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {</b>
+<i>333</i>&nbsp;                                // Typed template with typeless mapping
+<b class="nc"><i>334</i>&nbsp;                                Map&lt;String, Object&gt; templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);</b>
+<b class="nc"><i>335</i>&nbsp;                                assert templateMapping.size() == 1 : templateMapping;</b>
+<b class="nc"><i>336</i>&nbsp;                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :</b>
+<i>337</i>&nbsp;                                    cursor.key + &quot; != &quot; + templateMapping;
+<b class="nc"><i>338</i>&nbsp;                                Map&lt;String, Object&gt; mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);</b>
+<b class="nc"><i>339</i>&nbsp;                                templateMapping = Collections.singletonMap(</b>
+<i>340</i>&nbsp;                                        MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
+<b class="nc"><i>341</i>&nbsp;                                        templateMapping.values().iterator().next());</b>
+<b class="nc"><i>342</i>&nbsp;                                XContentHelper.mergeDefaults(mapping, templateMapping);</b>
+<b class="nc"><i>343</i>&nbsp;                            } else {</b>
+<b class="nc"><i>344</i>&nbsp;                                mappings.put(cursor.key,</b>
+<b class="nc"><i>345</i>&nbsp;                                    MapperService.parseMapping(xContentRegistry, mappingString));</b>
+<i>346</i>&nbsp;                            }
+<b class="nc"><i>347</i>&nbsp;                        }</b>
+<i>348</i>&nbsp;                        //handle aliases
+<b class="fc"><i>349</i>&nbsp;                        for (ObjectObjectCursor&lt;String, AliasMetaData&gt; cursor : template.aliases()) {</b>
+<b class="nc"><i>350</i>&nbsp;                            AliasMetaData aliasMetaData = cursor.value;</b>
+<i>351</i>&nbsp;                            //if an alias with same name came with the create index request itself,
+<i>352</i>&nbsp;                            // ignore this one taken from the index template
+<b class="nc"><i>353</i>&nbsp;                            if (request.aliases().contains(new Alias(aliasMetaData.alias()))) {</b>
+<b class="nc"><i>354</i>&nbsp;                                continue;</b>
+<i>355</i>&nbsp;                            }
+<i>356</i>&nbsp;                            //if an alias with same name was already processed, ignore this one
+<b class="nc"><i>357</i>&nbsp;                            if (templatesAliases.containsKey(cursor.key)) {</b>
+<b class="nc"><i>358</i>&nbsp;                                continue;</b>
+<i>359</i>&nbsp;                            }
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;                            // Allow templatesAliases to be templated by replacing a token with the
+<i>362</i>&nbsp;                            // name of the index that we are applying it to
+<b class="nc"><i>363</i>&nbsp;                            if (aliasMetaData.alias().contains(&quot;{index}&quot;)) {</b>
+<b class="nc"><i>364</i>&nbsp;                                String templatedAlias = aliasMetaData.alias().replace(&quot;{index}&quot;, request.index());</b>
+<b class="nc"><i>365</i>&nbsp;                                aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);</b>
+<i>366</i>&nbsp;                            }
+<i>367</i>&nbsp;
+<b class="nc"><i>368</i>&nbsp;                            aliasValidator.validateAliasMetaData(aliasMetaData, request.index(), currentState.metaData());</b>
+<b class="nc"><i>369</i>&nbsp;                            templatesAliases.put(aliasMetaData.alias(), aliasMetaData);</b>
+<b class="nc"><i>370</i>&nbsp;                        }</b>
+<b class="fc"><i>371</i>&nbsp;                    }</b>
+<i>372</i>&nbsp;                }
+<b class="fc"><i>373</i>&nbsp;                Settings.Builder indexSettingsBuilder = Settings.builder();</b>
+<b class="fc"><i>374</i>&nbsp;                if (recoverFromIndex == null) {</b>
+<i>375</i>&nbsp;                    // apply templates, here, in reverse order, since first ones are better matching
+<b class="fc"><i>376</i>&nbsp;                    for (int i = templates.size() - 1; i &gt;= 0; i--) {</b>
+<b class="fc"><i>377</i>&nbsp;                        indexSettingsBuilder.put(templates.get(i).settings());</b>
+<i>378</i>&nbsp;                    }
+<i>379</i>&nbsp;                }
+<i>380</i>&nbsp;                // now, put the request settings, so they override templates
+<b class="fc"><i>381</i>&nbsp;                indexSettingsBuilder.put(request.settings());</b>
+<b class="fc"><i>382</i>&nbsp;                if (indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {</b>
+<b class="fc"><i>383</i>&nbsp;                    final DiscoveryNodes nodes = currentState.nodes();</b>
+<b class="fc"><i>384</i>&nbsp;                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());</b>
+<b class="fc"><i>385</i>&nbsp;                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);</b>
+<i>386</i>&nbsp;                }
+<b class="fc"><i>387</i>&nbsp;                if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {</b>
+<b class="nc"><i>388</i>&nbsp;                    final int numberOfShards = getNumberOfShards(indexSettingsBuilder);</b>
+<b class="nc"><i>389</i>&nbsp;                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));</b>
+<i>390</i>&nbsp;                }
+<b class="fc"><i>391</i>&nbsp;                if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {</b>
+<b class="nc"><i>392</i>&nbsp;                    indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));</b>
+<i>393</i>&nbsp;                }
+<b class="fc"><i>394</i>&nbsp;                if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null &amp;&amp; indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {</b>
+<b class="nc"><i>395</i>&nbsp;                    indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));</b>
+<i>396</i>&nbsp;                }
+<i>397</i>&nbsp;
+<b class="fc"><i>398</i>&nbsp;                if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {</b>
+<b class="fc"><i>399</i>&nbsp;                    indexSettingsBuilder.put(SETTING_CREATION_DATE, Instant.now().toEpochMilli());</b>
+<i>400</i>&nbsp;                }
+<b class="fc"><i>401</i>&nbsp;                indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());</b>
+<b class="fc"><i>402</i>&nbsp;                indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());</b>
+<b class="fc"><i>403</i>&nbsp;                final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());</b>
+<b class="fc"><i>404</i>&nbsp;                final Settings idxSettings = indexSettingsBuilder.build();</b>
+<b class="fc"><i>405</i>&nbsp;                int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);</b>
+<i>406</i>&nbsp;                final int routingNumShards;
+<b class="fc"><i>407</i>&nbsp;                final Version indexVersionCreated = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(idxSettings);</b>
+<b class="fc"><i>408</i>&nbsp;                final IndexMetaData sourceMetaData = recoverFromIndex == null ? null :</b>
+<b class="nc"><i>409</i>&nbsp;                    currentState.metaData().getIndexSafe(recoverFromIndex);</b>
+<b class="fc"><i>410</i>&nbsp;                if (sourceMetaData == null || sourceMetaData.getNumberOfShards() == 1) {</b>
+<i>411</i>&nbsp;                    // in this case we either have no index to recover from or
+<i>412</i>&nbsp;                    // we have a source index with 1 shard and without an explicit split factor
+<i>413</i>&nbsp;                    // or one that is valid in that case we can split into whatever and auto-generate a new factor.
+<b class="fc"><i>414</i>&nbsp;                    if (IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(idxSettings)) {</b>
+<b class="nc"><i>415</i>&nbsp;                        routingNumShards = IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(idxSettings);</b>
+<i>416</i>&nbsp;                    } else {
+<b class="fc"><i>417</i>&nbsp;                        routingNumShards = calculateNumRoutingShards(numTargetShards, indexVersionCreated);</b>
+<i>418</i>&nbsp;                    }
+<i>419</i>&nbsp;                } else {
+<b class="nc"><i>420</i>&nbsp;                    assert IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(indexSettingsBuilder.build()) == false</b>
+<i>421</i>&nbsp;                        : &quot;index.number_of_routing_shards should not be present on the target index on resize&quot;;
+<b class="nc"><i>422</i>&nbsp;                    routingNumShards = sourceMetaData.getRoutingNumShards();</b>
+<i>423</i>&nbsp;                }
+<i>424</i>&nbsp;                // remove the setting it&#39;s temporary and is only relevant once we create the index
+<b class="fc"><i>425</i>&nbsp;                indexSettingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());</b>
+<b class="fc"><i>426</i>&nbsp;                tmpImdBuilder.setRoutingNumShards(routingNumShards);</b>
+<i>427</i>&nbsp;
+<b class="fc"><i>428</i>&nbsp;                if (recoverFromIndex != null) {</b>
+<b class="nc"><i>429</i>&nbsp;                    assert request.resizeType() != null;</b>
+<b class="nc"><i>430</i>&nbsp;                    prepareResizeIndexSettings(</b>
+<i>431</i>&nbsp;                            currentState,
+<b class="nc"><i>432</i>&nbsp;                            mappings.keySet(),</b>
+<i>433</i>&nbsp;                            indexSettingsBuilder,
+<i>434</i>&nbsp;                            recoverFromIndex,
+<b class="nc"><i>435</i>&nbsp;                            request.index(),</b>
+<b class="nc"><i>436</i>&nbsp;                            request.resizeType(),</b>
+<b class="nc"><i>437</i>&nbsp;                            request.copySettings(),</b>
+<i>438</i>&nbsp;                            indexScopedSettings);
+<i>439</i>&nbsp;                }
+<b class="fc"><i>440</i>&nbsp;                final Settings actualIndexSettings = indexSettingsBuilder.build();</b>
+<i>441</i>&nbsp;
+<i>442</i>&nbsp;                /*
+<i>443</i>&nbsp;                 * We can not check the shard limit until we have applied templates, otherwise we do not know the actual number of shards
+<i>444</i>&nbsp;                 * that will be used to create this index.
+<i>445</i>&nbsp;                 */
+<b class="fc"><i>446</i>&nbsp;                checkShardLimit(actualIndexSettings, currentState);</b>
+<i>447</i>&nbsp;
+<b class="fc"><i>448</i>&nbsp;                tmpImdBuilder.settings(actualIndexSettings);</b>
+<i>449</i>&nbsp;
+<b class="fc"><i>450</i>&nbsp;                if (recoverFromIndex != null) {</b>
+<i>451</i>&nbsp;                    /*
+<i>452</i>&nbsp;                     * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
+<i>453</i>&nbsp;                     * the maximum primary term on all the shards in the source index. This ensures that we have correct
+<i>454</i>&nbsp;                     * document-level semantics regarding sequence numbers in the shrunken index.
+<i>455</i>&nbsp;                     */
+<b class="nc"><i>456</i>&nbsp;                    final long primaryTerm =</b>
+<i>457</i>&nbsp;                        IntStream
+<b class="nc"><i>458</i>&nbsp;                            .range(0, sourceMetaData.getNumberOfShards())</b>
+<b class="nc"><i>459</i>&nbsp;                            .mapToLong(sourceMetaData::primaryTerm)</b>
+<b class="nc"><i>460</i>&nbsp;                            .max()</b>
+<b class="nc"><i>461</i>&nbsp;                            .getAsLong();</b>
+<b class="nc"><i>462</i>&nbsp;                    for (int shardId = 0; shardId &lt; tmpImdBuilder.numberOfShards(); shardId++) {</b>
+<b class="nc"><i>463</i>&nbsp;                        tmpImdBuilder.primaryTerm(shardId, primaryTerm);</b>
+<i>464</i>&nbsp;                    }
+<i>465</i>&nbsp;                }
+<i>466</i>&nbsp;                // Set up everything, now locally create the index to see that things are ok, and apply
+<b class="fc"><i>467</i>&nbsp;                final IndexMetaData tmpImd = tmpImdBuilder.build();</b>
+<b class="fc"><i>468</i>&nbsp;                ActiveShardCount waitForActiveShards = request.waitForActiveShards();</b>
+<b class="fc"><i>469</i>&nbsp;                if (waitForActiveShards == ActiveShardCount.DEFAULT) {</b>
+<b class="fc"><i>470</i>&nbsp;                    waitForActiveShards = tmpImd.getWaitForActiveShards();</b>
+<i>471</i>&nbsp;                }
+<b class="fc"><i>472</i>&nbsp;                if (waitForActiveShards.validate(tmpImd.getNumberOfReplicas()) == false) {</b>
+<b class="nc"><i>473</i>&nbsp;                    throw new IllegalArgumentException(&quot;invalid wait_for_active_shards[&quot; + request.waitForActiveShards() +</b>
+<i>474</i>&nbsp;                        &quot;]: cannot be greater than number of shard copies [&quot; +
+<b class="nc"><i>475</i>&nbsp;                        (tmpImd.getNumberOfReplicas() + 1) + &quot;]&quot;);</b>
+<i>476</i>&nbsp;                }
+<i>477</i>&nbsp;                // create the index here (on the master) to validate it can be created, as well as adding the mapping
+<b class="fc"><i>478</i>&nbsp;                final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());</b>
+<b class="fc"><i>479</i>&nbsp;                createdIndex = indexService.index();</b>
+<i>480</i>&nbsp;                // now add the mappings
+<b class="fc"><i>481</i>&nbsp;                MapperService mapperService = indexService.mapperService();</b>
+<i>482</i>&nbsp;                try {
+<b class="fc"><i>483</i>&nbsp;                    mapperService.merge(mappings, MergeReason.MAPPING_UPDATE);</b>
+<b class="nc"><i>484</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>485</i>&nbsp;                    removalExtraInfo = &quot;failed on parsing default mapping/mappings on index creation&quot;;</b>
+<b class="nc"><i>486</i>&nbsp;                    throw e;</b>
+<b class="fc"><i>487</i>&nbsp;                }</b>
+<i>488</i>&nbsp;
+<b class="fc"><i>489</i>&nbsp;                if (request.recoverFrom() == null) {</b>
+<i>490</i>&nbsp;                    // now that the mapping is merged we can validate the index sort.
+<i>491</i>&nbsp;                    // we cannot validate for index shrinking since the mapping is empty
+<i>492</i>&nbsp;                    // at this point. The validation will take place later in the process
+<i>493</i>&nbsp;                    // (when all shards are copied in a single place).
+<b class="fc"><i>494</i>&nbsp;                    indexService.getIndexSortSupplier().get();</b>
+<i>495</i>&nbsp;                }
+<i>496</i>&nbsp;
+<i>497</i>&nbsp;                // the context is only used for validation so it&#39;s fine to pass fake values for the shard id and the current
+<i>498</i>&nbsp;                // timestamp
+<b class="fc"><i>499</i>&nbsp;                final QueryShardContext queryShardContext =</b>
+<b class="fc"><i>500</i>&nbsp;                    indexService.newQueryShardContext(0, null, () -&gt; 0L, null);</b>
+<i>501</i>&nbsp;
+<b class="fc"><i>502</i>&nbsp;                for (Alias alias : request.aliases()) {</b>
+<b class="nc"><i>503</i>&nbsp;                    if (Strings.hasLength(alias.filter())) {</b>
+<b class="nc"><i>504</i>&nbsp;                        aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);</b>
+<i>505</i>&nbsp;                    }
+<b class="nc"><i>506</i>&nbsp;                }</b>
+<b class="fc"><i>507</i>&nbsp;                for (AliasMetaData aliasMetaData : templatesAliases.values()) {</b>
+<b class="nc"><i>508</i>&nbsp;                    if (aliasMetaData.filter() != null) {</b>
+<b class="nc"><i>509</i>&nbsp;                        aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(),</b>
+<i>510</i>&nbsp;                            queryShardContext, xContentRegistry);
+<i>511</i>&nbsp;                    }
+<b class="nc"><i>512</i>&nbsp;                }</b>
+<i>513</i>&nbsp;
+<i>514</i>&nbsp;                // now, update the mappings with the actual source
+<b class="fc"><i>515</i>&nbsp;                Map&lt;String, MappingMetaData&gt; mappingsMetaData = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>516</i>&nbsp;                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),</b>
+<b class="fc"><i>517</i>&nbsp;                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {</b>
+<b class="fc"><i>518</i>&nbsp;                    if (mapper != null) {</b>
+<b class="nc"><i>519</i>&nbsp;                        MappingMetaData mappingMd = new MappingMetaData(mapper);</b>
+<b class="nc"><i>520</i>&nbsp;                        mappingsMetaData.put(mapper.type(), mappingMd);</b>
+<i>521</i>&nbsp;                    }
+<b class="fc"><i>522</i>&nbsp;                }</b>
+<i>523</i>&nbsp;
+<b class="fc"><i>524</i>&nbsp;                final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())</b>
+<b class="fc"><i>525</i>&nbsp;                    .settings(actualIndexSettings)</b>
+<b class="fc"><i>526</i>&nbsp;                    .setRoutingNumShards(routingNumShards);</b>
+<i>527</i>&nbsp;
+<b class="fc"><i>528</i>&nbsp;                for (int shardId = 0; shardId &lt; tmpImd.getNumberOfShards(); shardId++) {</b>
+<b class="fc"><i>529</i>&nbsp;                    indexMetaDataBuilder.primaryTerm(shardId, tmpImd.primaryTerm(shardId));</b>
+<i>530</i>&nbsp;                }
+<i>531</i>&nbsp;
+<b class="fc"><i>532</i>&nbsp;                for (MappingMetaData mappingMd : mappingsMetaData.values()) {</b>
+<b class="nc"><i>533</i>&nbsp;                    indexMetaDataBuilder.putMapping(mappingMd);</b>
+<b class="nc"><i>534</i>&nbsp;                }</b>
+<i>535</i>&nbsp;
+<b class="fc"><i>536</i>&nbsp;                for (AliasMetaData aliasMetaData : templatesAliases.values()) {</b>
+<b class="nc"><i>537</i>&nbsp;                    indexMetaDataBuilder.putAlias(aliasMetaData);</b>
+<b class="nc"><i>538</i>&nbsp;                }</b>
+<b class="fc"><i>539</i>&nbsp;                for (Alias alias : request.aliases()) {</b>
+<b class="nc"><i>540</i>&nbsp;                    AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())</b>
+<b class="nc"><i>541</i>&nbsp;                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();</b>
+<b class="nc"><i>542</i>&nbsp;                    indexMetaDataBuilder.putAlias(aliasMetaData);</b>
+<b class="nc"><i>543</i>&nbsp;                }</b>
+<i>544</i>&nbsp;
+<b class="fc"><i>545</i>&nbsp;                indexMetaDataBuilder.state(IndexMetaData.State.OPEN);</b>
+<i>546</i>&nbsp;
+<i>547</i>&nbsp;                final IndexMetaData indexMetaData;
+<i>548</i>&nbsp;                try {
+<b class="fc"><i>549</i>&nbsp;                    indexMetaData = indexMetaDataBuilder.build();</b>
+<b class="nc"><i>550</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>551</i>&nbsp;                    removalExtraInfo = &quot;failed to build index metadata&quot;;</b>
+<b class="nc"><i>552</i>&nbsp;                    throw e;</b>
+<b class="fc"><i>553</i>&nbsp;                }</b>
+<i>554</i>&nbsp;
+<b class="fc"><i>555</i>&nbsp;                indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetaData.getIndex(),</b>
+<b class="fc"><i>556</i>&nbsp;                    indexMetaData.getSettings());</b>
+<i>557</i>&nbsp;
+<b class="fc"><i>558</i>&nbsp;                MetaData newMetaData = MetaData.builder(currentState.metaData())</b>
+<b class="fc"><i>559</i>&nbsp;                    .put(indexMetaData, false)</b>
+<b class="fc"><i>560</i>&nbsp;                    .build();</b>
+<i>561</i>&nbsp;
+<b class="fc"><i>562</i>&nbsp;                logger.info(&quot;[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}&quot;,</b>
+<b class="fc"><i>563</i>&nbsp;                    request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),</b>
+<b class="fc"><i>564</i>&nbsp;                    indexMetaData.getNumberOfReplicas(), mappings.keySet());</b>
+<i>565</i>&nbsp;
+<b class="fc"><i>566</i>&nbsp;                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());</b>
+<b class="fc"><i>567</i>&nbsp;                if (!request.blocks().isEmpty()) {</b>
+<b class="nc"><i>568</i>&nbsp;                    for (ClusterBlock block : request.blocks()) {</b>
+<b class="nc"><i>569</i>&nbsp;                        blocks.addIndexBlock(request.index(), block);</b>
+<b class="nc"><i>570</i>&nbsp;                    }</b>
+<i>571</i>&nbsp;                }
+<b class="fc"><i>572</i>&nbsp;                blocks.updateBlocks(indexMetaData);</b>
+<i>573</i>&nbsp;
+<b class="fc"><i>574</i>&nbsp;                ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();</b>
+<i>575</i>&nbsp;
+<b class="fc"><i>576</i>&nbsp;                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())</b>
+<b class="fc"><i>577</i>&nbsp;                    .addAsNew(updatedState.metaData().index(request.index()));</b>
+<b class="fc"><i>578</i>&nbsp;                updatedState = allocationService.reroute(</b>
+<b class="fc"><i>579</i>&nbsp;                    ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),</b>
+<b class="fc"><i>580</i>&nbsp;                    &quot;index [&quot; + request.index() + &quot;] created&quot;);</b>
+<b class="fc"><i>581</i>&nbsp;                removalExtraInfo = &quot;cleaning up after validating index on master&quot;;</b>
+<b class="fc"><i>582</i>&nbsp;                removalReason = IndexRemovalReason.NO_LONGER_ASSIGNED;</b>
+<b class="fc"><i>583</i>&nbsp;                return updatedState;</b>
+<i>584</i>&nbsp;            } finally {
+<b class="fc"><i>585</i>&nbsp;                if (createdIndex != null) {</b>
+<i>586</i>&nbsp;                    // Index was already partially created - need to clean up
+<b class="fc"><i>587</i>&nbsp;                    indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);</b>
+<i>588</i>&nbsp;                }
+<b class="nc"><i>589</i>&nbsp;            }</b>
+<i>590</i>&nbsp;        }
+<i>591</i>&nbsp;
+<i>592</i>&nbsp;        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
+<i>593</i>&nbsp;            // TODO: this logic can be removed when the current major version is 8
+<b class="nc"><i>594</i>&nbsp;            assert Version.CURRENT.major == 7;</b>
+<i>595</i>&nbsp;            final int numberOfShards;
+<b class="nc"><i>596</i>&nbsp;            final Version indexVersionCreated =</b>
+<b class="nc"><i>597</i>&nbsp;                Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));</b>
+<b class="nc"><i>598</i>&nbsp;            if (indexVersionCreated.before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>599</i>&nbsp;                numberOfShards = 5;</b>
+<i>600</i>&nbsp;            } else {
+<b class="nc"><i>601</i>&nbsp;                numberOfShards = 1;</b>
+<i>602</i>&nbsp;            }
+<b class="nc"><i>603</i>&nbsp;            return numberOfShards;</b>
+<i>604</i>&nbsp;        }
+<i>605</i>&nbsp;
+<i>606</i>&nbsp;        protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+<b class="fc"><i>607</i>&nbsp;            MetaDataCreateIndexService.checkShardLimit(settings, clusterState);</b>
+<b class="fc"><i>608</i>&nbsp;        }</b>
+<i>609</i>&nbsp;
+<i>610</i>&nbsp;        @Override
+<i>611</i>&nbsp;        public void onFailure(String source, Exception e) {
+<b class="nc"><i>612</i>&nbsp;            if (e instanceof ResourceAlreadyExistsException) {</b>
+<b class="nc"><i>613</i>&nbsp;                logger.trace(() -&gt; new ParameterizedMessage(&quot;[{}] failed to create&quot;, request.index()), e);</b>
+<i>614</i>&nbsp;            } else {
+<b class="nc"><i>615</i>&nbsp;                logger.debug(() -&gt; new ParameterizedMessage(&quot;[{}] failed to create&quot;, request.index()), e);</b>
+<i>616</i>&nbsp;            }
+<b class="nc"><i>617</i>&nbsp;            super.onFailure(source, e);</b>
+<b class="nc"><i>618</i>&nbsp;        }</b>
+<i>619</i>&nbsp;    }
+<i>620</i>&nbsp;
+<i>621</i>&nbsp;    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
+<b class="fc"><i>622</i>&nbsp;        validateIndexName(request.index(), state);</b>
+<b class="fc"><i>623</i>&nbsp;        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);</b>
+<b class="fc"><i>624</i>&nbsp;    }</b>
+<i>625</i>&nbsp;
+<i>626</i>&nbsp;    public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
+<i>627</i>&nbsp;            throws IndexCreationException {
+<b class="fc"><i>628</i>&nbsp;        List&lt;String&gt; validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);</b>
+<i>629</i>&nbsp;
+<b class="fc"><i>630</i>&nbsp;        if (validationErrors.isEmpty() == false) {</b>
+<b class="nc"><i>631</i>&nbsp;            ValidationException validationException = new ValidationException();</b>
+<b class="nc"><i>632</i>&nbsp;            validationException.addValidationErrors(validationErrors);</b>
+<b class="nc"><i>633</i>&nbsp;            throw new IndexCreationException(indexName, validationException);</b>
+<i>634</i>&nbsp;        }
+<b class="fc"><i>635</i>&nbsp;    }</b>
+<i>636</i>&nbsp;
+<i>637</i>&nbsp;    /**
+<i>638</i>&nbsp;     * Checks whether an index can be created without going over the cluster shard limit.
+<i>639</i>&nbsp;     *
+<i>640</i>&nbsp;     * @param settings     the settings of the index to be created
+<i>641</i>&nbsp;     * @param clusterState the current cluster state
+<i>642</i>&nbsp;     * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
+<i>643</i>&nbsp;     */
+<i>644</i>&nbsp;    public static void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+<b class="fc"><i>645</i>&nbsp;        final int numberOfShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);</b>
+<b class="fc"><i>646</i>&nbsp;        final int numberOfReplicas = IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);</b>
+<b class="fc"><i>647</i>&nbsp;        final int shardsToCreate = numberOfShards * (1 + numberOfReplicas);</b>
+<i>648</i>&nbsp;
+<b class="fc"><i>649</i>&nbsp;        final Optional&lt;String&gt; shardLimit = IndicesService.checkShardLimit(shardsToCreate, clusterState);</b>
+<b class="fc"><i>650</i>&nbsp;        if (shardLimit.isPresent()) {</b>
+<b class="nc"><i>651</i>&nbsp;            final ValidationException e = new ValidationException();</b>
+<b class="nc"><i>652</i>&nbsp;            e.addValidationError(shardLimit.get());</b>
+<b class="nc"><i>653</i>&nbsp;            throw e;</b>
+<i>654</i>&nbsp;        }
+<b class="fc"><i>655</i>&nbsp;    }</b>
+<i>656</i>&nbsp;
+<i>657</i>&nbsp;    List&lt;String&gt; getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+<b class="fc"><i>658</i>&nbsp;        String customPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(settings);</b>
+<b class="fc"><i>659</i>&nbsp;        List&lt;String&gt; validationErrors = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>660</i>&nbsp;        if (Strings.isEmpty(customPath) == false &amp;&amp; env.sharedDataFile() == null) {</b>
+<b class="nc"><i>661</i>&nbsp;            validationErrors.add(&quot;path.shared_data must be set in order to use custom data paths&quot;);</b>
+<b class="fc"><i>662</i>&nbsp;        } else if (Strings.isEmpty(customPath) == false) {</b>
+<b class="nc"><i>663</i>&nbsp;            Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);</b>
+<b class="nc"><i>664</i>&nbsp;            if (resolvedPath == null) {</b>
+<b class="nc"><i>665</i>&nbsp;                validationErrors.add(&quot;custom path [&quot; + customPath +</b>
+<b class="nc"><i>666</i>&nbsp;                                     &quot;] is not a sub-path of path.shared_data [&quot; + env.sharedDataFile() + &quot;]&quot;);</b>
+<i>667</i>&nbsp;            }
+<i>668</i>&nbsp;        }
+<b class="fc"><i>669</i>&nbsp;        if (forbidPrivateIndexSettings) {</b>
+<b class="fc"><i>670</i>&nbsp;            for (final String key : settings.keySet()) {</b>
+<b class="fc"><i>671</i>&nbsp;                final Setting&lt;?&gt; setting = indexScopedSettings.get(key);</b>
+<b class="fc"><i>672</i>&nbsp;                if (setting == null) {</b>
+<b class="nc"><i>673</i>&nbsp;                    assert indexScopedSettings.isPrivateSetting(key);</b>
+<b class="fc"><i>674</i>&nbsp;                } else if (setting.isPrivateIndex()) {</b>
+<b class="nc"><i>675</i>&nbsp;                    validationErrors.add(&quot;private index setting [&quot; + key + &quot;] can not be set explicitly&quot;);</b>
+<i>676</i>&nbsp;                }
+<b class="fc"><i>677</i>&nbsp;            }</b>
+<i>678</i>&nbsp;        }
+<b class="fc"><i>679</i>&nbsp;        return validationErrors;</b>
+<i>680</i>&nbsp;    }
+<i>681</i>&nbsp;
+<i>682</i>&nbsp;    /**
+<i>683</i>&nbsp;     * Validates the settings and mappings for shrinking an index.
+<i>684</i>&nbsp;     * @return the list of nodes at least one instance of the source index shards are allocated
+<i>685</i>&nbsp;     */
+<i>686</i>&nbsp;    static List&lt;String&gt; validateShrinkIndex(ClusterState state, String sourceIndex,
+<i>687</i>&nbsp;                                        Set&lt;String&gt; targetIndexMappingsTypes, String targetIndexName,
+<i>688</i>&nbsp;                                        Settings targetIndexSettings) {
+<b class="nc"><i>689</i>&nbsp;        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);</b>
+<b class="nc"><i>690</i>&nbsp;        assert IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);</b>
+<b class="nc"><i>691</i>&nbsp;        IndexMetaData.selectShrinkShards(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));</b>
+<i>692</i>&nbsp;
+<b class="nc"><i>693</i>&nbsp;        if (sourceMetaData.getNumberOfShards() == 1) {</b>
+<b class="nc"><i>694</i>&nbsp;            throw new IllegalArgumentException(&quot;can&#39;t shrink an index with only one shard&quot;);</b>
+<i>695</i>&nbsp;        }
+<i>696</i>&nbsp;
+<i>697</i>&nbsp;        // now check that index is all on one node
+<b class="nc"><i>698</i>&nbsp;        final IndexRoutingTable table = state.routingTable().index(sourceIndex);</b>
+<b class="nc"><i>699</i>&nbsp;        Map&lt;String, AtomicInteger&gt; nodesToNumRouting = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>700</i>&nbsp;        int numShards = sourceMetaData.getNumberOfShards();</b>
+<b class="nc"><i>701</i>&nbsp;        for (ShardRouting routing : table.shardsWithState(ShardRoutingState.STARTED)) {</b>
+<b class="nc"><i>702</i>&nbsp;            nodesToNumRouting.computeIfAbsent(routing.currentNodeId(), (s) -&gt; new AtomicInteger(0)).incrementAndGet();</b>
+<b class="nc"><i>703</i>&nbsp;        }</b>
+<b class="nc"><i>704</i>&nbsp;        List&lt;String&gt; nodesToAllocateOn = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>705</i>&nbsp;        for (Map.Entry&lt;String, AtomicInteger&gt; entries : nodesToNumRouting.entrySet()) {</b>
+<b class="nc"><i>706</i>&nbsp;            int numAllocations = entries.getValue().get();</b>
+<b class="nc"><i>707</i>&nbsp;            assert numAllocations &lt;= numShards : &quot;wait what? &quot; + numAllocations + &quot; is &gt; than num shards &quot; + numShards;</b>
+<b class="nc"><i>708</i>&nbsp;            if (numAllocations == numShards) {</b>
+<b class="nc"><i>709</i>&nbsp;                nodesToAllocateOn.add(entries.getKey());</b>
+<i>710</i>&nbsp;            }
+<b class="nc"><i>711</i>&nbsp;        }</b>
+<b class="nc"><i>712</i>&nbsp;        if (nodesToAllocateOn.isEmpty()) {</b>
+<b class="nc"><i>713</i>&nbsp;            throw new IllegalStateException(&quot;index &quot; + sourceIndex +</b>
+<i>714</i>&nbsp;                &quot; must have all shards allocated on the same node to shrink index&quot;);
+<i>715</i>&nbsp;        }
+<b class="nc"><i>716</i>&nbsp;        return nodesToAllocateOn;</b>
+<i>717</i>&nbsp;    }
+<i>718</i>&nbsp;
+<i>719</i>&nbsp;    static void validateSplitIndex(ClusterState state, String sourceIndex,
+<i>720</i>&nbsp;                                   Set&lt;String&gt; targetIndexMappingsTypes, String targetIndexName,
+<i>721</i>&nbsp;                                   Settings targetIndexSettings) {
+<b class="nc"><i>722</i>&nbsp;        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);</b>
+<b class="nc"><i>723</i>&nbsp;        IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));</b>
+<b class="nc"><i>724</i>&nbsp;        if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {</b>
+<i>725</i>&nbsp;            // ensure we have a single type since this would make the splitting code considerably more complex
+<i>726</i>&nbsp;            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
+<i>727</i>&nbsp;            // since in 5.x we don&#39;t have a setting to artificially set the number of routing shards
+<b class="nc"><i>728</i>&nbsp;            throw new IllegalStateException(&quot;source index created version is too old to apply a split operation&quot;);</b>
+<i>729</i>&nbsp;        }
+<i>730</i>&nbsp;
+<b class="nc"><i>731</i>&nbsp;    }</b>
+<i>732</i>&nbsp;
+<i>733</i>&nbsp;    static void validateCloneIndex(ClusterState state, String sourceIndex,
+<i>734</i>&nbsp;                                   Set&lt;String&gt; targetIndexMappingsTypes, String targetIndexName,
+<i>735</i>&nbsp;                                   Settings targetIndexSettings) {
+<b class="nc"><i>736</i>&nbsp;        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);</b>
+<b class="nc"><i>737</i>&nbsp;        IndexMetaData.selectCloneShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));</b>
+<b class="nc"><i>738</i>&nbsp;    }</b>
+<i>739</i>&nbsp;
+<i>740</i>&nbsp;    static IndexMetaData validateResize(ClusterState state, String sourceIndex,
+<i>741</i>&nbsp;                                        Set&lt;String&gt; targetIndexMappingsTypes, String targetIndexName,
+<i>742</i>&nbsp;                                        Settings targetIndexSettings) {
+<b class="nc"><i>743</i>&nbsp;        if (state.metaData().hasIndex(targetIndexName)) {</b>
+<b class="nc"><i>744</i>&nbsp;            throw new ResourceAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());</b>
+<i>745</i>&nbsp;        }
+<b class="nc"><i>746</i>&nbsp;        final IndexMetaData sourceMetaData = state.metaData().index(sourceIndex);</b>
+<b class="nc"><i>747</i>&nbsp;        if (sourceMetaData == null) {</b>
+<b class="nc"><i>748</i>&nbsp;            throw new IndexNotFoundException(sourceIndex);</b>
+<i>749</i>&nbsp;        }
+<i>750</i>&nbsp;        // ensure index is read-only
+<b class="nc"><i>751</i>&nbsp;        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {</b>
+<b class="nc"><i>752</i>&nbsp;            throw new IllegalStateException(&quot;index &quot; + sourceIndex + &quot; must be read-only to resize index. use \&quot;index.blocks.write=true\&quot;&quot;);</b>
+<i>753</i>&nbsp;        }
+<i>754</i>&nbsp;
+<b class="nc"><i>755</i>&nbsp;        if ((targetIndexMappingsTypes.size() &gt; 1 ||</b>
+<b class="nc"><i>756</i>&nbsp;            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {</b>
+<b class="nc"><i>757</i>&nbsp;            throw new IllegalArgumentException(&quot;mappings are not allowed when resizing indices&quot; +</b>
+<i>758</i>&nbsp;                &quot;, all mappings are copied from the source index&quot;);
+<i>759</i>&nbsp;        }
+<i>760</i>&nbsp;
+<b class="nc"><i>761</i>&nbsp;        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {</b>
+<i>762</i>&nbsp;            // this method applies all necessary checks ie. if the target shards are less than the source shards
+<i>763</i>&nbsp;            // of if the source shards are divisible by the number of target shards
+<b class="nc"><i>764</i>&nbsp;            IndexMetaData.getRoutingFactor(sourceMetaData.getNumberOfShards(),</b>
+<b class="nc"><i>765</i>&nbsp;                IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));</b>
+<i>766</i>&nbsp;        }
+<b class="nc"><i>767</i>&nbsp;        return sourceMetaData;</b>
+<i>768</i>&nbsp;    }
+<i>769</i>&nbsp;
+<i>770</i>&nbsp;    static void prepareResizeIndexSettings(
+<i>771</i>&nbsp;            final ClusterState currentState,
+<i>772</i>&nbsp;            final Set&lt;String&gt; mappingKeys,
+<i>773</i>&nbsp;            final Settings.Builder indexSettingsBuilder,
+<i>774</i>&nbsp;            final Index resizeSourceIndex,
+<i>775</i>&nbsp;            final String resizeIntoName,
+<i>776</i>&nbsp;            final ResizeType type,
+<i>777</i>&nbsp;            final boolean copySettings,
+<i>778</i>&nbsp;            final IndexScopedSettings indexScopedSettings) {
+<i>779</i>&nbsp;
+<i>780</i>&nbsp;        // we use &quot;i.r.a.initial_recovery&quot; rather than &quot;i.r.a.require|include&quot; since we want the replica to allocate right away
+<i>781</i>&nbsp;        // once we are allocated.
+<b class="nc"><i>782</i>&nbsp;        final String initialRecoveryIdFilter = IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + &quot;_id&quot;;</b>
+<i>783</i>&nbsp;
+<b class="nc"><i>784</i>&nbsp;        final IndexMetaData sourceMetaData = currentState.metaData().index(resizeSourceIndex.getName());</b>
+<b class="nc"><i>785</i>&nbsp;        if (type == ResizeType.SHRINK) {</b>
+<b class="nc"><i>786</i>&nbsp;            final List&lt;String&gt; nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),</b>
+<b class="nc"><i>787</i>&nbsp;                mappingKeys, resizeIntoName, indexSettingsBuilder.build());</b>
+<b class="nc"><i>788</i>&nbsp;            indexSettingsBuilder.put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));</b>
+<b class="nc"><i>789</i>&nbsp;        } else if (type == ResizeType.SPLIT) {</b>
+<b class="nc"><i>790</i>&nbsp;            validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());</b>
+<b class="nc"><i>791</i>&nbsp;            indexSettingsBuilder.putNull(initialRecoveryIdFilter);</b>
+<b class="nc"><i>792</i>&nbsp;        } else if (type == ResizeType.CLONE) {</b>
+<b class="nc"><i>793</i>&nbsp;            validateCloneIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());</b>
+<b class="nc"><i>794</i>&nbsp;            indexSettingsBuilder.putNull(initialRecoveryIdFilter);</b>
+<i>795</i>&nbsp;        } else {
+<b class="nc"><i>796</i>&nbsp;            throw new IllegalStateException(&quot;unknown resize type is &quot; + type);</b>
+<i>797</i>&nbsp;        }
+<i>798</i>&nbsp;
+<b class="nc"><i>799</i>&nbsp;        final Settings.Builder builder = Settings.builder();</b>
+<b class="nc"><i>800</i>&nbsp;        if (copySettings) {</b>
+<i>801</i>&nbsp;            // copy all settings and non-copyable settings and settings that have already been set (e.g., from the request)
+<b class="nc"><i>802</i>&nbsp;            for (final String key : sourceMetaData.getSettings().keySet()) {</b>
+<b class="nc"><i>803</i>&nbsp;                final Setting&lt;?&gt; setting = indexScopedSettings.get(key);</b>
+<b class="nc"><i>804</i>&nbsp;                if (setting == null) {</b>
+<b class="nc"><i>805</i>&nbsp;                    assert indexScopedSettings.isPrivateSetting(key) : key;</b>
+<b class="nc"><i>806</i>&nbsp;                } else if (setting.getProperties().contains(Setting.Property.NotCopyableOnResize)) {</b>
+<b class="nc"><i>807</i>&nbsp;                    continue;</b>
+<i>808</i>&nbsp;                }
+<i>809</i>&nbsp;                // do not override settings that have already been set (for example, from the request)
+<b class="nc"><i>810</i>&nbsp;                if (indexSettingsBuilder.keys().contains(key)) {</b>
+<b class="nc"><i>811</i>&nbsp;                    continue;</b>
+<i>812</i>&nbsp;                }
+<b class="nc"><i>813</i>&nbsp;                builder.copy(key, sourceMetaData.getSettings());</b>
+<b class="nc"><i>814</i>&nbsp;            }</b>
+<i>815</i>&nbsp;        } else {
+<b class="nc"><i>816</i>&nbsp;            final Predicate&lt;String&gt; sourceSettingsPredicate =</b>
+<b class="nc"><i>817</i>&nbsp;                    (s) -&gt; (s.startsWith(&quot;index.similarity.&quot;) || s.startsWith(&quot;index.analysis.&quot;) ||</b>
+<b class="nc"><i>818</i>&nbsp;                            s.startsWith(&quot;index.sort.&quot;) || s.equals(&quot;index.soft_deletes.enabled&quot;))</b>
+<b class="nc"><i>819</i>&nbsp;                            &amp;&amp; indexSettingsBuilder.keys().contains(s) == false;</b>
+<b class="nc"><i>820</i>&nbsp;            builder.put(sourceMetaData.getSettings().filter(sourceSettingsPredicate));</b>
+<i>821</i>&nbsp;        }
+<i>822</i>&nbsp;
+<b class="nc"><i>823</i>&nbsp;        indexSettingsBuilder</b>
+<b class="nc"><i>824</i>&nbsp;            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), sourceMetaData.getCreationVersion())</b>
+<b class="nc"><i>825</i>&nbsp;            .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())</b>
+<b class="nc"><i>826</i>&nbsp;            .put(builder.build())</b>
+<b class="nc"><i>827</i>&nbsp;            .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())</b>
+<b class="nc"><i>828</i>&nbsp;            .put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())</b>
+<b class="nc"><i>829</i>&nbsp;            .put(IndexMetaData.INDEX_RESIZE_SOURCE_UUID.getKey(), resizeSourceIndex.getUUID());</b>
+<b class="nc"><i>830</i>&nbsp;    }</b>
+<i>831</i>&nbsp;
+<i>832</i>&nbsp;    /**
+<i>833</i>&nbsp;     * Returns a default number of routing shards based on the number of shards of the index. The default number of routing shards will
+<i>834</i>&nbsp;     * allow any index to be split at least once and at most 10 times by a factor of two. The closer the number or shards gets to 1024
+<i>835</i>&nbsp;     * the less default split operations are supported
+<i>836</i>&nbsp;     */
+<i>837</i>&nbsp;    public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
+<b class="fc"><i>838</i>&nbsp;        if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {</b>
+<i>839</i>&nbsp;            // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
+<i>840</i>&nbsp;            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+<i>841</i>&nbsp;            // will always have the behavior of the min node in the cluster.
+<i>842</i>&nbsp;            //
+<i>843</i>&nbsp;            // We use as a default number of routing shards the higher number that can be expressed
+<i>844</i>&nbsp;            // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
+<b class="fc"><i>845</i>&nbsp;            int log2MaxNumShards = 10; // logBase2(1024)</b>
+<b class="fc"><i>846</i>&nbsp;            int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))</b>
+<b class="fc"><i>847</i>&nbsp;            int numSplits = log2MaxNumShards - log2NumShards;</b>
+<b class="fc"><i>848</i>&nbsp;            numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once</b>
+<b class="fc"><i>849</i>&nbsp;            return numShards * 1 &lt;&lt; numSplits;</b>
+<i>850</i>&nbsp;        } else {
+<b class="nc"><i>851</i>&nbsp;            return numShards;</b>
+<i>852</i>&nbsp;        }
+<i>853</i>&nbsp;    }
+<i>854</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,614 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FieldSortBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.sort</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FieldSortBuilder (org.elasticsearch.search.sort)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FieldSortBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    38.9%
+  </span>
+  <span class="absValue">
+    (14/ 36)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    36.6%
+  </span>
+  <span class="absValue">
+    (70/ 191)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.sort;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.lucene.search.SortField;
+<i>24</i>&nbsp;import org.elasticsearch.Version;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>28</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>33</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>34</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+<i>35</i>&nbsp;import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+<i>36</i>&nbsp;import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+<i>37</i>&nbsp;import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+<i>38</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>39</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>40</i>&nbsp;import org.elasticsearch.index.query.QueryRewriteContext;
+<i>41</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>42</i>&nbsp;import org.elasticsearch.index.query.QueryShardException;
+<i>43</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>44</i>&nbsp;import org.elasticsearch.search.MultiValueMode;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.io.IOException;
+<i>47</i>&nbsp;import java.util.Locale;
+<i>48</i>&nbsp;import java.util.Objects;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;/**
+<i>53</i>&nbsp; * A sort builder to sort based on a document field.
+<i>54</i>&nbsp; */
+<i>55</i>&nbsp;public class FieldSortBuilder extends SortBuilder&lt;FieldSortBuilder&gt; {
+<b class="fc"><i>56</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldSortBuilder.class));</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    public static final String NAME = &quot;field_sort&quot;;
+<b class="fc"><i>59</i>&nbsp;    public static final ParseField MISSING = new ParseField(&quot;missing&quot;);</b>
+<b class="fc"><i>60</i>&nbsp;    public static final ParseField SORT_MODE = new ParseField(&quot;mode&quot;);</b>
+<b class="fc"><i>61</i>&nbsp;    public static final ParseField UNMAPPED_TYPE = new ParseField(&quot;unmapped_type&quot;);</b>
+<b class="fc"><i>62</i>&nbsp;    public static final ParseField NUMERIC_TYPE = new ParseField(&quot;numeric_type&quot;);</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    /**
+<i>65</i>&nbsp;     * special field name to sort by index order
+<i>66</i>&nbsp;     */
+<i>67</i>&nbsp;    public static final String DOC_FIELD_NAME = &quot;_doc&quot;;
+<b class="fc"><i>68</i>&nbsp;    private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(</b>
+<i>69</i>&nbsp;            new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
+<b class="fc"><i>70</i>&nbsp;    private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(</b>
+<i>71</i>&nbsp;            new SortField(null, SortField.Type.DOC, true), DocValueFormat.RAW);
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    private final String fieldName;
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    private Object missing;
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    private String unmappedType;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    private String numericType;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    private SortMode sortMode;
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    private QueryBuilder nestedFilter;
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    private String nestedPath;
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    private NestedSortBuilder nestedSort;
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /** Copy constructor. */
+<i>90</i>&nbsp;    public FieldSortBuilder(FieldSortBuilder template) {
+<b class="nc"><i>91</i>&nbsp;        this(template.fieldName);</b>
+<b class="nc"><i>92</i>&nbsp;        this.order(template.order());</b>
+<b class="nc"><i>93</i>&nbsp;        this.missing(template.missing());</b>
+<b class="nc"><i>94</i>&nbsp;        this.unmappedType(template.unmappedType());</b>
+<b class="nc"><i>95</i>&nbsp;        if (template.sortMode != null) {</b>
+<b class="nc"><i>96</i>&nbsp;            this.sortMode(template.sortMode());</b>
+<i>97</i>&nbsp;        }
+<b class="nc"><i>98</i>&nbsp;        this.setNestedFilter(template.getNestedFilter());</b>
+<b class="nc"><i>99</i>&nbsp;        this.setNestedPath(template.getNestedPath());</b>
+<b class="nc"><i>100</i>&nbsp;        if (template.getNestedSort() != null) {</b>
+<b class="nc"><i>101</i>&nbsp;            this.setNestedSort(template.getNestedSort());</b>
+<i>102</i>&nbsp;        }
+<b class="nc"><i>103</i>&nbsp;        this.numericType = template.numericType;</b>
+<b class="nc"><i>104</i>&nbsp;    }</b>
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    /**
+<i>107</i>&nbsp;     * Constructs a new sort based on a document field.
+<i>108</i>&nbsp;     *
+<i>109</i>&nbsp;     * @param fieldName
+<i>110</i>&nbsp;     *            The field name.
+<i>111</i>&nbsp;     */
+<b class="fc"><i>112</i>&nbsp;    public FieldSortBuilder(String fieldName) {</b>
+<b class="fc"><i>113</i>&nbsp;        if (fieldName == null) {</b>
+<b class="nc"><i>114</i>&nbsp;            throw new IllegalArgumentException(&quot;fieldName must not be null&quot;);</b>
+<i>115</i>&nbsp;        }
+<b class="fc"><i>116</i>&nbsp;        this.fieldName = fieldName;</b>
+<b class="fc"><i>117</i>&nbsp;    }</b>
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    /**
+<i>120</i>&nbsp;     * Read from a stream.
+<i>121</i>&nbsp;     */
+<b class="fc"><i>122</i>&nbsp;    public FieldSortBuilder(StreamInput in) throws IOException {</b>
+<b class="fc"><i>123</i>&nbsp;        fieldName = in.readString();</b>
+<b class="fc"><i>124</i>&nbsp;        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);</b>
+<b class="fc"><i>125</i>&nbsp;        nestedPath = in.readOptionalString();</b>
+<b class="fc"><i>126</i>&nbsp;        missing = in.readGenericValue();</b>
+<b class="fc"><i>127</i>&nbsp;        order = in.readOptionalWriteable(SortOrder::readFromStream);</b>
+<b class="fc"><i>128</i>&nbsp;        sortMode = in.readOptionalWriteable(SortMode::readFromStream);</b>
+<b class="fc"><i>129</i>&nbsp;        unmappedType = in.readOptionalString();</b>
+<b class="fc"><i>130</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {</b>
+<b class="fc"><i>131</i>&nbsp;            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);</b>
+<i>132</i>&nbsp;        }
+<b class="fc"><i>133</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {</b>
+<b class="fc"><i>134</i>&nbsp;            numericType = in.readOptionalString();</b>
+<i>135</i>&nbsp;        }
+<b class="fc"><i>136</i>&nbsp;    }</b>
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    @Override
+<i>139</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>140</i>&nbsp;        out.writeString(fieldName);</b>
+<b class="fc"><i>141</i>&nbsp;        out.writeOptionalNamedWriteable(nestedFilter);</b>
+<b class="fc"><i>142</i>&nbsp;        out.writeOptionalString(nestedPath);</b>
+<b class="fc"><i>143</i>&nbsp;        out.writeGenericValue(missing);</b>
+<b class="fc"><i>144</i>&nbsp;        out.writeOptionalWriteable(order);</b>
+<b class="fc"><i>145</i>&nbsp;        out.writeOptionalWriteable(sortMode);</b>
+<b class="fc"><i>146</i>&nbsp;        out.writeOptionalString(unmappedType);</b>
+<b class="fc"><i>147</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {</b>
+<b class="fc"><i>148</i>&nbsp;            out.writeOptionalWriteable(nestedSort);</b>
+<i>149</i>&nbsp;        }
+<b class="fc"><i>150</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {</b>
+<b class="fc"><i>151</i>&nbsp;            out.writeOptionalString(numericType);</b>
+<i>152</i>&nbsp;        }
+<b class="fc"><i>153</i>&nbsp;    }</b>
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    /** Returns the document field this sort should be based on. */
+<i>156</i>&nbsp;    public String getFieldName() {
+<b class="nc"><i>157</i>&nbsp;        return this.fieldName;</b>
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;    /**
+<i>161</i>&nbsp;     * Sets the value when a field is missing in a doc. Can also be set to {@code _last} or
+<i>162</i>&nbsp;     * {@code _first} to sort missing last or first respectively.
+<i>163</i>&nbsp;     */
+<i>164</i>&nbsp;    public FieldSortBuilder missing(Object missing) {
+<b class="nc"><i>165</i>&nbsp;        this.missing = missing;</b>
+<b class="nc"><i>166</i>&nbsp;        return this;</b>
+<i>167</i>&nbsp;    }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    /** Returns the value used when a field is missing in a doc. */
+<i>170</i>&nbsp;    public Object missing() {
+<b class="nc"><i>171</i>&nbsp;        return missing;</b>
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * Set the type to use in case the current field is not mapped in an index.
+<i>176</i>&nbsp;     * Specifying a type tells Elasticsearch what type the sort values should
+<i>177</i>&nbsp;     * have, which is important for cross-index search, if there are sort fields
+<i>178</i>&nbsp;     * that exist on some indices only. If the unmapped type is {@code null}
+<i>179</i>&nbsp;     * then query execution will fail if one or more indices don&#39;t have a
+<i>180</i>&nbsp;     * mapping for the current field.
+<i>181</i>&nbsp;     */
+<i>182</i>&nbsp;    public FieldSortBuilder unmappedType(String type) {
+<b class="nc"><i>183</i>&nbsp;        this.unmappedType = type;</b>
+<b class="nc"><i>184</i>&nbsp;        return this;</b>
+<i>185</i>&nbsp;    }
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;    /**
+<i>188</i>&nbsp;     * Returns the type to use in case the current field is not mapped in an
+<i>189</i>&nbsp;     * index.
+<i>190</i>&nbsp;     */
+<i>191</i>&nbsp;    public String unmappedType() {
+<b class="nc"><i>192</i>&nbsp;        return this.unmappedType;</b>
+<i>193</i>&nbsp;    }
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    /**
+<i>196</i>&nbsp;     * Defines what values to pick in the case a document contains multiple
+<i>197</i>&nbsp;     * values for the targeted sort field. Possible values: min, max, sum and
+<i>198</i>&nbsp;     * avg
+<i>199</i>&nbsp;     *
+<i>200</i>&nbsp;     * &lt;p&gt;
+<i>201</i>&nbsp;     * The last two values are only applicable for number based fields.
+<i>202</i>&nbsp;     */
+<i>203</i>&nbsp;    public FieldSortBuilder sortMode(SortMode sortMode) {
+<b class="nc"><i>204</i>&nbsp;        Objects.requireNonNull(sortMode, &quot;sort mode cannot be null&quot;);</b>
+<b class="nc"><i>205</i>&nbsp;        this.sortMode = sortMode;</b>
+<b class="nc"><i>206</i>&nbsp;        return this;</b>
+<i>207</i>&nbsp;    }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;    /**
+<i>210</i>&nbsp;     * Returns what values to pick in the case a document contains multiple
+<i>211</i>&nbsp;     * values for the targeted sort field.
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    public SortMode sortMode() {
+<b class="nc"><i>214</i>&nbsp;        return this.sortMode;</b>
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * Sets the nested filter that the nested objects should match with in order
+<i>219</i>&nbsp;     * to be taken into account for sorting.
+<i>220</i>&nbsp;     *
+<i>221</i>&nbsp;     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
+<i>222</i>&nbsp;     */
+<i>223</i>&nbsp;    @Deprecated
+<i>224</i>&nbsp;    public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
+<b class="nc"><i>225</i>&nbsp;        if (this.nestedSort != null) {</b>
+<b class="nc"><i>226</i>&nbsp;            throw new IllegalArgumentException(&quot;Setting both nested_path/nested_filter and nested not allowed&quot;);</b>
+<i>227</i>&nbsp;        }
+<b class="nc"><i>228</i>&nbsp;        this.nestedFilter = nestedFilter;</b>
+<b class="nc"><i>229</i>&nbsp;        return this;</b>
+<i>230</i>&nbsp;    }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    /**
+<i>233</i>&nbsp;     * Returns the nested filter that the nested objects should match with in
+<i>234</i>&nbsp;     * order to be taken into account for sorting.
+<i>235</i>&nbsp;     *
+<i>236</i>&nbsp;     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
+<i>237</i>&nbsp;     */
+<i>238</i>&nbsp;    @Deprecated
+<i>239</i>&nbsp;    public QueryBuilder getNestedFilter() {
+<b class="nc"><i>240</i>&nbsp;        return this.nestedFilter;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * Sets the nested path if sorting occurs on a field that is inside a nested
+<i>245</i>&nbsp;     * object. By default when sorting on a field inside a nested object, the
+<i>246</i>&nbsp;     * nearest upper nested object is selected as nested path.
+<i>247</i>&nbsp;     *
+<i>248</i>&nbsp;     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
+<i>249</i>&nbsp;     */
+<i>250</i>&nbsp;    @Deprecated
+<i>251</i>&nbsp;    public FieldSortBuilder setNestedPath(String nestedPath) {
+<b class="nc"><i>252</i>&nbsp;        if (this.nestedSort != null) {</b>
+<b class="nc"><i>253</i>&nbsp;            throw new IllegalArgumentException(&quot;Setting both nested_path/nested_filter and nested not allowed&quot;);</b>
+<i>254</i>&nbsp;        }
+<b class="nc"><i>255</i>&nbsp;        this.nestedPath = nestedPath;</b>
+<b class="nc"><i>256</i>&nbsp;        return this;</b>
+<i>257</i>&nbsp;    }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    /**
+<i>260</i>&nbsp;     * Returns the nested path if sorting occurs in a field that is inside a
+<i>261</i>&nbsp;     * nested object.
+<i>262</i>&nbsp;     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
+<i>263</i>&nbsp;     */
+<i>264</i>&nbsp;    @Deprecated
+<i>265</i>&nbsp;    public String getNestedPath() {
+<b class="nc"><i>266</i>&nbsp;        return this.nestedPath;</b>
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    /**
+<i>270</i>&nbsp;     * Returns the {@link NestedSortBuilder}
+<i>271</i>&nbsp;     */
+<i>272</i>&nbsp;    public NestedSortBuilder getNestedSort() {
+<b class="nc"><i>273</i>&nbsp;        return this.nestedSort;</b>
+<i>274</i>&nbsp;    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    /**
+<i>277</i>&nbsp;     * Sets the {@link NestedSortBuilder} to be used for fields that are inside a nested
+<i>278</i>&nbsp;     * object. The {@link NestedSortBuilder} takes a `path` argument and an optional
+<i>279</i>&nbsp;     * nested filter that the nested objects should match with in
+<i>280</i>&nbsp;     * order to be taken into account for sorting.
+<i>281</i>&nbsp;     */
+<i>282</i>&nbsp;    public FieldSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
+<b class="nc"><i>283</i>&nbsp;        if (this.nestedFilter != null || this.nestedPath != null) {</b>
+<b class="nc"><i>284</i>&nbsp;            throw new IllegalArgumentException(&quot;Setting both nested_path/nested_filter and nested not allowed&quot;);</b>
+<i>285</i>&nbsp;        }
+<b class="nc"><i>286</i>&nbsp;        this.nestedSort = nestedSort;</b>
+<b class="nc"><i>287</i>&nbsp;        return this;</b>
+<i>288</i>&nbsp;    }
+<i>289</i>&nbsp;
+<i>290</i>&nbsp;    /**
+<i>291</i>&nbsp;     * Returns the numeric type that values should translated to or null
+<i>292</i>&nbsp;     * if the original numeric type should be preserved.
+<i>293</i>&nbsp;     */
+<i>294</i>&nbsp;    public String getNumericType() {
+<b class="nc"><i>295</i>&nbsp;        return numericType;</b>
+<i>296</i>&nbsp;    }
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;    /**
+<i>299</i>&nbsp;     * Forces the numeric type to use for the field. The query will fail if this option
+<i>300</i>&nbsp;     * is set on a field that is not mapped as a numeric in some indices.
+<i>301</i>&nbsp;     * Specifying a numeric type tells Elasticsearch what type the sort values should
+<i>302</i>&nbsp;     * have, which is important for cross-index search, if a field does not have
+<i>303</i>&nbsp;     * the same type on all indices.
+<i>304</i>&nbsp;     * Allowed values are &lt;code&gt;long&lt;/code&gt; and &lt;code&gt;double&lt;/code&gt;.
+<i>305</i>&nbsp;     */
+<i>306</i>&nbsp;    public FieldSortBuilder setNumericType(String numericType) {
+<b class="nc"><i>307</i>&nbsp;        String lowerCase = numericType.toLowerCase(Locale.ENGLISH);</b>
+<b class="nc"><i>308</i>&nbsp;        switch (lowerCase) {</b>
+<i>309</i>&nbsp;            case &quot;long&quot;:
+<i>310</i>&nbsp;            case &quot;double&quot;:
+<i>311</i>&nbsp;            case &quot;date&quot;:
+<i>312</i>&nbsp;            case &quot;date_nanos&quot;:
+<b class="nc"><i>313</i>&nbsp;                break;</b>
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;            default:
+<b class="nc"><i>316</i>&nbsp;                throw new IllegalArgumentException(&quot;invalid value for [numeric_type], &quot; +</b>
+<i>317</i>&nbsp;                    &quot;must be [long, double, date, date_nanos], got &quot; + lowerCase);
+<i>318</i>&nbsp;        }
+<b class="nc"><i>319</i>&nbsp;        this.numericType = lowerCase;</b>
+<b class="nc"><i>320</i>&nbsp;        return this;</b>
+<i>321</i>&nbsp;    }
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    @Override
+<i>324</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="fc"><i>325</i>&nbsp;        builder.startObject();</b>
+<b class="fc"><i>326</i>&nbsp;        builder.startObject(fieldName);</b>
+<b class="fc"><i>327</i>&nbsp;        builder.field(ORDER_FIELD.getPreferredName(), order);</b>
+<b class="fc"><i>328</i>&nbsp;        if (missing != null) {</b>
+<b class="nc"><i>329</i>&nbsp;            builder.field(MISSING.getPreferredName(), missing);</b>
+<i>330</i>&nbsp;        }
+<b class="fc"><i>331</i>&nbsp;        if (unmappedType != null) {</b>
+<b class="nc"><i>332</i>&nbsp;            builder.field(UNMAPPED_TYPE.getPreferredName(), unmappedType);</b>
+<i>333</i>&nbsp;        }
+<b class="fc"><i>334</i>&nbsp;        if (sortMode != null) {</b>
+<b class="nc"><i>335</i>&nbsp;            builder.field(SORT_MODE.getPreferredName(), sortMode);</b>
+<i>336</i>&nbsp;        }
+<b class="fc"><i>337</i>&nbsp;        if (nestedFilter != null) {</b>
+<b class="nc"><i>338</i>&nbsp;            builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, params);</b>
+<i>339</i>&nbsp;        }
+<b class="fc"><i>340</i>&nbsp;        if (nestedPath != null) {</b>
+<b class="nc"><i>341</i>&nbsp;            builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);</b>
+<i>342</i>&nbsp;        }
+<b class="fc"><i>343</i>&nbsp;        if (nestedSort != null) {</b>
+<b class="nc"><i>344</i>&nbsp;            builder.field(NESTED_FIELD.getPreferredName(), nestedSort);</b>
+<i>345</i>&nbsp;        }
+<b class="fc"><i>346</i>&nbsp;        if (numericType != null) {</b>
+<b class="nc"><i>347</i>&nbsp;            builder.field(NUMERIC_TYPE.getPreferredName(), numericType);</b>
+<i>348</i>&nbsp;        }
+<b class="fc"><i>349</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>350</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>351</i>&nbsp;        return builder;</b>
+<i>352</i>&nbsp;    }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;    private static NumericType resolveNumericType(String value) {
+<b class="nc"><i>355</i>&nbsp;        switch (value) {</b>
+<i>356</i>&nbsp;            case &quot;long&quot;:
+<b class="nc"><i>357</i>&nbsp;                return NumericType.LONG;</b>
+<i>358</i>&nbsp;            case &quot;double&quot;:
+<b class="nc"><i>359</i>&nbsp;                return NumericType.DOUBLE;</b>
+<i>360</i>&nbsp;            case &quot;date&quot;:
+<b class="nc"><i>361</i>&nbsp;                return NumericType.DATE;</b>
+<i>362</i>&nbsp;            case &quot;date_nanos&quot;:
+<b class="nc"><i>363</i>&nbsp;                return NumericType.DATE_NANOSECONDS;</b>
+<i>364</i>&nbsp;
+<i>365</i>&nbsp;            default:
+<b class="nc"><i>366</i>&nbsp;                throw new IllegalArgumentException(&quot;invalid value for [numeric_type], &quot; +</b>
+<i>367</i>&nbsp;                    &quot;must be [long, double, date, date_nanos], got &quot; + value);
+<i>368</i>&nbsp;        }
+<i>369</i>&nbsp;    }
+<i>370</i>&nbsp;
+<i>371</i>&nbsp;    @Override
+<i>372</i>&nbsp;    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+<b class="nc"><i>373</i>&nbsp;        if (DOC_FIELD_NAME.equals(fieldName)) {</b>
+<b class="nc"><i>374</i>&nbsp;            if (order == SortOrder.DESC) {</b>
+<b class="nc"><i>375</i>&nbsp;                return SORT_DOC_REVERSE;</b>
+<i>376</i>&nbsp;            } else {
+<b class="nc"><i>377</i>&nbsp;                return SORT_DOC;</b>
+<i>378</i>&nbsp;            }
+<i>379</i>&nbsp;        } else {
+<b class="nc"><i>380</i>&nbsp;            boolean isUnmapped = false;</b>
+<b class="nc"><i>381</i>&nbsp;            MappedFieldType fieldType = context.fieldMapper(fieldName);</b>
+<b class="nc"><i>382</i>&nbsp;            if (fieldType == null) {</b>
+<b class="nc"><i>383</i>&nbsp;                isUnmapped = true;</b>
+<b class="nc"><i>384</i>&nbsp;                if (unmappedType != null) {</b>
+<b class="nc"><i>385</i>&nbsp;                    fieldType = context.getMapperService().unmappedFieldType(unmappedType);</b>
+<i>386</i>&nbsp;                } else {
+<b class="nc"><i>387</i>&nbsp;                    throw new QueryShardException(context, &quot;No mapping found for [&quot; + fieldName + &quot;] in order to sort on&quot;);</b>
+<i>388</i>&nbsp;                }
+<i>389</i>&nbsp;            }
+<i>390</i>&nbsp;
+<b class="nc"><i>391</i>&nbsp;            MultiValueMode localSortMode = null;</b>
+<b class="nc"><i>392</i>&nbsp;            if (sortMode != null) {</b>
+<b class="nc"><i>393</i>&nbsp;                localSortMode = MultiValueMode.fromString(sortMode.toString());</b>
+<i>394</i>&nbsp;            }
+<i>395</i>&nbsp;
+<b class="nc"><i>396</i>&nbsp;            boolean reverse = (order == SortOrder.DESC);</b>
+<b class="nc"><i>397</i>&nbsp;            if (localSortMode == null) {</b>
+<b class="nc"><i>398</i>&nbsp;                localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;</b>
+<i>399</i>&nbsp;            }
+<i>400</i>&nbsp;
+<b class="nc"><i>401</i>&nbsp;            Nested nested = null;</b>
+<b class="nc"><i>402</i>&nbsp;            if (isUnmapped == false) {</b>
+<b class="nc"><i>403</i>&nbsp;                if (nestedSort != null) {</b>
+<b class="nc"><i>404</i>&nbsp;                    if (context.indexVersionCreated().before(Version.V_6_5_0) &amp;&amp; nestedSort.getMaxChildren() != Integer.MAX_VALUE) {</b>
+<b class="nc"><i>405</i>&nbsp;                        throw new QueryShardException(context,</b>
+<i>406</i>&nbsp;                            &quot;max_children is only supported on v6.5.0 or higher&quot;);
+<i>407</i>&nbsp;                    }
+<b class="nc"><i>408</i>&nbsp;                    if (nestedSort.getNestedSort() != null &amp;&amp; nestedSort.getMaxChildren() != Integer.MAX_VALUE) {</b>
+<b class="nc"><i>409</i>&nbsp;                        throw new QueryShardException(context,</b>
+<i>410</i>&nbsp;                            &quot;max_children is only supported on last level of nested sort&quot;);
+<i>411</i>&nbsp;                    }
+<b class="nc"><i>412</i>&nbsp;                    validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);</b>
+<b class="nc"><i>413</i>&nbsp;                    nested = resolveNested(context, nestedSort);</b>
+<i>414</i>&nbsp;                } else {
+<b class="nc"><i>415</i>&nbsp;                    nested = resolveNested(context, nestedPath, nestedFilter);</b>
+<i>416</i>&nbsp;                }
+<i>417</i>&nbsp;            }
+<b class="nc"><i>418</i>&nbsp;            IndexFieldData&lt;?&gt; fieldData = context.getForField(fieldType);</b>
+<b class="nc"><i>419</i>&nbsp;            if (fieldData instanceof IndexNumericFieldData == false</b>
+<i>420</i>&nbsp;                &amp;&amp; (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+<b class="nc"><i>421</i>&nbsp;                throw new QueryShardException(context, &quot;we only support AVG, MEDIAN and SUM on number based fields&quot;);</b>
+<i>422</i>&nbsp;            }
+<i>423</i>&nbsp;            final SortField field;
+<b class="nc"><i>424</i>&nbsp;            if (numericType != null) {</b>
+<b class="nc"><i>425</i>&nbsp;                if (fieldData instanceof IndexNumericFieldData == false) {</b>
+<b class="nc"><i>426</i>&nbsp;                    throw new QueryShardException(context,</b>
+<b class="nc"><i>427</i>&nbsp;                        &quot;[numeric_type] option cannot be set on a non-numeric field, got &quot; + fieldType.typeName());</b>
+<i>428</i>&nbsp;                }
+<b class="nc"><i>429</i>&nbsp;                SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;</b>
+<b class="nc"><i>430</i>&nbsp;                NumericType resolvedType = resolveNumericType(numericType);</b>
+<b class="nc"><i>431</i>&nbsp;                field = numericFieldData.sortField(resolvedType, missing, localSortMode, nested, reverse);</b>
+<b class="nc"><i>432</i>&nbsp;            } else {</b>
+<b class="nc"><i>433</i>&nbsp;                field = fieldData.sortField(missing, localSortMode, nested, reverse);</b>
+<i>434</i>&nbsp;            }
+<b class="nc"><i>435</i>&nbsp;            return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));</b>
+<i>436</i>&nbsp;        }
+<i>437</i>&nbsp;    }
+<i>438</i>&nbsp;
+<i>439</i>&nbsp;    /**
+<i>440</i>&nbsp;     * Throws an exception if max children is not located at top level nested sort.
+<i>441</i>&nbsp;     */
+<i>442</i>&nbsp;    static void validateMaxChildrenExistOnlyInTopLevelNestedSort(QueryShardContext context, NestedSortBuilder nestedSort) {
+<b class="nc"><i>443</i>&nbsp;        for (NestedSortBuilder child = nestedSort.getNestedSort(); child != null; child = child.getNestedSort()) {</b>
+<b class="nc"><i>444</i>&nbsp;            if (child.getMaxChildren() != Integer.MAX_VALUE) {</b>
+<b class="nc"><i>445</i>&nbsp;                throw new QueryShardException(context,</b>
+<i>446</i>&nbsp;                    &quot;max_children is only supported on top level of nested sort&quot;);
+<i>447</i>&nbsp;            }
+<i>448</i>&nbsp;        }
+<b class="nc"><i>449</i>&nbsp;    }</b>
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;    @Override
+<i>452</i>&nbsp;    public boolean equals(Object other) {
+<b class="fc"><i>453</i>&nbsp;        if (this == other) {</b>
+<b class="nc"><i>454</i>&nbsp;            return true;</b>
+<i>455</i>&nbsp;        }
+<i>456</i>&nbsp;
+<b class="fc"><i>457</i>&nbsp;        if (other == null || getClass() != other.getClass()) {</b>
+<b class="nc"><i>458</i>&nbsp;            return false;</b>
+<i>459</i>&nbsp;        }
+<i>460</i>&nbsp;
+<b class="fc"><i>461</i>&nbsp;        FieldSortBuilder builder = (FieldSortBuilder) other;</b>
+<b class="fc"><i>462</i>&nbsp;        return (Objects.equals(this.fieldName, builder.fieldName) &amp;&amp; Objects.equals(this.nestedFilter, builder.nestedFilter)</b>
+<b class="fc"><i>463</i>&nbsp;                &amp;&amp; Objects.equals(this.nestedPath, builder.nestedPath) &amp;&amp; Objects.equals(this.missing, builder.missing)</b>
+<b class="fc"><i>464</i>&nbsp;                &amp;&amp; Objects.equals(this.order, builder.order) &amp;&amp; Objects.equals(this.sortMode, builder.sortMode)</b>
+<b class="fc"><i>465</i>&nbsp;                &amp;&amp; Objects.equals(this.unmappedType, builder.unmappedType) &amp;&amp; Objects.equals(this.nestedSort, builder.nestedSort))</b>
+<b class="fc"><i>466</i>&nbsp;                &amp;&amp; Objects.equals(this.numericType, builder.numericType);</b>
+<i>467</i>&nbsp;    }
+<i>468</i>&nbsp;
+<i>469</i>&nbsp;    @Override
+<i>470</i>&nbsp;    public int hashCode() {
+<b class="fc"><i>471</i>&nbsp;        return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.nestedSort, this.missing, this.order, this.sortMode,</b>
+<i>472</i>&nbsp;            this.unmappedType, this.numericType);
+<i>473</i>&nbsp;    }
+<i>474</i>&nbsp;
+<i>475</i>&nbsp;    @Override
+<i>476</i>&nbsp;    public String getWriteableName() {
+<b class="fc"><i>477</i>&nbsp;        return NAME;</b>
+<i>478</i>&nbsp;    }
+<i>479</i>&nbsp;
+<i>480</i>&nbsp;    /**
+<i>481</i>&nbsp;     * Creates a new {@link FieldSortBuilder} from the query held by the {@link XContentParser} in
+<i>482</i>&nbsp;     * {@link org.elasticsearch.common.xcontent.XContent} format.
+<i>483</i>&nbsp;     *
+<i>484</i>&nbsp;     * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
+<i>485</i>&nbsp;     *        method call
+<i>486</i>&nbsp;     * @param fieldName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
+<i>487</i>&nbsp;     *        in &#39;{ &quot;foo&quot;: { &quot;order&quot; : &quot;asc&quot;} }&#39;. When parsing the inner object, the field name can be passed in via this argument
+<i>488</i>&nbsp;     */
+<i>489</i>&nbsp;    public static FieldSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+<b class="fc"><i>490</i>&nbsp;        return PARSER.parse(parser, new FieldSortBuilder(fieldName), null);</b>
+<i>491</i>&nbsp;    }
+<i>492</i>&nbsp;
+<b class="fc"><i>493</i>&nbsp;    private static ObjectParser&lt;FieldSortBuilder, Void&gt; PARSER = new ObjectParser&lt;&gt;(NAME);</b>
+<i>494</i>&nbsp;
+<i>495</i>&nbsp;    static {
+<b class="fc"><i>496</i>&nbsp;        PARSER.declareField(FieldSortBuilder::missing, p -&gt; p.objectText(),  MISSING, ValueType.VALUE);</b>
+<b class="fc"><i>497</i>&nbsp;        PARSER.declareString((fieldSortBuilder, nestedPath) -&gt; {</b>
+<b class="nc"><i>498</i>&nbsp;            deprecationLogger.deprecated(&quot;[nested_path] has been deprecated in favor of the [nested] parameter&quot;);</b>
+<b class="nc"><i>499</i>&nbsp;            fieldSortBuilder.setNestedPath(nestedPath);</b>
+<b class="nc"><i>500</i>&nbsp;        }, NESTED_PATH_FIELD);</b>
+<b class="fc"><i>501</i>&nbsp;        PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);</b>
+<b class="fc"><i>502</i>&nbsp;        PARSER.declareString((b, v) -&gt; b.order(SortOrder.fromString(v)) , ORDER_FIELD);</b>
+<b class="fc"><i>503</i>&nbsp;        PARSER.declareString((b, v) -&gt; b.sortMode(SortMode.fromString(v)), SORT_MODE);</b>
+<b class="fc"><i>504</i>&nbsp;        PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -&gt; {</b>
+<b class="nc"><i>505</i>&nbsp;            deprecationLogger.deprecated(&quot;[nested_filter] has been deprecated in favour for the [nested] parameter&quot;);</b>
+<b class="nc"><i>506</i>&nbsp;            return SortBuilder.parseNestedFilter(p);</b>
+<i>507</i>&nbsp;        }, NESTED_FILTER_FIELD);
+<b class="fc"><i>508</i>&nbsp;        PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -&gt; NestedSortBuilder.fromXContent(p), NESTED_FIELD);</b>
+<b class="fc"><i>509</i>&nbsp;        PARSER.declareString((b, v) -&gt; b.setNumericType(v), NUMERIC_TYPE);</b>
+<b class="fc"><i>510</i>&nbsp;    }</b>
+<i>511</i>&nbsp;
+<i>512</i>&nbsp;    @Override
+<i>513</i>&nbsp;    public FieldSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+<b class="nc"><i>514</i>&nbsp;        if (nestedFilter == null &amp;&amp; nestedSort == null) {</b>
+<b class="nc"><i>515</i>&nbsp;            return this;</b>
+<i>516</i>&nbsp;        }
+<b class="nc"><i>517</i>&nbsp;        if (nestedFilter != null) {</b>
+<b class="nc"><i>518</i>&nbsp;            QueryBuilder rewrite = nestedFilter.rewrite(ctx);</b>
+<b class="nc"><i>519</i>&nbsp;            if (nestedFilter == rewrite) {</b>
+<b class="nc"><i>520</i>&nbsp;                return this;</b>
+<i>521</i>&nbsp;            }
+<b class="nc"><i>522</i>&nbsp;            return new FieldSortBuilder(this).setNestedFilter(rewrite);</b>
+<i>523</i>&nbsp;        } else {
+<b class="nc"><i>524</i>&nbsp;            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);</b>
+<b class="nc"><i>525</i>&nbsp;            if (nestedSort == rewrite) {</b>
+<b class="nc"><i>526</i>&nbsp;                return this;</b>
+<i>527</i>&nbsp;            }
+<b class="nc"><i>528</i>&nbsp;            return new FieldSortBuilder(this).setNestedSort(rewrite);</b>
+<i>529</i>&nbsp;        }
+<i>530</i>&nbsp;    }
+<i>531</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

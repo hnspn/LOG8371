@@ -1,0 +1,1074 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: UpdateRequest</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.update</a> ]
+</div>
+
+<h1>Coverage Summary for Class: UpdateRequest (org.elasticsearch.action.update)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">UpdateRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    4.5%
+  </span>
+  <span class="absValue">
+    (4/ 88)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    6%
+  </span>
+  <span class="absValue">
+    (20/ 333)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.update;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.Version;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>24</i>&nbsp;import org.elasticsearch.action.DocWriteRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.index.IndexRequest;
+<i>26</i>&nbsp;import org.elasticsearch.action.support.ActiveShardCount;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.WriteRequest;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.replication.ReplicationRequest;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
+<i>30</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>31</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>32</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>33</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>34</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>35</i>&nbsp;import org.elasticsearch.common.lucene.uid.Versions;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>38</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>39</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>40</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>41</i>&nbsp;import org.elasticsearch.common.xcontent.XContentFactory;
+<i>42</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>43</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>44</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>45</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>46</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>47</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>48</i>&nbsp;import org.elasticsearch.script.Script;
+<i>49</i>&nbsp;import org.elasticsearch.script.ScriptType;
+<i>50</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;import java.io.IOException;
+<i>53</i>&nbsp;import java.util.HashMap;
+<i>54</i>&nbsp;import java.util.Map;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;import static org.elasticsearch.action.ValidateActions.addValidationError;
+<i>57</i>&nbsp;import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+<i>58</i>&nbsp;import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;public class UpdateRequest extends InstanceShardOperationRequest&lt;UpdateRequest&gt;
+<i>61</i>&nbsp;        implements DocWriteRequest&lt;UpdateRequest&gt;, WriteRequest&lt;UpdateRequest&gt;, ToXContentObject {
+<i>62</i>&nbsp;    private static ObjectParser&lt;UpdateRequest, Void&gt; PARSER;
+<i>63</i>&nbsp;
+<b class="fc"><i>64</i>&nbsp;    private static final ParseField SCRIPT_FIELD = new ParseField(&quot;script&quot;);</b>
+<b class="fc"><i>65</i>&nbsp;    private static final ParseField SCRIPTED_UPSERT_FIELD = new ParseField(&quot;scripted_upsert&quot;);</b>
+<b class="fc"><i>66</i>&nbsp;    private static final ParseField UPSERT_FIELD = new ParseField(&quot;upsert&quot;);</b>
+<b class="fc"><i>67</i>&nbsp;    private static final ParseField DOC_FIELD = new ParseField(&quot;doc&quot;);</b>
+<b class="fc"><i>68</i>&nbsp;    private static final ParseField DOC_AS_UPSERT_FIELD = new ParseField(&quot;doc_as_upsert&quot;);</b>
+<b class="fc"><i>69</i>&nbsp;    private static final ParseField DETECT_NOOP_FIELD = new ParseField(&quot;detect_noop&quot;);</b>
+<b class="fc"><i>70</i>&nbsp;    private static final ParseField SOURCE_FIELD = new ParseField(&quot;_source&quot;);</b>
+<b class="fc"><i>71</i>&nbsp;    private static final ParseField IF_SEQ_NO = new ParseField(&quot;if_seq_no&quot;);</b>
+<b class="fc"><i>72</i>&nbsp;    private static final ParseField IF_PRIMARY_TERM = new ParseField(&quot;if_primary_term&quot;);</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    static {
+<b class="fc"><i>75</i>&nbsp;        PARSER = new ObjectParser&lt;&gt;(UpdateRequest.class.getSimpleName());</b>
+<b class="fc"><i>76</i>&nbsp;        PARSER.declareField((request, script) -&gt; request.script = script,</b>
+<b class="nc"><i>77</i>&nbsp;            (parser, context) -&gt; Script.parse(parser), SCRIPT_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);</b>
+<b class="fc"><i>78</i>&nbsp;        PARSER.declareBoolean(UpdateRequest::scriptedUpsert, SCRIPTED_UPSERT_FIELD);</b>
+<b class="fc"><i>79</i>&nbsp;        PARSER.declareObject((request, builder) -&gt; request.safeUpsertRequest().source(builder),</b>
+<i>80</i>&nbsp;            (parser, context) -&gt; {
+<b class="nc"><i>81</i>&nbsp;                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());</b>
+<b class="nc"><i>82</i>&nbsp;                builder.copyCurrentStructure(parser);</b>
+<b class="nc"><i>83</i>&nbsp;                return builder;</b>
+<i>84</i>&nbsp;            }, UPSERT_FIELD);
+<b class="fc"><i>85</i>&nbsp;        PARSER.declareObject((request, builder) -&gt; request.safeDoc().source(builder),</b>
+<i>86</i>&nbsp;            (parser, context) -&gt; {
+<b class="nc"><i>87</i>&nbsp;                XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());</b>
+<b class="nc"><i>88</i>&nbsp;                docBuilder.copyCurrentStructure(parser);</b>
+<b class="nc"><i>89</i>&nbsp;                return docBuilder;</b>
+<i>90</i>&nbsp;            }, DOC_FIELD);
+<b class="fc"><i>91</i>&nbsp;        PARSER.declareBoolean(UpdateRequest::docAsUpsert, DOC_AS_UPSERT_FIELD);</b>
+<b class="fc"><i>92</i>&nbsp;        PARSER.declareBoolean(UpdateRequest::detectNoop, DETECT_NOOP_FIELD);</b>
+<b class="fc"><i>93</i>&nbsp;        PARSER.declareField(UpdateRequest::fetchSource,</b>
+<b class="nc"><i>94</i>&nbsp;            (parser, context) -&gt; FetchSourceContext.fromXContent(parser), SOURCE_FIELD,</b>
+<i>95</i>&nbsp;            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+<b class="fc"><i>96</i>&nbsp;        PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);</b>
+<b class="fc"><i>97</i>&nbsp;        PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);</b>
+<b class="fc"><i>98</i>&nbsp;    }</b>
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    // Set to null initially so we can know to override in bulk requests that have a default type.
+<i>101</i>&nbsp;    private String type;
+<i>102</i>&nbsp;    private String id;
+<i>103</i>&nbsp;    @Nullable
+<i>104</i>&nbsp;    private String routing;
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    @Nullable
+<i>107</i>&nbsp;    Script script;
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    private FetchSourceContext fetchSourceContext;
+<i>110</i>&nbsp;
+<b class="nc"><i>111</i>&nbsp;    private int retryOnConflict = 0;</b>
+<b class="nc"><i>112</i>&nbsp;    private long ifSeqNo = UNASSIGNED_SEQ_NO;</b>
+<b class="nc"><i>113</i>&nbsp;    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;
+<b class="nc"><i>116</i>&nbsp;    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;</b>
+<i>117</i>&nbsp;
+<b class="nc"><i>118</i>&nbsp;    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    private IndexRequest upsertRequest;
+<i>121</i>&nbsp;
+<b class="nc"><i>122</i>&nbsp;    private boolean scriptedUpsert = false;</b>
+<b class="nc"><i>123</i>&nbsp;    private boolean docAsUpsert = false;</b>
+<b class="nc"><i>124</i>&nbsp;    private boolean detectNoop = true;</b>
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    @Nullable
+<i>127</i>&nbsp;    private IndexRequest doc;
+<i>128</i>&nbsp;
+<b class="nc"><i>129</i>&nbsp;    public UpdateRequest() {}</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    public UpdateRequest(StreamInput in) throws IOException {
+<b class="nc"><i>132</i>&nbsp;        super(in);</b>
+<b class="nc"><i>133</i>&nbsp;        waitForActiveShards = ActiveShardCount.readFrom(in);</b>
+<b class="nc"><i>134</i>&nbsp;        type = in.readString();</b>
+<b class="nc"><i>135</i>&nbsp;        id = in.readString();</b>
+<b class="nc"><i>136</i>&nbsp;        routing = in.readOptionalString();</b>
+<b class="nc"><i>137</i>&nbsp;        if (in.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>138</i>&nbsp;            in.readOptionalString(); // _parent</b>
+<i>139</i>&nbsp;        }
+<b class="nc"><i>140</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>141</i>&nbsp;            script = new Script(in);</b>
+<i>142</i>&nbsp;        }
+<b class="nc"><i>143</i>&nbsp;        retryOnConflict = in.readVInt();</b>
+<b class="nc"><i>144</i>&nbsp;        refreshPolicy = RefreshPolicy.readFrom(in);</b>
+<b class="nc"><i>145</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>146</i>&nbsp;            doc = new IndexRequest(in);</b>
+<i>147</i>&nbsp;        }
+<b class="nc"><i>148</i>&nbsp;        if (in.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>149</i>&nbsp;            String[] fields = in.readOptionalStringArray();</b>
+<b class="nc"><i>150</i>&nbsp;            if (fields != null) {</b>
+<b class="nc"><i>151</i>&nbsp;                throw new IllegalArgumentException(&quot;[fields] is no longer supported&quot;);</b>
+<i>152</i>&nbsp;            }
+<i>153</i>&nbsp;        }
+<b class="nc"><i>154</i>&nbsp;        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);</b>
+<b class="nc"><i>155</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>156</i>&nbsp;            upsertRequest = new IndexRequest(in);</b>
+<i>157</i>&nbsp;        }
+<b class="nc"><i>158</i>&nbsp;        docAsUpsert = in.readBoolean();</b>
+<b class="nc"><i>159</i>&nbsp;        if (in.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>160</i>&nbsp;            long version = in.readLong();</b>
+<b class="nc"><i>161</i>&nbsp;            VersionType versionType = VersionType.readFromStream(in);</b>
+<b class="nc"><i>162</i>&nbsp;            if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {</b>
+<b class="nc"><i>163</i>&nbsp;                throw new UnsupportedOperationException(</b>
+<i>164</i>&nbsp;                    &quot;versioned update requests have been removed in 7.0. Use if_seq_no and if_primary_term&quot;);
+<i>165</i>&nbsp;            }
+<i>166</i>&nbsp;        }
+<b class="nc"><i>167</i>&nbsp;        ifSeqNo = in.readZLong();</b>
+<b class="nc"><i>168</i>&nbsp;        ifPrimaryTerm = in.readVLong();</b>
+<b class="nc"><i>169</i>&nbsp;        detectNoop = in.readBoolean();</b>
+<b class="nc"><i>170</i>&nbsp;        scriptedUpsert = in.readBoolean();</b>
+<b class="nc"><i>171</i>&nbsp;    }</b>
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    public UpdateRequest(String index, String id) {
+<b class="nc"><i>174</i>&nbsp;        super(index);</b>
+<b class="nc"><i>175</i>&nbsp;        this.id = id;</b>
+<b class="nc"><i>176</i>&nbsp;    }</b>
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    /**
+<i>179</i>&nbsp;     * @deprecated Types are in the process of being removed. Use {@link #UpdateRequest(String, String)} instead.
+<i>180</i>&nbsp;     */
+<i>181</i>&nbsp;    @Deprecated
+<i>182</i>&nbsp;    public UpdateRequest(String index, String type, String id) {
+<b class="nc"><i>183</i>&nbsp;        super(index);</b>
+<b class="nc"><i>184</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>185</i>&nbsp;        this.id = id;</b>
+<b class="nc"><i>186</i>&nbsp;    }</b>
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    @Override
+<i>189</i>&nbsp;    public ActionRequestValidationException validate() {
+<b class="nc"><i>190</i>&nbsp;        ActionRequestValidationException validationException = super.validate();</b>
+<b class="nc"><i>191</i>&nbsp;        if(upsertRequest != null &amp;&amp; upsertRequest.version() != Versions.MATCH_ANY) {</b>
+<b class="nc"><i>192</i>&nbsp;            validationException = addValidationError(&quot;can&#39;t provide version in upsert request&quot;, validationException);</b>
+<i>193</i>&nbsp;        }
+<b class="nc"><i>194</i>&nbsp;        if (Strings.isEmpty(type())) {</b>
+<b class="nc"><i>195</i>&nbsp;            validationException = addValidationError(&quot;type is missing&quot;, validationException);</b>
+<i>196</i>&nbsp;        }
+<b class="nc"><i>197</i>&nbsp;        if (Strings.isEmpty(id)) {</b>
+<b class="nc"><i>198</i>&nbsp;            validationException = addValidationError(&quot;id is missing&quot;, validationException);</b>
+<i>199</i>&nbsp;        }
+<i>200</i>&nbsp;
+<b class="nc"><i>201</i>&nbsp;        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);</b>
+<i>202</i>&nbsp;
+<b class="nc"><i>203</i>&nbsp;        if (ifSeqNo != UNASSIGNED_SEQ_NO) {</b>
+<b class="nc"><i>204</i>&nbsp;            if (retryOnConflict &gt; 0) {</b>
+<b class="nc"><i>205</i>&nbsp;                validationException = addValidationError(&quot;compare and write operations can not be retried&quot;, validationException);</b>
+<i>206</i>&nbsp;            }
+<i>207</i>&nbsp;
+<b class="nc"><i>208</i>&nbsp;            if (docAsUpsert) {</b>
+<b class="nc"><i>209</i>&nbsp;                validationException = addValidationError(&quot;compare and write operations can not be used with upsert&quot;, validationException);</b>
+<i>210</i>&nbsp;            }
+<b class="nc"><i>211</i>&nbsp;            if (upsertRequest != null) {</b>
+<b class="nc"><i>212</i>&nbsp;                validationException =</b>
+<b class="nc"><i>213</i>&nbsp;                    addValidationError(&quot;upsert requests don&#39;t support `if_seq_no` and `if_primary_term`&quot;, validationException);</b>
+<i>214</i>&nbsp;            }
+<i>215</i>&nbsp;        }
+<i>216</i>&nbsp;
+<b class="nc"><i>217</i>&nbsp;        if (script == null &amp;&amp; doc == null) {</b>
+<b class="nc"><i>218</i>&nbsp;            validationException = addValidationError(&quot;script or doc is missing&quot;, validationException);</b>
+<i>219</i>&nbsp;        }
+<b class="nc"><i>220</i>&nbsp;        if (script != null &amp;&amp; doc != null) {</b>
+<b class="nc"><i>221</i>&nbsp;            validationException = addValidationError(&quot;can&#39;t provide both script and doc&quot;, validationException);</b>
+<i>222</i>&nbsp;        }
+<b class="nc"><i>223</i>&nbsp;        if (doc == null &amp;&amp; docAsUpsert) {</b>
+<b class="nc"><i>224</i>&nbsp;            validationException = addValidationError(&quot;doc must be specified if doc_as_upsert is enabled&quot;, validationException);</b>
+<i>225</i>&nbsp;        }
+<b class="nc"><i>226</i>&nbsp;        return validationException;</b>
+<i>227</i>&nbsp;    }
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    /**
+<i>230</i>&nbsp;     * The type of the indexed document.
+<i>231</i>&nbsp;     *
+<i>232</i>&nbsp;     * @deprecated Types are in the process of being removed.
+<i>233</i>&nbsp;     */
+<i>234</i>&nbsp;    @Deprecated
+<i>235</i>&nbsp;    @Override
+<i>236</i>&nbsp;    public String type() {
+<b class="nc"><i>237</i>&nbsp;        if (type == null) {</b>
+<b class="nc"><i>238</i>&nbsp;            return MapperService.SINGLE_MAPPING_NAME;                    </b>
+<i>239</i>&nbsp;        }
+<b class="nc"><i>240</i>&nbsp;        return type;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * Sets the type of the indexed document.
+<i>245</i>&nbsp;     *
+<i>246</i>&nbsp;     * @deprecated Types are in the process of being removed.
+<i>247</i>&nbsp;     */
+<i>248</i>&nbsp;    @Deprecated
+<i>249</i>&nbsp;    public UpdateRequest type(String type) {
+<b class="nc"><i>250</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>251</i>&nbsp;        return this;</b>
+<i>252</i>&nbsp;    }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    /**
+<i>255</i>&nbsp;     * Set the default type supplied to a bulk
+<i>256</i>&nbsp;     * request if this individual request&#39;s type is null
+<i>257</i>&nbsp;     * or empty
+<i>258</i>&nbsp;     * @deprecated Types are in the process of being removed.
+<i>259</i>&nbsp;     */
+<i>260</i>&nbsp;    @Deprecated
+<i>261</i>&nbsp;    @Override
+<i>262</i>&nbsp;    public UpdateRequest defaultTypeIfNull(String defaultType) {
+<b class="nc"><i>263</i>&nbsp;        if (Strings.isNullOrEmpty(type)) {</b>
+<b class="nc"><i>264</i>&nbsp;            type = defaultType;</b>
+<i>265</i>&nbsp;        }
+<b class="nc"><i>266</i>&nbsp;        return this;</b>
+<i>267</i>&nbsp;    }  
+<i>268</i>&nbsp;    
+<i>269</i>&nbsp;    /**
+<i>270</i>&nbsp;     * The id of the indexed document.
+<i>271</i>&nbsp;     */
+<i>272</i>&nbsp;    @Override
+<i>273</i>&nbsp;    public String id() {
+<b class="nc"><i>274</i>&nbsp;        return id;</b>
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;    /**
+<i>278</i>&nbsp;     * Sets the id of the indexed document.
+<i>279</i>&nbsp;     */
+<i>280</i>&nbsp;    public UpdateRequest id(String id) {
+<b class="nc"><i>281</i>&nbsp;        this.id = id;</b>
+<b class="nc"><i>282</i>&nbsp;        return this;</b>
+<i>283</i>&nbsp;    }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    /**
+<i>286</i>&nbsp;     * Controls the shard routing of the request. Using this value to hash the shard
+<i>287</i>&nbsp;     * and not the id.
+<i>288</i>&nbsp;     */
+<i>289</i>&nbsp;    @Override
+<i>290</i>&nbsp;    public UpdateRequest routing(String routing) {
+<b class="nc"><i>291</i>&nbsp;        if (routing != null &amp;&amp; routing.length() == 0) {</b>
+<b class="nc"><i>292</i>&nbsp;            this.routing = null;</b>
+<i>293</i>&nbsp;        } else {
+<b class="nc"><i>294</i>&nbsp;            this.routing = routing;</b>
+<i>295</i>&nbsp;        }
+<b class="nc"><i>296</i>&nbsp;        return this;</b>
+<i>297</i>&nbsp;    }
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    /**
+<i>300</i>&nbsp;     * Controls the shard routing of the request. Using this value to hash the shard
+<i>301</i>&nbsp;     * and not the id.
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    @Override
+<i>304</i>&nbsp;    public String routing() {
+<b class="nc"><i>305</i>&nbsp;        return this.routing;</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    public ShardId getShardId() {
+<b class="nc"><i>309</i>&nbsp;        return this.shardId;</b>
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    public Script script() {
+<b class="nc"><i>313</i>&nbsp;        return this.script;</b>
+<i>314</i>&nbsp;    }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;    /**
+<i>317</i>&nbsp;     * The script to execute. Note, make sure not to send different script each times and instead
+<i>318</i>&nbsp;     * use script params if possible with the same (automatically compiled) script.
+<i>319</i>&nbsp;     */
+<i>320</i>&nbsp;    public UpdateRequest script(Script script) {
+<b class="nc"><i>321</i>&nbsp;        this.script = script;</b>
+<b class="nc"><i>322</i>&nbsp;        return this;</b>
+<i>323</i>&nbsp;    }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;    /**
+<i>326</i>&nbsp;     * @deprecated Use {@link #script()} instead
+<i>327</i>&nbsp;     */
+<i>328</i>&nbsp;    @Deprecated
+<i>329</i>&nbsp;    public String scriptString() {
+<b class="nc"><i>330</i>&nbsp;        return this.script == null ? null : this.script.getIdOrCode();</b>
+<i>331</i>&nbsp;    }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    /**
+<i>334</i>&nbsp;     * @deprecated Use {@link #script()} instead
+<i>335</i>&nbsp;     */
+<i>336</i>&nbsp;    @Deprecated
+<i>337</i>&nbsp;    public ScriptType scriptType() {
+<b class="nc"><i>338</i>&nbsp;        return this.script == null ? null : this.script.getType();</b>
+<i>339</i>&nbsp;    }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;    /**
+<i>342</i>&nbsp;     * @deprecated Use {@link #script()} instead
+<i>343</i>&nbsp;     */
+<i>344</i>&nbsp;    @Deprecated
+<i>345</i>&nbsp;    public Map&lt;String, Object&gt; scriptParams() {
+<b class="nc"><i>346</i>&nbsp;        return this.script == null ? null : this.script.getParams();</b>
+<i>347</i>&nbsp;    }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;    /**
+<i>350</i>&nbsp;     * The script to execute. Note, make sure not to send different script each
+<i>351</i>&nbsp;     * times and instead use script params if possible with the same
+<i>352</i>&nbsp;     * (automatically compiled) script.
+<i>353</i>&nbsp;     *
+<i>354</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>355</i>&nbsp;     */
+<i>356</i>&nbsp;    @Deprecated
+<i>357</i>&nbsp;    public UpdateRequest script(String script, ScriptType scriptType) {
+<b class="nc"><i>358</i>&nbsp;        updateOrCreateScript(script, scriptType, null, null);</b>
+<b class="nc"><i>359</i>&nbsp;        return this;</b>
+<i>360</i>&nbsp;    }
+<i>361</i>&nbsp;
+<i>362</i>&nbsp;    /**
+<i>363</i>&nbsp;     * The script to execute. Note, make sure not to send different script each
+<i>364</i>&nbsp;     * times and instead use script params if possible with the same
+<i>365</i>&nbsp;     * (automatically compiled) script.
+<i>366</i>&nbsp;     *
+<i>367</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>368</i>&nbsp;     */
+<i>369</i>&nbsp;    @Deprecated
+<i>370</i>&nbsp;    public UpdateRequest script(String script) {
+<b class="nc"><i>371</i>&nbsp;        updateOrCreateScript(script, ScriptType.INLINE, null, null);</b>
+<b class="nc"><i>372</i>&nbsp;        return this;</b>
+<i>373</i>&nbsp;    }
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;    /**
+<i>376</i>&nbsp;     * The language of the script to execute.
+<i>377</i>&nbsp;     *
+<i>378</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>379</i>&nbsp;     */
+<i>380</i>&nbsp;    @Deprecated
+<i>381</i>&nbsp;    public UpdateRequest scriptLang(String scriptLang) {
+<b class="nc"><i>382</i>&nbsp;        updateOrCreateScript(null, null, scriptLang, null);</b>
+<b class="nc"><i>383</i>&nbsp;        return this;</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    /**
+<i>387</i>&nbsp;     * @deprecated Use {@link #script()} instead
+<i>388</i>&nbsp;     */
+<i>389</i>&nbsp;    @Deprecated
+<i>390</i>&nbsp;    public String scriptLang() {
+<b class="nc"><i>391</i>&nbsp;        return script == null ? null : script.getLang();</b>
+<i>392</i>&nbsp;    }
+<i>393</i>&nbsp;
+<i>394</i>&nbsp;    /**
+<i>395</i>&nbsp;     * Add a script parameter.
+<i>396</i>&nbsp;     *
+<i>397</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>398</i>&nbsp;     */
+<i>399</i>&nbsp;    @Deprecated
+<i>400</i>&nbsp;    public UpdateRequest addScriptParam(String name, Object value) {
+<b class="nc"><i>401</i>&nbsp;        Script script = script();</b>
+<b class="nc"><i>402</i>&nbsp;        if (script == null) {</b>
+<b class="nc"><i>403</i>&nbsp;            HashMap&lt;String, Object&gt; scriptParams = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>404</i>&nbsp;            scriptParams.put(name, value);</b>
+<b class="nc"><i>405</i>&nbsp;            updateOrCreateScript(null, null, null, scriptParams);</b>
+<b class="nc"><i>406</i>&nbsp;        } else {</b>
+<b class="nc"><i>407</i>&nbsp;            Map&lt;String, Object&gt; scriptParams = script.getParams();</b>
+<b class="nc"><i>408</i>&nbsp;            if (scriptParams == null) {</b>
+<b class="nc"><i>409</i>&nbsp;                scriptParams = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>410</i>&nbsp;                scriptParams.put(name, value);</b>
+<b class="nc"><i>411</i>&nbsp;                updateOrCreateScript(null, null, null, scriptParams);</b>
+<i>412</i>&nbsp;            } else {
+<b class="nc"><i>413</i>&nbsp;                scriptParams.put(name, value);</b>
+<i>414</i>&nbsp;            }
+<i>415</i>&nbsp;        }
+<b class="nc"><i>416</i>&nbsp;        return this;</b>
+<i>417</i>&nbsp;    }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    /**
+<i>420</i>&nbsp;     * Sets the script parameters to use with the script.
+<i>421</i>&nbsp;     *
+<i>422</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>423</i>&nbsp;     */
+<i>424</i>&nbsp;    @Deprecated
+<i>425</i>&nbsp;    public UpdateRequest scriptParams(Map&lt;String, Object&gt; scriptParams) {
+<b class="nc"><i>426</i>&nbsp;        updateOrCreateScript(null, null, null, scriptParams);</b>
+<b class="nc"><i>427</i>&nbsp;        return this;</b>
+<i>428</i>&nbsp;    }
+<i>429</i>&nbsp;
+<i>430</i>&nbsp;    private void updateOrCreateScript(String scriptContent, ScriptType type, String lang, Map&lt;String, Object&gt; params) {
+<b class="nc"><i>431</i>&nbsp;        Script script = script();</b>
+<b class="nc"><i>432</i>&nbsp;        if (script == null) {</b>
+<b class="nc"><i>433</i>&nbsp;            script = new Script(type == null ? ScriptType.INLINE : type, lang, scriptContent == null ? &quot;&quot; : scriptContent, params);</b>
+<i>434</i>&nbsp;        } else {
+<b class="nc"><i>435</i>&nbsp;            String newScriptContent = scriptContent == null ? script.getIdOrCode() : scriptContent;</b>
+<b class="nc"><i>436</i>&nbsp;            ScriptType newScriptType = type == null ? script.getType() : type;</b>
+<b class="nc"><i>437</i>&nbsp;            String newScriptLang = lang == null ? script.getLang() : lang;</b>
+<b class="nc"><i>438</i>&nbsp;            Map&lt;String, Object&gt; newScriptParams = params == null ? script.getParams() : params;</b>
+<b class="nc"><i>439</i>&nbsp;            script = new Script(newScriptType, newScriptLang, newScriptContent, newScriptParams);</b>
+<i>440</i>&nbsp;        }
+<b class="nc"><i>441</i>&nbsp;        script(script);</b>
+<b class="nc"><i>442</i>&nbsp;    }</b>
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    /**
+<i>445</i>&nbsp;     * The script to execute. Note, make sure not to send different script each
+<i>446</i>&nbsp;     * times and instead use script params if possible with the same
+<i>447</i>&nbsp;     * (automatically compiled) script.
+<i>448</i>&nbsp;     *
+<i>449</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>450</i>&nbsp;     */
+<i>451</i>&nbsp;    @Deprecated
+<i>452</i>&nbsp;    public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map&lt;String, Object&gt; scriptParams) {
+<b class="nc"><i>453</i>&nbsp;        this.script = new Script(scriptType, Script.DEFAULT_SCRIPT_LANG, script, scriptParams);</b>
+<b class="nc"><i>454</i>&nbsp;        return this;</b>
+<i>455</i>&nbsp;    }
+<i>456</i>&nbsp;
+<i>457</i>&nbsp;    /**
+<i>458</i>&nbsp;     * The script to execute. Note, make sure not to send different script each
+<i>459</i>&nbsp;     * times and instead use script params if possible with the same
+<i>460</i>&nbsp;     * (automatically compiled) script.
+<i>461</i>&nbsp;     *
+<i>462</i>&nbsp;     * @param script
+<i>463</i>&nbsp;     *            The script to execute
+<i>464</i>&nbsp;     * @param scriptLang
+<i>465</i>&nbsp;     *            The script language
+<i>466</i>&nbsp;     * @param scriptType
+<i>467</i>&nbsp;     *            The script type
+<i>468</i>&nbsp;     * @param scriptParams
+<i>469</i>&nbsp;     *            The script parameters
+<i>470</i>&nbsp;     *
+<i>471</i>&nbsp;     * @deprecated Use {@link #script(Script)} instead
+<i>472</i>&nbsp;     */
+<i>473</i>&nbsp;    @Deprecated
+<i>474</i>&nbsp;    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
+<i>475</i>&nbsp;            @Nullable Map&lt;String, Object&gt; scriptParams) {
+<b class="nc"><i>476</i>&nbsp;        this.script = new Script(scriptType, scriptLang, script, scriptParams);</b>
+<b class="nc"><i>477</i>&nbsp;        return this;</b>
+<i>478</i>&nbsp;    }
+<i>479</i>&nbsp;
+<i>480</i>&nbsp;    /**
+<i>481</i>&nbsp;     * Indicate that _source should be returned with every hit, with an
+<i>482</i>&nbsp;     * &quot;include&quot; and/or &quot;exclude&quot; set which can include simple wildcard
+<i>483</i>&nbsp;     * elements.
+<i>484</i>&nbsp;     *
+<i>485</i>&nbsp;     * @param include
+<i>486</i>&nbsp;     *            An optional include (optionally wildcarded) pattern to filter
+<i>487</i>&nbsp;     *            the returned _source
+<i>488</i>&nbsp;     * @param exclude
+<i>489</i>&nbsp;     *            An optional exclude (optionally wildcarded) pattern to filter
+<i>490</i>&nbsp;     *            the returned _source
+<i>491</i>&nbsp;     */
+<i>492</i>&nbsp;    public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
+<b class="nc"><i>493</i>&nbsp;        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;</b>
+<b class="nc"><i>494</i>&nbsp;        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[]{include};</b>
+<b class="nc"><i>495</i>&nbsp;        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude};</b>
+<b class="nc"><i>496</i>&nbsp;        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);</b>
+<b class="nc"><i>497</i>&nbsp;        return this;</b>
+<i>498</i>&nbsp;    }
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;    /**
+<i>501</i>&nbsp;     * Indicate that _source should be returned, with an
+<i>502</i>&nbsp;     * &quot;include&quot; and/or &quot;exclude&quot; set which can include simple wildcard
+<i>503</i>&nbsp;     * elements.
+<i>504</i>&nbsp;     *
+<i>505</i>&nbsp;     * @param includes
+<i>506</i>&nbsp;     *            An optional list of include (optionally wildcarded) pattern to
+<i>507</i>&nbsp;     *            filter the returned _source
+<i>508</i>&nbsp;     * @param excludes
+<i>509</i>&nbsp;     *            An optional list of exclude (optionally wildcarded) pattern to
+<i>510</i>&nbsp;     *            filter the returned _source
+<i>511</i>&nbsp;     */
+<i>512</i>&nbsp;    public UpdateRequest fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+<b class="nc"><i>513</i>&nbsp;        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;</b>
+<b class="nc"><i>514</i>&nbsp;        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);</b>
+<b class="nc"><i>515</i>&nbsp;        return this;</b>
+<i>516</i>&nbsp;    }
+<i>517</i>&nbsp;
+<i>518</i>&nbsp;    /**
+<i>519</i>&nbsp;     * Indicates whether the response should contain the updated _source.
+<i>520</i>&nbsp;     */
+<i>521</i>&nbsp;    public UpdateRequest fetchSource(boolean fetchSource) {
+<b class="nc"><i>522</i>&nbsp;        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;</b>
+<b class="nc"><i>523</i>&nbsp;        this.fetchSourceContext = new FetchSourceContext(fetchSource, context.includes(), context.excludes());</b>
+<b class="nc"><i>524</i>&nbsp;        return this;</b>
+<i>525</i>&nbsp;    }
+<i>526</i>&nbsp;
+<i>527</i>&nbsp;    /**
+<i>528</i>&nbsp;     * Explicitly set the fetch source context for this request
+<i>529</i>&nbsp;     */
+<i>530</i>&nbsp;    public UpdateRequest fetchSource(FetchSourceContext context) {
+<b class="nc"><i>531</i>&nbsp;        this.fetchSourceContext = context;</b>
+<b class="nc"><i>532</i>&nbsp;        return this;</b>
+<i>533</i>&nbsp;    }
+<i>534</i>&nbsp;
+<i>535</i>&nbsp;    /**
+<i>536</i>&nbsp;     * Gets the {@link FetchSourceContext} which defines how the _source should
+<i>537</i>&nbsp;     * be fetched.
+<i>538</i>&nbsp;     */
+<i>539</i>&nbsp;    public FetchSourceContext fetchSource() {
+<b class="nc"><i>540</i>&nbsp;        return fetchSourceContext;</b>
+<i>541</i>&nbsp;    }
+<i>542</i>&nbsp;
+<i>543</i>&nbsp;    /**
+<i>544</i>&nbsp;     * Sets the number of retries of a version conflict occurs because the document was updated between
+<i>545</i>&nbsp;     * getting it and updating it. Defaults to 0.
+<i>546</i>&nbsp;     */
+<i>547</i>&nbsp;    public UpdateRequest retryOnConflict(int retryOnConflict) {
+<b class="nc"><i>548</i>&nbsp;        this.retryOnConflict = retryOnConflict;</b>
+<b class="nc"><i>549</i>&nbsp;        return this;</b>
+<i>550</i>&nbsp;    }
+<i>551</i>&nbsp;
+<i>552</i>&nbsp;    public int retryOnConflict() {
+<b class="nc"><i>553</i>&nbsp;        return this.retryOnConflict;</b>
+<i>554</i>&nbsp;    }
+<i>555</i>&nbsp;
+<i>556</i>&nbsp;    @Override
+<i>557</i>&nbsp;    public UpdateRequest version(long version) {
+<b class="nc"><i>558</i>&nbsp;        throw new UnsupportedOperationException(&quot;update requests do not support versioning&quot;);</b>
+<i>559</i>&nbsp;    }
+<i>560</i>&nbsp;
+<i>561</i>&nbsp;    @Override
+<i>562</i>&nbsp;    public long version() {
+<b class="nc"><i>563</i>&nbsp;        return Versions.MATCH_ANY;</b>
+<i>564</i>&nbsp;    }
+<i>565</i>&nbsp;
+<i>566</i>&nbsp;    @Override
+<i>567</i>&nbsp;    public UpdateRequest versionType(VersionType versionType) {
+<b class="nc"><i>568</i>&nbsp;        throw new UnsupportedOperationException(&quot;update requests do not support versioning&quot;);</b>
+<i>569</i>&nbsp;    }
+<i>570</i>&nbsp;
+<i>571</i>&nbsp;    @Override
+<i>572</i>&nbsp;    public VersionType versionType() {
+<b class="nc"><i>573</i>&nbsp;        return VersionType.INTERNAL;</b>
+<i>574</i>&nbsp;    }
+<i>575</i>&nbsp;
+<i>576</i>&nbsp;    /**
+<i>577</i>&nbsp;     * only perform this update request if the document&#39;s modification was assigned the given
+<i>578</i>&nbsp;     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+<i>579</i>&nbsp;     *
+<i>580</i>&nbsp;     * If the document last modification was assigned a different sequence number a
+<i>581</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>582</i>&nbsp;     */
+<i>583</i>&nbsp;    public UpdateRequest setIfSeqNo(long seqNo) {
+<b class="nc"><i>584</i>&nbsp;        if (seqNo &lt; 0 &amp;&amp; seqNo != UNASSIGNED_SEQ_NO) {</b>
+<b class="nc"><i>585</i>&nbsp;            throw new IllegalArgumentException(&quot;sequence numbers must be non negative. got [&quot; +  seqNo + &quot;].&quot;);</b>
+<i>586</i>&nbsp;        }
+<b class="nc"><i>587</i>&nbsp;        ifSeqNo = seqNo;</b>
+<b class="nc"><i>588</i>&nbsp;        return this;</b>
+<i>589</i>&nbsp;    }
+<i>590</i>&nbsp;
+<i>591</i>&nbsp;    /**
+<i>592</i>&nbsp;     * only performs this update request if the document&#39;s last modification was assigned the given
+<i>593</i>&nbsp;     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+<i>594</i>&nbsp;     *
+<i>595</i>&nbsp;     * If the document last modification was assigned a different term a
+<i>596</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>597</i>&nbsp;     */
+<i>598</i>&nbsp;    public UpdateRequest setIfPrimaryTerm(long term) {
+<b class="nc"><i>599</i>&nbsp;        if (term &lt; 0) {</b>
+<b class="nc"><i>600</i>&nbsp;            throw new IllegalArgumentException(&quot;primary term must be non negative. got [&quot; + term + &quot;]&quot;);</b>
+<i>601</i>&nbsp;        }
+<b class="nc"><i>602</i>&nbsp;        ifPrimaryTerm = term;</b>
+<b class="nc"><i>603</i>&nbsp;        return this;</b>
+<i>604</i>&nbsp;    }
+<i>605</i>&nbsp;
+<i>606</i>&nbsp;    /**
+<i>607</i>&nbsp;     * If set, only perform this update request if the document was last modification was assigned this sequence number.
+<i>608</i>&nbsp;     * If the document last modification was assigned a different sequence number a
+<i>609</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>610</i>&nbsp;     */
+<i>611</i>&nbsp;    public long ifSeqNo() {
+<b class="nc"><i>612</i>&nbsp;        return ifSeqNo;</b>
+<i>613</i>&nbsp;    }
+<i>614</i>&nbsp;
+<i>615</i>&nbsp;    /**
+<i>616</i>&nbsp;     * If set, only perform this update request if the document was last modification was assigned this primary term.
+<i>617</i>&nbsp;     *
+<i>618</i>&nbsp;     * If the document last modification was assigned a different term a
+<i>619</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>620</i>&nbsp;     */
+<i>621</i>&nbsp;    public long ifPrimaryTerm() {
+<b class="nc"><i>622</i>&nbsp;        return ifPrimaryTerm;</b>
+<i>623</i>&nbsp;    }
+<i>624</i>&nbsp;
+<i>625</i>&nbsp;    @Override
+<i>626</i>&nbsp;    public OpType opType() {
+<b class="nc"><i>627</i>&nbsp;        return OpType.UPDATE;</b>
+<i>628</i>&nbsp;    }
+<i>629</i>&nbsp;
+<i>630</i>&nbsp;    @Override
+<i>631</i>&nbsp;    public UpdateRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+<b class="nc"><i>632</i>&nbsp;        this.refreshPolicy = refreshPolicy;</b>
+<b class="nc"><i>633</i>&nbsp;        return this;</b>
+<i>634</i>&nbsp;    }
+<i>635</i>&nbsp;
+<i>636</i>&nbsp;    @Override
+<i>637</i>&nbsp;    public RefreshPolicy getRefreshPolicy() {
+<b class="nc"><i>638</i>&nbsp;        return refreshPolicy;</b>
+<i>639</i>&nbsp;    }
+<i>640</i>&nbsp;
+<i>641</i>&nbsp;    public ActiveShardCount waitForActiveShards() {
+<b class="nc"><i>642</i>&nbsp;        return this.waitForActiveShards;</b>
+<i>643</i>&nbsp;    }
+<i>644</i>&nbsp;
+<i>645</i>&nbsp;    /**
+<i>646</i>&nbsp;     * Sets the number of shard copies that must be active before proceeding with the write.
+<i>647</i>&nbsp;     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
+<i>648</i>&nbsp;     */
+<i>649</i>&nbsp;    public UpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+<b class="nc"><i>650</i>&nbsp;        this.waitForActiveShards = waitForActiveShards;</b>
+<b class="nc"><i>651</i>&nbsp;        return this;</b>
+<i>652</i>&nbsp;    }
+<i>653</i>&nbsp;
+<i>654</i>&nbsp;    /**
+<i>655</i>&nbsp;     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+<i>656</i>&nbsp;     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+<i>657</i>&nbsp;     * to get the ActiveShardCount.
+<i>658</i>&nbsp;     */
+<i>659</i>&nbsp;    public UpdateRequest waitForActiveShards(final int waitForActiveShards) {
+<b class="nc"><i>660</i>&nbsp;        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));</b>
+<i>661</i>&nbsp;    }
+<i>662</i>&nbsp;
+<i>663</i>&nbsp;    /**
+<i>664</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>665</i>&nbsp;     */
+<i>666</i>&nbsp;    public UpdateRequest doc(IndexRequest doc) {
+<b class="nc"><i>667</i>&nbsp;        this.doc = doc;</b>
+<b class="nc"><i>668</i>&nbsp;        return this;</b>
+<i>669</i>&nbsp;    }
+<i>670</i>&nbsp;
+<i>671</i>&nbsp;    /**
+<i>672</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>673</i>&nbsp;     */
+<i>674</i>&nbsp;    public UpdateRequest doc(XContentBuilder source) {
+<b class="nc"><i>675</i>&nbsp;        safeDoc().source(source);</b>
+<b class="nc"><i>676</i>&nbsp;        return this;</b>
+<i>677</i>&nbsp;    }
+<i>678</i>&nbsp;
+<i>679</i>&nbsp;    /**
+<i>680</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>681</i>&nbsp;     */
+<i>682</i>&nbsp;    public UpdateRequest doc(Map&lt;String, Object&gt; source) {
+<b class="nc"><i>683</i>&nbsp;        safeDoc().source(source);</b>
+<b class="nc"><i>684</i>&nbsp;        return this;</b>
+<i>685</i>&nbsp;    }
+<i>686</i>&nbsp;
+<i>687</i>&nbsp;    /**
+<i>688</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>689</i>&nbsp;     */
+<i>690</i>&nbsp;    public UpdateRequest doc(Map&lt;String, Object&gt; source, XContentType contentType) {
+<b class="nc"><i>691</i>&nbsp;        safeDoc().source(source, contentType);</b>
+<b class="nc"><i>692</i>&nbsp;        return this;</b>
+<i>693</i>&nbsp;    }
+<i>694</i>&nbsp;
+<i>695</i>&nbsp;    /**
+<i>696</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>697</i>&nbsp;     */
+<i>698</i>&nbsp;    public UpdateRequest doc(String source, XContentType xContentType) {
+<b class="nc"><i>699</i>&nbsp;        safeDoc().source(source, xContentType);</b>
+<b class="nc"><i>700</i>&nbsp;        return this;</b>
+<i>701</i>&nbsp;    }
+<i>702</i>&nbsp;
+<i>703</i>&nbsp;    /**
+<i>704</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>705</i>&nbsp;     */
+<i>706</i>&nbsp;    public UpdateRequest doc(byte[] source, XContentType xContentType) {
+<b class="nc"><i>707</i>&nbsp;        safeDoc().source(source, xContentType);</b>
+<b class="nc"><i>708</i>&nbsp;        return this;</b>
+<i>709</i>&nbsp;    }
+<i>710</i>&nbsp;
+<i>711</i>&nbsp;    /**
+<i>712</i>&nbsp;     * Sets the doc to use for updates when a script is not specified.
+<i>713</i>&nbsp;     */
+<i>714</i>&nbsp;    public UpdateRequest doc(byte[] source, int offset, int length, XContentType xContentType) {
+<b class="nc"><i>715</i>&nbsp;        safeDoc().source(source, offset, length, xContentType);</b>
+<b class="nc"><i>716</i>&nbsp;        return this;</b>
+<i>717</i>&nbsp;    }
+<i>718</i>&nbsp;
+<i>719</i>&nbsp;    /**
+<i>720</i>&nbsp;     * Sets the doc to use for updates when a script is not specified, the doc provided
+<i>721</i>&nbsp;     * is a field and value pairs.
+<i>722</i>&nbsp;     */
+<i>723</i>&nbsp;    public UpdateRequest doc(Object... source) {
+<b class="nc"><i>724</i>&nbsp;        safeDoc().source(source);</b>
+<b class="nc"><i>725</i>&nbsp;        return this;</b>
+<i>726</i>&nbsp;    }
+<i>727</i>&nbsp;
+<i>728</i>&nbsp;    /**
+<i>729</i>&nbsp;     * Sets the doc to use for updates when a script is not specified, the doc provided
+<i>730</i>&nbsp;     * is a field and value pairs.
+<i>731</i>&nbsp;     */
+<i>732</i>&nbsp;    public UpdateRequest doc(XContentType xContentType, Object... source) {
+<b class="nc"><i>733</i>&nbsp;        safeDoc().source(xContentType, source);</b>
+<b class="nc"><i>734</i>&nbsp;        return this;</b>
+<i>735</i>&nbsp;    }
+<i>736</i>&nbsp;
+<i>737</i>&nbsp;    public IndexRequest doc() {
+<b class="nc"><i>738</i>&nbsp;        return this.doc;</b>
+<i>739</i>&nbsp;    }
+<i>740</i>&nbsp;
+<i>741</i>&nbsp;    private IndexRequest safeDoc() {
+<b class="nc"><i>742</i>&nbsp;        if (doc == null) {</b>
+<b class="nc"><i>743</i>&nbsp;            doc = new IndexRequest();</b>
+<i>744</i>&nbsp;        }
+<b class="nc"><i>745</i>&nbsp;        return doc;</b>
+<i>746</i>&nbsp;    }
+<i>747</i>&nbsp;
+<i>748</i>&nbsp;    /**
+<i>749</i>&nbsp;     * Sets the index request to be used if the document does not exists. Otherwise, a
+<i>750</i>&nbsp;     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
+<i>751</i>&nbsp;     */
+<i>752</i>&nbsp;    public UpdateRequest upsert(IndexRequest upsertRequest) {
+<b class="nc"><i>753</i>&nbsp;        this.upsertRequest = upsertRequest;</b>
+<b class="nc"><i>754</i>&nbsp;        return this;</b>
+<i>755</i>&nbsp;    }
+<i>756</i>&nbsp;
+<i>757</i>&nbsp;    /**
+<i>758</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists.
+<i>759</i>&nbsp;     */
+<i>760</i>&nbsp;    public UpdateRequest upsert(XContentBuilder source) {
+<b class="nc"><i>761</i>&nbsp;        safeUpsertRequest().source(source);</b>
+<b class="nc"><i>762</i>&nbsp;        return this;</b>
+<i>763</i>&nbsp;    }
+<i>764</i>&nbsp;
+<i>765</i>&nbsp;    /**
+<i>766</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists.
+<i>767</i>&nbsp;     */
+<i>768</i>&nbsp;    public UpdateRequest upsert(Map&lt;String, Object&gt; source) {
+<b class="nc"><i>769</i>&nbsp;        safeUpsertRequest().source(source);</b>
+<b class="nc"><i>770</i>&nbsp;        return this;</b>
+<i>771</i>&nbsp;    }
+<i>772</i>&nbsp;
+<i>773</i>&nbsp;    /**
+<i>774</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists.
+<i>775</i>&nbsp;     */
+<i>776</i>&nbsp;    public UpdateRequest upsert(Map&lt;String, Object&gt; source, XContentType contentType) {
+<b class="nc"><i>777</i>&nbsp;        safeUpsertRequest().source(source, contentType);</b>
+<b class="nc"><i>778</i>&nbsp;        return this;</b>
+<i>779</i>&nbsp;    }
+<i>780</i>&nbsp;
+<i>781</i>&nbsp;    /**
+<i>782</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists.
+<i>783</i>&nbsp;     */
+<i>784</i>&nbsp;    public UpdateRequest upsert(String source, XContentType xContentType) {
+<b class="nc"><i>785</i>&nbsp;        safeUpsertRequest().source(source, xContentType);</b>
+<b class="nc"><i>786</i>&nbsp;        return this;</b>
+<i>787</i>&nbsp;    }
+<i>788</i>&nbsp;
+<i>789</i>&nbsp;    /**
+<i>790</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists.
+<i>791</i>&nbsp;     */
+<i>792</i>&nbsp;    public UpdateRequest upsert(byte[] source, XContentType xContentType) {
+<b class="nc"><i>793</i>&nbsp;        safeUpsertRequest().source(source, xContentType);</b>
+<b class="nc"><i>794</i>&nbsp;        return this;</b>
+<i>795</i>&nbsp;    }
+<i>796</i>&nbsp;
+<i>797</i>&nbsp;    /**
+<i>798</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists.
+<i>799</i>&nbsp;     */
+<i>800</i>&nbsp;    public UpdateRequest upsert(byte[] source, int offset, int length, XContentType xContentType) {
+<b class="nc"><i>801</i>&nbsp;        safeUpsertRequest().source(source, offset, length, xContentType);</b>
+<b class="nc"><i>802</i>&nbsp;        return this;</b>
+<i>803</i>&nbsp;    }
+<i>804</i>&nbsp;
+<i>805</i>&nbsp;    /**
+<i>806</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists. The doc
+<i>807</i>&nbsp;     * includes field and value pairs.
+<i>808</i>&nbsp;     */
+<i>809</i>&nbsp;    public UpdateRequest upsert(Object... source) {
+<b class="nc"><i>810</i>&nbsp;        safeUpsertRequest().source(source);</b>
+<b class="nc"><i>811</i>&nbsp;        return this;</b>
+<i>812</i>&nbsp;    }
+<i>813</i>&nbsp;
+<i>814</i>&nbsp;    /**
+<i>815</i>&nbsp;     * Sets the doc source of the update request to be used when the document does not exists. The doc
+<i>816</i>&nbsp;     * includes field and value pairs.
+<i>817</i>&nbsp;     */
+<i>818</i>&nbsp;    public UpdateRequest upsert(XContentType xContentType, Object... source) {
+<b class="nc"><i>819</i>&nbsp;        safeUpsertRequest().source(xContentType, source);</b>
+<b class="nc"><i>820</i>&nbsp;        return this;</b>
+<i>821</i>&nbsp;    }
+<i>822</i>&nbsp;
+<i>823</i>&nbsp;    public IndexRequest upsertRequest() {
+<b class="nc"><i>824</i>&nbsp;        return this.upsertRequest;</b>
+<i>825</i>&nbsp;    }
+<i>826</i>&nbsp;
+<i>827</i>&nbsp;    private IndexRequest safeUpsertRequest() {
+<b class="nc"><i>828</i>&nbsp;        if (upsertRequest == null) {</b>
+<b class="nc"><i>829</i>&nbsp;            upsertRequest = new IndexRequest();</b>
+<i>830</i>&nbsp;        }
+<b class="nc"><i>831</i>&nbsp;        return upsertRequest;</b>
+<i>832</i>&nbsp;    }
+<i>833</i>&nbsp;
+<i>834</i>&nbsp;    /**
+<i>835</i>&nbsp;     * Should this update attempt to detect if it is a noop? Defaults to true.
+<i>836</i>&nbsp;     * @return this for chaining
+<i>837</i>&nbsp;     */
+<i>838</i>&nbsp;    public UpdateRequest detectNoop(boolean detectNoop) {
+<b class="nc"><i>839</i>&nbsp;        this.detectNoop = detectNoop;</b>
+<b class="nc"><i>840</i>&nbsp;        return this;</b>
+<i>841</i>&nbsp;    }
+<i>842</i>&nbsp;
+<i>843</i>&nbsp;    /**
+<i>844</i>&nbsp;     * Should this update attempt to detect if it is a noop? Defaults to true.
+<i>845</i>&nbsp;     */
+<i>846</i>&nbsp;    public boolean detectNoop() {
+<b class="nc"><i>847</i>&nbsp;        return detectNoop;</b>
+<i>848</i>&nbsp;    }
+<i>849</i>&nbsp;
+<i>850</i>&nbsp;    public UpdateRequest fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>851</i>&nbsp;        return PARSER.parse(parser, this, null);</b>
+<i>852</i>&nbsp;    }
+<i>853</i>&nbsp;
+<i>854</i>&nbsp;    public boolean docAsUpsert() {
+<b class="nc"><i>855</i>&nbsp;        return this.docAsUpsert;</b>
+<i>856</i>&nbsp;    }
+<i>857</i>&nbsp;
+<i>858</i>&nbsp;    public UpdateRequest docAsUpsert(boolean shouldUpsertDoc) {
+<b class="nc"><i>859</i>&nbsp;        this.docAsUpsert = shouldUpsertDoc;</b>
+<b class="nc"><i>860</i>&nbsp;        return this;</b>
+<i>861</i>&nbsp;    }
+<i>862</i>&nbsp;
+<i>863</i>&nbsp;    public boolean scriptedUpsert(){
+<b class="nc"><i>864</i>&nbsp;        return this.scriptedUpsert;</b>
+<i>865</i>&nbsp;    }
+<i>866</i>&nbsp;
+<i>867</i>&nbsp;    public UpdateRequest scriptedUpsert(boolean scriptedUpsert) {
+<b class="nc"><i>868</i>&nbsp;        this.scriptedUpsert = scriptedUpsert;</b>
+<b class="nc"><i>869</i>&nbsp;        return this;</b>
+<i>870</i>&nbsp;    }
+<i>871</i>&nbsp;
+<i>872</i>&nbsp;    @Override
+<i>873</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>874</i>&nbsp;        super.writeTo(out);</b>
+<b class="nc"><i>875</i>&nbsp;        waitForActiveShards.writeTo(out);</b>
+<i>876</i>&nbsp;        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
+<i>877</i>&nbsp;        // So we use the type accessor method here to make the type non-null (will default it to &quot;_doc&quot;). 
+<b class="nc"><i>878</i>&nbsp;        out.writeString(type());</b>
+<b class="nc"><i>879</i>&nbsp;        out.writeString(id);</b>
+<b class="nc"><i>880</i>&nbsp;        out.writeOptionalString(routing);</b>
+<b class="nc"><i>881</i>&nbsp;        if (out.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>882</i>&nbsp;            out.writeOptionalString(null); // _parent</b>
+<i>883</i>&nbsp;        }
+<i>884</i>&nbsp;
+<b class="nc"><i>885</i>&nbsp;        boolean hasScript = script != null;</b>
+<b class="nc"><i>886</i>&nbsp;        out.writeBoolean(hasScript);</b>
+<b class="nc"><i>887</i>&nbsp;        if (hasScript) {</b>
+<b class="nc"><i>888</i>&nbsp;            script.writeTo(out);</b>
+<i>889</i>&nbsp;        }
+<b class="nc"><i>890</i>&nbsp;        out.writeVInt(retryOnConflict);</b>
+<b class="nc"><i>891</i>&nbsp;        refreshPolicy.writeTo(out);</b>
+<b class="nc"><i>892</i>&nbsp;        if (doc == null) {</b>
+<b class="nc"><i>893</i>&nbsp;            out.writeBoolean(false);</b>
+<i>894</i>&nbsp;        } else {
+<b class="nc"><i>895</i>&nbsp;            out.writeBoolean(true);</b>
+<i>896</i>&nbsp;            // make sure the basics are set
+<b class="nc"><i>897</i>&nbsp;            doc.index(index);</b>
+<b class="nc"><i>898</i>&nbsp;            doc.type(type);</b>
+<b class="nc"><i>899</i>&nbsp;            doc.id(id);</b>
+<b class="nc"><i>900</i>&nbsp;            doc.writeTo(out);</b>
+<i>901</i>&nbsp;        }
+<b class="nc"><i>902</i>&nbsp;        if (out.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>903</i>&nbsp;            out.writeOptionalStringArray(null);</b>
+<i>904</i>&nbsp;        }
+<b class="nc"><i>905</i>&nbsp;        out.writeOptionalWriteable(fetchSourceContext);</b>
+<b class="nc"><i>906</i>&nbsp;        if (upsertRequest == null) {</b>
+<b class="nc"><i>907</i>&nbsp;            out.writeBoolean(false);</b>
+<i>908</i>&nbsp;        } else {
+<b class="nc"><i>909</i>&nbsp;            out.writeBoolean(true);</b>
+<i>910</i>&nbsp;            // make sure the basics are set
+<b class="nc"><i>911</i>&nbsp;            upsertRequest.index(index);</b>
+<b class="nc"><i>912</i>&nbsp;            upsertRequest.type(type);</b>
+<b class="nc"><i>913</i>&nbsp;            upsertRequest.id(id);</b>
+<b class="nc"><i>914</i>&nbsp;            upsertRequest.writeTo(out);</b>
+<i>915</i>&nbsp;        }
+<b class="nc"><i>916</i>&nbsp;        out.writeBoolean(docAsUpsert);</b>
+<b class="nc"><i>917</i>&nbsp;        if (out.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>918</i>&nbsp;            out.writeLong(Versions.MATCH_ANY);</b>
+<b class="nc"><i>919</i>&nbsp;            out.writeByte(VersionType.INTERNAL.getValue());</b>
+<i>920</i>&nbsp;        }
+<b class="nc"><i>921</i>&nbsp;        out.writeZLong(ifSeqNo);</b>
+<b class="nc"><i>922</i>&nbsp;        out.writeVLong(ifPrimaryTerm);</b>
+<b class="nc"><i>923</i>&nbsp;        out.writeBoolean(detectNoop);</b>
+<b class="nc"><i>924</i>&nbsp;        out.writeBoolean(scriptedUpsert);</b>
+<b class="nc"><i>925</i>&nbsp;    }</b>
+<i>926</i>&nbsp;
+<i>927</i>&nbsp;    @Override
+<i>928</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>929</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>930</i>&nbsp;        if (docAsUpsert) {</b>
+<b class="nc"><i>931</i>&nbsp;            builder.field(&quot;doc_as_upsert&quot;, docAsUpsert);</b>
+<i>932</i>&nbsp;        }
+<b class="nc"><i>933</i>&nbsp;        if (doc != null) {</b>
+<b class="nc"><i>934</i>&nbsp;            XContentType xContentType = doc.getContentType();</b>
+<b class="nc"><i>935</i>&nbsp;            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,</b>
+<b class="nc"><i>936</i>&nbsp;                LoggingDeprecationHandler.INSTANCE, doc.source(), xContentType)) {</b>
+<b class="nc"><i>937</i>&nbsp;                builder.field(&quot;doc&quot;);</b>
+<b class="nc"><i>938</i>&nbsp;                builder.copyCurrentStructure(parser);</b>
+<b class="nc"><i>939</i>&nbsp;            }</b>
+<i>940</i>&nbsp;        }
+<i>941</i>&nbsp;
+<b class="nc"><i>942</i>&nbsp;        if (ifSeqNo != UNASSIGNED_SEQ_NO) {</b>
+<b class="nc"><i>943</i>&nbsp;            builder.field(IF_SEQ_NO.getPreferredName(), ifSeqNo);</b>
+<b class="nc"><i>944</i>&nbsp;            builder.field(IF_PRIMARY_TERM.getPreferredName(), ifPrimaryTerm);</b>
+<i>945</i>&nbsp;        }
+<i>946</i>&nbsp;
+<b class="nc"><i>947</i>&nbsp;        if (script != null) {</b>
+<b class="nc"><i>948</i>&nbsp;            builder.field(&quot;script&quot;, script);</b>
+<i>949</i>&nbsp;        }
+<b class="nc"><i>950</i>&nbsp;        if (upsertRequest != null) {</b>
+<b class="nc"><i>951</i>&nbsp;            XContentType xContentType = upsertRequest.getContentType();</b>
+<b class="nc"><i>952</i>&nbsp;            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,</b>
+<b class="nc"><i>953</i>&nbsp;                LoggingDeprecationHandler.INSTANCE, upsertRequest.source(), xContentType)) {</b>
+<b class="nc"><i>954</i>&nbsp;                builder.field(&quot;upsert&quot;);</b>
+<b class="nc"><i>955</i>&nbsp;                builder.copyCurrentStructure(parser);</b>
+<b class="nc"><i>956</i>&nbsp;            }</b>
+<i>957</i>&nbsp;        }
+<b class="nc"><i>958</i>&nbsp;        if (scriptedUpsert) {</b>
+<b class="nc"><i>959</i>&nbsp;            builder.field(&quot;scripted_upsert&quot;, scriptedUpsert);</b>
+<i>960</i>&nbsp;        }
+<b class="nc"><i>961</i>&nbsp;        if (detectNoop == false) {</b>
+<b class="nc"><i>962</i>&nbsp;            builder.field(&quot;detect_noop&quot;, detectNoop);</b>
+<i>963</i>&nbsp;        }
+<b class="nc"><i>964</i>&nbsp;        if (fetchSourceContext != null) {</b>
+<b class="nc"><i>965</i>&nbsp;            builder.field(&quot;_source&quot;, fetchSourceContext);</b>
+<i>966</i>&nbsp;        }
+<b class="nc"><i>967</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>968</i>&nbsp;        return builder;</b>
+<i>969</i>&nbsp;    }
+<i>970</i>&nbsp;
+<i>971</i>&nbsp;    @Override
+<i>972</i>&nbsp;    public String toString() {
+<b class="nc"><i>973</i>&nbsp;        StringBuilder res = new StringBuilder()</b>
+<b class="nc"><i>974</i>&nbsp;            .append(&quot;update {[&quot;).append(index)</b>
+<b class="nc"><i>975</i>&nbsp;            .append(&quot;][&quot;).append(type())</b>
+<b class="nc"><i>976</i>&nbsp;            .append(&quot;][&quot;).append(id).append(&quot;]&quot;);</b>
+<b class="nc"><i>977</i>&nbsp;        res.append(&quot;, doc_as_upsert[&quot;).append(docAsUpsert).append(&quot;]&quot;);</b>
+<b class="nc"><i>978</i>&nbsp;        if (doc != null) {</b>
+<b class="nc"><i>979</i>&nbsp;            res.append(&quot;, doc[&quot;).append(doc).append(&quot;]&quot;);</b>
+<i>980</i>&nbsp;        }
+<b class="nc"><i>981</i>&nbsp;        if (script != null) {</b>
+<b class="nc"><i>982</i>&nbsp;            res.append(&quot;, script[&quot;).append(script).append(&quot;]&quot;);</b>
+<i>983</i>&nbsp;        }
+<b class="nc"><i>984</i>&nbsp;        if (upsertRequest != null) {</b>
+<b class="nc"><i>985</i>&nbsp;            res.append(&quot;, upsert[&quot;).append(upsertRequest).append(&quot;]&quot;);</b>
+<i>986</i>&nbsp;        }
+<b class="nc"><i>987</i>&nbsp;        res.append(&quot;, scripted_upsert[&quot;).append(scriptedUpsert).append(&quot;]&quot;);</b>
+<b class="nc"><i>988</i>&nbsp;        res.append(&quot;, detect_noop[&quot;).append(detectNoop).append(&quot;]&quot;);</b>
+<b class="nc"><i>989</i>&nbsp;        return res.append(&quot;}&quot;).toString();</b>
+<i>990</i>&nbsp;    }
+<i>991</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

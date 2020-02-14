@@ -1,0 +1,315 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AllocationId</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AllocationId (org.elasticsearch.cluster.routing)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AllocationId</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (12/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    64.6%
+  </span>
+  <span class="absValue">
+    (31/ 48)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">AllocationId$Builder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    54.5%
+  </span>
+  <span class="absValue">
+    (12/ 22)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    57.4%
+  </span>
+  <span class="absValue">
+    (31/ 54)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>23</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>24</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.util.Objects;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * Uniquely identifies an allocation. An allocation is a shard moving from unassigned to initializing,
+<i>38</i>&nbsp; * or relocation.
+<i>39</i>&nbsp; * &lt;p&gt;
+<i>40</i>&nbsp; * Relocation is a special case, where the origin shard is relocating with a relocationId and same id, and
+<i>41</i>&nbsp; * the target shard (only materialized in RoutingNodes) is initializing with the id set to the origin shard
+<i>42</i>&nbsp; * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
+<i>43</i>&nbsp; * behavior to how ShardRouting#currentNodeId is used.
+<i>44</i>&nbsp; */
+<b class="fc"><i>45</i>&nbsp;public class AllocationId implements ToXContentObject, Writeable {</b>
+<i>46</i>&nbsp;    private static final String ID_KEY = &quot;id&quot;;
+<i>47</i>&nbsp;    private static final String RELOCATION_ID_KEY = &quot;relocation_id&quot;;
+<i>48</i>&nbsp;
+<b class="fc"><i>49</i>&nbsp;    private static final ObjectParser&lt;AllocationId.Builder, Void&gt; ALLOCATION_ID_PARSER = new ObjectParser&lt;&gt;(</b>
+<i>50</i>&nbsp;            &quot;allocationId&quot;);
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    static {
+<b class="fc"><i>53</i>&nbsp;        ALLOCATION_ID_PARSER.declareString(AllocationId.Builder::setId, new ParseField(ID_KEY));</b>
+<b class="fc"><i>54</i>&nbsp;        ALLOCATION_ID_PARSER.declareString(AllocationId.Builder::setRelocationId, new ParseField(RELOCATION_ID_KEY));</b>
+<b class="fc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<b class="nc"><i>57</i>&nbsp;    private static class Builder {</b>
+<i>58</i>&nbsp;        private String id;
+<i>59</i>&nbsp;        private String relocationId;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;        public void setId(String id) {
+<b class="nc"><i>62</i>&nbsp;            this.id = id;</b>
+<b class="nc"><i>63</i>&nbsp;        }</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;        public void setRelocationId(String relocationId) {
+<b class="nc"><i>66</i>&nbsp;            this.relocationId = relocationId;</b>
+<b class="nc"><i>67</i>&nbsp;        }</b>
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;        public AllocationId build() {
+<b class="nc"><i>70</i>&nbsp;            return new AllocationId(id, relocationId);</b>
+<i>71</i>&nbsp;        }
+<i>72</i>&nbsp;    }
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    private final String id;
+<i>75</i>&nbsp;    @Nullable
+<i>76</i>&nbsp;    private final String relocationId;
+<i>77</i>&nbsp;
+<b class="fc"><i>78</i>&nbsp;    AllocationId(StreamInput in) throws IOException {</b>
+<b class="fc"><i>79</i>&nbsp;        this.id = in.readString();</b>
+<b class="fc"><i>80</i>&nbsp;        this.relocationId = in.readOptionalString();</b>
+<b class="fc"><i>81</i>&nbsp;    }</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    @Override
+<i>84</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>85</i>&nbsp;        out.writeString(this.id);</b>
+<b class="fc"><i>86</i>&nbsp;        out.writeOptionalString(this.relocationId);</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<b class="fc"><i>89</i>&nbsp;    private AllocationId(String id, String relocationId) {</b>
+<b class="fc"><i>90</i>&nbsp;        Objects.requireNonNull(id, &quot;Argument [id] must be non-null&quot;);</b>
+<b class="fc"><i>91</i>&nbsp;        this.id = id;</b>
+<b class="fc"><i>92</i>&nbsp;        this.relocationId = relocationId;</b>
+<b class="fc"><i>93</i>&nbsp;    }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    /**
+<i>96</i>&nbsp;     * Creates a new allocation id for initializing allocation.
+<i>97</i>&nbsp;     */
+<i>98</i>&nbsp;    public static AllocationId newInitializing() {
+<b class="fc"><i>99</i>&nbsp;        return new AllocationId(UUIDs.randomBase64UUID(), null);</b>
+<i>100</i>&nbsp;    }
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    /**
+<i>103</i>&nbsp;     * Creates a new allocation id for initializing allocation based on an existing id.
+<i>104</i>&nbsp;     */
+<i>105</i>&nbsp;    public static AllocationId newInitializing(String existingAllocationId) {
+<b class="nc"><i>106</i>&nbsp;        return new AllocationId(existingAllocationId, null);</b>
+<i>107</i>&nbsp;    }
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    /**
+<i>110</i>&nbsp;     * Creates a new allocation id for the target initializing shard that is the result
+<i>111</i>&nbsp;     * of a relocation.
+<i>112</i>&nbsp;     */
+<i>113</i>&nbsp;    public static AllocationId newTargetRelocation(AllocationId allocationId) {
+<b class="nc"><i>114</i>&nbsp;        assert allocationId.getRelocationId() != null;</b>
+<b class="nc"><i>115</i>&nbsp;        return new AllocationId(allocationId.getRelocationId(), allocationId.getId());</b>
+<i>116</i>&nbsp;    }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    /**
+<i>119</i>&nbsp;     * Creates a new allocation id for a shard that moves to be relocated, populating
+<i>120</i>&nbsp;     * the transient holder for relocationId.
+<i>121</i>&nbsp;     */
+<i>122</i>&nbsp;    public static AllocationId newRelocation(AllocationId allocationId) {
+<b class="nc"><i>123</i>&nbsp;        assert allocationId.getRelocationId() == null;</b>
+<b class="nc"><i>124</i>&nbsp;        return new AllocationId(allocationId.getId(), UUIDs.randomBase64UUID());</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * Creates a new allocation id representing a cancelled relocation.
+<i>129</i>&nbsp;     * &lt;p&gt;
+<i>130</i>&nbsp;     * Note that this is expected to be called on the allocation id
+<i>131</i>&nbsp;     * of the *source* shard
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    public static AllocationId cancelRelocation(AllocationId allocationId) {
+<b class="nc"><i>134</i>&nbsp;        assert allocationId.getRelocationId() != null;</b>
+<b class="nc"><i>135</i>&nbsp;        return new AllocationId(allocationId.getId(), null);</b>
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * Creates a new allocation id finalizing a relocation.
+<i>140</i>&nbsp;     * &lt;p&gt;
+<i>141</i>&nbsp;     * Note that this is expected to be called on the allocation id
+<i>142</i>&nbsp;     * of the *target* shard and thus it only needs to clear the relocating id.
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public static AllocationId finishRelocation(AllocationId allocationId) {
+<b class="nc"><i>145</i>&nbsp;        assert allocationId.getRelocationId() != null;</b>
+<b class="nc"><i>146</i>&nbsp;        return new AllocationId(allocationId.getId(), null);</b>
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    /**
+<i>150</i>&nbsp;     * The allocation id uniquely identifying an allocation, note, if it is relocation
+<i>151</i>&nbsp;     * the {@link #getRelocationId()} need to be taken into account as well.
+<i>152</i>&nbsp;     */
+<i>153</i>&nbsp;    public String getId() {
+<b class="fc"><i>154</i>&nbsp;        return id;</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * The transient relocation id holding the unique id that is used for relocation.
+<i>159</i>&nbsp;     */
+<i>160</i>&nbsp;    public String getRelocationId() {
+<b class="fc"><i>161</i>&nbsp;        return relocationId;</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    @Override
+<i>165</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>166</i>&nbsp;        if (this == o) {</b>
+<b class="fc"><i>167</i>&nbsp;            return true;</b>
+<i>168</i>&nbsp;        }
+<b class="nc"><i>169</i>&nbsp;        if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>170</i>&nbsp;            return false;</b>
+<i>171</i>&nbsp;        }
+<b class="nc"><i>172</i>&nbsp;        AllocationId that = (AllocationId) o;</b>
+<b class="nc"><i>173</i>&nbsp;        if (!id.equals(that.id)) {</b>
+<b class="nc"><i>174</i>&nbsp;            return false;</b>
+<i>175</i>&nbsp;        }
+<b class="nc"><i>176</i>&nbsp;        return !(relocationId != null ? !relocationId.equals(that.relocationId) : that.relocationId != null);</b>
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    }
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;    @Override
+<i>181</i>&nbsp;    public int hashCode() {
+<b class="fc"><i>182</i>&nbsp;        int result = id.hashCode();</b>
+<b class="fc"><i>183</i>&nbsp;        result = 31 * result + (relocationId != null ? relocationId.hashCode() : 0);</b>
+<b class="fc"><i>184</i>&nbsp;        return result;</b>
+<i>185</i>&nbsp;    }
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;    @Override
+<i>188</i>&nbsp;    public String toString() {
+<b class="fc"><i>189</i>&nbsp;        return &quot;[id=&quot; + id + (relocationId == null ? &quot;&quot; : &quot;, rId=&quot; + relocationId) + &quot;]&quot;;</b>
+<i>190</i>&nbsp;    }
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    @Override
+<i>193</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="fc"><i>194</i>&nbsp;        builder.startObject();</b>
+<b class="fc"><i>195</i>&nbsp;        builder.field(ID_KEY, id);</b>
+<b class="fc"><i>196</i>&nbsp;        if (relocationId != null) {</b>
+<b class="nc"><i>197</i>&nbsp;            builder.field(RELOCATION_ID_KEY, relocationId);</b>
+<i>198</i>&nbsp;        }
+<b class="fc"><i>199</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>200</i>&nbsp;        return builder;</b>
+<i>201</i>&nbsp;    }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    public static AllocationId fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>204</i>&nbsp;        return ALLOCATION_ID_PARSER.parse(parser, new AllocationId.Builder(), null).build();</b>
+<i>205</i>&nbsp;    }
+<i>206</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

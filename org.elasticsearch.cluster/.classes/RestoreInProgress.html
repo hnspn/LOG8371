@@ -1,0 +1,659 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestoreInProgress</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestoreInProgress (org.elasticsearch.cluster)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestoreInProgress</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 86)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">RestoreInProgress$Entry</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 25)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">RestoreInProgress$State</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 16)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 31)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 127)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectCursor;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterState.Custom;
+<i>27</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>32</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>33</i>&nbsp;import org.elasticsearch.snapshots.Snapshot;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.io.IOException;
+<i>36</i>&nbsp;import java.util.ArrayList;
+<i>37</i>&nbsp;import java.util.Collections;
+<i>38</i>&nbsp;import java.util.Iterator;
+<i>39</i>&nbsp;import java.util.List;
+<i>40</i>&nbsp;import java.util.Objects;
+<i>41</i>&nbsp;import java.util.UUID;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;/**
+<i>44</i>&nbsp; * Meta data about restore processes that are currently executing
+<i>45</i>&nbsp; */
+<b class="nc"><i>46</i>&nbsp;public class RestoreInProgress extends AbstractNamedDiffable&lt;Custom&gt; implements Custom, Iterable&lt;RestoreInProgress.Entry&gt; {</b>
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    /**
+<i>49</i>&nbsp;     * Fallback UUID used for restore operations that were started before v6.6 and don&#39;t have a uuid in the cluster state.
+<i>50</i>&nbsp;     */
+<b class="nc"><i>51</i>&nbsp;    public static final String BWC_UUID = new UUID(0, 0).toString();</b>
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    public static final String TYPE = &quot;restore&quot;;
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    private final ImmutableOpenMap&lt;String, Entry&gt; entries;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    /**
+<i>58</i>&nbsp;     * Constructs new restore metadata
+<i>59</i>&nbsp;     *
+<i>60</i>&nbsp;     * @param entries map of currently running restore processes keyed by their restore uuid
+<i>61</i>&nbsp;     */
+<b class="nc"><i>62</i>&nbsp;    private RestoreInProgress(ImmutableOpenMap&lt;String, Entry&gt; entries) {</b>
+<b class="nc"><i>63</i>&nbsp;        this.entries = entries;</b>
+<b class="nc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    @Override
+<i>67</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>68</i>&nbsp;        if (this == o) return true;</b>
+<b class="nc"><i>69</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<i>70</i>&nbsp;
+<b class="nc"><i>71</i>&nbsp;        RestoreInProgress that = (RestoreInProgress) o;</b>
+<i>72</i>&nbsp;
+<b class="nc"><i>73</i>&nbsp;        if (!entries.equals(that.entries)) return false;</b>
+<i>74</i>&nbsp;
+<b class="nc"><i>75</i>&nbsp;        return true;</b>
+<i>76</i>&nbsp;    }
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    @Override
+<i>79</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>80</i>&nbsp;        return entries.hashCode();</b>
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    @Override
+<i>84</i>&nbsp;    public String toString() {
+<b class="nc"><i>85</i>&nbsp;        return new StringBuilder(&quot;RestoreInProgress[&quot;).append(entries).append(&quot;]&quot;).toString();</b>
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    public Entry get(String restoreUUID) {
+<b class="nc"><i>89</i>&nbsp;        return entries.get(restoreUUID);</b>
+<i>90</i>&nbsp;    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    public boolean isEmpty() {
+<b class="nc"><i>93</i>&nbsp;        return entries.isEmpty();</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    @Override
+<i>97</i>&nbsp;    public Iterator&lt;Entry&gt; iterator() {
+<b class="nc"><i>98</i>&nbsp;        return entries.valuesIt();</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    public static final class Builder {
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;        private final ImmutableOpenMap.Builder&lt;String, Entry&gt; entries = ImmutableOpenMap.builder();
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;        public Builder() {
+<i>106</i>&nbsp;        }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;        public Builder(RestoreInProgress restoreInProgress) {
+<i>109</i>&nbsp;            entries.putAll(restoreInProgress.entries);
+<i>110</i>&nbsp;        }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;        public Builder add(Entry entry) {
+<i>113</i>&nbsp;            entries.put(entry.uuid, entry);
+<i>114</i>&nbsp;            return this;
+<i>115</i>&nbsp;        }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;        public RestoreInProgress build() {
+<i>118</i>&nbsp;            return new RestoreInProgress(entries.build());
+<i>119</i>&nbsp;        }
+<i>120</i>&nbsp;    }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    /**
+<i>123</i>&nbsp;     * Restore metadata
+<i>124</i>&nbsp;     */
+<b class="nc"><i>125</i>&nbsp;    public static class Entry {</b>
+<i>126</i>&nbsp;        private final String uuid;
+<i>127</i>&nbsp;        private final State state;
+<i>128</i>&nbsp;        private final Snapshot snapshot;
+<i>129</i>&nbsp;        private final ImmutableOpenMap&lt;ShardId, ShardRestoreStatus&gt; shards;
+<i>130</i>&nbsp;        private final List&lt;String&gt; indices;
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;        /**
+<i>133</i>&nbsp;         * Creates new restore metadata
+<i>134</i>&nbsp;         *
+<i>135</i>&nbsp;         * @param uuid       uuid of the restore
+<i>136</i>&nbsp;         * @param snapshot   snapshot
+<i>137</i>&nbsp;         * @param state      current state of the restore process
+<i>138</i>&nbsp;         * @param indices    list of indices being restored
+<i>139</i>&nbsp;         * @param shards     map of shards being restored to their current restore status
+<i>140</i>&nbsp;         */
+<i>141</i>&nbsp;        public Entry(String uuid, Snapshot snapshot, State state, List&lt;String&gt; indices,
+<b class="nc"><i>142</i>&nbsp;            ImmutableOpenMap&lt;ShardId, ShardRestoreStatus&gt; shards) {</b>
+<b class="nc"><i>143</i>&nbsp;            this.snapshot = Objects.requireNonNull(snapshot);</b>
+<b class="nc"><i>144</i>&nbsp;            this.state = Objects.requireNonNull(state);</b>
+<b class="nc"><i>145</i>&nbsp;            this.indices = Objects.requireNonNull(indices);</b>
+<b class="nc"><i>146</i>&nbsp;            if (shards == null) {</b>
+<b class="nc"><i>147</i>&nbsp;                this.shards = ImmutableOpenMap.of();</b>
+<i>148</i>&nbsp;            } else {
+<b class="nc"><i>149</i>&nbsp;                this.shards = shards;</b>
+<i>150</i>&nbsp;            }
+<b class="nc"><i>151</i>&nbsp;            this.uuid = Objects.requireNonNull(uuid);</b>
+<b class="nc"><i>152</i>&nbsp;        }</b>
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;        /**
+<i>155</i>&nbsp;         * Returns restore uuid
+<i>156</i>&nbsp;         * @return restore uuid
+<i>157</i>&nbsp;         */
+<i>158</i>&nbsp;        public String uuid() {
+<b class="nc"><i>159</i>&nbsp;            return uuid;</b>
+<i>160</i>&nbsp;        }
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;        /**
+<i>163</i>&nbsp;         * Returns snapshot
+<i>164</i>&nbsp;         *
+<i>165</i>&nbsp;         * @return snapshot
+<i>166</i>&nbsp;         */
+<i>167</i>&nbsp;        public Snapshot snapshot() {
+<b class="nc"><i>168</i>&nbsp;            return this.snapshot;</b>
+<i>169</i>&nbsp;        }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        /**
+<i>172</i>&nbsp;         * Returns list of shards that being restore and their status
+<i>173</i>&nbsp;         *
+<i>174</i>&nbsp;         * @return list of shards
+<i>175</i>&nbsp;         */
+<i>176</i>&nbsp;        public ImmutableOpenMap&lt;ShardId, ShardRestoreStatus&gt; shards() {
+<b class="nc"><i>177</i>&nbsp;            return this.shards;</b>
+<i>178</i>&nbsp;        }
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;        /**
+<i>181</i>&nbsp;         * Returns current restore state
+<i>182</i>&nbsp;         *
+<i>183</i>&nbsp;         * @return restore state
+<i>184</i>&nbsp;         */
+<i>185</i>&nbsp;        public State state() {
+<b class="nc"><i>186</i>&nbsp;            return state;</b>
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;        /**
+<i>190</i>&nbsp;         * Returns list of indices
+<i>191</i>&nbsp;         *
+<i>192</i>&nbsp;         * @return list of indices
+<i>193</i>&nbsp;         */
+<i>194</i>&nbsp;        public List&lt;String&gt; indices() {
+<b class="nc"><i>195</i>&nbsp;            return indices;</b>
+<i>196</i>&nbsp;        }
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;        @Override
+<i>199</i>&nbsp;        public boolean equals(Object o) {
+<b class="nc"><i>200</i>&nbsp;            if (this == o) {</b>
+<b class="nc"><i>201</i>&nbsp;                return true;</b>
+<i>202</i>&nbsp;            }
+<b class="nc"><i>203</i>&nbsp;            if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>204</i>&nbsp;                return false;</b>
+<i>205</i>&nbsp;            }
+<b class="nc"><i>206</i>&nbsp;            Entry entry = (Entry) o;</b>
+<b class="nc"><i>207</i>&nbsp;            return uuid.equals(entry.uuid) &amp;&amp;</b>
+<b class="nc"><i>208</i>&nbsp;                       snapshot.equals(entry.snapshot) &amp;&amp;</b>
+<i>209</i>&nbsp;                       state == entry.state &amp;&amp;
+<b class="nc"><i>210</i>&nbsp;                       indices.equals(entry.indices) &amp;&amp;</b>
+<b class="nc"><i>211</i>&nbsp;                       shards.equals(entry.shards);</b>
+<i>212</i>&nbsp;        }
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;        @Override
+<i>215</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>216</i>&nbsp;            return Objects.hash(uuid, snapshot, state, indices, shards);</b>
+<i>217</i>&nbsp;        }
+<i>218</i>&nbsp;    }
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;    /**
+<i>221</i>&nbsp;     * Represents status of a restored shard
+<i>222</i>&nbsp;     */
+<i>223</i>&nbsp;    public static class ShardRestoreStatus {
+<i>224</i>&nbsp;        private State state;
+<i>225</i>&nbsp;        private String nodeId;
+<i>226</i>&nbsp;        private String reason;
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;        private ShardRestoreStatus() {
+<i>229</i>&nbsp;        }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;        /**
+<i>232</i>&nbsp;         * Constructs a new shard restore status in initializing state on the given node
+<i>233</i>&nbsp;         *
+<i>234</i>&nbsp;         * @param nodeId node id
+<i>235</i>&nbsp;         */
+<i>236</i>&nbsp;        public ShardRestoreStatus(String nodeId) {
+<i>237</i>&nbsp;            this(nodeId, State.INIT);
+<i>238</i>&nbsp;        }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;        /**
+<i>241</i>&nbsp;         * Constructs a new shard restore status in with specified state on the given node
+<i>242</i>&nbsp;         *
+<i>243</i>&nbsp;         * @param nodeId node id
+<i>244</i>&nbsp;         * @param state  restore state
+<i>245</i>&nbsp;         */
+<i>246</i>&nbsp;        public ShardRestoreStatus(String nodeId, State state) {
+<i>247</i>&nbsp;            this(nodeId, state, null);
+<i>248</i>&nbsp;        }
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;        /**
+<i>251</i>&nbsp;         * Constructs a new shard restore status in with specified state on the given node with specified failure reason
+<i>252</i>&nbsp;         *
+<i>253</i>&nbsp;         * @param nodeId node id
+<i>254</i>&nbsp;         * @param state  restore state
+<i>255</i>&nbsp;         * @param reason failure reason
+<i>256</i>&nbsp;         */
+<i>257</i>&nbsp;        public ShardRestoreStatus(String nodeId, State state, String reason) {
+<i>258</i>&nbsp;            this.nodeId = nodeId;
+<i>259</i>&nbsp;            this.state = state;
+<i>260</i>&nbsp;            this.reason = reason;
+<i>261</i>&nbsp;        }
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;        /**
+<i>264</i>&nbsp;         * Returns current state
+<i>265</i>&nbsp;         *
+<i>266</i>&nbsp;         * @return current state
+<i>267</i>&nbsp;         */
+<i>268</i>&nbsp;        public State state() {
+<i>269</i>&nbsp;            return state;
+<i>270</i>&nbsp;        }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;        /**
+<i>273</i>&nbsp;         * Returns node id of the node where shared is getting restored
+<i>274</i>&nbsp;         *
+<i>275</i>&nbsp;         * @return node id
+<i>276</i>&nbsp;         */
+<i>277</i>&nbsp;        public String nodeId() {
+<i>278</i>&nbsp;            return nodeId;
+<i>279</i>&nbsp;        }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;        /**
+<i>282</i>&nbsp;         * Returns failure reason
+<i>283</i>&nbsp;         *
+<i>284</i>&nbsp;         * @return failure reason
+<i>285</i>&nbsp;         */
+<i>286</i>&nbsp;        public String reason() {
+<i>287</i>&nbsp;            return reason;
+<i>288</i>&nbsp;        }
+<i>289</i>&nbsp;
+<i>290</i>&nbsp;        /**
+<i>291</i>&nbsp;         * Reads restore status from stream input
+<i>292</i>&nbsp;         *
+<i>293</i>&nbsp;         * @param in stream input
+<i>294</i>&nbsp;         * @return restore status
+<i>295</i>&nbsp;         */
+<i>296</i>&nbsp;        public static ShardRestoreStatus readShardRestoreStatus(StreamInput in) throws IOException {
+<i>297</i>&nbsp;            ShardRestoreStatus shardSnapshotStatus = new ShardRestoreStatus();
+<i>298</i>&nbsp;            shardSnapshotStatus.readFrom(in);
+<i>299</i>&nbsp;            return shardSnapshotStatus;
+<i>300</i>&nbsp;        }
+<i>301</i>&nbsp;
+<i>302</i>&nbsp;        /**
+<i>303</i>&nbsp;         * Reads restore status from stream input
+<i>304</i>&nbsp;         *
+<i>305</i>&nbsp;         * @param in stream input
+<i>306</i>&nbsp;         */
+<i>307</i>&nbsp;        public void readFrom(StreamInput in) throws IOException {
+<i>308</i>&nbsp;            nodeId = in.readOptionalString();
+<i>309</i>&nbsp;            state = State.fromValue(in.readByte());
+<i>310</i>&nbsp;            reason = in.readOptionalString();
+<i>311</i>&nbsp;        }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;        /**
+<i>314</i>&nbsp;         * Writes restore status to stream output
+<i>315</i>&nbsp;         *
+<i>316</i>&nbsp;         * @param out stream input
+<i>317</i>&nbsp;         */
+<i>318</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>319</i>&nbsp;            out.writeOptionalString(nodeId);
+<i>320</i>&nbsp;            out.writeByte(state.value);
+<i>321</i>&nbsp;            out.writeOptionalString(reason);
+<i>322</i>&nbsp;        }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;        @Override
+<i>325</i>&nbsp;        public boolean equals(Object o) {
+<i>326</i>&nbsp;            if (this == o) {
+<i>327</i>&nbsp;                return true;
+<i>328</i>&nbsp;            }
+<i>329</i>&nbsp;            if (o == null || getClass() != o.getClass()) {
+<i>330</i>&nbsp;                return false;
+<i>331</i>&nbsp;            }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;            ShardRestoreStatus status = (ShardRestoreStatus) o;
+<i>334</i>&nbsp;            return state == status.state &amp;&amp;
+<i>335</i>&nbsp;                       Objects.equals(nodeId, status.nodeId) &amp;&amp;
+<i>336</i>&nbsp;                       Objects.equals(reason, status.reason);
+<i>337</i>&nbsp;        }
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;        @Override
+<i>340</i>&nbsp;        public int hashCode() {
+<i>341</i>&nbsp;            return Objects.hash(state, nodeId, reason);
+<i>342</i>&nbsp;        }
+<i>343</i>&nbsp;    }
+<i>344</i>&nbsp;
+<i>345</i>&nbsp;    /**
+<i>346</i>&nbsp;     * Shard restore process state
+<i>347</i>&nbsp;     */
+<b class="nc"><i>348</i>&nbsp;    public enum State {</b>
+<i>349</i>&nbsp;        /**
+<i>350</i>&nbsp;         * Initializing state
+<i>351</i>&nbsp;         */
+<b class="nc"><i>352</i>&nbsp;        INIT((byte) 0),</b>
+<i>353</i>&nbsp;        /**
+<i>354</i>&nbsp;         * Started state
+<i>355</i>&nbsp;         */
+<b class="nc"><i>356</i>&nbsp;        STARTED((byte) 1),</b>
+<i>357</i>&nbsp;        /**
+<i>358</i>&nbsp;         * Restore finished successfully
+<i>359</i>&nbsp;         */
+<b class="nc"><i>360</i>&nbsp;        SUCCESS((byte) 2),</b>
+<i>361</i>&nbsp;        /**
+<i>362</i>&nbsp;         * Restore failed
+<i>363</i>&nbsp;         */
+<b class="nc"><i>364</i>&nbsp;        FAILURE((byte) 3);</b>
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;        private byte value;
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;        /**
+<i>369</i>&nbsp;         * Constructs new state
+<i>370</i>&nbsp;         *
+<i>371</i>&nbsp;         * @param value state code
+<i>372</i>&nbsp;         */
+<b class="nc"><i>373</i>&nbsp;        State(byte value) {</b>
+<b class="nc"><i>374</i>&nbsp;            this.value = value;</b>
+<b class="nc"><i>375</i>&nbsp;        }</b>
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;        /**
+<i>378</i>&nbsp;         * Returns state code
+<i>379</i>&nbsp;         *
+<i>380</i>&nbsp;         * @return state code
+<i>381</i>&nbsp;         */
+<i>382</i>&nbsp;        public byte value() {
+<b class="nc"><i>383</i>&nbsp;            return value;</b>
+<i>384</i>&nbsp;        }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;        /**
+<i>387</i>&nbsp;         * Returns true if restore process completed (either successfully or with failure)
+<i>388</i>&nbsp;         *
+<i>389</i>&nbsp;         * @return true if restore process completed
+<i>390</i>&nbsp;         */
+<i>391</i>&nbsp;        public boolean completed() {
+<b class="nc"><i>392</i>&nbsp;            return this == SUCCESS || this == FAILURE;</b>
+<i>393</i>&nbsp;        }
+<i>394</i>&nbsp;
+<i>395</i>&nbsp;        /**
+<i>396</i>&nbsp;         * Returns state corresponding to state code
+<i>397</i>&nbsp;         *
+<i>398</i>&nbsp;         * @param value stat code
+<i>399</i>&nbsp;         * @return state
+<i>400</i>&nbsp;         */
+<i>401</i>&nbsp;        public static State fromValue(byte value) {
+<b class="nc"><i>402</i>&nbsp;            switch (value) {</b>
+<i>403</i>&nbsp;                case 0:
+<b class="nc"><i>404</i>&nbsp;                    return INIT;</b>
+<i>405</i>&nbsp;                case 1:
+<b class="nc"><i>406</i>&nbsp;                    return STARTED;</b>
+<i>407</i>&nbsp;                case 2:
+<b class="nc"><i>408</i>&nbsp;                    return SUCCESS;</b>
+<i>409</i>&nbsp;                case 3:
+<b class="nc"><i>410</i>&nbsp;                    return FAILURE;</b>
+<i>411</i>&nbsp;                default:
+<b class="nc"><i>412</i>&nbsp;                    throw new IllegalArgumentException(&quot;No snapshot state for value [&quot; + value + &quot;]&quot;);</b>
+<i>413</i>&nbsp;            }
+<i>414</i>&nbsp;        }
+<i>415</i>&nbsp;    }
+<i>416</i>&nbsp;
+<i>417</i>&nbsp;    /**
+<i>418</i>&nbsp;     * {@inheritDoc}
+<i>419</i>&nbsp;     */
+<i>420</i>&nbsp;    @Override
+<i>421</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>422</i>&nbsp;        return TYPE;</b>
+<i>423</i>&nbsp;    }
+<i>424</i>&nbsp;
+<i>425</i>&nbsp;    @Override
+<i>426</i>&nbsp;    public Version getMinimalSupportedVersion() {
+<b class="nc"><i>427</i>&nbsp;        return Version.CURRENT.minimumCompatibilityVersion();</b>
+<i>428</i>&nbsp;    }
+<i>429</i>&nbsp;
+<i>430</i>&nbsp;    public static NamedDiff&lt;Custom&gt; readDiffFrom(StreamInput in) throws IOException {
+<b class="nc"><i>431</i>&nbsp;        return readDiffFrom(Custom.class, TYPE, in);</b>
+<i>432</i>&nbsp;    }
+<i>433</i>&nbsp;
+<b class="nc"><i>434</i>&nbsp;    public RestoreInProgress(StreamInput in) throws IOException {</b>
+<b class="nc"><i>435</i>&nbsp;        int count = in.readVInt();</b>
+<b class="nc"><i>436</i>&nbsp;        final ImmutableOpenMap.Builder&lt;String, Entry&gt; entriesBuilder = ImmutableOpenMap.builder(count);</b>
+<b class="nc"><i>437</i>&nbsp;        for (int i = 0; i &lt; count; i++) {</b>
+<i>438</i>&nbsp;            final String uuid;
+<b class="nc"><i>439</i>&nbsp;            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {</b>
+<b class="nc"><i>440</i>&nbsp;                uuid = in.readString();</b>
+<i>441</i>&nbsp;            } else {
+<b class="nc"><i>442</i>&nbsp;                uuid = BWC_UUID;</b>
+<i>443</i>&nbsp;            }
+<b class="nc"><i>444</i>&nbsp;            Snapshot snapshot = new Snapshot(in);</b>
+<b class="nc"><i>445</i>&nbsp;            State state = State.fromValue(in.readByte());</b>
+<b class="nc"><i>446</i>&nbsp;            int indices = in.readVInt();</b>
+<b class="nc"><i>447</i>&nbsp;            List&lt;String&gt; indexBuilder = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>448</i>&nbsp;            for (int j = 0; j &lt; indices; j++) {</b>
+<b class="nc"><i>449</i>&nbsp;                indexBuilder.add(in.readString());</b>
+<i>450</i>&nbsp;            }
+<b class="nc"><i>451</i>&nbsp;            ImmutableOpenMap.Builder&lt;ShardId, ShardRestoreStatus&gt; builder = ImmutableOpenMap.builder();</b>
+<b class="nc"><i>452</i>&nbsp;            int shards = in.readVInt();</b>
+<b class="nc"><i>453</i>&nbsp;            for (int j = 0; j &lt; shards; j++) {</b>
+<b class="nc"><i>454</i>&nbsp;                ShardId shardId = new ShardId(in);</b>
+<b class="nc"><i>455</i>&nbsp;                ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);</b>
+<b class="nc"><i>456</i>&nbsp;                builder.put(shardId, shardState);</b>
+<i>457</i>&nbsp;            }
+<b class="nc"><i>458</i>&nbsp;            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build()));</b>
+<i>459</i>&nbsp;        }
+<b class="nc"><i>460</i>&nbsp;        this.entries = entriesBuilder.build();</b>
+<b class="nc"><i>461</i>&nbsp;    }</b>
+<i>462</i>&nbsp;
+<i>463</i>&nbsp;    @Override
+<i>464</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>465</i>&nbsp;        out.writeVInt(entries.size());</b>
+<b class="nc"><i>466</i>&nbsp;        for (ObjectCursor&lt;Entry&gt; v : entries.values()) {</b>
+<b class="nc"><i>467</i>&nbsp;            Entry entry = v.value;</b>
+<b class="nc"><i>468</i>&nbsp;            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {</b>
+<b class="nc"><i>469</i>&nbsp;                out.writeString(entry.uuid);</b>
+<i>470</i>&nbsp;            }
+<b class="nc"><i>471</i>&nbsp;            entry.snapshot().writeTo(out);</b>
+<b class="nc"><i>472</i>&nbsp;            out.writeByte(entry.state().value());</b>
+<b class="nc"><i>473</i>&nbsp;            out.writeVInt(entry.indices().size());</b>
+<b class="nc"><i>474</i>&nbsp;            for (String index : entry.indices()) {</b>
+<b class="nc"><i>475</i>&nbsp;                out.writeString(index);</b>
+<b class="nc"><i>476</i>&nbsp;            }</b>
+<b class="nc"><i>477</i>&nbsp;            out.writeVInt(entry.shards().size());</b>
+<b class="nc"><i>478</i>&nbsp;            for (ObjectObjectCursor&lt;ShardId, ShardRestoreStatus&gt; shardEntry : entry.shards()) {</b>
+<b class="nc"><i>479</i>&nbsp;                shardEntry.key.writeTo(out);</b>
+<b class="nc"><i>480</i>&nbsp;                shardEntry.value.writeTo(out);</b>
+<b class="nc"><i>481</i>&nbsp;            }</b>
+<b class="nc"><i>482</i>&nbsp;        }</b>
+<b class="nc"><i>483</i>&nbsp;    }</b>
+<i>484</i>&nbsp;
+<i>485</i>&nbsp;    @Override
+<i>486</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+<b class="nc"><i>487</i>&nbsp;        builder.startArray(&quot;snapshots&quot;);</b>
+<b class="nc"><i>488</i>&nbsp;        for (ObjectCursor&lt;Entry&gt; entry : entries.values()) {</b>
+<b class="nc"><i>489</i>&nbsp;            toXContent(entry.value, builder);</b>
+<b class="nc"><i>490</i>&nbsp;        }</b>
+<b class="nc"><i>491</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>492</i>&nbsp;        return builder;</b>
+<i>493</i>&nbsp;    }
+<i>494</i>&nbsp;
+<i>495</i>&nbsp;    /**
+<i>496</i>&nbsp;     * Serializes single restore operation
+<i>497</i>&nbsp;     *
+<i>498</i>&nbsp;     * @param entry   restore operation metadata
+<i>499</i>&nbsp;     * @param builder XContent builder
+<i>500</i>&nbsp;     */
+<i>501</i>&nbsp;    public void toXContent(Entry entry, XContentBuilder builder) throws IOException {
+<b class="nc"><i>502</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>503</i>&nbsp;        builder.field(&quot;snapshot&quot;, entry.snapshot().getSnapshotId().getName());</b>
+<b class="nc"><i>504</i>&nbsp;        builder.field(&quot;repository&quot;, entry.snapshot().getRepository());</b>
+<b class="nc"><i>505</i>&nbsp;        builder.field(&quot;state&quot;, entry.state());</b>
+<b class="nc"><i>506</i>&nbsp;        builder.startArray(&quot;indices&quot;);</b>
+<i>507</i>&nbsp;        {
+<b class="nc"><i>508</i>&nbsp;            for (String index : entry.indices()) {</b>
+<b class="nc"><i>509</i>&nbsp;                builder.value(index);</b>
+<b class="nc"><i>510</i>&nbsp;            }</b>
+<i>511</i>&nbsp;        }
+<b class="nc"><i>512</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>513</i>&nbsp;        builder.startArray(&quot;shards&quot;);</b>
+<i>514</i>&nbsp;        {
+<b class="nc"><i>515</i>&nbsp;            for (ObjectObjectCursor&lt;ShardId, ShardRestoreStatus&gt; shardEntry : entry.shards) {</b>
+<b class="nc"><i>516</i>&nbsp;                ShardId shardId = shardEntry.key;</b>
+<b class="nc"><i>517</i>&nbsp;                ShardRestoreStatus status = shardEntry.value;</b>
+<b class="nc"><i>518</i>&nbsp;                builder.startObject();</b>
+<i>519</i>&nbsp;                {
+<b class="nc"><i>520</i>&nbsp;                    builder.field(&quot;index&quot;, shardId.getIndex());</b>
+<b class="nc"><i>521</i>&nbsp;                    builder.field(&quot;shard&quot;, shardId.getId());</b>
+<b class="nc"><i>522</i>&nbsp;                    builder.field(&quot;state&quot;, status.state());</b>
+<i>523</i>&nbsp;                }
+<b class="nc"><i>524</i>&nbsp;                builder.endObject();</b>
+<b class="nc"><i>525</i>&nbsp;            }</b>
+<i>526</i>&nbsp;        }
+<i>527</i>&nbsp;
+<b class="nc"><i>528</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>529</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>530</i>&nbsp;    }</b>
+<i>531</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

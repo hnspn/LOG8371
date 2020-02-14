@@ -1,0 +1,299 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FieldValueFactorFunction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.lucene.search.function</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FieldValueFactorFunction (org.elasticsearch.common.lucene.search.function)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FieldValueFactorFunction</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 18)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.lucene.search.function;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>23</i>&nbsp;import org.apache.lucene.search.Explanation;
+<i>24</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>28</i>&nbsp;import org.elasticsearch.index.fielddata.FieldData;
+<i>29</i>&nbsp;import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+<i>30</i>&nbsp;import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;import java.util.Locale;
+<i>34</i>&nbsp;import java.util.Objects;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * A function_score function that multiplies the score with the value of a
+<i>38</i>&nbsp; * field from the document, optionally multiplying the field by a factor first,
+<i>39</i>&nbsp; * and applying a modification (log, ln, sqrt, square, etc) afterwards.
+<i>40</i>&nbsp; */
+<b class="nc"><i>41</i>&nbsp;public class FieldValueFactorFunction extends ScoreFunction {</b>
+<i>42</i>&nbsp;    private final String field;
+<i>43</i>&nbsp;    private final float boostFactor;
+<i>44</i>&nbsp;    private final Modifier modifier;
+<i>45</i>&nbsp;    /**
+<i>46</i>&nbsp;     * Value used if the document is missing the field.
+<i>47</i>&nbsp;     */
+<i>48</i>&nbsp;    private final Double missing;
+<i>49</i>&nbsp;    private final IndexNumericFieldData indexFieldData;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, Double missing,
+<i>52</i>&nbsp;            IndexNumericFieldData indexFieldData) {
+<b class="nc"><i>53</i>&nbsp;        super(CombineFunction.MULTIPLY);</b>
+<b class="nc"><i>54</i>&nbsp;        this.field = field;</b>
+<b class="nc"><i>55</i>&nbsp;        this.boostFactor = boostFactor;</b>
+<b class="nc"><i>56</i>&nbsp;        this.modifier = modifierType;</b>
+<b class="nc"><i>57</i>&nbsp;        this.indexFieldData = indexFieldData;</b>
+<b class="nc"><i>58</i>&nbsp;        this.missing = missing;</b>
+<b class="nc"><i>59</i>&nbsp;    }</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    @Override
+<i>62</i>&nbsp;    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+<i>63</i>&nbsp;        final SortedNumericDoubleValues values;
+<b class="nc"><i>64</i>&nbsp;        if(indexFieldData == null) {</b>
+<b class="nc"><i>65</i>&nbsp;            values = FieldData.emptySortedNumericDoubles();</b>
+<i>66</i>&nbsp;        } else {
+<b class="nc"><i>67</i>&nbsp;            values = this.indexFieldData.load(ctx).getDoubleValues();</b>
+<i>68</i>&nbsp;        }
+<i>69</i>&nbsp;
+<b class="nc"><i>70</i>&nbsp;        return new LeafScoreFunction() {</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;            @Override
+<i>73</i>&nbsp;            public double score(int docId, float subQueryScore) throws IOException {
+<i>74</i>&nbsp;                double value;
+<i>75</i>&nbsp;                if (values.advanceExact(docId)) {
+<i>76</i>&nbsp;                    value = values.nextValue();
+<i>77</i>&nbsp;                } else {
+<i>78</i>&nbsp;                    if (missing != null) {
+<i>79</i>&nbsp;                        value = missing;
+<i>80</i>&nbsp;                    } else {
+<i>81</i>&nbsp;                        throw new ElasticsearchException(&quot;Missing value for field [&quot; + field + &quot;]&quot;);
+<i>82</i>&nbsp;                    }
+<i>83</i>&nbsp;                }
+<i>84</i>&nbsp;                double val = value * boostFactor;
+<i>85</i>&nbsp;                double result = modifier.apply(val);
+<i>86</i>&nbsp;                if (result &lt; 0f) {
+<i>87</i>&nbsp;                    String message = &quot;field value function must not produce negative scores, but got: &quot; +
+<i>88</i>&nbsp;                            &quot;[&quot; + result + &quot;] for field value: [&quot; + value + &quot;]&quot;;
+<i>89</i>&nbsp;                    if (modifier == Modifier.LN) {
+<i>90</i>&nbsp;                        message += &quot;; consider using ln1p or ln2p instead of ln to avoid negative scores&quot;;
+<i>91</i>&nbsp;                    } else if (modifier == Modifier.LOG) {
+<i>92</i>&nbsp;                        message += &quot;; consider using log1p or log2p instead of log to avoid negative scores&quot;;
+<i>93</i>&nbsp;                    }
+<i>94</i>&nbsp;                    throw new IllegalArgumentException(message);
+<i>95</i>&nbsp;                }
+<i>96</i>&nbsp;                return result;
+<i>97</i>&nbsp;            }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;            @Override
+<i>100</i>&nbsp;            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+<i>101</i>&nbsp;                String modifierStr = modifier != null ? modifier.toString() : &quot;&quot;;
+<i>102</i>&nbsp;                String defaultStr = missing != null ? &quot;?:&quot; + missing : &quot;&quot;;
+<i>103</i>&nbsp;                double score = score(docId, subQueryScore.getValue().floatValue());
+<i>104</i>&nbsp;                return Explanation.match(
+<i>105</i>&nbsp;                        (float) score,
+<i>106</i>&nbsp;                        String.format(Locale.ROOT,
+<i>107</i>&nbsp;                                &quot;field value function: %s(doc[&#39;%s&#39;].value%s * factor=%s)&quot;, modifierStr, field, defaultStr, boostFactor));
+<i>108</i>&nbsp;            }
+<i>109</i>&nbsp;        };
+<i>110</i>&nbsp;    }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    @Override
+<i>113</i>&nbsp;    public boolean needsScores() {
+<b class="nc"><i>114</i>&nbsp;        return false;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    @Override
+<i>118</i>&nbsp;    protected boolean doEquals(ScoreFunction other) {
+<b class="nc"><i>119</i>&nbsp;        FieldValueFactorFunction fieldValueFactorFunction = (FieldValueFactorFunction) other;</b>
+<b class="nc"><i>120</i>&nbsp;        return this.boostFactor == fieldValueFactorFunction.boostFactor &amp;&amp;</b>
+<b class="nc"><i>121</i>&nbsp;                Objects.equals(this.field, fieldValueFactorFunction.field) &amp;&amp;</b>
+<b class="nc"><i>122</i>&nbsp;                Objects.equals(this.modifier, fieldValueFactorFunction.modifier);</b>
+<i>123</i>&nbsp;    }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    @Override
+<i>126</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>127</i>&nbsp;        return Objects.hash(boostFactor, field, modifier);</b>
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    /**
+<i>131</i>&nbsp;     * The Type class encapsulates the modification types that can be applied
+<i>132</i>&nbsp;     * to the score/value product.
+<i>133</i>&nbsp;     */
+<i>134</i>&nbsp;    public enum Modifier implements Writeable {
+<i>135</i>&nbsp;        NONE {
+<i>136</i>&nbsp;            @Override
+<i>137</i>&nbsp;            public double apply(double n) {
+<i>138</i>&nbsp;                return n;
+<i>139</i>&nbsp;            }
+<i>140</i>&nbsp;        },
+<i>141</i>&nbsp;        LOG {
+<i>142</i>&nbsp;            @Override
+<i>143</i>&nbsp;            public double apply(double n) {
+<i>144</i>&nbsp;                return Math.log10(n);
+<i>145</i>&nbsp;            }
+<i>146</i>&nbsp;        },
+<i>147</i>&nbsp;        LOG1P {
+<i>148</i>&nbsp;            @Override
+<i>149</i>&nbsp;            public double apply(double n) {
+<i>150</i>&nbsp;                return Math.log10(n + 1);
+<i>151</i>&nbsp;            }
+<i>152</i>&nbsp;        },
+<i>153</i>&nbsp;        LOG2P {
+<i>154</i>&nbsp;            @Override
+<i>155</i>&nbsp;            public double apply(double n) {
+<i>156</i>&nbsp;                return Math.log10(n + 2);
+<i>157</i>&nbsp;            }
+<i>158</i>&nbsp;        },
+<i>159</i>&nbsp;        LN {
+<i>160</i>&nbsp;            @Override
+<i>161</i>&nbsp;            public double apply(double n) {
+<i>162</i>&nbsp;                return Math.log(n);
+<i>163</i>&nbsp;            }
+<i>164</i>&nbsp;        },
+<i>165</i>&nbsp;        LN1P {
+<i>166</i>&nbsp;            @Override
+<i>167</i>&nbsp;            public double apply(double n) {
+<i>168</i>&nbsp;                return Math.log1p(n);
+<i>169</i>&nbsp;            }
+<i>170</i>&nbsp;        },
+<i>171</i>&nbsp;        LN2P {
+<i>172</i>&nbsp;            @Override
+<i>173</i>&nbsp;            public double apply(double n) {
+<i>174</i>&nbsp;                return Math.log1p(n + 1);
+<i>175</i>&nbsp;            }
+<i>176</i>&nbsp;        },
+<i>177</i>&nbsp;        SQUARE {
+<i>178</i>&nbsp;            @Override
+<i>179</i>&nbsp;            public double apply(double n) {
+<i>180</i>&nbsp;                return Math.pow(n, 2);
+<i>181</i>&nbsp;            }
+<i>182</i>&nbsp;        },
+<i>183</i>&nbsp;        SQRT {
+<i>184</i>&nbsp;            @Override
+<i>185</i>&nbsp;            public double apply(double n) {
+<i>186</i>&nbsp;                return Math.sqrt(n);
+<i>187</i>&nbsp;            }
+<i>188</i>&nbsp;        },
+<i>189</i>&nbsp;        RECIPROCAL {
+<i>190</i>&nbsp;            @Override
+<i>191</i>&nbsp;            public double apply(double n) {
+<i>192</i>&nbsp;                return 1.0 / n;
+<i>193</i>&nbsp;            }
+<i>194</i>&nbsp;        };
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;        public abstract double apply(double n);
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;        @Override
+<i>199</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>200</i>&nbsp;            out.writeEnum(this);
+<i>201</i>&nbsp;        }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;        public static Modifier readFromStream(StreamInput in) throws IOException {
+<i>204</i>&nbsp;            return in.readEnum(Modifier.class);
+<i>205</i>&nbsp;        }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;        @Override
+<i>208</i>&nbsp;        public String toString() {
+<i>209</i>&nbsp;            return super.toString().toLowerCase(Locale.ROOT);
+<i>210</i>&nbsp;        }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        public static Modifier fromString(String modifier) {
+<i>213</i>&nbsp;            return valueOf(modifier.toUpperCase(Locale.ROOT));
+<i>214</i>&nbsp;        }
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

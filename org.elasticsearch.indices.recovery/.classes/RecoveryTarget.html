@@ -1,0 +1,569 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RecoveryTarget</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.indices.recovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RecoveryTarget (org.elasticsearch.indices.recovery)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RecoveryTarget</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 35)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 185)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.indices.recovery;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.lucene.index.CorruptIndexException;
+<i>24</i>&nbsp;import org.apache.lucene.index.IndexFormatTooNewException;
+<i>25</i>&nbsp;import org.apache.lucene.index.IndexFormatTooOldException;
+<i>26</i>&nbsp;import org.elasticsearch.Assertions;
+<i>27</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>28</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>29</i>&nbsp;import org.elasticsearch.Version;
+<i>30</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>31</i>&nbsp;import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>33</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>34</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>35</i>&nbsp;import org.elasticsearch.common.logging.Loggers;
+<i>36</i>&nbsp;import org.elasticsearch.common.lucene.Lucene;
+<i>37</i>&nbsp;import org.elasticsearch.common.util.CancellableThreads;
+<i>38</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+<i>39</i>&nbsp;import org.elasticsearch.index.engine.Engine;
+<i>40</i>&nbsp;import org.elasticsearch.index.mapper.MapperException;
+<i>41</i>&nbsp;import org.elasticsearch.index.seqno.ReplicationTracker;
+<i>42</i>&nbsp;import org.elasticsearch.index.seqno.RetentionLeases;
+<i>43</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>44</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>45</i>&nbsp;import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
+<i>46</i>&nbsp;import org.elasticsearch.index.shard.IndexShardState;
+<i>47</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>48</i>&nbsp;import org.elasticsearch.index.store.Store;
+<i>49</i>&nbsp;import org.elasticsearch.index.store.StoreFileMetaData;
+<i>50</i>&nbsp;import org.elasticsearch.index.translog.Translog;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;import java.io.IOException;
+<i>53</i>&nbsp;import java.nio.file.Path;
+<i>54</i>&nbsp;import java.util.List;
+<i>55</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>56</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>57</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;/**
+<i>60</i>&nbsp; * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
+<i>61</i>&nbsp; * this class are created through {@link RecoveriesCollection}.
+<i>62</i>&nbsp; */
+<b class="nc"><i>63</i>&nbsp;public class RecoveryTarget extends AbstractRefCounted implements RecoveryTargetHandler {</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    private final Logger logger;
+<i>66</i>&nbsp;
+<b class="nc"><i>67</i>&nbsp;    private static final AtomicLong idGenerator = new AtomicLong();</b>
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    private static final String RECOVERY_PREFIX = &quot;recovery.&quot;;
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    private final ShardId shardId;
+<i>72</i>&nbsp;    private final long recoveryId;
+<i>73</i>&nbsp;    private final IndexShard indexShard;
+<i>74</i>&nbsp;    private final DiscoveryNode sourceNode;
+<i>75</i>&nbsp;    private final MultiFileWriter multiFileWriter;
+<i>76</i>&nbsp;    private final Store store;
+<i>77</i>&nbsp;    private final PeerRecoveryTargetService.RecoveryListener listener;
+<i>78</i>&nbsp;
+<b class="nc"><i>79</i>&nbsp;    private final AtomicBoolean finished = new AtomicBoolean();</b>
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    private final CancellableThreads cancellableThreads;
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    // last time this status was accessed
+<b class="nc"><i>84</i>&nbsp;    private volatile long lastAccessTime = System.nanoTime();</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    // latch that can be used to blockingly wait for RecoveryTarget to be closed
+<b class="nc"><i>87</i>&nbsp;    private final CountDownLatch closedLatch = new CountDownLatch(1);</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /**
+<i>90</i>&nbsp;     * Creates a new recovery target object that represents a recovery to the provided shard.
+<i>91</i>&nbsp;     *
+<i>92</i>&nbsp;     * @param indexShard                        local shard where we want to recover to
+<i>93</i>&nbsp;     * @param sourceNode                        source node of the recovery where we recover from
+<i>94</i>&nbsp;     * @param listener                          called when recovery is completed/failed
+<i>95</i>&nbsp;     */
+<i>96</i>&nbsp;    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener) {
+<b class="nc"><i>97</i>&nbsp;        super(&quot;recovery_status&quot;);</b>
+<b class="nc"><i>98</i>&nbsp;        this.cancellableThreads = new CancellableThreads();</b>
+<b class="nc"><i>99</i>&nbsp;        this.recoveryId = idGenerator.incrementAndGet();</b>
+<b class="nc"><i>100</i>&nbsp;        this.listener = listener;</b>
+<b class="nc"><i>101</i>&nbsp;        this.logger = Loggers.getLogger(getClass(), indexShard.shardId());</b>
+<b class="nc"><i>102</i>&nbsp;        this.indexShard = indexShard;</b>
+<b class="nc"><i>103</i>&nbsp;        this.sourceNode = sourceNode;</b>
+<b class="nc"><i>104</i>&nbsp;        this.shardId = indexShard.shardId();</b>
+<b class="nc"><i>105</i>&nbsp;        final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + &quot;.&quot;;</b>
+<b class="nc"><i>106</i>&nbsp;        this.multiFileWriter = new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger,</b>
+<i>107</i>&nbsp;            this::ensureRefCount);
+<b class="nc"><i>108</i>&nbsp;        this.store = indexShard.store();</b>
+<i>109</i>&nbsp;        // make sure the store is not released until we are done.
+<b class="nc"><i>110</i>&nbsp;        store.incRef();</b>
+<b class="nc"><i>111</i>&nbsp;        indexShard.recoveryStats().incCurrentAsTarget();</b>
+<b class="nc"><i>112</i>&nbsp;    }</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /**
+<i>115</i>&nbsp;     * Returns a fresh recovery target to retry recovery from the same source node onto the same shard and using the same listener.
+<i>116</i>&nbsp;     *
+<i>117</i>&nbsp;     * @return a copy of this recovery target
+<i>118</i>&nbsp;     */
+<i>119</i>&nbsp;    public RecoveryTarget retryCopy() {
+<b class="nc"><i>120</i>&nbsp;        return new RecoveryTarget(indexShard, sourceNode, listener);</b>
+<i>121</i>&nbsp;    }
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    public long recoveryId() {
+<b class="nc"><i>124</i>&nbsp;        return recoveryId;</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    public ShardId shardId() {
+<b class="nc"><i>128</i>&nbsp;        return shardId;</b>
+<i>129</i>&nbsp;    }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    public IndexShard indexShard() {
+<b class="nc"><i>132</i>&nbsp;        ensureRefCount();</b>
+<b class="nc"><i>133</i>&nbsp;        return indexShard;</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    public DiscoveryNode sourceNode() {
+<b class="nc"><i>137</i>&nbsp;        return this.sourceNode;</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    public RecoveryState state() {
+<b class="nc"><i>141</i>&nbsp;        return indexShard.recoveryState();</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    public CancellableThreads cancellableThreads() {
+<b class="nc"><i>145</i>&nbsp;        return cancellableThreads;</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
+<i>149</i>&nbsp;    public long lastAccessTime() {
+<b class="nc"><i>150</i>&nbsp;        return lastAccessTime;</b>
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    /** sets the lasAccessTime flag to now */
+<i>154</i>&nbsp;    public void setLastAccessTime() {
+<b class="nc"><i>155</i>&nbsp;        lastAccessTime = System.nanoTime();</b>
+<b class="nc"><i>156</i>&nbsp;    }</b>
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    public Store store() {
+<b class="nc"><i>159</i>&nbsp;        ensureRefCount();</b>
+<b class="nc"><i>160</i>&nbsp;        return store;</b>
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    /**
+<i>164</i>&nbsp;     * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
+<i>165</i>&nbsp;     * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
+<i>166</i>&nbsp;     */
+<i>167</i>&nbsp;    boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException {
+<b class="nc"><i>168</i>&nbsp;        if (finished.compareAndSet(false, true)) {</b>
+<i>169</i>&nbsp;            try {
+<b class="nc"><i>170</i>&nbsp;                logger.debug(&quot;reset of recovery with shard {} and id [{}]&quot;, shardId, recoveryId);</b>
+<i>171</i>&nbsp;            } finally {
+<i>172</i>&nbsp;                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
+<b class="nc"><i>173</i>&nbsp;                decRef();</b>
+<b class="nc"><i>174</i>&nbsp;            }</b>
+<i>175</i>&nbsp;            try {
+<b class="nc"><i>176</i>&nbsp;                newTargetCancellableThreads.execute(closedLatch::await);</b>
+<b class="nc"><i>177</i>&nbsp;            } catch (CancellableThreads.ExecutionCancelledException e) {</b>
+<b class="nc"><i>178</i>&nbsp;                logger.trace(&quot;new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close&quot;,</b>
+<b class="nc"><i>179</i>&nbsp;                    shardId, recoveryId);</b>
+<b class="nc"><i>180</i>&nbsp;                return false;</b>
+<b class="nc"><i>181</i>&nbsp;            }</b>
+<b class="nc"><i>182</i>&nbsp;            RecoveryState.Stage stage = indexShard.recoveryState().getStage();</b>
+<b class="nc"><i>183</i>&nbsp;            if (indexShard.recoveryState().getPrimary() &amp;&amp; (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {</b>
+<i>184</i>&nbsp;                // once primary relocation has moved past the finalization step, the relocation source can put the target into primary mode
+<i>185</i>&nbsp;                // and start indexing as primary into the target shard (see TransportReplicationAction). Resetting the target shard in this
+<i>186</i>&nbsp;                // state could mean that indexing is halted until the recovery retry attempt is completed and could also destroy existing
+<i>187</i>&nbsp;                // documents indexed and acknowledged before the reset.
+<b class="nc"><i>188</i>&nbsp;                assert stage != RecoveryState.Stage.DONE : &quot;recovery should not have completed when it&#39;s being reset&quot;;</b>
+<b class="nc"><i>189</i>&nbsp;                throw new IllegalStateException(&quot;cannot reset recovery as previous attempt made it past finalization step&quot;);</b>
+<i>190</i>&nbsp;            }
+<b class="nc"><i>191</i>&nbsp;            indexShard.performRecoveryRestart();</b>
+<b class="nc"><i>192</i>&nbsp;            return true;</b>
+<i>193</i>&nbsp;        }
+<b class="nc"><i>194</i>&nbsp;        return false;</b>
+<i>195</i>&nbsp;    }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    /**
+<i>198</i>&nbsp;     * cancel the recovery. calling this method will clean temporary files and release the store
+<i>199</i>&nbsp;     * unless this object is in use (in which case it will be cleaned once all ongoing users call
+<i>200</i>&nbsp;     * {@link #decRef()}
+<i>201</i>&nbsp;     * &lt;p&gt;
+<i>202</i>&nbsp;     * if {@link #cancellableThreads()} was used, the threads will be interrupted.
+<i>203</i>&nbsp;     */
+<i>204</i>&nbsp;    public void cancel(String reason) {
+<b class="nc"><i>205</i>&nbsp;        if (finished.compareAndSet(false, true)) {</b>
+<i>206</i>&nbsp;            try {
+<b class="nc"><i>207</i>&nbsp;                logger.debug(&quot;recovery canceled (reason: [{}])&quot;, reason);</b>
+<b class="nc"><i>208</i>&nbsp;                cancellableThreads.cancel(reason);</b>
+<i>209</i>&nbsp;            } finally {
+<i>210</i>&nbsp;                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+<b class="nc"><i>211</i>&nbsp;                decRef();</b>
+<b class="nc"><i>212</i>&nbsp;            }</b>
+<i>213</i>&nbsp;        }
+<b class="nc"><i>214</i>&nbsp;    }</b>
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    /**
+<i>217</i>&nbsp;     * fail the recovery and call listener
+<i>218</i>&nbsp;     *
+<i>219</i>&nbsp;     * @param e                exception that encapsulating the failure
+<i>220</i>&nbsp;     * @param sendShardFailure indicates whether to notify the master of the shard failure
+<i>221</i>&nbsp;     */
+<i>222</i>&nbsp;    public void fail(RecoveryFailedException e, boolean sendShardFailure) {
+<b class="nc"><i>223</i>&nbsp;        if (finished.compareAndSet(false, true)) {</b>
+<i>224</i>&nbsp;            try {
+<b class="nc"><i>225</i>&nbsp;                notifyListener(e, sendShardFailure);</b>
+<i>226</i>&nbsp;            } finally {
+<b class="nc"><i>227</i>&nbsp;                try {</b>
+<b class="nc"><i>228</i>&nbsp;                    cancellableThreads.cancel(&quot;failed recovery [&quot; + ExceptionsHelper.stackTrace(e) + &quot;]&quot;);</b>
+<i>229</i>&nbsp;                } finally {
+<i>230</i>&nbsp;                    // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+<b class="nc"><i>231</i>&nbsp;                    decRef();</b>
+<b class="nc"><i>232</i>&nbsp;                }</b>
+<b class="nc"><i>233</i>&nbsp;            }</b>
+<i>234</i>&nbsp;        }
+<b class="nc"><i>235</i>&nbsp;    }</b>
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;    public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
+<b class="nc"><i>238</i>&nbsp;        listener.onRecoveryFailure(state(), e, sendShardFailure);</b>
+<b class="nc"><i>239</i>&nbsp;    }</b>
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;    /** mark the current recovery as done */
+<i>242</i>&nbsp;    public void markAsDone() {
+<b class="nc"><i>243</i>&nbsp;        if (finished.compareAndSet(false, true)) {</b>
+<b class="nc"><i>244</i>&nbsp;            assert multiFileWriter.tempFileNames.isEmpty() : &quot;not all temporary files are renamed&quot;;</b>
+<i>245</i>&nbsp;            try {
+<i>246</i>&nbsp;                // this might still throw an exception ie. if the shard is CLOSED due to some other event.
+<i>247</i>&nbsp;                // it&#39;s safer to decrement the reference in a try finally here.
+<b class="nc"><i>248</i>&nbsp;                indexShard.postRecovery(&quot;peer recovery done&quot;);</b>
+<i>249</i>&nbsp;            } finally {
+<i>250</i>&nbsp;                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+<b class="nc"><i>251</i>&nbsp;                decRef();</b>
+<b class="nc"><i>252</i>&nbsp;            }</b>
+<b class="nc"><i>253</i>&nbsp;            listener.onRecoveryDone(state());</b>
+<i>254</i>&nbsp;        }
+<b class="nc"><i>255</i>&nbsp;    }</b>
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;    @Override
+<i>258</i>&nbsp;    protected void closeInternal() {
+<i>259</i>&nbsp;        try {
+<b class="nc"><i>260</i>&nbsp;            multiFileWriter.close();</b>
+<i>261</i>&nbsp;        } finally {
+<i>262</i>&nbsp;            // free store. increment happens in constructor
+<b class="nc"><i>263</i>&nbsp;            store.decRef();</b>
+<b class="nc"><i>264</i>&nbsp;            indexShard.recoveryStats().decCurrentAsTarget();</b>
+<b class="nc"><i>265</i>&nbsp;            closedLatch.countDown();</b>
+<b class="nc"><i>266</i>&nbsp;        }</b>
+<b class="nc"><i>267</i>&nbsp;    }</b>
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    @Override
+<i>270</i>&nbsp;    public String toString() {
+<b class="nc"><i>271</i>&nbsp;        return shardId + &quot; [&quot; + recoveryId + &quot;]&quot;;</b>
+<i>272</i>&nbsp;    }
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;    private void ensureRefCount() {
+<b class="nc"><i>275</i>&nbsp;        if (refCount() &lt;= 0) {</b>
+<b class="nc"><i>276</i>&nbsp;            throw new ElasticsearchException(&quot;RecoveryStatus is used but it&#39;s refcount is 0. Probably a mismatch between incRef/decRef &quot; +</b>
+<i>277</i>&nbsp;                    &quot;calls&quot;);
+<i>278</i>&nbsp;        }
+<b class="nc"><i>279</i>&nbsp;    }</b>
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;    /*** Implementation of {@link RecoveryTargetHandler } */
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    @Override
+<i>284</i>&nbsp;    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener&lt;Void&gt; listener) {
+<b class="nc"><i>285</i>&nbsp;        ActionListener.completeWith(listener, () -&gt; {</b>
+<b class="nc"><i>286</i>&nbsp;            state().getTranslog().totalOperations(totalTranslogOps);</b>
+<b class="nc"><i>287</i>&nbsp;            indexShard().openEngineAndSkipTranslogRecovery();</b>
+<b class="nc"><i>288</i>&nbsp;            return null;</b>
+<i>289</i>&nbsp;        });
+<b class="nc"><i>290</i>&nbsp;    }</b>
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;    @Override
+<i>293</i>&nbsp;    public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener&lt;Void&gt; listener) {
+<b class="nc"><i>294</i>&nbsp;        ActionListener.completeWith(listener, () -&gt; {</b>
+<b class="nc"><i>295</i>&nbsp;            indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, &quot;finalizing recovery&quot;);</b>
+<i>296</i>&nbsp;            // Persist the global checkpoint.
+<b class="nc"><i>297</i>&nbsp;            indexShard.sync();</b>
+<b class="nc"><i>298</i>&nbsp;            indexShard.persistRetentionLeases();</b>
+<b class="nc"><i>299</i>&nbsp;            if (trimAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {</b>
+<i>300</i>&nbsp;                // We should erase all translog operations above trimAboveSeqNo as we have received either the same or a newer copy
+<i>301</i>&nbsp;                // from the recovery source in phase2. Rolling a new translog generation is not strictly required here for we won&#39;t
+<i>302</i>&nbsp;                // trim the current generation. It&#39;s merely to satisfy the assumption that the current generation does not have any
+<i>303</i>&nbsp;                // operation that would be trimmed (see TranslogWriter#assertNoSeqAbove). This assumption does not hold for peer
+<i>304</i>&nbsp;                // recovery because we could have received operations above startingSeqNo from the previous primary terms.
+<b class="nc"><i>305</i>&nbsp;                indexShard.rollTranslogGeneration();</b>
+<i>306</i>&nbsp;                // the flush or translog generation threshold can be reached after we roll a new translog
+<b class="nc"><i>307</i>&nbsp;                indexShard.afterWriteOperation();</b>
+<b class="nc"><i>308</i>&nbsp;                indexShard.trimOperationOfPreviousPrimaryTerms(trimAboveSeqNo);</b>
+<i>309</i>&nbsp;            }
+<b class="nc"><i>310</i>&nbsp;            if (hasUncommittedOperations()) {</b>
+<b class="nc"><i>311</i>&nbsp;                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));</b>
+<i>312</i>&nbsp;            }
+<b class="nc"><i>313</i>&nbsp;            indexShard.finalizeRecovery();</b>
+<b class="nc"><i>314</i>&nbsp;            return null;</b>
+<i>315</i>&nbsp;        });
+<b class="nc"><i>316</i>&nbsp;    }</b>
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;    private boolean hasUncommittedOperations() throws IOException {
+<b class="nc"><i>319</i>&nbsp;        long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));</b>
+<b class="nc"><i>320</i>&nbsp;        return indexShard.estimateNumberOfHistoryOperations(&quot;peer-recovery&quot;,</b>
+<b class="nc"><i>321</i>&nbsp;            indexShard.indexSettings().isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG,</b>
+<i>322</i>&nbsp;            localCheckpointOfCommit + 1) &gt; 0;
+<i>323</i>&nbsp;    }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;    @Override
+<i>326</i>&nbsp;    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
+<b class="nc"><i>327</i>&nbsp;        indexShard.activateWithPrimaryContext(primaryContext);</b>
+<b class="nc"><i>328</i>&nbsp;    }</b>
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;    @Override
+<i>331</i>&nbsp;    public void indexTranslogOperations(
+<i>332</i>&nbsp;            final List&lt;Translog.Operation&gt; operations,
+<i>333</i>&nbsp;            final int totalTranslogOps,
+<i>334</i>&nbsp;            final long maxSeenAutoIdTimestampOnPrimary,
+<i>335</i>&nbsp;            final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+<i>336</i>&nbsp;            final RetentionLeases retentionLeases,
+<i>337</i>&nbsp;            final long mappingVersionOnPrimary,
+<i>338</i>&nbsp;            final ActionListener&lt;Long&gt; listener) {
+<b class="nc"><i>339</i>&nbsp;        ActionListener.completeWith(listener, () -&gt; {</b>
+<b class="nc"><i>340</i>&nbsp;            final RecoveryState.Translog translog = state().getTranslog();</b>
+<b class="nc"><i>341</i>&nbsp;            translog.totalOperations(totalTranslogOps);</b>
+<b class="nc"><i>342</i>&nbsp;            assert indexShard().recoveryState() == state();</b>
+<b class="nc"><i>343</i>&nbsp;            if (indexShard().state() != IndexShardState.RECOVERING) {</b>
+<b class="nc"><i>344</i>&nbsp;                throw new IndexShardNotRecoveringException(shardId, indexShard().state());</b>
+<i>345</i>&nbsp;            }
+<i>346</i>&nbsp;            /*
+<i>347</i>&nbsp;             * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
+<i>348</i>&nbsp;             * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
+<i>349</i>&nbsp;             * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
+<i>350</i>&nbsp;             * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
+<i>351</i>&nbsp;             */
+<b class="nc"><i>352</i>&nbsp;            indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);</b>
+<i>353</i>&nbsp;            /*
+<i>354</i>&nbsp;             * Bootstrap the max_seq_no_of_updates from the primary to make sure that the max_seq_no_of_updates on this replica when
+<i>355</i>&nbsp;             * replaying any of these operations will be at least the max_seq_no_of_updates on the primary when that op was executed on.
+<i>356</i>&nbsp;             */
+<b class="nc"><i>357</i>&nbsp;            indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfDeletesOrUpdatesOnPrimary);</b>
+<i>358</i>&nbsp;            /*
+<i>359</i>&nbsp;             * We have to update the retention leases before we start applying translog operations to ensure we are retaining according to
+<i>360</i>&nbsp;             * the policy.
+<i>361</i>&nbsp;             */
+<b class="nc"><i>362</i>&nbsp;            indexShard().updateRetentionLeasesOnReplica(retentionLeases);</b>
+<b class="nc"><i>363</i>&nbsp;            for (Translog.Operation operation : operations) {</b>
+<b class="nc"><i>364</i>&nbsp;                Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);</b>
+<b class="nc"><i>365</i>&nbsp;                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {</b>
+<b class="nc"><i>366</i>&nbsp;                    throw new MapperException(&quot;mapping updates are not allowed [&quot; + operation + &quot;]&quot;);</b>
+<i>367</i>&nbsp;                }
+<b class="nc"><i>368</i>&nbsp;                if (result.getFailure() != null) {</b>
+<b class="nc"><i>369</i>&nbsp;                    if (Assertions.ENABLED &amp;&amp; result.getFailure() instanceof MapperException == false) {</b>
+<b class="nc"><i>370</i>&nbsp;                        throw new AssertionError(&quot;unexpected failure while replicating translog entry&quot;, result.getFailure());</b>
+<i>371</i>&nbsp;                    }
+<b class="nc"><i>372</i>&nbsp;                    ExceptionsHelper.reThrowIfNotNull(result.getFailure());</b>
+<i>373</i>&nbsp;                }
+<b class="nc"><i>374</i>&nbsp;            }</b>
+<i>375</i>&nbsp;            // update stats only after all operations completed (to ensure that mapping updates don&#39;t mess with stats)
+<b class="nc"><i>376</i>&nbsp;            translog.incrementRecoveredOperations(operations.size());</b>
+<b class="nc"><i>377</i>&nbsp;            indexShard().sync();</b>
+<i>378</i>&nbsp;            // roll over / flush / trim if needed
+<b class="nc"><i>379</i>&nbsp;            indexShard().afterWriteOperation();</b>
+<b class="nc"><i>380</i>&nbsp;            return indexShard().getLocalCheckpoint();</b>
+<i>381</i>&nbsp;        });
+<b class="nc"><i>382</i>&nbsp;    }</b>
+<i>383</i>&nbsp;
+<i>384</i>&nbsp;    @Override
+<i>385</i>&nbsp;    public void receiveFileInfo(List&lt;String&gt; phase1FileNames,
+<i>386</i>&nbsp;                                List&lt;Long&gt; phase1FileSizes,
+<i>387</i>&nbsp;                                List&lt;String&gt; phase1ExistingFileNames,
+<i>388</i>&nbsp;                                List&lt;Long&gt; phase1ExistingFileSizes,
+<i>389</i>&nbsp;                                int totalTranslogOps,
+<i>390</i>&nbsp;                                ActionListener&lt;Void&gt; listener) {
+<b class="nc"><i>391</i>&nbsp;        ActionListener.completeWith(listener, () -&gt; {</b>
+<b class="nc"><i>392</i>&nbsp;            indexShard.resetRecoveryStage();</b>
+<b class="nc"><i>393</i>&nbsp;            indexShard.prepareForIndexRecovery();</b>
+<b class="nc"><i>394</i>&nbsp;            final RecoveryState.Index index = state().getIndex();</b>
+<b class="nc"><i>395</i>&nbsp;            for (int i = 0; i &lt; phase1ExistingFileNames.size(); i++) {</b>
+<b class="nc"><i>396</i>&nbsp;                index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);</b>
+<i>397</i>&nbsp;            }
+<b class="nc"><i>398</i>&nbsp;            for (int i = 0; i &lt; phase1FileNames.size(); i++) {</b>
+<b class="nc"><i>399</i>&nbsp;                index.addFileDetail(phase1FileNames.get(i), phase1FileSizes.get(i), false);</b>
+<i>400</i>&nbsp;            }
+<b class="nc"><i>401</i>&nbsp;            state().getTranslog().totalOperations(totalTranslogOps);</b>
+<b class="nc"><i>402</i>&nbsp;            state().getTranslog().totalOperationsOnStart(totalTranslogOps);</b>
+<b class="nc"><i>403</i>&nbsp;            return null;</b>
+<i>404</i>&nbsp;        });
+<b class="nc"><i>405</i>&nbsp;    }</b>
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;    @Override
+<i>408</i>&nbsp;    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+<i>409</i>&nbsp;                           ActionListener&lt;Void&gt; listener) {
+<b class="nc"><i>410</i>&nbsp;        ActionListener.completeWith(listener, () -&gt; {</b>
+<b class="nc"><i>411</i>&nbsp;            state().getTranslog().totalOperations(totalTranslogOps);</b>
+<i>412</i>&nbsp;            // first, we go and move files that were created with the recovery id suffix to
+<i>413</i>&nbsp;            // the actual names, its ok if we have a corrupted index here, since we have replicas
+<i>414</i>&nbsp;            // to recover from in case of a full cluster shutdown just when this code executes...
+<b class="nc"><i>415</i>&nbsp;            multiFileWriter.renameAllTempFiles();</b>
+<b class="nc"><i>416</i>&nbsp;            final Store store = store();</b>
+<b class="nc"><i>417</i>&nbsp;            store.incRef();</b>
+<i>418</i>&nbsp;            try {
+<b class="nc"><i>419</i>&nbsp;                store.cleanupAndVerify(&quot;recovery CleanFilesRequestHandler&quot;, sourceMetaData);</b>
+<b class="nc"><i>420</i>&nbsp;                if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {</b>
+<b class="nc"><i>421</i>&nbsp;                    store.ensureIndexHasHistoryUUID();</b>
+<i>422</i>&nbsp;                }
+<b class="nc"><i>423</i>&nbsp;                final String translogUUID = Translog.createEmptyTranslog(</b>
+<b class="nc"><i>424</i>&nbsp;                    indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());</b>
+<b class="nc"><i>425</i>&nbsp;                store.associateIndexWithNewTranslog(translogUUID);</b>
+<i>426</i>&nbsp;
+<b class="nc"><i>427</i>&nbsp;                if (indexShard.getRetentionLeases().leases().isEmpty()) {</b>
+<i>428</i>&nbsp;                    // if empty, may be a fresh IndexShard, so write an empty leases file to disk
+<b class="nc"><i>429</i>&nbsp;                    indexShard.persistRetentionLeases();</b>
+<b class="nc"><i>430</i>&nbsp;                    assert indexShard.loadRetentionLeases().leases().isEmpty();</b>
+<i>431</i>&nbsp;                } else {
+<b class="nc"><i>432</i>&nbsp;                    assert indexShard.assertRetentionLeasesPersisted();</b>
+<i>433</i>&nbsp;                }
+<b class="nc"><i>434</i>&nbsp;                indexShard.maybeCheckIndex();</b>
+<b class="nc"><i>435</i>&nbsp;                state().setStage(RecoveryState.Stage.TRANSLOG);</b>
+<b class="nc"><i>436</i>&nbsp;            } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {</b>
+<i>437</i>&nbsp;                // this is a fatal exception at this stage.
+<i>438</i>&nbsp;                // this means we transferred files from the remote that have not be checksummed and they are
+<i>439</i>&nbsp;                // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+<i>440</i>&nbsp;                // source shard since this index might be broken there as well? The Source can handle this and checks
+<i>441</i>&nbsp;                // its content on disk if possible.
+<i>442</i>&nbsp;                try {
+<i>443</i>&nbsp;                    try {
+<b class="nc"><i>444</i>&nbsp;                        store.removeCorruptionMarker();</b>
+<i>445</i>&nbsp;                    } finally {
+<b class="nc"><i>446</i>&nbsp;                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files</b>
+<b class="nc"><i>447</i>&nbsp;                    }</b>
+<b class="nc"><i>448</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>449</i>&nbsp;                    logger.debug(&quot;Failed to clean lucene index&quot;, e);</b>
+<b class="nc"><i>450</i>&nbsp;                    ex.addSuppressed(e);</b>
+<b class="nc"><i>451</i>&nbsp;                }</b>
+<b class="nc"><i>452</i>&nbsp;                RecoveryFailedException rfe = new RecoveryFailedException(state(), &quot;failed to clean after recovery&quot;, ex);</b>
+<b class="nc"><i>453</i>&nbsp;                fail(rfe, true);</b>
+<b class="nc"><i>454</i>&nbsp;                throw rfe;</b>
+<b class="nc"><i>455</i>&nbsp;            } catch (Exception ex) {</b>
+<b class="nc"><i>456</i>&nbsp;                RecoveryFailedException rfe = new RecoveryFailedException(state(), &quot;failed to clean after recovery&quot;, ex);</b>
+<b class="nc"><i>457</i>&nbsp;                fail(rfe, true);</b>
+<b class="nc"><i>458</i>&nbsp;                throw rfe;</b>
+<i>459</i>&nbsp;            } finally {
+<b class="nc"><i>460</i>&nbsp;                store.decRef();</b>
+<b class="nc"><i>461</i>&nbsp;            }</b>
+<b class="nc"><i>462</i>&nbsp;            return null;</b>
+<i>463</i>&nbsp;        });
+<b class="nc"><i>464</i>&nbsp;    }</b>
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;    @Override
+<i>467</i>&nbsp;    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+<i>468</i>&nbsp;                               boolean lastChunk, int totalTranslogOps, ActionListener&lt;Void&gt; listener) {
+<i>469</i>&nbsp;        try {
+<b class="nc"><i>470</i>&nbsp;            state().getTranslog().totalOperations(totalTranslogOps);</b>
+<b class="nc"><i>471</i>&nbsp;            multiFileWriter.writeFileChunk(fileMetaData, position, content, lastChunk);</b>
+<b class="nc"><i>472</i>&nbsp;            listener.onResponse(null);</b>
+<b class="nc"><i>473</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>474</i>&nbsp;            listener.onFailure(e);</b>
+<b class="nc"><i>475</i>&nbsp;        }</b>
+<b class="nc"><i>476</i>&nbsp;    }</b>
+<i>477</i>&nbsp;
+<i>478</i>&nbsp;    /** Get a temporary name for the provided file name. */
+<i>479</i>&nbsp;    public String getTempNameForFile(String origFile) {
+<b class="nc"><i>480</i>&nbsp;        return multiFileWriter.getTempNameForFile(origFile);</b>
+<i>481</i>&nbsp;    }
+<i>482</i>&nbsp;
+<i>483</i>&nbsp;    Path translogLocation() {
+<b class="nc"><i>484</i>&nbsp;        return indexShard().shardPath().resolveTranslog();</b>
+<i>485</i>&nbsp;    }
+<i>486</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

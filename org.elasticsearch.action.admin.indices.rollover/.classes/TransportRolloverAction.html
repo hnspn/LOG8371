@@ -1,0 +1,414 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TransportRolloverAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.admin.indices.rollover</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TransportRolloverAction (org.elasticsearch.action.admin.indices.rollover)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TransportRolloverAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (4/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8.8%
+  </span>
+  <span class="absValue">
+    (9/ 102)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.admin.indices.rollover;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.ActionFilters;
+<i>30</i>&nbsp;import org.elasticsearch.action.support.ActiveShardCount;
+<i>31</i>&nbsp;import org.elasticsearch.action.support.ActiveShardsObserver;
+<i>32</i>&nbsp;import org.elasticsearch.action.support.IndicesOptions;
+<i>33</i>&nbsp;import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+<i>34</i>&nbsp;import org.elasticsearch.client.Client;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.ClusterStateUpdateTask;
+<i>37</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockException;
+<i>38</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>39</i>&nbsp;import org.elasticsearch.cluster.metadata.AliasAction;
+<i>40</i>&nbsp;import org.elasticsearch.cluster.metadata.AliasOrIndex;
+<i>41</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>42</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+<i>43</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+<i>44</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>45</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+<i>46</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+<i>47</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+<i>48</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>49</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>50</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>51</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>52</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>53</i>&nbsp;import org.elasticsearch.index.shard.DocsStats;
+<i>54</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>55</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>56</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;import java.io.IOException;
+<i>59</i>&nbsp;import java.util.Arrays;
+<i>60</i>&nbsp;import java.util.Collection;
+<i>61</i>&nbsp;import java.util.List;
+<i>62</i>&nbsp;import java.util.Locale;
+<i>63</i>&nbsp;import java.util.Map;
+<i>64</i>&nbsp;import java.util.Optional;
+<i>65</i>&nbsp;import java.util.regex.Pattern;
+<i>66</i>&nbsp;import java.util.stream.Collectors;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;import static java.util.Collections.unmodifiableList;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;/**
+<i>71</i>&nbsp; * Main class to swap the index pointed to by an alias, given some conditions
+<i>72</i>&nbsp; */
+<b class="fc"><i>73</i>&nbsp;public class TransportRolloverAction extends TransportMasterNodeAction&lt;RolloverRequest, RolloverResponse&gt; {</b>
+<i>74</i>&nbsp;
+<b class="fc"><i>75</i>&nbsp;    private static final Pattern INDEX_NAME_PATTERN = Pattern.compile(&quot;^.*-\\d+$&quot;);</b>
+<i>76</i>&nbsp;    private final MetaDataCreateIndexService createIndexService;
+<i>77</i>&nbsp;    private final MetaDataIndexAliasesService indexAliasesService;
+<i>78</i>&nbsp;    private final ActiveShardsObserver activeShardsObserver;
+<i>79</i>&nbsp;    private final Client client;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    @Inject
+<i>82</i>&nbsp;    public TransportRolloverAction(TransportService transportService, ClusterService clusterService,
+<i>83</i>&nbsp;                                   ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
+<i>84</i>&nbsp;                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+<i>85</i>&nbsp;                                   MetaDataIndexAliasesService indexAliasesService, Client client) {
+<b class="fc"><i>86</i>&nbsp;        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,</b>
+<i>87</i>&nbsp;            indexNameExpressionResolver);
+<b class="fc"><i>88</i>&nbsp;        this.createIndexService = createIndexService;</b>
+<b class="fc"><i>89</i>&nbsp;        this.indexAliasesService = indexAliasesService;</b>
+<b class="fc"><i>90</i>&nbsp;        this.client = client;</b>
+<b class="fc"><i>91</i>&nbsp;        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);</b>
+<b class="fc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    @Override
+<i>95</i>&nbsp;    protected String executor() {
+<i>96</i>&nbsp;        // we go async right away
+<b class="fc"><i>97</i>&nbsp;        return ThreadPool.Names.SAME;</b>
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    @Override
+<i>101</i>&nbsp;    protected RolloverResponse read(StreamInput in) throws IOException {
+<b class="nc"><i>102</i>&nbsp;        return new RolloverResponse(in);</b>
+<i>103</i>&nbsp;    }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    @Override
+<i>106</i>&nbsp;    protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
+<b class="nc"><i>107</i>&nbsp;        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,</b>
+<b class="nc"><i>108</i>&nbsp;            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());</b>
+<b class="nc"><i>109</i>&nbsp;        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,</b>
+<b class="nc"><i>110</i>&nbsp;            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));</b>
+<i>111</i>&nbsp;    }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    @Override
+<i>114</i>&nbsp;    protected void masterOperation(RolloverRequest request, ClusterState state,
+<i>115</i>&nbsp;                                   ActionListener&lt;RolloverResponse&gt; listener) throws Exception {
+<b class="nc"><i>116</i>&nbsp;        throw new UnsupportedOperationException(&quot;The task parameter is required&quot;);</b>
+<i>117</i>&nbsp;    }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    @Override
+<i>120</i>&nbsp;    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState state,
+<i>121</i>&nbsp;                                   final ActionListener&lt;RolloverResponse&gt; listener) {
+<b class="nc"><i>122</i>&nbsp;        final MetaData metaData = state.metaData();</b>
+<b class="nc"><i>123</i>&nbsp;        validate(metaData, rolloverRequest);</b>
+<b class="nc"><i>124</i>&nbsp;        final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());</b>
+<b class="nc"><i>125</i>&nbsp;        final IndexMetaData indexMetaData = alias.getWriteIndex();</b>
+<b class="nc"><i>126</i>&nbsp;        final boolean explicitWriteIndex = Boolean.TRUE.equals(indexMetaData.getAliases().get(alias.getAliasName()).writeIndex());</b>
+<b class="nc"><i>127</i>&nbsp;        final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,</b>
+<b class="nc"><i>128</i>&nbsp;            indexMetaData.getIndex().getName());</b>
+<b class="nc"><i>129</i>&nbsp;        final String sourceIndexName = indexMetaData.getIndex().getName();</b>
+<b class="nc"><i>130</i>&nbsp;        final String unresolvedName = (rolloverRequest.getNewIndexName() != null)</b>
+<b class="nc"><i>131</i>&nbsp;            ? rolloverRequest.getNewIndexName()</b>
+<b class="nc"><i>132</i>&nbsp;            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);</b>
+<b class="nc"><i>133</i>&nbsp;        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);</b>
+<b class="nc"><i>134</i>&nbsp;        MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists</b>
+<b class="nc"><i>135</i>&nbsp;        checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());</b>
+<b class="nc"><i>136</i>&nbsp;        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAlias())</b>
+<b class="nc"><i>137</i>&nbsp;            .clear()</b>
+<b class="nc"><i>138</i>&nbsp;            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))</b>
+<b class="nc"><i>139</i>&nbsp;            .docs(true);</b>
+<b class="nc"><i>140</i>&nbsp;        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());</b>
+<b class="nc"><i>141</i>&nbsp;        client.execute(IndicesStatsAction.INSTANCE, statsRequest,</b>
+<i>142</i>&nbsp;            new ActionListener&lt;IndicesStatsResponse&gt;() {
+<i>143</i>&nbsp;                @Override
+<i>144</i>&nbsp;                public void onResponse(IndicesStatsResponse statsResponse) {
+<i>145</i>&nbsp;                    final Map&lt;String, Boolean&gt; conditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
+<i>146</i>&nbsp;                        metaData.index(sourceIndexName), statsResponse);
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;                    if (rolloverRequest.isDryRun()) {
+<i>149</i>&nbsp;                        listener.onResponse(
+<i>150</i>&nbsp;                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
+<i>151</i>&nbsp;                        return;
+<i>152</i>&nbsp;                    }
+<i>153</i>&nbsp;                    List&lt;Condition&lt;?&gt;&gt; metConditions =  rolloverRequest.getConditions().values().stream()
+<i>154</i>&nbsp;                        .filter(condition -&gt; conditionResults.get(condition.toString())).collect(Collectors.toList());
+<i>155</i>&nbsp;                    if (conditionResults.size() == 0 || metConditions.size() &gt; 0) {
+<i>156</i>&nbsp;                        CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
+<i>157</i>&nbsp;                            rolloverRequest);
+<i>158</i>&nbsp;                        createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -&gt; {
+<i>159</i>&nbsp;                            final IndicesAliasesClusterStateUpdateRequest aliasesUpdateRequest;
+<i>160</i>&nbsp;                            if (explicitWriteIndex) {
+<i>161</i>&nbsp;                                aliasesUpdateRequest = prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndexName,
+<i>162</i>&nbsp;                                    rolloverIndexName, rolloverRequest);
+<i>163</i>&nbsp;                            } else {
+<i>164</i>&nbsp;                                aliasesUpdateRequest = prepareRolloverAliasesUpdateRequest(sourceIndexName,
+<i>165</i>&nbsp;                                    rolloverIndexName, rolloverRequest);
+<i>166</i>&nbsp;                            }
+<i>167</i>&nbsp;                            indexAliasesService.indicesAliases(aliasesUpdateRequest,
+<i>168</i>&nbsp;                                ActionListener.wrap(aliasClusterStateUpdateResponse -&gt; {
+<i>169</i>&nbsp;                                    if (aliasClusterStateUpdateResponse.isAcknowledged()) {
+<i>170</i>&nbsp;                                        clusterService.submitStateUpdateTask(&quot;update_rollover_info&quot;, new ClusterStateUpdateTask() {
+<i>171</i>&nbsp;                                            @Override
+<i>172</i>&nbsp;                                            public ClusterState execute(ClusterState currentState) {
+<i>173</i>&nbsp;                                                RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
+<i>174</i>&nbsp;                                                    threadPool.absoluteTimeInMillis());
+<i>175</i>&nbsp;                                                return ClusterState.builder(currentState)
+<i>176</i>&nbsp;                                                    .metaData(MetaData.builder(currentState.metaData())
+<i>177</i>&nbsp;                                                        .put(IndexMetaData.builder(currentState.metaData().index(sourceIndexName))
+<i>178</i>&nbsp;                                                            .putRolloverInfo(rolloverInfo))).build();
+<i>179</i>&nbsp;                                            }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;                                            @Override
+<i>182</i>&nbsp;                                            public void onFailure(String source, Exception e) {
+<i>183</i>&nbsp;                                                listener.onFailure(e);
+<i>184</i>&nbsp;                                            }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;                                            @Override
+<i>187</i>&nbsp;                                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>188</i>&nbsp;                                                activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
+<i>189</i>&nbsp;                                                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+<i>190</i>&nbsp;                                                    rolloverRequest.masterNodeTimeout(),
+<i>191</i>&nbsp;                                                    isShardsAcknowledged -&gt; listener.onResponse(new RolloverResponse(
+<i>192</i>&nbsp;                                                        sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
+<i>193</i>&nbsp;                                                        isShardsAcknowledged)),
+<i>194</i>&nbsp;                                                    listener::onFailure);
+<i>195</i>&nbsp;                                            }
+<i>196</i>&nbsp;                                        });
+<i>197</i>&nbsp;                                    } else {
+<i>198</i>&nbsp;                                        listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
+<i>199</i>&nbsp;                                                                                    false, true, false, false));
+<i>200</i>&nbsp;                                    }
+<i>201</i>&nbsp;                                }, listener::onFailure));
+<i>202</i>&nbsp;                        }, listener::onFailure));
+<i>203</i>&nbsp;                    } else {
+<i>204</i>&nbsp;                        // conditions not met
+<i>205</i>&nbsp;                        listener.onResponse(
+<i>206</i>&nbsp;                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
+<i>207</i>&nbsp;                        );
+<i>208</i>&nbsp;                    }
+<i>209</i>&nbsp;                }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;                @Override
+<i>212</i>&nbsp;                public void onFailure(Exception e) {
+<i>213</i>&nbsp;                    listener.onFailure(e);
+<i>214</i>&nbsp;                }
+<i>215</i>&nbsp;            }
+<i>216</i>&nbsp;        );
+<b class="nc"><i>217</i>&nbsp;    }</b>
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
+<i>220</i>&nbsp;                                                                                       RolloverRequest request) {
+<b class="nc"><i>221</i>&nbsp;        List&lt;AliasAction&gt; actions = unmodifiableList(Arrays.asList(</b>
+<b class="nc"><i>222</i>&nbsp;            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),</b>
+<b class="nc"><i>223</i>&nbsp;            new AliasAction.Remove(oldIndex, request.getAlias())));</b>
+<b class="nc"><i>224</i>&nbsp;        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)</b>
+<b class="nc"><i>225</i>&nbsp;            .ackTimeout(request.ackTimeout())</b>
+<b class="nc"><i>226</i>&nbsp;            .masterNodeTimeout(request.masterNodeTimeout());</b>
+<b class="nc"><i>227</i>&nbsp;        return updateRequest;</b>
+<i>228</i>&nbsp;    }
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;    static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesWriteIndexUpdateRequest(String oldIndex, String newIndex,
+<i>231</i>&nbsp;                                                                                                 RolloverRequest request) {
+<b class="nc"><i>232</i>&nbsp;        List&lt;AliasAction&gt; actions = unmodifiableList(Arrays.asList(</b>
+<b class="nc"><i>233</i>&nbsp;            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),</b>
+<b class="nc"><i>234</i>&nbsp;            new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false)));</b>
+<b class="nc"><i>235</i>&nbsp;        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)</b>
+<b class="nc"><i>236</i>&nbsp;            .ackTimeout(request.ackTimeout())</b>
+<b class="nc"><i>237</i>&nbsp;            .masterNodeTimeout(request.masterNodeTimeout());</b>
+<b class="nc"><i>238</i>&nbsp;        return updateRequest;</b>
+<i>239</i>&nbsp;    }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
+<b class="nc"><i>243</i>&nbsp;        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);</b>
+<b class="nc"><i>244</i>&nbsp;        final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;</b>
+<b class="nc"><i>245</i>&nbsp;        if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {</b>
+<b class="nc"><i>246</i>&nbsp;            int numberIndex = sourceIndexName.lastIndexOf(&quot;-&quot;);</b>
+<b class="nc"><i>247</i>&nbsp;            assert numberIndex != -1 : &quot;no separator &#39;-&#39; found&quot;;</b>
+<b class="nc"><i>248</i>&nbsp;            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length()-1 :</b>
+<b class="nc"><i>249</i>&nbsp;                sourceIndexName.length()));</b>
+<b class="nc"><i>250</i>&nbsp;            String newName = sourceIndexName.substring(0, numberIndex) + &quot;-&quot; + String.format(Locale.ROOT, &quot;%06d&quot;, ++counter)</b>
+<b class="nc"><i>251</i>&nbsp;                + (isDateMath ? &quot;&gt;&quot; : &quot;&quot;);</b>
+<b class="nc"><i>252</i>&nbsp;            return newName;</b>
+<i>253</i>&nbsp;        } else {
+<b class="nc"><i>254</i>&nbsp;            throw new IllegalArgumentException(&quot;index name [&quot; + sourceIndexName + &quot;] does not match pattern &#39;^.*-\\d+$&#39;&quot;);</b>
+<i>255</i>&nbsp;        }
+<i>256</i>&nbsp;    }
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    static Map&lt;String, Boolean&gt; evaluateConditions(final Collection&lt;Condition&lt;?&gt;&gt; conditions,
+<i>259</i>&nbsp;                                                   @Nullable final DocsStats docsStats,
+<i>260</i>&nbsp;                                                   @Nullable final IndexMetaData metaData) {
+<b class="nc"><i>261</i>&nbsp;        if (metaData == null) {</b>
+<b class="nc"><i>262</i>&nbsp;            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -&gt; false));</b>
+<i>263</i>&nbsp;        }
+<b class="nc"><i>264</i>&nbsp;        final long numDocs = docsStats == null ? 0 : docsStats.getCount();</b>
+<b class="nc"><i>265</i>&nbsp;        final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();</b>
+<b class="nc"><i>266</i>&nbsp;        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));</b>
+<b class="nc"><i>267</i>&nbsp;        return conditions.stream()</b>
+<b class="nc"><i>268</i>&nbsp;            .map(condition -&gt; condition.evaluate(stats))</b>
+<b class="nc"><i>269</i>&nbsp;            .collect(Collectors.toMap(result -&gt; result.condition.toString(), result -&gt; result.matched));</b>
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    static Map&lt;String, Boolean&gt; evaluateConditions(final Collection&lt;Condition&lt;?&gt;&gt; conditions,
+<i>273</i>&nbsp;                                                   @Nullable final IndexMetaData metaData,
+<i>274</i>&nbsp;                                                   @Nullable final IndicesStatsResponse statsResponse) {
+<b class="nc"><i>275</i>&nbsp;        if (metaData == null) {</b>
+<b class="nc"><i>276</i>&nbsp;            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -&gt; false));</b>
+<i>277</i>&nbsp;        } else {
+<b class="nc"><i>278</i>&nbsp;            final DocsStats docsStats = Optional.ofNullable(statsResponse)</b>
+<b class="nc"><i>279</i>&nbsp;                .map(stats -&gt; stats.getIndex(metaData.getIndex().getName()))</b>
+<b class="nc"><i>280</i>&nbsp;                .map(indexStats -&gt; indexStats.getPrimaries().getDocs())</b>
+<b class="nc"><i>281</i>&nbsp;                .orElse(null);</b>
+<b class="nc"><i>282</i>&nbsp;            return evaluateConditions(conditions, docsStats, metaData);</b>
+<i>283</i>&nbsp;        }
+<i>284</i>&nbsp;    }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;    static void validate(MetaData metaData, RolloverRequest request) {
+<b class="nc"><i>287</i>&nbsp;        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(request.getAlias());</b>
+<b class="nc"><i>288</i>&nbsp;        if (aliasOrIndex == null) {</b>
+<b class="nc"><i>289</i>&nbsp;            throw new IllegalArgumentException(&quot;source alias does not exist&quot;);</b>
+<i>290</i>&nbsp;        }
+<b class="nc"><i>291</i>&nbsp;        if (aliasOrIndex.isAlias() == false) {</b>
+<b class="nc"><i>292</i>&nbsp;            throw new IllegalArgumentException(&quot;source alias is a concrete index&quot;);</b>
+<i>293</i>&nbsp;        }
+<b class="nc"><i>294</i>&nbsp;        final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;</b>
+<b class="nc"><i>295</i>&nbsp;        if (alias.getWriteIndex() == null) {</b>
+<b class="nc"><i>296</i>&nbsp;            throw new IllegalArgumentException(&quot;source alias [&quot; + alias.getAliasName() + &quot;] does not point to a write index&quot;);</b>
+<i>297</i>&nbsp;        }
+<b class="nc"><i>298</i>&nbsp;    }</b>
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String providedIndexName, final String targetIndexName,
+<i>301</i>&nbsp;                                                                          final RolloverRequest rolloverRequest) {
+<i>302</i>&nbsp;
+<b class="nc"><i>303</i>&nbsp;        final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();</b>
+<b class="nc"><i>304</i>&nbsp;        createIndexRequest.cause(&quot;rollover_index&quot;);</b>
+<b class="nc"><i>305</i>&nbsp;        createIndexRequest.index(targetIndexName);</b>
+<b class="nc"><i>306</i>&nbsp;        return new CreateIndexClusterStateUpdateRequest(</b>
+<i>307</i>&nbsp;            &quot;rollover_index&quot;, targetIndexName, providedIndexName)
+<b class="nc"><i>308</i>&nbsp;            .ackTimeout(createIndexRequest.timeout())</b>
+<b class="nc"><i>309</i>&nbsp;            .masterNodeTimeout(createIndexRequest.masterNodeTimeout())</b>
+<b class="nc"><i>310</i>&nbsp;            .settings(createIndexRequest.settings())</b>
+<b class="nc"><i>311</i>&nbsp;            .aliases(createIndexRequest.aliases())</b>
+<b class="nc"><i>312</i>&nbsp;            .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation</b>
+<b class="nc"><i>313</i>&nbsp;            .mappings(createIndexRequest.mappings());</b>
+<i>314</i>&nbsp;    }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;    /**
+<i>317</i>&nbsp;     * If the newly created index matches with an index template whose aliases contains the rollover alias,
+<i>318</i>&nbsp;     * the rollover alias will point to multiple indices. This causes indexing requests to be rejected.
+<i>319</i>&nbsp;     * To avoid this, we make sure that there is no duplicated alias in index templates before creating a new index.
+<i>320</i>&nbsp;     */
+<i>321</i>&nbsp;    static void checkNoDuplicatedAliasInIndexTemplate(MetaData metaData, String rolloverIndexName, String rolloverRequestAlias) {
+<b class="nc"><i>322</i>&nbsp;        final List&lt;IndexTemplateMetaData&gt; matchedTemplates = MetaDataIndexTemplateService.findTemplates(metaData, rolloverIndexName);</b>
+<b class="nc"><i>323</i>&nbsp;        for (IndexTemplateMetaData template : matchedTemplates) {</b>
+<b class="nc"><i>324</i>&nbsp;            if (template.aliases().containsKey(rolloverRequestAlias)) {</b>
+<b class="nc"><i>325</i>&nbsp;                throw new IllegalArgumentException(String.format(Locale.ROOT,</b>
+<i>326</i>&nbsp;                    &quot;Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]&quot;,
+<b class="nc"><i>327</i>&nbsp;                    rolloverRequestAlias, template.aliases().keys(), template.name()));</b>
+<i>328</i>&nbsp;            }
+<b class="nc"><i>329</i>&nbsp;        }</b>
+<b class="nc"><i>330</i>&nbsp;    }</b>
+<i>331</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

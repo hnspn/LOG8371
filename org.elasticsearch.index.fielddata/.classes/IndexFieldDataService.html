@@ -1,0 +1,266 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexFieldDataService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.fielddata</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexFieldDataService (org.elasticsearch.index.fielddata)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexFieldDataService</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (8/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.5%
+  </span>
+  <span class="absValue">
+    (35/ 56)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndexFieldDataService$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    69.2%
+  </span>
+  <span class="absValue">
+    (9/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    61%
+  </span>
+  <span class="absValue">
+    (36/ 59)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.fielddata;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.util.Accountable;
+<i>23</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>24</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>25</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>26</i>&nbsp;import org.elasticsearch.index.AbstractIndexComponent;
+<i>27</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>28</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>29</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>30</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>31</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>32</i>&nbsp;import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import java.io.Closeable;
+<i>35</i>&nbsp;import java.io.IOException;
+<i>36</i>&nbsp;import java.util.ArrayList;
+<i>37</i>&nbsp;import java.util.Collection;
+<i>38</i>&nbsp;import java.util.HashMap;
+<i>39</i>&nbsp;import java.util.List;
+<i>40</i>&nbsp;import java.util.Map;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
+<i>43</i>&nbsp;    public static final String FIELDDATA_CACHE_VALUE_NODE = &quot;node&quot;;
+<i>44</i>&nbsp;    public static final String FIELDDATA_CACHE_KEY = &quot;index.fielddata.cache&quot;;
+<b class="fc"><i>45</i>&nbsp;    public static final Setting&lt;String&gt; INDEX_FIELDDATA_CACHE_KEY =</b>
+<b class="fc"><i>46</i>&nbsp;        new Setting&lt;&gt;(FIELDDATA_CACHE_KEY, (s) -&gt; FIELDDATA_CACHE_VALUE_NODE, (s) -&gt; {</b>
+<b class="fc"><i>47</i>&nbsp;            switch (s) {</b>
+<i>48</i>&nbsp;                case &quot;node&quot;:
+<i>49</i>&nbsp;                case &quot;none&quot;:
+<b class="fc"><i>50</i>&nbsp;                    return s;</b>
+<i>51</i>&nbsp;                default:
+<b class="nc"><i>52</i>&nbsp;                    throw new IllegalArgumentException(&quot;failed to parse [&quot; + s + &quot;] must be one of [node,none]&quot;);</b>
+<i>53</i>&nbsp;            }
+<i>54</i>&nbsp;        }, Property.IndexScope);
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private final CircuitBreakerService circuitBreakerService;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final IndicesFieldDataCache indicesFieldDataCache;
+<i>59</i>&nbsp;    // the below map needs to be modified under a lock
+<b class="fc"><i>60</i>&nbsp;    private final Map&lt;String, IndexFieldDataCache&gt; fieldDataCaches = new HashMap&lt;&gt;();</b>
+<i>61</i>&nbsp;    private final MapperService mapperService;
+<b class="fc"><i>62</i>&nbsp;    private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {</b>
+<i>63</i>&nbsp;        @Override
+<i>64</i>&nbsp;        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+<b class="nc"><i>65</i>&nbsp;        }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;        @Override
+<i>68</i>&nbsp;        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+<b class="nc"><i>69</i>&nbsp;        }</b>
+<i>70</i>&nbsp;    };
+<b class="fc"><i>71</i>&nbsp;    private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
+<i>75</i>&nbsp;                                 CircuitBreakerService circuitBreakerService, MapperService mapperService) {
+<b class="fc"><i>76</i>&nbsp;        super(indexSettings);</b>
+<b class="fc"><i>77</i>&nbsp;        this.indicesFieldDataCache = indicesFieldDataCache;</b>
+<b class="fc"><i>78</i>&nbsp;        this.circuitBreakerService = circuitBreakerService;</b>
+<b class="fc"><i>79</i>&nbsp;        this.mapperService = mapperService;</b>
+<b class="fc"><i>80</i>&nbsp;    }</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    public synchronized void clear() {
+<b class="fc"><i>83</i>&nbsp;        List&lt;Exception&gt; exceptions = new ArrayList&lt;&gt;(0);</b>
+<b class="fc"><i>84</i>&nbsp;        final Collection&lt;IndexFieldDataCache&gt; fieldDataCacheValues = fieldDataCaches.values();</b>
+<b class="fc"><i>85</i>&nbsp;        for (IndexFieldDataCache cache : fieldDataCacheValues) {</b>
+<i>86</i>&nbsp;            try {
+<b class="nc"><i>87</i>&nbsp;                cache.clear();</b>
+<b class="nc"><i>88</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>89</i>&nbsp;                exceptions.add(e);</b>
+<b class="nc"><i>90</i>&nbsp;            }</b>
+<b class="nc"><i>91</i>&nbsp;        }</b>
+<b class="fc"><i>92</i>&nbsp;        fieldDataCacheValues.clear();</b>
+<b class="fc"><i>93</i>&nbsp;        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);</b>
+<b class="fc"><i>94</i>&nbsp;    }</b>
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    public synchronized void clearField(final String fieldName) {
+<b class="nc"><i>97</i>&nbsp;        List&lt;Exception&gt; exceptions = new ArrayList&lt;&gt;(0);</b>
+<b class="nc"><i>98</i>&nbsp;        final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);</b>
+<b class="nc"><i>99</i>&nbsp;        if (cache != null) {</b>
+<i>100</i>&nbsp;            try {
+<b class="nc"><i>101</i>&nbsp;                cache.clear(fieldName);</b>
+<b class="nc"><i>102</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>103</i>&nbsp;                exceptions.add(e);</b>
+<b class="nc"><i>104</i>&nbsp;            }</b>
+<i>105</i>&nbsp;        }
+<b class="nc"><i>106</i>&nbsp;        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);</b>
+<b class="nc"><i>107</i>&nbsp;    }</b>
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    public &lt;IFD extends IndexFieldData&lt;?&gt;&gt; IFD getForField(MappedFieldType fieldType) {
+<b class="nc"><i>110</i>&nbsp;        return getForField(fieldType, index().getName());</b>
+<i>111</i>&nbsp;    }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>114</i>&nbsp;    public &lt;IFD extends IndexFieldData&lt;?&gt;&gt; IFD getForField(MappedFieldType fieldType, String fullyQualifiedIndexName) {
+<b class="fc"><i>115</i>&nbsp;        final String fieldName = fieldType.name();</b>
+<b class="fc"><i>116</i>&nbsp;        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);</b>
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;        IndexFieldDataCache cache;
+<b class="fc"><i>119</i>&nbsp;        synchronized (this) {</b>
+<b class="fc"><i>120</i>&nbsp;            cache = fieldDataCaches.get(fieldName);</b>
+<b class="fc"><i>121</i>&nbsp;            if (cache == null) {</b>
+<b class="fc"><i>122</i>&nbsp;                String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);</b>
+<b class="fc"><i>123</i>&nbsp;                if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {</b>
+<b class="fc"><i>124</i>&nbsp;                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);</b>
+<b class="nc"><i>125</i>&nbsp;                } else if (&quot;none&quot;.equals(cacheType)){</b>
+<b class="nc"><i>126</i>&nbsp;                    cache = new IndexFieldDataCache.None();</b>
+<i>127</i>&nbsp;                } else {
+<b class="nc"><i>128</i>&nbsp;                    throw new IllegalArgumentException(&quot;cache type not supported [&quot; + cacheType + &quot;] for field [&quot; + fieldName + &quot;]&quot;);</b>
+<i>129</i>&nbsp;                }
+<b class="fc"><i>130</i>&nbsp;                fieldDataCaches.put(fieldName, cache);</b>
+<i>131</i>&nbsp;            }
+<b class="fc"><i>132</i>&nbsp;        }</b>
+<i>133</i>&nbsp;
+<b class="fc"><i>134</i>&nbsp;        return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);</b>
+<i>135</i>&nbsp;    }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    /**
+<i>138</i>&nbsp;     * Sets a {@link org.elasticsearch.index.fielddata.IndexFieldDataCache.Listener} passed to each {@link IndexFieldData}
+<i>139</i>&nbsp;     * creation to capture onCache and onRemoval events. Setting a listener on this method will override any previously
+<i>140</i>&nbsp;     * set listeners.
+<i>141</i>&nbsp;     * @throws IllegalStateException if the listener is set more than once
+<i>142</i>&nbsp;     */
+<i>143</i>&nbsp;    public void setListener(IndexFieldDataCache.Listener listener) {
+<b class="fc"><i>144</i>&nbsp;        if (listener == null) {</b>
+<b class="nc"><i>145</i>&nbsp;            throw new IllegalArgumentException(&quot;listener must not be null&quot;);</b>
+<i>146</i>&nbsp;        }
+<b class="fc"><i>147</i>&nbsp;        if (this.listener != DEFAULT_NOOP_LISTENER) {</b>
+<b class="nc"><i>148</i>&nbsp;            throw new IllegalStateException(&quot;can&#39;t set listener more than once&quot;);</b>
+<i>149</i>&nbsp;        }
+<b class="fc"><i>150</i>&nbsp;        this.listener = listener;</b>
+<b class="fc"><i>151</i>&nbsp;    }</b>
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    @Override
+<i>154</i>&nbsp;    public void close() throws IOException {
+<b class="fc"><i>155</i>&nbsp;        clear();</b>
+<b class="fc"><i>156</i>&nbsp;    }</b>
+<i>157</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

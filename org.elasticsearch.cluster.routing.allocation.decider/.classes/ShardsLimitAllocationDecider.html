@@ -1,0 +1,252 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ShardsLimitAllocationDecider</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation.decider</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ShardsLimitAllocationDecider (org.elasticsearch.cluster.routing.allocation.decider)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ShardsLimitAllocationDecider</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    71.4%
+  </span>
+  <span class="absValue">
+    (5/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (17/ 51)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation.decider;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRoutingState;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.util.function.BiPredicate;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;/**
+<i>35</i>&nbsp; * This {@link AllocationDecider} limits the number of shards per node on a per
+<i>36</i>&nbsp; * index or node-wide basis. The allocator prevents a single node to hold more
+<i>37</i>&nbsp; * than {@code index.routing.allocation.total_shards_per_node} per index and
+<i>38</i>&nbsp; * {@code cluster.routing.allocation.total_shards_per_node} globally during the allocation
+<i>39</i>&nbsp; * process. The limits of this decider can be changed in real-time via a the
+<i>40</i>&nbsp; * index settings API.
+<i>41</i>&nbsp; * &lt;p&gt;
+<i>42</i>&nbsp; * If {@code index.routing.allocation.total_shards_per_node} is reset to a negative value shards
+<i>43</i>&nbsp; * per index are unlimited per node. Shards currently in the
+<i>44</i>&nbsp; * {@link ShardRoutingState#RELOCATING relocating} state are ignored by this
+<i>45</i>&nbsp; * {@link AllocationDecider} until the shard changed its state to either
+<i>46</i>&nbsp; * {@link ShardRoutingState#STARTED started},
+<i>47</i>&nbsp; * {@link ShardRoutingState#INITIALIZING inializing} or
+<i>48</i>&nbsp; * {@link ShardRoutingState#UNASSIGNED unassigned}
+<i>49</i>&nbsp; * &lt;p&gt;
+<i>50</i>&nbsp; * Note: Reducing the number of shards per node via the index update API can
+<i>51</i>&nbsp; * trigger relocation and significant additional load on the clusters nodes.
+<i>52</i>&nbsp; * &lt;/p&gt;
+<i>53</i>&nbsp; */
+<i>54</i>&nbsp;public class ShardsLimitAllocationDecider extends AllocationDecider {
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    public static final String NAME = &quot;shards_limit&quot;;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private volatile int clusterShardLimit;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    /**
+<i>61</i>&nbsp;     * Controls the maximum number of shards per index on a single Elasticsearch
+<i>62</i>&nbsp;     * node. Negative values are interpreted as unlimited.
+<i>63</i>&nbsp;     */
+<b class="fc"><i>64</i>&nbsp;    public static final Setting&lt;Integer&gt; INDEX_TOTAL_SHARDS_PER_NODE_SETTING =</b>
+<b class="fc"><i>65</i>&nbsp;        Setting.intSetting(&quot;index.routing.allocation.total_shards_per_node&quot;, -1, -1,</b>
+<i>66</i>&nbsp;            Property.Dynamic, Property.IndexScope);
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    /**
+<i>69</i>&nbsp;     * Controls the maximum number of shards per node on a global level.
+<i>70</i>&nbsp;     * Negative values are interpreted as unlimited.
+<i>71</i>&nbsp;     */
+<b class="fc"><i>72</i>&nbsp;    public static final Setting&lt;Integer&gt; CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING =</b>
+<b class="fc"><i>73</i>&nbsp;        Setting.intSetting(&quot;cluster.routing.allocation.total_shards_per_node&quot;, -1,  -1,</b>
+<i>74</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    private final Settings settings;
+<i>77</i>&nbsp;
+<b class="fc"><i>78</i>&nbsp;    public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {</b>
+<b class="fc"><i>79</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>80</i>&nbsp;        this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);</b>
+<b class="fc"><i>81</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);</b>
+<b class="fc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    private void setClusterShardLimit(int clusterShardLimit) {
+<b class="nc"><i>85</i>&nbsp;        this.clusterShardLimit = clusterShardLimit;</b>
+<b class="nc"><i>86</i>&nbsp;    }</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    @Override
+<i>89</i>&nbsp;    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>90</i>&nbsp;        return doDecide(shardRouting, node, allocation, (count, limit) -&gt; count &gt;= limit);</b>
+<i>91</i>&nbsp;    }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    @Override
+<i>94</i>&nbsp;    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>95</i>&nbsp;        return doDecide(shardRouting, node, allocation, (count, limit) -&gt; count &gt; limit);</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    private Decision doDecide(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation,
+<i>100</i>&nbsp;                              BiPredicate&lt;Integer, Integer&gt; decider) {
+<b class="fc"><i>101</i>&nbsp;        IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());</b>
+<b class="fc"><i>102</i>&nbsp;        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);</b>
+<i>103</i>&nbsp;        // Capture the limit here in case it changes during this method&#39;s
+<i>104</i>&nbsp;        // execution
+<b class="fc"><i>105</i>&nbsp;        final int clusterShardLimit = this.clusterShardLimit;</b>
+<i>106</i>&nbsp;
+<b class="fc"><i>107</i>&nbsp;        if (indexShardLimit &lt;= 0 &amp;&amp; clusterShardLimit &lt;= 0) {</b>
+<b class="fc"><i>108</i>&nbsp;            return allocation.decision(Decision.YES, NAME, &quot;total shard limits are disabled: [index: %d, cluster: %d] &lt;= 0&quot;,</b>
+<b class="fc"><i>109</i>&nbsp;                    indexShardLimit, clusterShardLimit);</b>
+<i>110</i>&nbsp;        }
+<i>111</i>&nbsp;
+<b class="nc"><i>112</i>&nbsp;        int indexShardCount = 0;</b>
+<b class="nc"><i>113</i>&nbsp;        int nodeShardCount = 0;</b>
+<b class="nc"><i>114</i>&nbsp;        for (ShardRouting nodeShard : node) {</b>
+<i>115</i>&nbsp;            // don&#39;t count relocating shards...
+<b class="nc"><i>116</i>&nbsp;            if (nodeShard.relocating()) {</b>
+<b class="nc"><i>117</i>&nbsp;                continue;</b>
+<i>118</i>&nbsp;            }
+<b class="nc"><i>119</i>&nbsp;            nodeShardCount++;</b>
+<b class="nc"><i>120</i>&nbsp;            if (nodeShard.index().equals(shardRouting.index())) {</b>
+<b class="nc"><i>121</i>&nbsp;                indexShardCount++;</b>
+<i>122</i>&nbsp;            }
+<b class="nc"><i>123</i>&nbsp;        }</b>
+<i>124</i>&nbsp;
+<b class="nc"><i>125</i>&nbsp;        if (clusterShardLimit &gt; 0 &amp;&amp; decider.test(nodeShardCount, clusterShardLimit)) {</b>
+<b class="nc"><i>126</i>&nbsp;            return allocation.decision(Decision.NO, NAME,</b>
+<i>127</i>&nbsp;                &quot;too many shards [%d] allocated to this node, cluster setting [%s=%d]&quot;,
+<b class="nc"><i>128</i>&nbsp;                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);</b>
+<i>129</i>&nbsp;        }
+<b class="nc"><i>130</i>&nbsp;        if (indexShardLimit &gt; 0 &amp;&amp; decider.test(indexShardCount, indexShardLimit)) {</b>
+<b class="nc"><i>131</i>&nbsp;            return allocation.decision(Decision.NO, NAME,</b>
+<i>132</i>&nbsp;                &quot;too many shards [%d] allocated to this node for index [%s], index setting [%s=%d]&quot;,
+<b class="nc"><i>133</i>&nbsp;                indexShardCount, shardRouting.getIndexName(), INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), indexShardLimit);</b>
+<i>134</i>&nbsp;        }
+<b class="nc"><i>135</i>&nbsp;        return allocation.decision(Decision.YES, NAME,</b>
+<i>136</i>&nbsp;            &quot;the shard count [%d] for this node is under the index limit [%d] and cluster level node limit [%d]&quot;,
+<b class="nc"><i>137</i>&nbsp;            nodeShardCount, indexShardLimit, clusterShardLimit);</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    @Override
+<i>141</i>&nbsp;    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
+<i>142</i>&nbsp;        // Only checks the node-level limit, not the index-level
+<i>143</i>&nbsp;        // Capture the limit here in case it changes during this method&#39;s
+<i>144</i>&nbsp;        // execution
+<b class="nc"><i>145</i>&nbsp;        final int clusterShardLimit = this.clusterShardLimit;</b>
+<i>146</i>&nbsp;
+<b class="nc"><i>147</i>&nbsp;        if (clusterShardLimit &lt;= 0) {</b>
+<b class="nc"><i>148</i>&nbsp;            return allocation.decision(Decision.YES, NAME, &quot;total shard limits are disabled: [cluster: %d] &lt;= 0&quot;,</b>
+<b class="nc"><i>149</i>&nbsp;                    clusterShardLimit);</b>
+<i>150</i>&nbsp;        }
+<i>151</i>&nbsp;
+<b class="nc"><i>152</i>&nbsp;        int nodeShardCount = 0;</b>
+<b class="nc"><i>153</i>&nbsp;        for (ShardRouting nodeShard : node) {</b>
+<i>154</i>&nbsp;            // don&#39;t count relocating shards...
+<b class="nc"><i>155</i>&nbsp;            if (nodeShard.relocating()) {</b>
+<b class="nc"><i>156</i>&nbsp;                continue;</b>
+<i>157</i>&nbsp;            }
+<b class="nc"><i>158</i>&nbsp;            nodeShardCount++;</b>
+<b class="nc"><i>159</i>&nbsp;        }</b>
+<b class="nc"><i>160</i>&nbsp;        if (clusterShardLimit &gt;= 0 &amp;&amp; nodeShardCount &gt;= clusterShardLimit) {</b>
+<b class="nc"><i>161</i>&nbsp;            return allocation.decision(Decision.NO, NAME,</b>
+<i>162</i>&nbsp;                &quot;too many shards [%d] allocated to this node, cluster setting [%s=%d]&quot;,
+<b class="nc"><i>163</i>&nbsp;                nodeShardCount, CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), clusterShardLimit);</b>
+<i>164</i>&nbsp;        }
+<b class="nc"><i>165</i>&nbsp;        return allocation.decision(Decision.YES, NAME,</b>
+<i>166</i>&nbsp;            &quot;the shard count [%d] for this node is under the cluster level node limit [%d]&quot;,
+<b class="nc"><i>167</i>&nbsp;            nodeShardCount, clusterShardLimit);</b>
+<i>168</i>&nbsp;    }
+<i>169</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,877 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TransportBulkAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.bulk</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TransportBulkAction (org.elasticsearch.action.bulk)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TransportBulkAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    17.6%
+  </span>
+  <span class="absValue">
+    (3/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    9.8%
+  </span>
+  <span class="absValue">
+    (16/ 164)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.bulk;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.apache.lucene.util.SparseFixedBitSet;
+<i>26</i>&nbsp;import org.elasticsearch.Assertions;
+<i>27</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>28</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>29</i>&nbsp;import org.elasticsearch.ResourceAlreadyExistsException;
+<i>30</i>&nbsp;import org.elasticsearch.Version;
+<i>31</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>32</i>&nbsp;import org.elasticsearch.action.ActionRunnable;
+<i>33</i>&nbsp;import org.elasticsearch.action.DocWriteRequest;
+<i>34</i>&nbsp;import org.elasticsearch.action.DocWriteResponse;
+<i>35</i>&nbsp;import org.elasticsearch.action.RoutingMissingException;
+<i>36</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+<i>37</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+<i>38</i>&nbsp;import org.elasticsearch.action.index.IndexRequest;
+<i>39</i>&nbsp;import org.elasticsearch.action.ingest.IngestActionForwarder;
+<i>40</i>&nbsp;import org.elasticsearch.action.support.ActionFilters;
+<i>41</i>&nbsp;import org.elasticsearch.action.support.AutoCreateIndex;
+<i>42</i>&nbsp;import org.elasticsearch.action.support.HandledTransportAction;
+<i>43</i>&nbsp;import org.elasticsearch.action.update.TransportUpdateAction;
+<i>44</i>&nbsp;import org.elasticsearch.action.update.UpdateRequest;
+<i>45</i>&nbsp;import org.elasticsearch.action.update.UpdateResponse;
+<i>46</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>47</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>48</i>&nbsp;import org.elasticsearch.cluster.ClusterStateObserver;
+<i>49</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockException;
+<i>50</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>51</i>&nbsp;import org.elasticsearch.cluster.metadata.AliasOrIndex;
+<i>52</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>53</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+<i>54</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+<i>55</i>&nbsp;import org.elasticsearch.cluster.metadata.MappingMetaData;
+<i>56</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>57</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+<i>58</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>59</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>60</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>61</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>62</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>63</i>&nbsp;import org.elasticsearch.common.util.concurrent.AtomicArray;
+<i>64</i>&nbsp;import org.elasticsearch.index.Index;
+<i>65</i>&nbsp;import org.elasticsearch.index.IndexNotFoundException;
+<i>66</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>67</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>68</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>69</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>70</i>&nbsp;import org.elasticsearch.indices.IndexClosedException;
+<i>71</i>&nbsp;import org.elasticsearch.ingest.IngestService;
+<i>72</i>&nbsp;import org.elasticsearch.node.NodeClosedException;
+<i>73</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>74</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>75</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;import java.util.ArrayList;
+<i>78</i>&nbsp;import java.util.HashMap;
+<i>79</i>&nbsp;import java.util.HashSet;
+<i>80</i>&nbsp;import java.util.Iterator;
+<i>81</i>&nbsp;import java.util.List;
+<i>82</i>&nbsp;import java.util.Map;
+<i>83</i>&nbsp;import java.util.Objects;
+<i>84</i>&nbsp;import java.util.Set;
+<i>85</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>86</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>87</i>&nbsp;import java.util.concurrent.atomic.AtomicIntegerArray;
+<i>88</i>&nbsp;import java.util.function.LongSupplier;
+<i>89</i>&nbsp;import java.util.stream.Collectors;
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;/**
+<i>94</i>&nbsp; * Groups bulk request items by shard, optionally creating non-existent indices and
+<i>95</i>&nbsp; * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
+<i>96</i>&nbsp; */
+<b class="fc"><i>97</i>&nbsp;public class TransportBulkAction extends HandledTransportAction&lt;BulkRequest, BulkResponse&gt; {</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    private final ThreadPool threadPool;
+<i>100</i>&nbsp;    private final AutoCreateIndex autoCreateIndex;
+<i>101</i>&nbsp;    private final ClusterService clusterService;
+<i>102</i>&nbsp;    private final IngestService ingestService;
+<i>103</i>&nbsp;    private final TransportShardBulkAction shardBulkAction;
+<i>104</i>&nbsp;    private final LongSupplier relativeTimeProvider;
+<i>105</i>&nbsp;    private final IngestActionForwarder ingestForwarder;
+<i>106</i>&nbsp;    private final NodeClient client;
+<i>107</i>&nbsp;    private final IndexNameExpressionResolver indexNameExpressionResolver;
+<i>108</i>&nbsp;    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = &quot;auto-generated&quot;;
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    @Inject
+<i>111</i>&nbsp;    public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
+<i>112</i>&nbsp;                               ClusterService clusterService, IngestService ingestService,
+<i>113</i>&nbsp;                               TransportShardBulkAction shardBulkAction, NodeClient client,
+<i>114</i>&nbsp;                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+<i>115</i>&nbsp;                               AutoCreateIndex autoCreateIndex) {
+<b class="fc"><i>116</i>&nbsp;        this(threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,</b>
+<i>117</i>&nbsp;            indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
+<b class="fc"><i>118</i>&nbsp;    }</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
+<i>121</i>&nbsp;                               ClusterService clusterService, IngestService ingestService,
+<i>122</i>&nbsp;                               TransportShardBulkAction shardBulkAction, NodeClient client,
+<i>123</i>&nbsp;                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+<i>124</i>&nbsp;                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
+<b class="fc"><i>125</i>&nbsp;        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.WRITE);</b>
+<b class="fc"><i>126</i>&nbsp;        Objects.requireNonNull(relativeTimeProvider);</b>
+<b class="fc"><i>127</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>128</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>129</i>&nbsp;        this.ingestService = ingestService;</b>
+<b class="fc"><i>130</i>&nbsp;        this.shardBulkAction = shardBulkAction;</b>
+<b class="fc"><i>131</i>&nbsp;        this.autoCreateIndex = autoCreateIndex;</b>
+<b class="fc"><i>132</i>&nbsp;        this.relativeTimeProvider = relativeTimeProvider;</b>
+<b class="fc"><i>133</i>&nbsp;        this.ingestForwarder = new IngestActionForwarder(transportService);</b>
+<b class="fc"><i>134</i>&nbsp;        this.client = client;</b>
+<b class="fc"><i>135</i>&nbsp;        this.indexNameExpressionResolver = indexNameExpressionResolver;</b>
+<b class="fc"><i>136</i>&nbsp;        clusterService.addStateApplier(this.ingestForwarder);</b>
+<b class="fc"><i>137</i>&nbsp;    }</b>
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
+<i>141</i>&nbsp;     * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.elasticsearch.action.delete.DeleteRequest}&#39;s
+<i>142</i>&nbsp;     *
+<i>143</i>&nbsp;     * @param docWriteRequest The request to find the {@link IndexRequest}
+<i>144</i>&nbsp;     * @return the found {@link IndexRequest} or {@code null} if one can not be found.
+<i>145</i>&nbsp;     */
+<i>146</i>&nbsp;    public static IndexRequest getIndexWriteRequest(DocWriteRequest docWriteRequest) {
+<b class="nc"><i>147</i>&nbsp;        IndexRequest indexRequest = null;</b>
+<b class="nc"><i>148</i>&nbsp;        if (docWriteRequest instanceof IndexRequest) {</b>
+<b class="nc"><i>149</i>&nbsp;            indexRequest = (IndexRequest) docWriteRequest;</b>
+<b class="nc"><i>150</i>&nbsp;        } else if (docWriteRequest instanceof UpdateRequest) {</b>
+<b class="nc"><i>151</i>&nbsp;            UpdateRequest updateRequest = (UpdateRequest) docWriteRequest;</b>
+<b class="nc"><i>152</i>&nbsp;            indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();</b>
+<i>153</i>&nbsp;        }
+<b class="nc"><i>154</i>&nbsp;        return indexRequest;</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    @Override
+<i>158</i>&nbsp;    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener&lt;BulkResponse&gt; listener) {
+<b class="nc"><i>159</i>&nbsp;        final long startTime = relativeTime();</b>
+<b class="nc"><i>160</i>&nbsp;        final AtomicArray&lt;BulkItemResponse&gt; responses = new AtomicArray&lt;&gt;(bulkRequest.requests.size());</b>
+<i>161</i>&nbsp;
+<b class="nc"><i>162</i>&nbsp;        boolean hasIndexRequestsWithPipelines = false;</b>
+<b class="nc"><i>163</i>&nbsp;        final MetaData metaData = clusterService.state().getMetaData();</b>
+<b class="nc"><i>164</i>&nbsp;        final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();</b>
+<b class="nc"><i>165</i>&nbsp;        for (DocWriteRequest&lt;?&gt; actionRequest : bulkRequest.requests) {</b>
+<b class="nc"><i>166</i>&nbsp;            IndexRequest indexRequest = getIndexWriteRequest(actionRequest);</b>
+<b class="nc"><i>167</i>&nbsp;            if (indexRequest != null) {</b>
+<i>168</i>&nbsp;                // Each index request needs to be evaluated, because this method also modifies the IndexRequest
+<b class="nc"><i>169</i>&nbsp;                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, metaData);</b>
+<b class="nc"><i>170</i>&nbsp;                hasIndexRequestsWithPipelines |= indexRequestHasPipeline;</b>
+<i>171</i>&nbsp;            }
+<i>172</i>&nbsp;
+<b class="nc"><i>173</i>&nbsp;            if (actionRequest instanceof IndexRequest) {</b>
+<b class="nc"><i>174</i>&nbsp;                IndexRequest ir = (IndexRequest) actionRequest;</b>
+<b class="nc"><i>175</i>&nbsp;                ir.checkAutoIdWithOpTypeCreateSupportedByVersion(minNodeVersion);</b>
+<b class="nc"><i>176</i>&nbsp;                if (ir.getAutoGeneratedTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {</b>
+<b class="nc"><i>177</i>&nbsp;                    throw new IllegalArgumentException(&quot;autoGeneratedTimestamp should not be set externally&quot;);</b>
+<i>178</i>&nbsp;                }
+<i>179</i>&nbsp;            }
+<b class="nc"><i>180</i>&nbsp;        }</b>
+<i>181</i>&nbsp;
+<b class="nc"><i>182</i>&nbsp;        if (hasIndexRequestsWithPipelines) {</b>
+<i>183</i>&nbsp;            // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
+<i>184</i>&nbsp;            // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
+<i>185</i>&nbsp;            // this path is never taken.
+<i>186</i>&nbsp;            try {
+<b class="nc"><i>187</i>&nbsp;                if (Assertions.ENABLED) {</b>
+<b class="nc"><i>188</i>&nbsp;                    final boolean arePipelinesResolved = bulkRequest.requests()</b>
+<b class="nc"><i>189</i>&nbsp;                        .stream()</b>
+<b class="nc"><i>190</i>&nbsp;                        .map(TransportBulkAction::getIndexWriteRequest)</b>
+<b class="nc"><i>191</i>&nbsp;                        .filter(Objects::nonNull)</b>
+<b class="nc"><i>192</i>&nbsp;                        .allMatch(IndexRequest::isPipelineResolved);</b>
+<b class="nc"><i>193</i>&nbsp;                    assert arePipelinesResolved : bulkRequest;</b>
+<i>194</i>&nbsp;                }
+<b class="nc"><i>195</i>&nbsp;                if (clusterService.localNode().isIngestNode()) {</b>
+<b class="nc"><i>196</i>&nbsp;                    processBulkIndexIngestRequest(task, bulkRequest, listener);</b>
+<i>197</i>&nbsp;                } else {
+<b class="nc"><i>198</i>&nbsp;                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);</b>
+<i>199</i>&nbsp;                }
+<b class="nc"><i>200</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>201</i>&nbsp;                listener.onFailure(e);</b>
+<b class="nc"><i>202</i>&nbsp;            }</b>
+<b class="nc"><i>203</i>&nbsp;            return;</b>
+<i>204</i>&nbsp;        }
+<i>205</i>&nbsp;
+<b class="nc"><i>206</i>&nbsp;        if (needToCheck()) {</b>
+<i>207</i>&nbsp;            // Attempt to create all the indices that we&#39;re going to need during the bulk before we start.
+<i>208</i>&nbsp;            // Step 1: collect all the indices in the request
+<b class="nc"><i>209</i>&nbsp;            final Set&lt;String&gt; indices = bulkRequest.requests.stream()</b>
+<i>210</i>&nbsp;                    // delete requests should not attempt to create the index (if the index does not
+<i>211</i>&nbsp;                    // exists), unless an external versioning is used
+<b class="nc"><i>212</i>&nbsp;                .filter(request -&gt; request.opType() != DocWriteRequest.OpType.DELETE</b>
+<b class="nc"><i>213</i>&nbsp;                        || request.versionType() == VersionType.EXTERNAL</b>
+<b class="nc"><i>214</i>&nbsp;                        || request.versionType() == VersionType.EXTERNAL_GTE)</b>
+<b class="nc"><i>215</i>&nbsp;                .map(DocWriteRequest::index)</b>
+<b class="nc"><i>216</i>&nbsp;                .collect(Collectors.toSet());</b>
+<i>217</i>&nbsp;            /* Step 2: filter that to indices that don&#39;t exist and we can create. At the same time build a map of indices we can&#39;t create
+<i>218</i>&nbsp;             * that we&#39;ll use when we try to run the requests. */
+<b class="nc"><i>219</i>&nbsp;            final Map&lt;String, IndexNotFoundException&gt; indicesThatCannotBeCreated = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>220</i>&nbsp;            Set&lt;String&gt; autoCreateIndices = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>221</i>&nbsp;            ClusterState state = clusterService.state();</b>
+<b class="nc"><i>222</i>&nbsp;            for (String index : indices) {</b>
+<i>223</i>&nbsp;                boolean shouldAutoCreate;
+<i>224</i>&nbsp;                try {
+<b class="nc"><i>225</i>&nbsp;                    shouldAutoCreate = shouldAutoCreate(index, state);</b>
+<b class="nc"><i>226</i>&nbsp;                } catch (IndexNotFoundException e) {</b>
+<b class="nc"><i>227</i>&nbsp;                    shouldAutoCreate = false;</b>
+<b class="nc"><i>228</i>&nbsp;                    indicesThatCannotBeCreated.put(index, e);</b>
+<b class="nc"><i>229</i>&nbsp;                }</b>
+<b class="nc"><i>230</i>&nbsp;                if (shouldAutoCreate) {</b>
+<b class="nc"><i>231</i>&nbsp;                    autoCreateIndices.add(index);</b>
+<i>232</i>&nbsp;                }
+<b class="nc"><i>233</i>&nbsp;            }</b>
+<i>234</i>&nbsp;            // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+<b class="nc"><i>235</i>&nbsp;            if (autoCreateIndices.isEmpty()) {</b>
+<b class="nc"><i>236</i>&nbsp;                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);</b>
+<i>237</i>&nbsp;            } else {
+<b class="nc"><i>238</i>&nbsp;                final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());</b>
+<b class="nc"><i>239</i>&nbsp;                for (String index : autoCreateIndices) {</b>
+<b class="nc"><i>240</i>&nbsp;                    createIndex(index, bulkRequest.timeout(), new ActionListener&lt;CreateIndexResponse&gt;() {</b>
+<i>241</i>&nbsp;                        @Override
+<i>242</i>&nbsp;                        public void onResponse(CreateIndexResponse result) {
+<i>243</i>&nbsp;                            if (counter.decrementAndGet() == 0) {
+<i>244</i>&nbsp;                                threadPool.executor(ThreadPool.Names.WRITE).execute(
+<i>245</i>&nbsp;                                    () -&gt; executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+<i>246</i>&nbsp;                            }
+<i>247</i>&nbsp;                        }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;                        @Override
+<i>250</i>&nbsp;                        public void onFailure(Exception e) {
+<i>251</i>&nbsp;                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+<i>252</i>&nbsp;                                // fail all requests involving this index, if create didn&#39;t work
+<i>253</i>&nbsp;                                for (int i = 0; i &lt; bulkRequest.requests.size(); i++) {
+<i>254</i>&nbsp;                                    DocWriteRequest&lt;?&gt; request = bulkRequest.requests.get(i);
+<i>255</i>&nbsp;                                    if (request != null &amp;&amp; setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+<i>256</i>&nbsp;                                        bulkRequest.requests.set(i, null);
+<i>257</i>&nbsp;                                    }
+<i>258</i>&nbsp;                                }
+<i>259</i>&nbsp;                            }
+<i>260</i>&nbsp;                            if (counter.decrementAndGet() == 0) {
+<i>261</i>&nbsp;                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -&gt; {
+<i>262</i>&nbsp;                                    inner.addSuppressed(e);
+<i>263</i>&nbsp;                                    listener.onFailure(inner);
+<i>264</i>&nbsp;                                }), responses, indicesThatCannotBeCreated);
+<i>265</i>&nbsp;                            }
+<i>266</i>&nbsp;                        }
+<i>267</i>&nbsp;                    });
+<b class="nc"><i>268</i>&nbsp;                }</b>
+<i>269</i>&nbsp;            }
+<b class="nc"><i>270</i>&nbsp;        } else {</b>
+<b class="nc"><i>271</i>&nbsp;            executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());</b>
+<i>272</i>&nbsp;        }
+<b class="nc"><i>273</i>&nbsp;    }</b>
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;    static boolean resolvePipelines(final DocWriteRequest&lt;?&gt; originalRequest, final IndexRequest indexRequest, final MetaData metaData) {
+<b class="nc"><i>276</i>&nbsp;        if (indexRequest.isPipelineResolved() == false) {</b>
+<b class="nc"><i>277</i>&nbsp;            final String requestPipeline = indexRequest.getPipeline();</b>
+<b class="nc"><i>278</i>&nbsp;            indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);</b>
+<b class="nc"><i>279</i>&nbsp;            indexRequest.setFinalPipeline(IngestService.NOOP_PIPELINE_NAME);</b>
+<b class="nc"><i>280</i>&nbsp;            String defaultPipeline = null;</b>
+<b class="nc"><i>281</i>&nbsp;            String finalPipeline = null;</b>
+<i>282</i>&nbsp;            // start to look for default or final pipelines via settings found in the index meta data
+<b class="nc"><i>283</i>&nbsp;            IndexMetaData indexMetaData = metaData.indices().get(originalRequest.index());</b>
+<i>284</i>&nbsp;            // check the alias for the index request (this is how normal index requests are modeled)
+<b class="nc"><i>285</i>&nbsp;            if (indexMetaData == null &amp;&amp; indexRequest.index() != null) {</b>
+<b class="nc"><i>286</i>&nbsp;                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());</b>
+<b class="nc"><i>287</i>&nbsp;                if (indexOrAlias != null &amp;&amp; indexOrAlias.isAlias()) {</b>
+<b class="nc"><i>288</i>&nbsp;                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;</b>
+<b class="nc"><i>289</i>&nbsp;                    indexMetaData = alias.getWriteIndex();</b>
+<i>290</i>&nbsp;                }
+<i>291</i>&nbsp;            }
+<i>292</i>&nbsp;            // check the alias for the action request (this is how upserts are modeled)
+<b class="nc"><i>293</i>&nbsp;            if (indexMetaData == null &amp;&amp; originalRequest.index() != null) {</b>
+<b class="nc"><i>294</i>&nbsp;                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(originalRequest.index());</b>
+<b class="nc"><i>295</i>&nbsp;                if (indexOrAlias != null &amp;&amp; indexOrAlias.isAlias()) {</b>
+<b class="nc"><i>296</i>&nbsp;                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;</b>
+<b class="nc"><i>297</i>&nbsp;                    indexMetaData = alias.getWriteIndex();</b>
+<i>298</i>&nbsp;                }
+<i>299</i>&nbsp;            }
+<b class="nc"><i>300</i>&nbsp;            if (indexMetaData != null) {</b>
+<b class="nc"><i>301</i>&nbsp;                final Settings indexSettings = indexMetaData.getSettings();</b>
+<b class="nc"><i>302</i>&nbsp;                if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {</b>
+<i>303</i>&nbsp;                    // find the default pipeline if one is defined from an existing index setting
+<b class="nc"><i>304</i>&nbsp;                    defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);</b>
+<b class="nc"><i>305</i>&nbsp;                    indexRequest.setPipeline(defaultPipeline);</b>
+<i>306</i>&nbsp;                }
+<b class="nc"><i>307</i>&nbsp;                if (IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {</b>
+<i>308</i>&nbsp;                    // find the final pipeline if one is defined from an existing index setting
+<b class="nc"><i>309</i>&nbsp;                    finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexSettings);</b>
+<b class="nc"><i>310</i>&nbsp;                    indexRequest.setFinalPipeline(finalPipeline);</b>
+<i>311</i>&nbsp;                }
+<b class="nc"><i>312</i>&nbsp;            } else if (indexRequest.index() != null) {</b>
+<i>313</i>&nbsp;                // the index does not exist yet (and this is a valid request), so match index templates to look for pipelines
+<b class="nc"><i>314</i>&nbsp;                List&lt;IndexTemplateMetaData&gt; templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());</b>
+<b class="nc"><i>315</i>&nbsp;                assert (templates != null);</b>
+<i>316</i>&nbsp;                // order of templates are highest order first
+<b class="nc"><i>317</i>&nbsp;                for (final IndexTemplateMetaData template : templates) {</b>
+<b class="nc"><i>318</i>&nbsp;                    final Settings settings = template.settings();</b>
+<b class="nc"><i>319</i>&nbsp;                    if (defaultPipeline == null &amp;&amp; IndexSettings.DEFAULT_PIPELINE.exists(settings)) {</b>
+<b class="nc"><i>320</i>&nbsp;                        defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);</b>
+<i>321</i>&nbsp;                        // we can not break in case a lower-order template has a final pipeline that we need to collect
+<i>322</i>&nbsp;                    }
+<b class="nc"><i>323</i>&nbsp;                    if (finalPipeline == null &amp;&amp; IndexSettings.FINAL_PIPELINE.exists(settings)) {</b>
+<b class="nc"><i>324</i>&nbsp;                        finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);</b>
+<i>325</i>&nbsp;                        // we can not break in case a lower-order template has a default pipeline that we need to collect
+<i>326</i>&nbsp;                    }
+<b class="nc"><i>327</i>&nbsp;                    if (defaultPipeline != null &amp;&amp; finalPipeline != null) {</b>
+<i>328</i>&nbsp;                        // we can break if we have already collected a default and final pipeline
+<b class="nc"><i>329</i>&nbsp;                        break;</b>
+<i>330</i>&nbsp;                    }
+<b class="nc"><i>331</i>&nbsp;                }</b>
+<b class="nc"><i>332</i>&nbsp;                indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : IngestService.NOOP_PIPELINE_NAME);</b>
+<b class="nc"><i>333</i>&nbsp;                indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : IngestService.NOOP_PIPELINE_NAME);</b>
+<i>334</i>&nbsp;            }
+<i>335</i>&nbsp;
+<b class="nc"><i>336</i>&nbsp;            if (requestPipeline != null) {</b>
+<b class="nc"><i>337</i>&nbsp;                indexRequest.setPipeline(requestPipeline);</b>
+<i>338</i>&nbsp;            }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;            /*
+<i>341</i>&nbsp;             * We have to track whether or not the pipeline for this request has already been resolved. It can happen that the
+<i>342</i>&nbsp;             * pipeline for this request has already been derived yet we execute this loop again. That occurs if the bulk request
+<i>343</i>&nbsp;             * has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating node will have
+<i>344</i>&nbsp;             * already resolved the pipeline for this request. It is important that we are able to distinguish this situation as we
+<i>345</i>&nbsp;             * can not double-resolve the pipeline because we will not be able to distinguish the case of the pipeline having been
+<i>346</i>&nbsp;             * set from a request pipeline parameter versus having been set by the resolution. We need to be able to distinguish
+<i>347</i>&nbsp;             * these cases as we need to reject the request if the pipeline was set by a required pipeline and there is a request
+<i>348</i>&nbsp;             * pipeline parameter too.
+<i>349</i>&nbsp;             */
+<b class="nc"><i>350</i>&nbsp;            indexRequest.isPipelineResolved(true);</b>
+<i>351</i>&nbsp;        }
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        // return whether this index request has a pipeline
+<b class="nc"><i>355</i>&nbsp;        return IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false</b>
+<b class="nc"><i>356</i>&nbsp;            || IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;</b>
+<i>357</i>&nbsp;    }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;    boolean needToCheck() {
+<b class="nc"><i>360</i>&nbsp;        return autoCreateIndex.needToCheck();</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    boolean shouldAutoCreate(String index, ClusterState state) {
+<b class="nc"><i>364</i>&nbsp;        return autoCreateIndex.shouldAutoCreate(index, state);</b>
+<i>365</i>&nbsp;    }
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;    void createIndex(String index, TimeValue timeout, ActionListener&lt;CreateIndexResponse&gt; listener) {
+<b class="nc"><i>368</i>&nbsp;        CreateIndexRequest createIndexRequest = new CreateIndexRequest();</b>
+<b class="nc"><i>369</i>&nbsp;        createIndexRequest.index(index);</b>
+<b class="nc"><i>370</i>&nbsp;        createIndexRequest.cause(&quot;auto(bulk api)&quot;);</b>
+<b class="nc"><i>371</i>&nbsp;        createIndexRequest.masterNodeTimeout(timeout);</b>
+<b class="nc"><i>372</i>&nbsp;        client.admin().indices().create(createIndexRequest, listener);</b>
+<b class="nc"><i>373</i>&nbsp;    }</b>
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;    private boolean setResponseFailureIfIndexMatches(AtomicArray&lt;BulkItemResponse&gt; responses, int idx, DocWriteRequest&lt;?&gt; request,
+<i>376</i>&nbsp;                                                     String index, Exception e) {
+<b class="nc"><i>377</i>&nbsp;        if (index.equals(request.index())) {</b>
+<b class="nc"><i>378</i>&nbsp;            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(),</b>
+<b class="nc"><i>379</i>&nbsp;                request.id(), e)));</b>
+<b class="nc"><i>380</i>&nbsp;            return true;</b>
+<i>381</i>&nbsp;        }
+<b class="nc"><i>382</i>&nbsp;        return false;</b>
+<i>383</i>&nbsp;    }
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;    private long buildTookInMillis(long startTimeNanos) {
+<b class="nc"><i>386</i>&nbsp;        return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);</b>
+<i>387</i>&nbsp;    }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;    /**
+<i>390</i>&nbsp;     * retries on retryable cluster blocks, resolves item requests,
+<i>391</i>&nbsp;     * constructs shard bulk requests and delegates execution to shard bulk action
+<i>392</i>&nbsp;     * */
+<i>393</i>&nbsp;    private final class BulkOperation extends ActionRunnable&lt;BulkResponse&gt; {
+<i>394</i>&nbsp;        private final Task task;
+<i>395</i>&nbsp;        private final BulkRequest bulkRequest;
+<i>396</i>&nbsp;        private final AtomicArray&lt;BulkItemResponse&gt; responses;
+<i>397</i>&nbsp;        private final long startTimeNanos;
+<i>398</i>&nbsp;        private final ClusterStateObserver observer;
+<i>399</i>&nbsp;        private final Map&lt;String, IndexNotFoundException&gt; indicesThatCannotBeCreated;
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;        BulkOperation(Task task, BulkRequest bulkRequest, ActionListener&lt;BulkResponse&gt; listener, AtomicArray&lt;BulkItemResponse&gt; responses,
+<i>402</i>&nbsp;                long startTimeNanos, Map&lt;String, IndexNotFoundException&gt; indicesThatCannotBeCreated) {
+<i>403</i>&nbsp;            super(listener);
+<i>404</i>&nbsp;            this.task = task;
+<i>405</i>&nbsp;            this.bulkRequest = bulkRequest;
+<i>406</i>&nbsp;            this.responses = responses;
+<i>407</i>&nbsp;            this.startTimeNanos = startTimeNanos;
+<i>408</i>&nbsp;            this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
+<i>409</i>&nbsp;            this.observer = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
+<i>410</i>&nbsp;        }
+<i>411</i>&nbsp;
+<i>412</i>&nbsp;        @Override
+<i>413</i>&nbsp;        protected void doRun() {
+<i>414</i>&nbsp;            final ClusterState clusterState = observer.setAndGetObservedState();
+<i>415</i>&nbsp;            if (handleBlockExceptions(clusterState)) {
+<i>416</i>&nbsp;                return;
+<i>417</i>&nbsp;            }
+<i>418</i>&nbsp;            final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
+<i>419</i>&nbsp;            MetaData metaData = clusterState.metaData();
+<i>420</i>&nbsp;            for (int i = 0; i &lt; bulkRequest.requests.size(); i++) {
+<i>421</i>&nbsp;                DocWriteRequest&lt;?&gt; docWriteRequest = bulkRequest.requests.get(i);
+<i>422</i>&nbsp;                //the request can only be null because we set it to null in the previous step, so it gets ignored
+<i>423</i>&nbsp;                if (docWriteRequest == null) {
+<i>424</i>&nbsp;                    continue;
+<i>425</i>&nbsp;                }
+<i>426</i>&nbsp;                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metaData)) {
+<i>427</i>&nbsp;                    continue;
+<i>428</i>&nbsp;                }
+<i>429</i>&nbsp;                Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
+<i>430</i>&nbsp;                try {
+<i>431</i>&nbsp;                    switch (docWriteRequest.opType()) {
+<i>432</i>&nbsp;                        case CREATE:
+<i>433</i>&nbsp;                        case INDEX:
+<i>434</i>&nbsp;                            IndexRequest indexRequest = (IndexRequest) docWriteRequest;
+<i>435</i>&nbsp;                            final IndexMetaData indexMetaData = metaData.index(concreteIndex);
+<i>436</i>&nbsp;                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault();
+<i>437</i>&nbsp;                            Version indexCreated = indexMetaData.getCreationVersion();
+<i>438</i>&nbsp;                            indexRequest.resolveRouting(metaData);
+<i>439</i>&nbsp;                            indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
+<i>440</i>&nbsp;                            break;
+<i>441</i>&nbsp;                        case UPDATE:
+<i>442</i>&nbsp;                            TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(),
+<i>443</i>&nbsp;                                (UpdateRequest) docWriteRequest);
+<i>444</i>&nbsp;                            break;
+<i>445</i>&nbsp;                        case DELETE:
+<i>446</i>&nbsp;                            docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+<i>447</i>&nbsp;                            // check if routing is required, if so, throw error if routing wasn&#39;t specified
+<i>448</i>&nbsp;                            if (docWriteRequest.routing() == null &amp;&amp; metaData.routingRequired(concreteIndex.getName())) {
+<i>449</i>&nbsp;                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
+<i>450</i>&nbsp;                            }
+<i>451</i>&nbsp;                            break;
+<i>452</i>&nbsp;                        default: throw new AssertionError(&quot;request type not supported: [&quot; + docWriteRequest.opType() + &quot;]&quot;);
+<i>453</i>&nbsp;                    }
+<i>454</i>&nbsp;                } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
+<i>455</i>&nbsp;                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(),
+<i>456</i>&nbsp;                        docWriteRequest.id(), e);
+<i>457</i>&nbsp;                    BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
+<i>458</i>&nbsp;                    responses.set(i, bulkItemResponse);
+<i>459</i>&nbsp;                    // make sure the request gets never processed again
+<i>460</i>&nbsp;                    bulkRequest.requests.set(i, null);
+<i>461</i>&nbsp;                }
+<i>462</i>&nbsp;            }
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;            // first, go over all the requests and create a ShardId -&gt; Operations mapping
+<i>465</i>&nbsp;            Map&lt;ShardId, List&lt;BulkItemRequest&gt;&gt; requestsByShard = new HashMap&lt;&gt;();
+<i>466</i>&nbsp;            for (int i = 0; i &lt; bulkRequest.requests.size(); i++) {
+<i>467</i>&nbsp;                DocWriteRequest&lt;?&gt; request = bulkRequest.requests.get(i);
+<i>468</i>&nbsp;                if (request == null) {
+<i>469</i>&nbsp;                    continue;
+<i>470</i>&nbsp;                }
+<i>471</i>&nbsp;                String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
+<i>472</i>&nbsp;                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(),
+<i>473</i>&nbsp;                    request.routing()).shardId();
+<i>474</i>&nbsp;                List&lt;BulkItemRequest&gt; shardRequests = requestsByShard.computeIfAbsent(shardId, shard -&gt; new ArrayList&lt;&gt;());
+<i>475</i>&nbsp;                shardRequests.add(new BulkItemRequest(i, request));
+<i>476</i>&nbsp;            }
+<i>477</i>&nbsp;
+<i>478</i>&nbsp;            if (requestsByShard.isEmpty()) {
+<i>479</i>&nbsp;                listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
+<i>480</i>&nbsp;                    buildTookInMillis(startTimeNanos)));
+<i>481</i>&nbsp;                return;
+<i>482</i>&nbsp;            }
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;            final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+<i>485</i>&nbsp;            String nodeId = clusterService.localNode().getId();
+<i>486</i>&nbsp;            for (Map.Entry&lt;ShardId, List&lt;BulkItemRequest&gt;&gt; entry : requestsByShard.entrySet()) {
+<i>487</i>&nbsp;                final ShardId shardId = entry.getKey();
+<i>488</i>&nbsp;                final List&lt;BulkItemRequest&gt; requests = entry.getValue();
+<i>489</i>&nbsp;                BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, bulkRequest.getRefreshPolicy(),
+<i>490</i>&nbsp;                        requests.toArray(new BulkItemRequest[requests.size()]));
+<i>491</i>&nbsp;                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+<i>492</i>&nbsp;                bulkShardRequest.timeout(bulkRequest.timeout());
+<i>493</i>&nbsp;                if (task != null) {
+<i>494</i>&nbsp;                    bulkShardRequest.setParentTask(nodeId, task.getId());
+<i>495</i>&nbsp;                }
+<i>496</i>&nbsp;                shardBulkAction.execute(bulkShardRequest, new ActionListener&lt;BulkShardResponse&gt;() {
+<i>497</i>&nbsp;                    @Override
+<i>498</i>&nbsp;                    public void onResponse(BulkShardResponse bulkShardResponse) {
+<i>499</i>&nbsp;                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+<i>500</i>&nbsp;                            // we may have no response if item failed
+<i>501</i>&nbsp;                            if (bulkItemResponse.getResponse() != null) {
+<i>502</i>&nbsp;                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+<i>503</i>&nbsp;                            }
+<i>504</i>&nbsp;                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+<i>505</i>&nbsp;                        }
+<i>506</i>&nbsp;                        if (counter.decrementAndGet() == 0) {
+<i>507</i>&nbsp;                            finishHim();
+<i>508</i>&nbsp;                        }
+<i>509</i>&nbsp;                    }
+<i>510</i>&nbsp;
+<i>511</i>&nbsp;                    @Override
+<i>512</i>&nbsp;                    public void onFailure(Exception e) {
+<i>513</i>&nbsp;                        // create failures for all relevant requests
+<i>514</i>&nbsp;                        for (BulkItemRequest request : requests) {
+<i>515</i>&nbsp;                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+<i>516</i>&nbsp;                            DocWriteRequest&lt;?&gt; docWriteRequest = request.request();
+<i>517</i>&nbsp;                            responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
+<i>518</i>&nbsp;                                    new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
+<i>519</i>&nbsp;                        }
+<i>520</i>&nbsp;                        if (counter.decrementAndGet() == 0) {
+<i>521</i>&nbsp;                            finishHim();
+<i>522</i>&nbsp;                        }
+<i>523</i>&nbsp;                    }
+<i>524</i>&nbsp;
+<i>525</i>&nbsp;                    private void finishHim() {
+<i>526</i>&nbsp;                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
+<i>527</i>&nbsp;                            buildTookInMillis(startTimeNanos)));
+<i>528</i>&nbsp;                    }
+<i>529</i>&nbsp;                });
+<i>530</i>&nbsp;            }
+<i>531</i>&nbsp;        }
+<i>532</i>&nbsp;
+<i>533</i>&nbsp;        private boolean handleBlockExceptions(ClusterState state) {
+<i>534</i>&nbsp;            ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+<i>535</i>&nbsp;            if (blockException != null) {
+<i>536</i>&nbsp;                if (blockException.retryable()) {
+<i>537</i>&nbsp;                    logger.trace(&quot;cluster is blocked, scheduling a retry&quot;, blockException);
+<i>538</i>&nbsp;                    retry(blockException);
+<i>539</i>&nbsp;                } else {
+<i>540</i>&nbsp;                    onFailure(blockException);
+<i>541</i>&nbsp;                }
+<i>542</i>&nbsp;                return true;
+<i>543</i>&nbsp;            }
+<i>544</i>&nbsp;            return false;
+<i>545</i>&nbsp;        }
+<i>546</i>&nbsp;
+<i>547</i>&nbsp;        void retry(Exception failure) {
+<i>548</i>&nbsp;            assert failure != null;
+<i>549</i>&nbsp;            if (observer.isTimedOut()) {
+<i>550</i>&nbsp;                // we running as a last attempt after a timeout has happened. don&#39;t retry
+<i>551</i>&nbsp;                onFailure(failure);
+<i>552</i>&nbsp;                return;
+<i>553</i>&nbsp;            }
+<i>554</i>&nbsp;            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+<i>555</i>&nbsp;                @Override
+<i>556</i>&nbsp;                public void onNewClusterState(ClusterState state) {
+<i>557</i>&nbsp;                    run();
+<i>558</i>&nbsp;                }
+<i>559</i>&nbsp;
+<i>560</i>&nbsp;                @Override
+<i>561</i>&nbsp;                public void onClusterServiceClose() {
+<i>562</i>&nbsp;                    onFailure(new NodeClosedException(clusterService.localNode()));
+<i>563</i>&nbsp;                }
+<i>564</i>&nbsp;
+<i>565</i>&nbsp;                @Override
+<i>566</i>&nbsp;                public void onTimeout(TimeValue timeout) {
+<i>567</i>&nbsp;                    // Try one more time...
+<i>568</i>&nbsp;                    run();
+<i>569</i>&nbsp;                }
+<i>570</i>&nbsp;            });
+<i>571</i>&nbsp;        }
+<i>572</i>&nbsp;
+<i>573</i>&nbsp;        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest&lt;?&gt; request, int idx, final ConcreteIndices concreteIndices,
+<i>574</i>&nbsp;                final MetaData metaData) {
+<i>575</i>&nbsp;            IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
+<i>576</i>&nbsp;            if (cannotCreate != null) {
+<i>577</i>&nbsp;                addFailure(request, idx, cannotCreate);
+<i>578</i>&nbsp;                return true;
+<i>579</i>&nbsp;            }
+<i>580</i>&nbsp;            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
+<i>581</i>&nbsp;            if (concreteIndex == null) {
+<i>582</i>&nbsp;                try {
+<i>583</i>&nbsp;                    concreteIndex = concreteIndices.resolveIfAbsent(request);
+<i>584</i>&nbsp;                } catch (IndexClosedException | IndexNotFoundException ex) {
+<i>585</i>&nbsp;                    addFailure(request, idx, ex);
+<i>586</i>&nbsp;                    return true;
+<i>587</i>&nbsp;                }
+<i>588</i>&nbsp;            }
+<i>589</i>&nbsp;            IndexMetaData indexMetaData = metaData.getIndexSafe(concreteIndex);
+<i>590</i>&nbsp;            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+<i>591</i>&nbsp;                addFailure(request, idx, new IndexClosedException(concreteIndex));
+<i>592</i>&nbsp;                return true;
+<i>593</i>&nbsp;            }
+<i>594</i>&nbsp;            return false;
+<i>595</i>&nbsp;        }
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;        private void addFailure(DocWriteRequest&lt;?&gt; request, int idx, Exception unavailableException) {
+<i>598</i>&nbsp;            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
+<i>599</i>&nbsp;                    unavailableException);
+<i>600</i>&nbsp;            BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
+<i>601</i>&nbsp;            responses.set(idx, bulkItemResponse);
+<i>602</i>&nbsp;            // make sure the request gets never processed again
+<i>603</i>&nbsp;            bulkRequest.requests.set(idx, null);
+<i>604</i>&nbsp;        }
+<i>605</i>&nbsp;    }
+<i>606</i>&nbsp;
+<i>607</i>&nbsp;    void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener&lt;BulkResponse&gt; listener,
+<i>608</i>&nbsp;            final AtomicArray&lt;BulkItemResponse&gt; responses, Map&lt;String, IndexNotFoundException&gt; indicesThatCannotBeCreated) {
+<b class="nc"><i>609</i>&nbsp;        new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos, indicesThatCannotBeCreated).run();</b>
+<b class="nc"><i>610</i>&nbsp;    }</b>
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;    private static class ConcreteIndices  {
+<i>613</i>&nbsp;        private final ClusterState state;
+<i>614</i>&nbsp;        private final IndexNameExpressionResolver indexNameExpressionResolver;
+<i>615</i>&nbsp;        private final Map&lt;String, Index&gt; indices = new HashMap&lt;&gt;();
+<i>616</i>&nbsp;
+<i>617</i>&nbsp;        ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
+<i>618</i>&nbsp;            this.state = state;
+<i>619</i>&nbsp;            this.indexNameExpressionResolver = indexNameExpressionResolver;
+<i>620</i>&nbsp;        }
+<i>621</i>&nbsp;
+<i>622</i>&nbsp;        Index getConcreteIndex(String indexOrAlias) {
+<i>623</i>&nbsp;            return indices.get(indexOrAlias);
+<i>624</i>&nbsp;        }
+<i>625</i>&nbsp;
+<i>626</i>&nbsp;        Index resolveIfAbsent(DocWriteRequest&lt;?&gt; request) {
+<i>627</i>&nbsp;            Index concreteIndex = indices.get(request.index());
+<i>628</i>&nbsp;            if (concreteIndex == null) {
+<i>629</i>&nbsp;                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+<i>630</i>&nbsp;                indices.put(request.index(), concreteIndex);
+<i>631</i>&nbsp;            }
+<i>632</i>&nbsp;            return concreteIndex;
+<i>633</i>&nbsp;        }
+<i>634</i>&nbsp;    }
+<i>635</i>&nbsp;
+<i>636</i>&nbsp;    private long relativeTime() {
+<b class="nc"><i>637</i>&nbsp;        return relativeTimeProvider.getAsLong();</b>
+<i>638</i>&nbsp;    }
+<i>639</i>&nbsp;
+<i>640</i>&nbsp;    void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener&lt;BulkResponse&gt; listener) {
+<b class="nc"><i>641</i>&nbsp;        final long ingestStartTimeInNanos = System.nanoTime();</b>
+<b class="nc"><i>642</i>&nbsp;        final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);</b>
+<b class="nc"><i>643</i>&nbsp;        ingestService.executeBulkRequest(</b>
+<b class="nc"><i>644</i>&nbsp;            original.numberOfActions(),</b>
+<b class="nc"><i>645</i>&nbsp;            () -&gt; bulkRequestModifier,</b>
+<b class="nc"><i>646</i>&nbsp;            bulkRequestModifier::markItemAsFailed,</b>
+<i>647</i>&nbsp;            (originalThread, exception) -&gt; {
+<b class="nc"><i>648</i>&nbsp;                if (exception != null) {</b>
+<b class="nc"><i>649</i>&nbsp;                    logger.error(&quot;failed to execute pipeline for a bulk request&quot;, exception);</b>
+<b class="nc"><i>650</i>&nbsp;                    listener.onFailure(exception);</b>
+<i>651</i>&nbsp;                } else {
+<b class="nc"><i>652</i>&nbsp;                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);</b>
+<b class="nc"><i>653</i>&nbsp;                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();</b>
+<b class="nc"><i>654</i>&nbsp;                    ActionListener&lt;BulkResponse&gt; actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis,</b>
+<i>655</i>&nbsp;                        listener);
+<b class="nc"><i>656</i>&nbsp;                    if (bulkRequest.requests().isEmpty()) {</b>
+<i>657</i>&nbsp;                        // at this stage, the transport bulk action can&#39;t deal with a bulk request with no requests,
+<i>658</i>&nbsp;                        // so we stop and send an empty response back to the client.
+<i>659</i>&nbsp;                        // (this will happen if pre-processing all items in the bulk failed)
+<b class="nc"><i>660</i>&nbsp;                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));</b>
+<i>661</i>&nbsp;                    } else {
+<i>662</i>&nbsp;                        // If a processor went async and returned a response on a different thread then
+<i>663</i>&nbsp;                        // before we continue the bulk request we should fork back on a write thread:
+<b class="nc"><i>664</i>&nbsp;                        if (originalThread == Thread.currentThread()) {</b>
+<b class="nc"><i>665</i>&nbsp;                            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);</b>
+<b class="nc"><i>666</i>&nbsp;                            doExecute(task, bulkRequest, actionListener);</b>
+<i>667</i>&nbsp;                        } else {
+<b class="nc"><i>668</i>&nbsp;                            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {</b>
+<i>669</i>&nbsp;                                @Override
+<i>670</i>&nbsp;                                public void onFailure(Exception e) {
+<i>671</i>&nbsp;                                    listener.onFailure(e);
+<i>672</i>&nbsp;                                }
+<i>673</i>&nbsp;
+<i>674</i>&nbsp;                                @Override
+<i>675</i>&nbsp;                                protected void doRun() throws Exception {
+<i>676</i>&nbsp;                                    doExecute(task, bulkRequest, actionListener);
+<i>677</i>&nbsp;                                }
+<i>678</i>&nbsp;
+<i>679</i>&nbsp;                                @Override
+<i>680</i>&nbsp;                                public boolean isForceExecution() {
+<i>681</i>&nbsp;                                    // If we fork back to a write thread we **not** should fail, because tp queue is full.
+<i>682</i>&nbsp;                                    // (Otherwise the work done during ingest will be lost)
+<i>683</i>&nbsp;                                    // It is okay to force execution here. Throttling of write requests happens prior to
+<i>684</i>&nbsp;                                    // ingest when a node receives a bulk request.
+<i>685</i>&nbsp;                                    return true;
+<i>686</i>&nbsp;                                }
+<i>687</i>&nbsp;                            });
+<i>688</i>&nbsp;                        }
+<i>689</i>&nbsp;                    }
+<i>690</i>&nbsp;                }
+<b class="nc"><i>691</i>&nbsp;            },</b>
+<b class="nc"><i>692</i>&nbsp;            bulkRequestModifier::markItemAsDropped</b>
+<i>693</i>&nbsp;        );
+<b class="nc"><i>694</i>&nbsp;    }</b>
+<i>695</i>&nbsp;
+<i>696</i>&nbsp;    static final class BulkRequestModifier implements Iterator&lt;DocWriteRequest&lt;?&gt;&gt; {
+<i>697</i>&nbsp;
+<i>698</i>&nbsp;        private static final Logger LOGGER = LogManager.getLogger(BulkRequestModifier.class);
+<i>699</i>&nbsp;
+<i>700</i>&nbsp;        final BulkRequest bulkRequest;
+<i>701</i>&nbsp;        final SparseFixedBitSet failedSlots;
+<i>702</i>&nbsp;        final List&lt;BulkItemResponse&gt; itemResponses;
+<i>703</i>&nbsp;        final AtomicIntegerArray originalSlots;
+<i>704</i>&nbsp;
+<i>705</i>&nbsp;        volatile int currentSlot = -1;
+<i>706</i>&nbsp;
+<i>707</i>&nbsp;        BulkRequestModifier(BulkRequest bulkRequest) {
+<i>708</i>&nbsp;            this.bulkRequest = bulkRequest;
+<i>709</i>&nbsp;            this.failedSlots = new SparseFixedBitSet(bulkRequest.requests().size());
+<i>710</i>&nbsp;            this.itemResponses = new ArrayList&lt;&gt;(bulkRequest.requests().size());
+<i>711</i>&nbsp;            this.originalSlots = new AtomicIntegerArray(bulkRequest.requests().size()); // oversize, but that&#39;s ok
+<i>712</i>&nbsp;        }
+<i>713</i>&nbsp;
+<i>714</i>&nbsp;        @Override
+<i>715</i>&nbsp;        public DocWriteRequest&lt;?&gt; next() {
+<i>716</i>&nbsp;            return bulkRequest.requests().get(++currentSlot);
+<i>717</i>&nbsp;        }
+<i>718</i>&nbsp;
+<i>719</i>&nbsp;        @Override
+<i>720</i>&nbsp;        public boolean hasNext() {
+<i>721</i>&nbsp;            return (currentSlot + 1) &lt; bulkRequest.requests().size();
+<i>722</i>&nbsp;        }
+<i>723</i>&nbsp;
+<i>724</i>&nbsp;        BulkRequest getBulkRequest() {
+<i>725</i>&nbsp;            if (itemResponses.isEmpty()) {
+<i>726</i>&nbsp;                return bulkRequest;
+<i>727</i>&nbsp;            } else {
+<i>728</i>&nbsp;                BulkRequest modifiedBulkRequest = new BulkRequest();
+<i>729</i>&nbsp;                modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
+<i>730</i>&nbsp;                modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+<i>731</i>&nbsp;                modifiedBulkRequest.timeout(bulkRequest.timeout());
+<i>732</i>&nbsp;
+<i>733</i>&nbsp;                int slot = 0;
+<i>734</i>&nbsp;                List&lt;DocWriteRequest&lt;?&gt;&gt; requests = bulkRequest.requests();
+<i>735</i>&nbsp;                for (int i = 0; i &lt; requests.size(); i++) {
+<i>736</i>&nbsp;                    DocWriteRequest&lt;?&gt; request = requests.get(i);
+<i>737</i>&nbsp;                    if (failedSlots.get(i) == false) {
+<i>738</i>&nbsp;                        modifiedBulkRequest.add(request);
+<i>739</i>&nbsp;                        originalSlots.set(slot++, i);
+<i>740</i>&nbsp;                    }
+<i>741</i>&nbsp;                }
+<i>742</i>&nbsp;                return modifiedBulkRequest;
+<i>743</i>&nbsp;            }
+<i>744</i>&nbsp;        }
+<i>745</i>&nbsp;
+<i>746</i>&nbsp;        ActionListener&lt;BulkResponse&gt; wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener&lt;BulkResponse&gt; actionListener) {
+<i>747</i>&nbsp;            if (itemResponses.isEmpty()) {
+<i>748</i>&nbsp;                return ActionListener.map(actionListener,
+<i>749</i>&nbsp;                    response -&gt; new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
+<i>750</i>&nbsp;            } else {
+<i>751</i>&nbsp;                return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -&gt; {
+<i>752</i>&nbsp;                    BulkItemResponse[] items = response.getItems();
+<i>753</i>&nbsp;                    for (int i = 0; i &lt; items.length; i++) {
+<i>754</i>&nbsp;                        itemResponses.add(originalSlots.get(i), response.getItems()[i]);
+<i>755</i>&nbsp;                    }
+<i>756</i>&nbsp;                    delegatedListener.onResponse(
+<i>757</i>&nbsp;                        new BulkResponse(
+<i>758</i>&nbsp;                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis));
+<i>759</i>&nbsp;                });
+<i>760</i>&nbsp;            }
+<i>761</i>&nbsp;        }
+<i>762</i>&nbsp;
+<i>763</i>&nbsp;        synchronized void markItemAsDropped(int slot) {
+<i>764</i>&nbsp;            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+<i>765</i>&nbsp;            failedSlots.set(slot);
+<i>766</i>&nbsp;            final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
+<i>767</i>&nbsp;            itemResponses.add(
+<i>768</i>&nbsp;                new BulkItemResponse(slot, indexRequest.opType(),
+<i>769</i>&nbsp;                    new UpdateResponse(
+<i>770</i>&nbsp;                        new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
+<i>771</i>&nbsp;                        indexRequest.type(), id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+<i>772</i>&nbsp;                        indexRequest.version(), DocWriteResponse.Result.NOOP
+<i>773</i>&nbsp;                    )
+<i>774</i>&nbsp;                )
+<i>775</i>&nbsp;            );
+<i>776</i>&nbsp;        }
+<i>777</i>&nbsp;
+<i>778</i>&nbsp;        synchronized void markItemAsFailed(int slot, Exception e) {
+<i>779</i>&nbsp;            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+<i>780</i>&nbsp;            LOGGER.debug(() -&gt; new ParameterizedMessage(&quot;failed to execute pipeline [{}] for document [{}/{}/{}]&quot;,
+<i>781</i>&nbsp;                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
+<i>782</i>&nbsp;
+<i>783</i>&nbsp;            // We hit a error during preprocessing a request, so we:
+<i>784</i>&nbsp;            // 1) Remember the request item slot from the bulk, so that we&#39;re done processing all requests we know what failed
+<i>785</i>&nbsp;            // 2) Add a bulk item failure for this request
+<i>786</i>&nbsp;            // 3) Continue with the next request in the bulk.
+<i>787</i>&nbsp;            failedSlots.set(slot);
+<i>788</i>&nbsp;            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(),
+<i>789</i>&nbsp;                indexRequest.id(), e);
+<i>790</i>&nbsp;            itemResponses.add(new BulkItemResponse(slot, indexRequest.opType(), failure));
+<i>791</i>&nbsp;        }
+<i>792</i>&nbsp;
+<i>793</i>&nbsp;    }
+<i>794</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

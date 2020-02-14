@@ -1,0 +1,384 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: HasParentQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.join.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: HasParentQueryBuilder (org.elasticsearch.join.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">HasParentQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    95%
+  </span>
+  <span class="absValue">
+    (19/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    96.8%
+  </span>
+  <span class="absValue">
+    (121/ 125)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.join.query;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.search.MatchNoDocsQuery;
+<i>22</i>&nbsp;import org.apache.lucene.search.Query;
+<i>23</i>&nbsp;import org.apache.lucene.search.join.ScoreMode;
+<i>24</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>28</i>&nbsp;import org.elasticsearch.common.lucene.search.Queries;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>31</i>&nbsp;import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+<i>32</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>33</i>&nbsp;import org.elasticsearch.index.query.AbstractQueryBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.index.query.InnerHitBuilder;
+<i>35</i>&nbsp;import org.elasticsearch.index.query.InnerHitContextBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>37</i>&nbsp;import org.elasticsearch.index.query.QueryRewriteContext;
+<i>38</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>39</i>&nbsp;import org.elasticsearch.index.query.QueryShardException;
+<i>40</i>&nbsp;import org.elasticsearch.join.mapper.ParentIdFieldMapper;
+<i>41</i>&nbsp;import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.io.IOException;
+<i>44</i>&nbsp;import java.util.HashMap;
+<i>45</i>&nbsp;import java.util.Map;
+<i>46</i>&nbsp;import java.util.Objects;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;/**
+<i>49</i>&nbsp; * Builder for the &#39;has_parent&#39; query.
+<i>50</i>&nbsp; */
+<i>51</i>&nbsp;public class HasParentQueryBuilder extends AbstractQueryBuilder&lt;HasParentQueryBuilder&gt; {
+<i>52</i>&nbsp;    public static final String NAME = &quot;has_parent&quot;;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    /**
+<i>55</i>&nbsp;     * The default value for ignore_unmapped.
+<i>56</i>&nbsp;     */
+<i>57</i>&nbsp;    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+<i>58</i>&nbsp;
+<b class="fc"><i>59</i>&nbsp;    private static final ParseField QUERY_FIELD = new ParseField(&quot;query&quot;);</b>
+<b class="fc"><i>60</i>&nbsp;    private static final ParseField PARENT_TYPE_FIELD = new ParseField(&quot;parent_type&quot;);</b>
+<b class="fc"><i>61</i>&nbsp;    private static final ParseField SCORE_FIELD = new ParseField(&quot;score&quot;);</b>
+<b class="fc"><i>62</i>&nbsp;    private static final ParseField INNER_HITS_FIELD = new ParseField(&quot;inner_hits&quot;);</b>
+<b class="fc"><i>63</i>&nbsp;    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField(&quot;ignore_unmapped&quot;);</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    private final QueryBuilder query;
+<i>66</i>&nbsp;    private final String type;
+<i>67</i>&nbsp;    private final boolean score;
+<i>68</i>&nbsp;    private InnerHitBuilder innerHitBuilder;
+<b class="fc"><i>69</i>&nbsp;    private boolean ignoreUnmapped = false;</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    public HasParentQueryBuilder(String type, QueryBuilder query, boolean score) {
+<b class="fc"><i>72</i>&nbsp;        this(type, query, score, null);</b>
+<b class="fc"><i>73</i>&nbsp;    }</b>
+<i>74</i>&nbsp;
+<b class="fc"><i>75</i>&nbsp;    private HasParentQueryBuilder(String type, QueryBuilder query, boolean score, InnerHitBuilder innerHitBuilder) {</b>
+<b class="fc"><i>76</i>&nbsp;        this.type = requireValue(type, &quot;[&quot; + NAME + &quot;] requires &#39;&quot; + PARENT_TYPE_FIELD.getPreferredName()  + &quot;&#39; field&quot;);</b>
+<b class="fc"><i>77</i>&nbsp;        this.query = requireValue(query, &quot;[&quot; + NAME + &quot;] requires &#39;&quot; + QUERY_FIELD.getPreferredName() + &quot;&#39; field&quot;);</b>
+<b class="fc"><i>78</i>&nbsp;        this.score = score;</b>
+<b class="fc"><i>79</i>&nbsp;        this.innerHitBuilder = innerHitBuilder;</b>
+<b class="fc"><i>80</i>&nbsp;    }</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * Read from a stream.
+<i>84</i>&nbsp;     */
+<i>85</i>&nbsp;    public HasParentQueryBuilder(StreamInput in) throws IOException {
+<b class="fc"><i>86</i>&nbsp;        super(in);</b>
+<b class="fc"><i>87</i>&nbsp;        type = in.readString();</b>
+<b class="fc"><i>88</i>&nbsp;        score = in.readBoolean();</b>
+<b class="fc"><i>89</i>&nbsp;        query = in.readNamedWriteable(QueryBuilder.class);</b>
+<b class="fc"><i>90</i>&nbsp;        innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);</b>
+<b class="fc"><i>91</i>&nbsp;        ignoreUnmapped = in.readBoolean();</b>
+<b class="fc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    @Override
+<i>95</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="fc"><i>96</i>&nbsp;        out.writeString(type);</b>
+<b class="fc"><i>97</i>&nbsp;        out.writeBoolean(score);</b>
+<b class="fc"><i>98</i>&nbsp;        out.writeNamedWriteable(query);</b>
+<b class="fc"><i>99</i>&nbsp;        out.writeOptionalWriteable(innerHitBuilder);</b>
+<b class="fc"><i>100</i>&nbsp;        out.writeBoolean(ignoreUnmapped);</b>
+<b class="fc"><i>101</i>&nbsp;    }</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    /**
+<i>104</i>&nbsp;     * Returns the query to execute.
+<i>105</i>&nbsp;     */
+<i>106</i>&nbsp;    public QueryBuilder query() {
+<b class="fc"><i>107</i>&nbsp;        return query;</b>
+<i>108</i>&nbsp;    }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    /**
+<i>111</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if the parent score is mapped into the child documents
+<i>112</i>&nbsp;     */
+<i>113</i>&nbsp;    public boolean score() {
+<b class="fc"><i>114</i>&nbsp;        return score;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    /**
+<i>118</i>&nbsp;     * Returns the parents type name
+<i>119</i>&nbsp;     */
+<i>120</i>&nbsp;    public String type() {
+<b class="fc"><i>121</i>&nbsp;        return type;</b>
+<i>122</i>&nbsp;    }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    /**
+<i>125</i>&nbsp;     *  Returns inner hit definition in the scope of this query and reusing the defined type and query.
+<i>126</i>&nbsp;     */
+<i>127</i>&nbsp;    public InnerHitBuilder innerHit() {
+<b class="fc"><i>128</i>&nbsp;        return innerHitBuilder;</b>
+<i>129</i>&nbsp;    }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit) {
+<b class="fc"><i>132</i>&nbsp;        this.innerHitBuilder = innerHit;</b>
+<b class="fc"><i>133</i>&nbsp;        innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);</b>
+<b class="fc"><i>134</i>&nbsp;        return this;</b>
+<i>135</i>&nbsp;    }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    /**
+<i>138</i>&nbsp;     * Sets whether the query builder should ignore unmapped types (and run a
+<i>139</i>&nbsp;     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+<i>140</i>&nbsp;     * the type is unmapped.
+<i>141</i>&nbsp;     */
+<i>142</i>&nbsp;    public HasParentQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+<b class="fc"><i>143</i>&nbsp;        this.ignoreUnmapped = ignoreUnmapped;</b>
+<b class="fc"><i>144</i>&nbsp;        if (innerHitBuilder != null) {</b>
+<b class="fc"><i>145</i>&nbsp;            innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);</b>
+<i>146</i>&nbsp;        }
+<b class="fc"><i>147</i>&nbsp;        return this;</b>
+<i>148</i>&nbsp;    }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    /**
+<i>151</i>&nbsp;     * Gets whether the query builder will ignore unmapped types (and run a
+<i>152</i>&nbsp;     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+<i>153</i>&nbsp;     * the type is unmapped.
+<i>154</i>&nbsp;     */
+<i>155</i>&nbsp;    public boolean ignoreUnmapped() {
+<b class="nc"><i>156</i>&nbsp;        return ignoreUnmapped;</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    @Override
+<i>160</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="fc"><i>161</i>&nbsp;        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());</b>
+<b class="fc"><i>162</i>&nbsp;        if (joinFieldMapper == null) {</b>
+<b class="nc"><i>163</i>&nbsp;            if (ignoreUnmapped) {</b>
+<b class="nc"><i>164</i>&nbsp;                return new MatchNoDocsQuery();</b>
+<i>165</i>&nbsp;            } else {
+<b class="nc"><i>166</i>&nbsp;                throw new QueryShardException(context, &quot;[&quot; + NAME + &quot;] no join field has been configured&quot;);</b>
+<i>167</i>&nbsp;            }
+<i>168</i>&nbsp;        }
+<i>169</i>&nbsp;
+<b class="fc"><i>170</i>&nbsp;        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, true);</b>
+<b class="fc"><i>171</i>&nbsp;        if (parentIdFieldMapper != null) {</b>
+<b class="fc"><i>172</i>&nbsp;            Query parentFilter = parentIdFieldMapper.getParentFilter();</b>
+<b class="fc"><i>173</i>&nbsp;            Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);</b>
+<b class="fc"><i>174</i>&nbsp;            Query childFilter = parentIdFieldMapper.getChildrenFilter();</b>
+<b class="fc"><i>175</i>&nbsp;            MappedFieldType fieldType = parentIdFieldMapper.fieldType();</b>
+<b class="fc"><i>176</i>&nbsp;            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);</b>
+<b class="fc"><i>177</i>&nbsp;            return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,</b>
+<i>178</i>&nbsp;                HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
+<b class="fc"><i>179</i>&nbsp;                fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());</b>
+<i>180</i>&nbsp;        } else {
+<b class="fc"><i>181</i>&nbsp;            if (ignoreUnmapped) {</b>
+<b class="fc"><i>182</i>&nbsp;                return new MatchNoDocsQuery();</b>
+<i>183</i>&nbsp;            } else {
+<b class="fc"><i>184</i>&nbsp;                throw new QueryShardException(context, &quot;[&quot; + NAME + &quot;] join field [&quot; + joinFieldMapper.name() +</b>
+<i>185</i>&nbsp;                    &quot;] doesn&#39;t hold [&quot; + type + &quot;] as a parent&quot;);
+<i>186</i>&nbsp;            }
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    @Override
+<i>191</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="fc"><i>192</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="fc"><i>193</i>&nbsp;        builder.field(QUERY_FIELD.getPreferredName());</b>
+<b class="fc"><i>194</i>&nbsp;        query.toXContent(builder, params);</b>
+<b class="fc"><i>195</i>&nbsp;        builder.field(PARENT_TYPE_FIELD.getPreferredName(), type);</b>
+<b class="fc"><i>196</i>&nbsp;        builder.field(SCORE_FIELD.getPreferredName(), score);</b>
+<b class="fc"><i>197</i>&nbsp;        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);</b>
+<b class="fc"><i>198</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="fc"><i>199</i>&nbsp;        if (innerHitBuilder != null) {</b>
+<b class="fc"><i>200</i>&nbsp;            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);</b>
+<i>201</i>&nbsp;        }
+<b class="fc"><i>202</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>203</i>&nbsp;    }</b>
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    public static HasParentQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="fc"><i>206</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="fc"><i>207</i>&nbsp;        String parentType = null;</b>
+<b class="fc"><i>208</i>&nbsp;        boolean score = false;</b>
+<b class="fc"><i>209</i>&nbsp;        String queryName = null;</b>
+<b class="fc"><i>210</i>&nbsp;        InnerHitBuilder innerHits = null;</b>
+<b class="fc"><i>211</i>&nbsp;        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;</b>
+<i>212</i>&nbsp;
+<b class="fc"><i>213</i>&nbsp;        String currentFieldName = null;</b>
+<i>214</i>&nbsp;        XContentParser.Token token;
+<b class="fc"><i>215</i>&nbsp;        QueryBuilder iqb = null;</b>
+<b class="fc"><i>216</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="fc"><i>217</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="fc"><i>218</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="fc"><i>219</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="fc"><i>220</i>&nbsp;                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>221</i>&nbsp;                    iqb = parseInnerQueryBuilder(parser);</b>
+<b class="fc"><i>222</i>&nbsp;                } else if (INNER_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>223</i>&nbsp;                    innerHits = InnerHitBuilder.fromXContent(parser);</b>
+<i>224</i>&nbsp;                } else {
+<b class="fc"><i>225</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(),</b>
+<i>226</i>&nbsp;                        &quot;[has_parent] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>227</i>&nbsp;                }
+<b class="fc"><i>228</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="fc"><i>229</i>&nbsp;                if (PARENT_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>230</i>&nbsp;                    parentType = parser.text();</b>
+<b class="fc"><i>231</i>&nbsp;                } else if (SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>232</i>&nbsp;                    score = parser.booleanValue();</b>
+<b class="fc"><i>233</i>&nbsp;                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>234</i>&nbsp;                    ignoreUnmapped = parser.booleanValue();</b>
+<b class="fc"><i>235</i>&nbsp;                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>236</i>&nbsp;                    boost = parser.floatValue();</b>
+<b class="fc"><i>237</i>&nbsp;                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="fc"><i>238</i>&nbsp;                    queryName = parser.text();</b>
+<i>239</i>&nbsp;                } else {
+<b class="fc"><i>240</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(),</b>
+<i>241</i>&nbsp;                        &quot;[has_parent] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>242</i>&nbsp;                }
+<i>243</i>&nbsp;            }
+<i>244</i>&nbsp;        }
+<b class="fc"><i>245</i>&nbsp;        HasParentQueryBuilder queryBuilder =  new HasParentQueryBuilder(parentType, iqb, score)</b>
+<b class="fc"><i>246</i>&nbsp;                .ignoreUnmapped(ignoreUnmapped)</b>
+<b class="fc"><i>247</i>&nbsp;                .queryName(queryName)</b>
+<b class="fc"><i>248</i>&nbsp;                .boost(boost);</b>
+<b class="fc"><i>249</i>&nbsp;        if (innerHits != null) {</b>
+<b class="fc"><i>250</i>&nbsp;            queryBuilder.innerHit(innerHits);</b>
+<i>251</i>&nbsp;        }
+<b class="fc"><i>252</i>&nbsp;        return queryBuilder;</b>
+<i>253</i>&nbsp;    }
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    @Override
+<i>256</i>&nbsp;    public String getWriteableName() {
+<b class="fc"><i>257</i>&nbsp;        return NAME;</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    @Override
+<i>261</i>&nbsp;    protected boolean doEquals(HasParentQueryBuilder that) {
+<b class="fc"><i>262</i>&nbsp;        return Objects.equals(query, that.query)</b>
+<b class="fc"><i>263</i>&nbsp;                &amp;&amp; Objects.equals(type, that.type)</b>
+<b class="fc"><i>264</i>&nbsp;                &amp;&amp; Objects.equals(score, that.score)</b>
+<b class="fc"><i>265</i>&nbsp;                &amp;&amp; Objects.equals(innerHitBuilder, that.innerHitBuilder)</b>
+<b class="fc"><i>266</i>&nbsp;                &amp;&amp; Objects.equals(ignoreUnmapped, that.ignoreUnmapped);</b>
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    @Override
+<i>270</i>&nbsp;    protected int doHashCode() {
+<b class="fc"><i>271</i>&nbsp;        return Objects.hash(query, type, score, innerHitBuilder, ignoreUnmapped);</b>
+<i>272</i>&nbsp;    }
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;    @Override
+<i>275</i>&nbsp;    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+<b class="fc"><i>276</i>&nbsp;        QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);</b>
+<b class="fc"><i>277</i>&nbsp;        if (rewrittenQuery != query) {</b>
+<b class="fc"><i>278</i>&nbsp;            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrittenQuery, score, innerHitBuilder);</b>
+<b class="fc"><i>279</i>&nbsp;            hasParentQueryBuilder.ignoreUnmapped(ignoreUnmapped);</b>
+<b class="fc"><i>280</i>&nbsp;            return hasParentQueryBuilder;</b>
+<i>281</i>&nbsp;        }
+<b class="fc"><i>282</i>&nbsp;        return this;</b>
+<i>283</i>&nbsp;    }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    @Override
+<i>286</i>&nbsp;    protected void extractInnerHitBuilders(Map&lt;String, InnerHitContextBuilder&gt; innerHits) {
+<b class="fc"><i>287</i>&nbsp;        if (innerHitBuilder != null) {</b>
+<b class="fc"><i>288</i>&nbsp;            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;</b>
+<b class="fc"><i>289</i>&nbsp;            if (innerHits.containsKey(name)) {</b>
+<b class="fc"><i>290</i>&nbsp;                throw new IllegalArgumentException(&quot;[inner_hits] already contains an entry for key [&quot; + name + &quot;]&quot;);</b>
+<i>291</i>&nbsp;            }
+<i>292</i>&nbsp;
+<b class="fc"><i>293</i>&nbsp;            Map&lt;String, InnerHitContextBuilder&gt; children = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>294</i>&nbsp;            InnerHitContextBuilder.extractInnerHits(query, children);</b>
+<b class="fc"><i>295</i>&nbsp;            InnerHitContextBuilder innerHitContextBuilder =</b>
+<i>296</i>&nbsp;                new ParentChildInnerHitContextBuilder(type, false, query, innerHitBuilder, children);
+<b class="fc"><i>297</i>&nbsp;            innerHits.put(name, innerHitContextBuilder);</b>
+<i>298</i>&nbsp;        }
+<b class="fc"><i>299</i>&nbsp;    }</b>
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

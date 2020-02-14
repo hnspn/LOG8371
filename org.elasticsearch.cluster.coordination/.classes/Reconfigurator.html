@@ -1,0 +1,291 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Reconfigurator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.coordination</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Reconfigurator (org.elasticsearch.cluster.coordination)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">Reconfigurator</td>
+<td class="coverageStat">
+  <span class="percent">
+    71.4%
+  </span>
+  <span class="absValue">
+    (5/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    89.7%
+  </span>
+  <span class="absValue">
+    (35/ 39)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">Reconfigurator$VotingConfigNode</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    76.5%
+  </span>
+  <span class="absValue">
+    (13/ 17)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    70%
+  </span>
+  <span class="absValue">
+    (7/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    85.7%
+  </span>
+  <span class="absValue">
+    (48/ 56)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.coordination;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>26</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.util.Set;
+<i>32</i>&nbsp;import java.util.TreeSet;
+<i>33</i>&nbsp;import java.util.stream.Collectors;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;/**
+<i>36</i>&nbsp; * Computes the optimal configuration of voting nodes in the cluster.
+<i>37</i>&nbsp; */
+<b class="fc"><i>38</i>&nbsp;public class Reconfigurator {</b>
+<i>39</i>&nbsp;
+<b class="fc"><i>40</i>&nbsp;    private static final Logger logger = LogManager.getLogger(Reconfigurator.class);</b>
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    /**
+<i>43</i>&nbsp;     * The cluster usually requires a vote from at least half of the master nodes in order to commit a cluster state update, and to achieve
+<i>44</i>&nbsp;     * the best resilience it makes automatic adjustments to the voting configuration as master nodes join or leave the cluster. Adjustments
+<i>45</i>&nbsp;     * that fix or increase the size of the voting configuration are always a good idea, but the wisdom of reducing the voting configuration
+<i>46</i>&nbsp;     * size is less clear. For instance, automatically reducing the voting configuration down to a single node means the cluster requires
+<i>47</i>&nbsp;     * this node to operate, which is not resilient: if it broke we could restore every other master-eligible node in the cluster to health
+<i>48</i>&nbsp;     * and still the cluster would be unavailable. However not reducing the voting configuration size can also hamper resilience: in a
+<i>49</i>&nbsp;     * five-node cluster we could lose two nodes and by reducing the voting configuration to the remaining three nodes we could tolerate the
+<i>50</i>&nbsp;     * loss of a further node before failing.
+<i>51</i>&nbsp;     *
+<i>52</i>&nbsp;     * We offer two options: either we auto-shrink the voting configuration as long as it contains more than three nodes, or we don&#39;t and we
+<i>53</i>&nbsp;     * require the user to control the voting configuration manually using the retirement API. The former, default, option, guarantees that
+<i>54</i>&nbsp;     * as long as there have been at least three master-eligible nodes in the cluster and no more than one of them is currently unavailable,
+<i>55</i>&nbsp;     * then the cluster will still operate, which is what almost everyone wants. Manual control is for users who want different guarantees.
+<i>56</i>&nbsp;     */
+<b class="fc"><i>57</i>&nbsp;    public static final Setting&lt;Boolean&gt; CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION =</b>
+<b class="fc"><i>58</i>&nbsp;        Setting.boolSetting(&quot;cluster.auto_shrink_voting_configuration&quot;, true, Property.NodeScope, Property.Dynamic);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    private volatile boolean autoShrinkVotingConfiguration;
+<i>61</i>&nbsp;
+<b class="fc"><i>62</i>&nbsp;    public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {</b>
+<b class="fc"><i>63</i>&nbsp;        autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);</b>
+<b class="fc"><i>64</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);</b>
+<b class="fc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    public void setAutoShrinkVotingConfiguration(boolean autoShrinkVotingConfiguration) {
+<b class="nc"><i>68</i>&nbsp;        this.autoShrinkVotingConfiguration = autoShrinkVotingConfiguration;</b>
+<b class="nc"><i>69</i>&nbsp;    }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    private static int roundDownToOdd(int size) {
+<b class="fc"><i>72</i>&nbsp;        return size - (size % 2 == 0 ? 1 : 0);</b>
+<i>73</i>&nbsp;    }
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    @Override
+<i>76</i>&nbsp;    public String toString() {
+<b class="nc"><i>77</i>&nbsp;        return &quot;Reconfigurator{&quot; +</b>
+<i>78</i>&nbsp;            &quot;autoShrinkVotingConfiguration=&quot; + autoShrinkVotingConfiguration +
+<i>79</i>&nbsp;            &#39;}&#39;;
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * Compute an optimal configuration for the cluster.
+<i>84</i>&nbsp;     *
+<i>85</i>&nbsp;     * @param liveNodes      The live nodes in the cluster. The optimal configuration prefers live nodes over non-live nodes as far as
+<i>86</i>&nbsp;     *                       possible.
+<i>87</i>&nbsp;     * @param retiredNodeIds Nodes that are leaving the cluster and which should not appear in the configuration if possible. Nodes that are
+<i>88</i>&nbsp;     *                       retired and not in the current configuration will never appear in the resulting configuration; this is useful
+<i>89</i>&nbsp;     *                       for shifting the vote in a 2-node cluster so one of the nodes can be restarted without harming availability.
+<i>90</i>&nbsp;     * @param currentMaster  The current master. Unless retired, we prefer to keep the current master in the config.
+<i>91</i>&nbsp;     * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
+<i>92</i>&nbsp;     * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public VotingConfiguration reconfigure(Set&lt;DiscoveryNode&gt; liveNodes, Set&lt;String&gt; retiredNodeIds, DiscoveryNode currentMaster,
+<i>95</i>&nbsp;                                           VotingConfiguration currentConfig) {
+<b class="fc"><i>96</i>&nbsp;        assert liveNodes.contains(currentMaster) : &quot;liveNodes = &quot; + liveNodes + &quot; master = &quot; + currentMaster;</b>
+<b class="fc"><i>97</i>&nbsp;        logger.trace(&quot;{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}&quot;,</b>
+<i>98</i>&nbsp;            this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
+<i>99</i>&nbsp;
+<b class="fc"><i>100</i>&nbsp;        final Set&lt;String&gt; liveNodeIds = liveNodes.stream()</b>
+<b class="fc"><i>101</i>&nbsp;            .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());</b>
+<b class="fc"><i>102</i>&nbsp;        final Set&lt;String&gt; currentConfigNodeIds = currentConfig.getNodeIds();</b>
+<i>103</i>&nbsp;
+<b class="fc"><i>104</i>&nbsp;        final Set&lt;VotingConfigNode&gt; orderedCandidateNodes = new TreeSet&lt;&gt;();</b>
+<b class="fc"><i>105</i>&nbsp;        liveNodes.stream()</b>
+<b class="fc"><i>106</i>&nbsp;            .filter(DiscoveryNode::isMasterNode)</b>
+<b class="fc"><i>107</i>&nbsp;            .filter(n -&gt; retiredNodeIds.contains(n.getId()) == false)</b>
+<b class="fc"><i>108</i>&nbsp;            .forEach(n -&gt; orderedCandidateNodes.add(new VotingConfigNode(n.getId(), true,</b>
+<b class="fc"><i>109</i>&nbsp;                n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));</b>
+<b class="fc"><i>110</i>&nbsp;        currentConfigNodeIds.stream()</b>
+<b class="fc"><i>111</i>&nbsp;            .filter(nid -&gt; liveNodeIds.contains(nid) == false)</b>
+<b class="fc"><i>112</i>&nbsp;            .filter(nid -&gt; retiredNodeIds.contains(nid) == false)</b>
+<b class="fc"><i>113</i>&nbsp;            .forEach(nid -&gt; orderedCandidateNodes.add(new VotingConfigNode(nid, false, false, true)));</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;        /*
+<i>116</i>&nbsp;         * Now we work out how many nodes should be in the configuration:
+<i>117</i>&nbsp;         */
+<b class="fc"><i>118</i>&nbsp;        final int nonRetiredConfigSize = Math.toIntExact(orderedCandidateNodes.stream().filter(n -&gt; n.inCurrentConfig).count());</b>
+<b class="fc"><i>119</i>&nbsp;        final int minimumConfigEnforcedSize = autoShrinkVotingConfiguration ? (nonRetiredConfigSize &lt; 3 ? 1 : 3) : nonRetiredConfigSize;</b>
+<b class="fc"><i>120</i>&nbsp;        final int nonRetiredLiveNodeCount = Math.toIntExact(orderedCandidateNodes.stream().filter(n -&gt; n.live).count());</b>
+<b class="fc"><i>121</i>&nbsp;        final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), minimumConfigEnforcedSize);</b>
+<i>122</i>&nbsp;
+<b class="fc"><i>123</i>&nbsp;        final VotingConfiguration newConfig = new VotingConfiguration(</b>
+<b class="fc"><i>124</i>&nbsp;            orderedCandidateNodes.stream()</b>
+<b class="fc"><i>125</i>&nbsp;                .limit(targetSize)</b>
+<b class="fc"><i>126</i>&nbsp;                .map(n -&gt; n.id)</b>
+<b class="fc"><i>127</i>&nbsp;                .collect(Collectors.toSet()));</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;        // new configuration should have a quorum
+<b class="fc"><i>130</i>&nbsp;        if (newConfig.hasQuorum(liveNodeIds)) {</b>
+<b class="fc"><i>131</i>&nbsp;            return newConfig;</b>
+<i>132</i>&nbsp;        } else {
+<i>133</i>&nbsp;            // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it&#39;s better to do nothing.
+<b class="nc"><i>134</i>&nbsp;            return currentConfig;</b>
+<i>135</i>&nbsp;        }
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    static class VotingConfigNode implements Comparable&lt;VotingConfigNode&gt; {
+<i>139</i>&nbsp;        final String id;
+<i>140</i>&nbsp;        final boolean live;
+<i>141</i>&nbsp;        final boolean currentMaster;
+<i>142</i>&nbsp;        final boolean inCurrentConfig;
+<i>143</i>&nbsp;
+<b class="fc"><i>144</i>&nbsp;        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {</b>
+<b class="fc"><i>145</i>&nbsp;            this.id = id;</b>
+<b class="fc"><i>146</i>&nbsp;            this.live = live;</b>
+<b class="fc"><i>147</i>&nbsp;            this.currentMaster = currentMaster;</b>
+<b class="fc"><i>148</i>&nbsp;            this.inCurrentConfig = inCurrentConfig;</b>
+<b class="fc"><i>149</i>&nbsp;        }</b>
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;        @Override
+<i>152</i>&nbsp;        public int compareTo(VotingConfigNode other) {
+<i>153</i>&nbsp;            // prefer current master
+<b class="fc"><i>154</i>&nbsp;            final int currentMasterComp = Boolean.compare(other.currentMaster, currentMaster);</b>
+<b class="fc"><i>155</i>&nbsp;            if (currentMasterComp != 0) {</b>
+<b class="nc"><i>156</i>&nbsp;                return currentMasterComp;</b>
+<i>157</i>&nbsp;            }
+<i>158</i>&nbsp;            // prefer nodes that are live
+<b class="fc"><i>159</i>&nbsp;            final int liveComp = Boolean.compare(other.live, live);</b>
+<b class="fc"><i>160</i>&nbsp;            if (liveComp != 0) {</b>
+<b class="nc"><i>161</i>&nbsp;                return liveComp;</b>
+<i>162</i>&nbsp;            }
+<i>163</i>&nbsp;            // prefer nodes that are in current config for stability
+<b class="fc"><i>164</i>&nbsp;            final int inCurrentConfigComp = Boolean.compare(other.inCurrentConfig, inCurrentConfig);</b>
+<b class="fc"><i>165</i>&nbsp;            if (inCurrentConfigComp != 0) {</b>
+<b class="nc"><i>166</i>&nbsp;                return inCurrentConfigComp;</b>
+<i>167</i>&nbsp;            }
+<i>168</i>&nbsp;            // tiebreak by node id to have stable ordering
+<b class="fc"><i>169</i>&nbsp;            return id.compareTo(other.id);</b>
+<i>170</i>&nbsp;        }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;        @Override
+<i>173</i>&nbsp;        public String toString() {
+<b class="nc"><i>174</i>&nbsp;            return &quot;VotingConfigNode{&quot; +</b>
+<i>175</i>&nbsp;                &quot;id=&#39;&quot; + id + &#39;\&#39;&#39; +
+<i>176</i>&nbsp;                &quot;, live=&quot; + live +
+<i>177</i>&nbsp;                &quot;, currentMaster=&quot; + currentMaster +
+<i>178</i>&nbsp;                &quot;, inCurrentConfig=&quot; + inCurrentConfig +
+<i>179</i>&nbsp;                &#39;}&#39;;
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;    }
+<i>182</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

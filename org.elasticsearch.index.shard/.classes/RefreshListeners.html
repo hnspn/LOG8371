@@ -1,0 +1,388 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RefreshListeners</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.shard</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RefreshListeners (org.elasticsearch.index.shard)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RefreshListeners</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    64.3%
+  </span>
+  <span class="absValue">
+    (9/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.7%
+  </span>
+  <span class="absValue">
+    (35/ 114)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.shard;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.lucene.search.ReferenceManager;
+<i>24</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>25</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>26</i>&nbsp;import org.elasticsearch.common.metrics.MeanMetric;
+<i>27</i>&nbsp;import org.elasticsearch.common.util.concurrent.RunOnce;
+<i>28</i>&nbsp;import org.elasticsearch.common.util.concurrent.ThreadContext;
+<i>29</i>&nbsp;import org.elasticsearch.index.translog.Translog;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.io.Closeable;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;import java.util.ArrayList;
+<i>34</i>&nbsp;import java.util.List;
+<i>35</i>&nbsp;import java.util.concurrent.Executor;
+<i>36</i>&nbsp;import java.util.function.Consumer;
+<i>37</i>&nbsp;import java.util.function.IntSupplier;
+<i>38</i>&nbsp;import java.util.function.Supplier;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import static java.util.Objects.requireNonNull;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;/**
+<i>43</i>&nbsp; * Allows for the registration of listeners that are called when a change becomes visible for search. This functionality is exposed from
+<i>44</i>&nbsp; * {@link IndexShard} but kept here so it can be tested without standing up the entire thing.
+<i>45</i>&nbsp; *
+<i>46</i>&nbsp; * When {@link Closeable#close()}d it will no longer accept listeners and flush any existing listeners.
+<i>47</i>&nbsp; */
+<b class="fc"><i>48</i>&nbsp;public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {</b>
+<i>49</i>&nbsp;    private final IntSupplier getMaxRefreshListeners;
+<i>50</i>&nbsp;    private final Runnable forceRefresh;
+<i>51</i>&nbsp;    private final Executor listenerExecutor;
+<i>52</i>&nbsp;    private final Logger logger;
+<i>53</i>&nbsp;    private final ThreadContext threadContext;
+<i>54</i>&nbsp;    private final MeanMetric refreshMetric;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    /**
+<i>57</i>&nbsp;     * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
+<i>58</i>&nbsp;     */
+<i>59</i>&nbsp;    private long currentRefreshStartTime;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * Is this closed? If true then we won&#39;t add more listeners and have flushed all pending listeners.
+<i>63</i>&nbsp;     */
+<b class="fc"><i>64</i>&nbsp;    private volatile boolean closed = false;</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    /**
+<i>67</i>&nbsp;     * Force-refreshes new refresh listeners that are added while {@code &gt;= 0}. Used to prevent becoming blocked on operations waiting for
+<i>68</i>&nbsp;     * refresh during relocation.
+<i>69</i>&nbsp;     */
+<i>70</i>&nbsp;    private int refreshForcers;
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    /**
+<i>73</i>&nbsp;     * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won&#39;t need it. Entries are never removed
+<i>74</i>&nbsp;     * from it, rather, it is nulled and rebuilt when needed again. The (hopefully) rare entries that didn&#39;t make the current refresh cycle
+<i>75</i>&nbsp;     * are just added back to the new list. Both the reference and the contents are always modified while synchronized on {@code this}.
+<i>76</i>&nbsp;     *
+<i>77</i>&nbsp;     * We never set this to non-null while closed it {@code true}.
+<i>78</i>&nbsp;     */
+<b class="fc"><i>79</i>&nbsp;    private volatile List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; refreshListeners = null;</b>
+<i>80</i>&nbsp;    /**
+<i>81</i>&nbsp;     * The translog location that was last made visible by a refresh.
+<i>82</i>&nbsp;     */
+<i>83</i>&nbsp;    private volatile Translog.Location lastRefreshedLocation;
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, Logger logger,
+<b class="fc"><i>86</i>&nbsp;                            ThreadContext threadContext, MeanMetric refreshMetric) {</b>
+<b class="fc"><i>87</i>&nbsp;        this.getMaxRefreshListeners = getMaxRefreshListeners;</b>
+<b class="fc"><i>88</i>&nbsp;        this.forceRefresh = forceRefresh;</b>
+<b class="fc"><i>89</i>&nbsp;        this.listenerExecutor = listenerExecutor;</b>
+<b class="fc"><i>90</i>&nbsp;        this.logger = logger;</b>
+<b class="fc"><i>91</i>&nbsp;        this.threadContext = threadContext;</b>
+<b class="fc"><i>92</i>&nbsp;        this.refreshMetric = refreshMetric;</b>
+<b class="fc"><i>93</i>&nbsp;    }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    /**
+<i>96</i>&nbsp;     * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
+<i>97</i>&nbsp;     */
+<i>98</i>&nbsp;    public Releasable forceRefreshes() {
+<b class="nc"><i>99</i>&nbsp;        synchronized (this) {</b>
+<b class="nc"><i>100</i>&nbsp;            assert refreshForcers &gt;= 0;</b>
+<b class="nc"><i>101</i>&nbsp;            refreshForcers += 1;</b>
+<b class="nc"><i>102</i>&nbsp;        }</b>
+<b class="nc"><i>103</i>&nbsp;        final RunOnce runOnce = new RunOnce(() -&gt; {</b>
+<b class="nc"><i>104</i>&nbsp;            synchronized (RefreshListeners.this) {</b>
+<b class="nc"><i>105</i>&nbsp;                assert refreshForcers &gt; 0;</b>
+<b class="nc"><i>106</i>&nbsp;                refreshForcers -= 1;</b>
+<b class="nc"><i>107</i>&nbsp;            }</b>
+<b class="nc"><i>108</i>&nbsp;        });</b>
+<b class="nc"><i>109</i>&nbsp;        if (refreshNeeded()) {</b>
+<i>110</i>&nbsp;            try {
+<b class="nc"><i>111</i>&nbsp;                forceRefresh.run();</b>
+<b class="nc"><i>112</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>113</i>&nbsp;                runOnce.run();</b>
+<b class="nc"><i>114</i>&nbsp;                throw e;</b>
+<b class="nc"><i>115</i>&nbsp;            }</b>
+<i>116</i>&nbsp;        }
+<b class="nc"><i>117</i>&nbsp;        assert refreshListeners == null;</b>
+<b class="nc"><i>118</i>&nbsp;        return () -&gt; runOnce.run();</b>
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    /**
+<i>122</i>&nbsp;     * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
+<i>123</i>&nbsp;     * forces a refresh and calls the listener immediately as well.
+<i>124</i>&nbsp;     *
+<i>125</i>&nbsp;     * @param location the location to listen for
+<i>126</i>&nbsp;     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+<i>127</i>&nbsp;     *        false otherwise.
+<i>128</i>&nbsp;     * @return did we call the listener (true) or register the listener to call later (false)?
+<i>129</i>&nbsp;     */
+<i>130</i>&nbsp;    public boolean addOrNotify(Translog.Location location, Consumer&lt;Boolean&gt; listener) {
+<b class="nc"><i>131</i>&nbsp;        requireNonNull(listener, &quot;listener cannot be null&quot;);</b>
+<b class="nc"><i>132</i>&nbsp;        requireNonNull(location, &quot;location cannot be null&quot;);</b>
+<i>133</i>&nbsp;
+<b class="nc"><i>134</i>&nbsp;        if (lastRefreshedLocation != null &amp;&amp; lastRefreshedLocation.compareTo(location) &gt;= 0) {</b>
+<i>135</i>&nbsp;            // Location already visible, just call the listener
+<b class="nc"><i>136</i>&nbsp;            listener.accept(false);</b>
+<b class="nc"><i>137</i>&nbsp;            return true;</b>
+<i>138</i>&nbsp;        }
+<b class="nc"><i>139</i>&nbsp;        synchronized (this) {</b>
+<b class="nc"><i>140</i>&nbsp;            if (closed) {</b>
+<b class="nc"><i>141</i>&nbsp;                throw new IllegalStateException(&quot;can&#39;t wait for refresh on a closed index&quot;);</b>
+<i>142</i>&nbsp;            }
+<b class="nc"><i>143</i>&nbsp;            List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; listeners = refreshListeners;</b>
+<b class="nc"><i>144</i>&nbsp;            final int maxRefreshes = getMaxRefreshListeners.getAsInt();</b>
+<b class="nc"><i>145</i>&nbsp;            if (refreshForcers == 0 &amp;&amp; maxRefreshes &gt; 0 &amp;&amp; (listeners == null || listeners.size() &lt; maxRefreshes)) {</b>
+<b class="nc"><i>146</i>&nbsp;                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);</b>
+<b class="nc"><i>147</i>&nbsp;                Consumer&lt;Boolean&gt; contextPreservingListener = forced -&gt; {</b>
+<b class="nc"><i>148</i>&nbsp;                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {</b>
+<b class="nc"><i>149</i>&nbsp;                        storedContext.restore();</b>
+<b class="nc"><i>150</i>&nbsp;                        listener.accept(forced);</b>
+<b class="nc"><i>151</i>&nbsp;                    }</b>
+<b class="nc"><i>152</i>&nbsp;                };</b>
+<b class="nc"><i>153</i>&nbsp;                if (listeners == null) {</b>
+<b class="nc"><i>154</i>&nbsp;                    listeners = new ArrayList&lt;&gt;();</b>
+<i>155</i>&nbsp;                }
+<i>156</i>&nbsp;                // We have a free slot so register the listener
+<b class="nc"><i>157</i>&nbsp;                listeners.add(new Tuple&lt;&gt;(location, contextPreservingListener));</b>
+<b class="nc"><i>158</i>&nbsp;                refreshListeners = listeners;</b>
+<b class="nc"><i>159</i>&nbsp;                return false;</b>
+<i>160</i>&nbsp;            }
+<b class="nc"><i>161</i>&nbsp;        }</b>
+<i>162</i>&nbsp;        // No free slot so force a refresh and call the listener in this thread
+<b class="nc"><i>163</i>&nbsp;        forceRefresh.run();</b>
+<b class="nc"><i>164</i>&nbsp;        listener.accept(true);</b>
+<b class="nc"><i>165</i>&nbsp;        return true;</b>
+<i>166</i>&nbsp;    }
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;    @Override
+<i>169</i>&nbsp;    public void close() throws IOException {
+<i>170</i>&nbsp;        List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; oldListeners;
+<b class="fc"><i>171</i>&nbsp;        synchronized (this) {</b>
+<b class="fc"><i>172</i>&nbsp;            oldListeners = refreshListeners;</b>
+<b class="fc"><i>173</i>&nbsp;            refreshListeners = null;</b>
+<b class="fc"><i>174</i>&nbsp;            closed = true;</b>
+<b class="fc"><i>175</i>&nbsp;        }</b>
+<i>176</i>&nbsp;        // Fire any listeners we might have had
+<b class="fc"><i>177</i>&nbsp;        fireListeners(oldListeners);</b>
+<b class="fc"><i>178</i>&nbsp;    }</b>
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;    /**
+<i>181</i>&nbsp;     * Returns true if there are pending listeners.
+<i>182</i>&nbsp;     */
+<i>183</i>&nbsp;    public boolean refreshNeeded() {
+<i>184</i>&nbsp;        // A null list doesn&#39;t need a refresh. If we&#39;re closed we don&#39;t need a refresh either.
+<b class="fc"><i>185</i>&nbsp;        return refreshListeners != null &amp;&amp; false == closed;</b>
+<i>186</i>&nbsp;    }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    /**
+<i>189</i>&nbsp;     * The number of pending listeners.
+<i>190</i>&nbsp;     */
+<i>191</i>&nbsp;    public int pendingCount() {
+<i>192</i>&nbsp;        // No need to synchronize here because we&#39;re doing a single volatile read
+<b class="fc"><i>193</i>&nbsp;        List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; listeners = refreshListeners;</b>
+<i>194</i>&nbsp;        // A null list means we haven&#39;t accumulated any listeners. Otherwise we need the size.
+<b class="fc"><i>195</i>&nbsp;        return listeners == null ? 0 : listeners.size();</b>
+<i>196</i>&nbsp;    }
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;    /**
+<i>199</i>&nbsp;     * Setup the translog used to find the last refreshed location.
+<i>200</i>&nbsp;     */
+<i>201</i>&nbsp;    public void setCurrentRefreshLocationSupplier(Supplier&lt;Translog.Location&gt; currentRefreshLocationSupplier) {
+<b class="fc"><i>202</i>&nbsp;        this.currentRefreshLocationSupplier = currentRefreshLocationSupplier;</b>
+<b class="fc"><i>203</i>&nbsp;    }</b>
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    /**
+<i>206</i>&nbsp;     * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn&#39;t have to be volatile
+<i>207</i>&nbsp;     * because when it is used by the refreshing thread.
+<i>208</i>&nbsp;     */
+<i>209</i>&nbsp;    private Translog.Location currentRefreshLocation;
+<i>210</i>&nbsp;    private Supplier&lt;Translog.Location&gt; currentRefreshLocationSupplier;
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    @Override
+<i>213</i>&nbsp;    public void beforeRefresh() throws IOException {
+<b class="fc"><i>214</i>&nbsp;        currentRefreshLocation = currentRefreshLocationSupplier.get();</b>
+<b class="fc"><i>215</i>&nbsp;        currentRefreshStartTime = System.nanoTime();</b>
+<b class="fc"><i>216</i>&nbsp;    }</b>
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    @Override
+<i>219</i>&nbsp;    public void afterRefresh(boolean didRefresh) throws IOException {
+<i>220</i>&nbsp;        // Increment refresh metric before communicating to listeners.
+<b class="fc"><i>221</i>&nbsp;        refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);</b>
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;        /* We intentionally ignore didRefresh here because our timing is a little off. It&#39;d be a useful flag if we knew everything that made
+<i>224</i>&nbsp;         * it into the refresh, but the way we snapshot the translog position before the refresh, things can sneak into the refresh that we
+<i>225</i>&nbsp;         * don&#39;t know about. */
+<b class="fc"><i>226</i>&nbsp;        if (null == currentRefreshLocation) {</b>
+<i>227</i>&nbsp;            /* The translog had an empty last write location at the start of the refresh so we can&#39;t alert anyone to anything. This
+<i>228</i>&nbsp;             * usually happens during recovery. The next refresh cycle out to pick up this refresh. */
+<b class="nc"><i>229</i>&nbsp;            return;</b>
+<i>230</i>&nbsp;        }
+<i>231</i>&nbsp;        /* Set the lastRefreshedLocation so listeners that come in for locations before that will just execute inline without messing
+<i>232</i>&nbsp;         * around with refreshListeners or synchronizing at all. Note that it is not safe for us to abort early if we haven&#39;t advanced the
+<i>233</i>&nbsp;         * position here because we set and read lastRefreshedLocation outside of a synchronized block. We do that so that waiting for a
+<i>234</i>&nbsp;         * refresh that has already passed is just a volatile read but the cost is that any check whether or not we&#39;ve advanced the
+<i>235</i>&nbsp;         * position will introduce a race between adding the listener and the position check. We could work around this by moving this
+<i>236</i>&nbsp;         * assignment into the synchronized block below and double checking lastRefreshedLocation in addOrNotify&#39;s synchronized block but
+<i>237</i>&nbsp;         * that doesn&#39;t seem worth it given that we already skip this process early if there aren&#39;t any listeners to iterate. */
+<b class="fc"><i>238</i>&nbsp;        lastRefreshedLocation = currentRefreshLocation;</b>
+<i>239</i>&nbsp;        /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won&#39;t be
+<i>240</i>&nbsp;         * in the list we iterate over and very likely won&#39;t be candidates for refresh anyway because we&#39;ve already moved the
+<i>241</i>&nbsp;         * lastRefreshedLocation. */
+<i>242</i>&nbsp;        List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; candidates;
+<b class="fc"><i>243</i>&nbsp;        synchronized (this) {</b>
+<b class="fc"><i>244</i>&nbsp;            candidates = refreshListeners;</b>
+<i>245</i>&nbsp;            // No listeners to check so just bail early
+<b class="fc"><i>246</i>&nbsp;            if (candidates == null) {</b>
+<b class="fc"><i>247</i>&nbsp;                return;</b>
+<i>248</i>&nbsp;            }
+<b class="nc"><i>249</i>&nbsp;            refreshListeners = null;</b>
+<b class="nc"><i>250</i>&nbsp;        }</b>
+<i>251</i>&nbsp;        // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
+<b class="nc"><i>252</i>&nbsp;        List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; listenersToFire = null;</b>
+<b class="nc"><i>253</i>&nbsp;        List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; preservedListeners = null;</b>
+<b class="nc"><i>254</i>&nbsp;        for (Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt; tuple : candidates) {</b>
+<b class="nc"><i>255</i>&nbsp;            Translog.Location location = tuple.v1();</b>
+<b class="nc"><i>256</i>&nbsp;            if (location.compareTo(currentRefreshLocation) &lt;= 0) {</b>
+<b class="nc"><i>257</i>&nbsp;                if (listenersToFire == null) {</b>
+<b class="nc"><i>258</i>&nbsp;                    listenersToFire = new ArrayList&lt;&gt;();</b>
+<i>259</i>&nbsp;                }
+<b class="nc"><i>260</i>&nbsp;                listenersToFire.add(tuple);</b>
+<i>261</i>&nbsp;            } else {
+<b class="nc"><i>262</i>&nbsp;                if (preservedListeners == null) {</b>
+<b class="nc"><i>263</i>&nbsp;                    preservedListeners = new ArrayList&lt;&gt;();</b>
+<i>264</i>&nbsp;                }
+<b class="nc"><i>265</i>&nbsp;                preservedListeners.add(tuple);</b>
+<i>266</i>&nbsp;            }
+<b class="nc"><i>267</i>&nbsp;        }</b>
+<i>268</i>&nbsp;        /* Now deal with the listeners that it isn&#39;t time yet to fire. We need to do this under lock so we don&#39;t miss a concurrent close or
+<i>269</i>&nbsp;         * newly registered listener. If we&#39;re not closed we just add the listeners to the list of listeners we check next time. If we are
+<i>270</i>&nbsp;         * closed we fire the listeners even though it isn&#39;t time for them. */
+<b class="nc"><i>271</i>&nbsp;        if (preservedListeners != null) {</b>
+<b class="nc"><i>272</i>&nbsp;            synchronized (this) {</b>
+<b class="nc"><i>273</i>&nbsp;                if (refreshListeners == null) {</b>
+<b class="nc"><i>274</i>&nbsp;                    if (closed) {</b>
+<b class="nc"><i>275</i>&nbsp;                        listenersToFire.addAll(preservedListeners);</b>
+<i>276</i>&nbsp;                    } else {
+<b class="nc"><i>277</i>&nbsp;                        refreshListeners = preservedListeners;</b>
+<i>278</i>&nbsp;                    }
+<i>279</i>&nbsp;                } else {
+<b class="nc"><i>280</i>&nbsp;                    assert closed == false : &quot;Can&#39;t be closed and have non-null refreshListeners&quot;;</b>
+<b class="nc"><i>281</i>&nbsp;                    refreshListeners.addAll(preservedListeners);</b>
+<i>282</i>&nbsp;                }
+<b class="nc"><i>283</i>&nbsp;            }</b>
+<i>284</i>&nbsp;        }
+<i>285</i>&nbsp;        // Lastly, fire the listeners that are ready on the listener thread pool
+<b class="nc"><i>286</i>&nbsp;        fireListeners(listenersToFire);</b>
+<b class="nc"><i>287</i>&nbsp;    }</b>
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;    /**
+<i>290</i>&nbsp;     * Fire some listeners. Does nothing if the list of listeners is null.
+<i>291</i>&nbsp;     */
+<i>292</i>&nbsp;    private void fireListeners(List&lt;Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt;&gt; listenersToFire) {
+<b class="fc"><i>293</i>&nbsp;        if (listenersToFire != null) {</b>
+<b class="nc"><i>294</i>&nbsp;            listenerExecutor.execute(() -&gt; {</b>
+<b class="nc"><i>295</i>&nbsp;                for (Tuple&lt;Translog.Location, Consumer&lt;Boolean&gt;&gt; listener : listenersToFire) {</b>
+<i>296</i>&nbsp;                    try {
+<b class="nc"><i>297</i>&nbsp;                        listener.v2().accept(false);</b>
+<b class="nc"><i>298</i>&nbsp;                    } catch (Exception e) {</b>
+<b class="nc"><i>299</i>&nbsp;                        logger.warn(&quot;Error firing refresh listener&quot;, e);</b>
+<b class="nc"><i>300</i>&nbsp;                    }</b>
+<b class="nc"><i>301</i>&nbsp;                }</b>
+<b class="nc"><i>302</i>&nbsp;            });</b>
+<i>303</i>&nbsp;        }
+<b class="fc"><i>304</i>&nbsp;    }</b>
+<i>305</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

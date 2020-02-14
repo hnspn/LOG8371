@@ -1,0 +1,509 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AbstractXContentParser</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.xcontent.support</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AbstractXContentParser (org.elasticsearch.common.xcontent.support)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AbstractXContentParser</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.5%
+  </span>
+  <span class="absValue">
+    (22/ 37)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    51.8%
+  </span>
+  <span class="absValue">
+    (72/ 139)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">AbstractXContentParser$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    60.5%
+  </span>
+  <span class="absValue">
+    (23/ 38)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    52.1%
+  </span>
+  <span class="absValue">
+    (73/ 140)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.xcontent.support;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>23</i>&nbsp;import org.elasticsearch.common.CheckedFunction;
+<i>24</i>&nbsp;import org.elasticsearch.common.xcontent.DeprecationHandler;
+<i>25</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParseException;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.io.IOException;
+<i>30</i>&nbsp;import java.math.BigDecimal;
+<i>31</i>&nbsp;import java.math.BigInteger;
+<i>32</i>&nbsp;import java.nio.CharBuffer;
+<i>33</i>&nbsp;import java.util.ArrayList;
+<i>34</i>&nbsp;import java.util.HashMap;
+<i>35</i>&nbsp;import java.util.LinkedHashMap;
+<i>36</i>&nbsp;import java.util.List;
+<i>37</i>&nbsp;import java.util.Map;
+<i>38</i>&nbsp;import java.util.function.Supplier;
+<i>39</i>&nbsp;
+<b class="fc"><i>40</i>&nbsp;public abstract class AbstractXContentParser implements XContentParser {</b>
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    // Currently this is not a setting that can be changed and is a policy
+<i>43</i>&nbsp;    // that relates to how parsing of things like &quot;boost&quot; are done across
+<i>44</i>&nbsp;    // the whole of Elasticsearch (eg if String &quot;1.0&quot; is a valid float).
+<i>45</i>&nbsp;    // The idea behind keeping it as a constant is that we can track
+<i>46</i>&nbsp;    // references to this policy decision throughout the codebase and find
+<i>47</i>&nbsp;    // and change any code that needs to apply an alternative policy.
+<i>48</i>&nbsp;    public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    private static void checkCoerceString(boolean coerce, Class&lt;? extends Number&gt; clazz) {
+<b class="nc"><i>51</i>&nbsp;        if (!coerce) {</b>
+<i>52</i>&nbsp;            //Need to throw type IllegalArgumentException as current catch logic in
+<i>53</i>&nbsp;            //NumberFieldMapper.parseCreateField relies on this for &quot;malformed&quot; value detection
+<b class="nc"><i>54</i>&nbsp;            throw new IllegalArgumentException(clazz.getSimpleName() + &quot; value passed as String&quot;);</b>
+<i>55</i>&nbsp;        }
+<b class="nc"><i>56</i>&nbsp;    }</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final NamedXContentRegistry xContentRegistry;
+<i>59</i>&nbsp;    private final DeprecationHandler deprecationHandler;
+<i>60</i>&nbsp;
+<b class="fc"><i>61</i>&nbsp;    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {</b>
+<b class="fc"><i>62</i>&nbsp;        this.xContentRegistry = xContentRegistry;</b>
+<b class="fc"><i>63</i>&nbsp;        this.deprecationHandler = deprecationHandler;</b>
+<b class="fc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    // The 3rd party parsers we rely on are known to silently truncate fractions: see
+<i>67</i>&nbsp;    //   http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
+<i>68</i>&nbsp;    // If this behaviour is flagged as undesirable and any truncation occurs
+<i>69</i>&nbsp;    // then this method is called to trigger the&quot;malformed&quot; handling logic
+<i>70</i>&nbsp;    void ensureNumberConversion(boolean coerce, long result, Class&lt;? extends Number&gt; clazz) throws IOException {
+<b class="fc"><i>71</i>&nbsp;        if (!coerce) {</b>
+<b class="nc"><i>72</i>&nbsp;            double fullVal = doDoubleValue();</b>
+<b class="nc"><i>73</i>&nbsp;            if (result != fullVal) {</b>
+<i>74</i>&nbsp;                // Need to throw type IllegalArgumentException as current catch
+<i>75</i>&nbsp;                // logic in NumberFieldMapper.parseCreateField relies on this
+<i>76</i>&nbsp;                // for &quot;malformed&quot; value detection
+<b class="nc"><i>77</i>&nbsp;                throw new IllegalArgumentException(fullVal + &quot; cannot be converted to &quot; + clazz.getSimpleName() + &quot; without data loss&quot;);</b>
+<i>78</i>&nbsp;            }
+<i>79</i>&nbsp;        }
+<b class="fc"><i>80</i>&nbsp;    }</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    @Override
+<i>83</i>&nbsp;    public boolean isBooleanValue() throws IOException {
+<b class="pc"><i>84</i>&nbsp;        switch (currentToken()) {</b>
+<i>85</i>&nbsp;            case VALUE_BOOLEAN:
+<b class="nc"><i>86</i>&nbsp;                return true;</b>
+<i>87</i>&nbsp;            case VALUE_STRING:
+<b class="nc"><i>88</i>&nbsp;                return Booleans.isBoolean(textCharacters(), textOffset(), textLength());</b>
+<i>89</i>&nbsp;            default:
+<b class="nc"><i>90</i>&nbsp;                return false;</b>
+<i>91</i>&nbsp;        }
+<i>92</i>&nbsp;    }
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    @Override
+<i>95</i>&nbsp;    public boolean booleanValue() throws IOException {
+<b class="fc"><i>96</i>&nbsp;        Token token = currentToken();</b>
+<b class="fc"><i>97</i>&nbsp;        if (token == Token.VALUE_STRING) {</b>
+<b class="nc"><i>98</i>&nbsp;            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);</b>
+<i>99</i>&nbsp;        }
+<b class="fc"><i>100</i>&nbsp;        return doBooleanValue();</b>
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    protected abstract boolean doBooleanValue() throws IOException;
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    @Override
+<i>106</i>&nbsp;    public short shortValue() throws IOException {
+<b class="nc"><i>107</i>&nbsp;        return shortValue(DEFAULT_NUMBER_COERCE_POLICY);</b>
+<i>108</i>&nbsp;    }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    @Override
+<i>111</i>&nbsp;    public short shortValue(boolean coerce) throws IOException {
+<b class="nc"><i>112</i>&nbsp;        Token token = currentToken();</b>
+<b class="nc"><i>113</i>&nbsp;        if (token == Token.VALUE_STRING) {</b>
+<b class="nc"><i>114</i>&nbsp;            checkCoerceString(coerce, Short.class);</b>
+<i>115</i>&nbsp;
+<b class="nc"><i>116</i>&nbsp;            double doubleValue = Double.parseDouble(text());</b>
+<i>117</i>&nbsp;
+<b class="nc"><i>118</i>&nbsp;            if (doubleValue &lt; Short.MIN_VALUE || doubleValue &gt; Short.MAX_VALUE) {</b>
+<b class="nc"><i>119</i>&nbsp;                throw new IllegalArgumentException(&quot;Value [&quot; + text() + &quot;] is out of range for a short&quot;);</b>
+<i>120</i>&nbsp;            }
+<i>121</i>&nbsp;
+<b class="nc"><i>122</i>&nbsp;            return (short) doubleValue;</b>
+<i>123</i>&nbsp;        }
+<b class="nc"><i>124</i>&nbsp;        short result = doShortValue();</b>
+<b class="nc"><i>125</i>&nbsp;        ensureNumberConversion(coerce, result, Short.class);</b>
+<b class="nc"><i>126</i>&nbsp;        return result;</b>
+<i>127</i>&nbsp;    }
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    protected abstract short doShortValue() throws IOException;
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    @Override
+<i>132</i>&nbsp;    public int intValue() throws IOException {
+<b class="fc"><i>133</i>&nbsp;        return intValue(DEFAULT_NUMBER_COERCE_POLICY);</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    @Override
+<i>137</i>&nbsp;    public int intValue(boolean coerce) throws IOException {
+<b class="fc"><i>138</i>&nbsp;        Token token = currentToken();</b>
+<b class="fc"><i>139</i>&nbsp;        if (token == Token.VALUE_STRING) {</b>
+<b class="nc"><i>140</i>&nbsp;            checkCoerceString(coerce, Integer.class);</b>
+<b class="nc"><i>141</i>&nbsp;            double doubleValue = Double.parseDouble(text());</b>
+<i>142</i>&nbsp;
+<b class="nc"><i>143</i>&nbsp;            if (doubleValue &lt; Integer.MIN_VALUE || doubleValue &gt; Integer.MAX_VALUE) {</b>
+<b class="nc"><i>144</i>&nbsp;                throw new IllegalArgumentException(&quot;Value [&quot; + text() + &quot;] is out of range for an integer&quot;);</b>
+<i>145</i>&nbsp;            }
+<i>146</i>&nbsp;
+<b class="nc"><i>147</i>&nbsp;            return (int) doubleValue;</b>
+<i>148</i>&nbsp;        }
+<b class="fc"><i>149</i>&nbsp;        int result = doIntValue();</b>
+<b class="fc"><i>150</i>&nbsp;        ensureNumberConversion(coerce, result, Integer.class);</b>
+<b class="fc"><i>151</i>&nbsp;        return result;</b>
+<i>152</i>&nbsp;    }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    protected abstract int doIntValue() throws IOException;
+<i>155</i>&nbsp;
+<b class="fc"><i>156</i>&nbsp;    private static BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);</b>
+<b class="fc"><i>157</i>&nbsp;    private static BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);</b>
+<i>158</i>&nbsp;    // weak bounds on the BigDecimal representation to allow for coercion
+<b class="fc"><i>159</i>&nbsp;    private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);</b>
+<b class="fc"><i>160</i>&nbsp;    private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);</b>
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;    /** Return the long that {@code stringValue} stores or throws an exception if the
+<i>163</i>&nbsp;     *  stored value cannot be converted to a long that stores the exact same
+<i>164</i>&nbsp;     *  value and {@code coerce} is false. */
+<i>165</i>&nbsp;    private static long toLong(String stringValue, boolean coerce) {
+<i>166</i>&nbsp;        try {
+<b class="nc"><i>167</i>&nbsp;            return Long.parseLong(stringValue);</b>
+<b class="nc"><i>168</i>&nbsp;        } catch (NumberFormatException e) {</b>
+<i>169</i>&nbsp;            // we will try again with BigDecimal
+<i>170</i>&nbsp;        }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;        final BigInteger bigIntegerValue;
+<i>173</i>&nbsp;        try {
+<b class="nc"><i>174</i>&nbsp;            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);</b>
+<b class="nc"><i>175</i>&nbsp;            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) &gt;= 0 ||</b>
+<b class="nc"><i>176</i>&nbsp;                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) &lt;= 0) {</b>
+<b class="nc"><i>177</i>&nbsp;                throw new IllegalArgumentException(&quot;Value [&quot; + stringValue + &quot;] is out of range for a long&quot;);</b>
+<i>178</i>&nbsp;            }
+<b class="nc"><i>179</i>&nbsp;            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();</b>
+<b class="nc"><i>180</i>&nbsp;        } catch (ArithmeticException e) {</b>
+<b class="nc"><i>181</i>&nbsp;            throw new IllegalArgumentException(&quot;Value [&quot; + stringValue + &quot;] has a decimal part&quot;);</b>
+<b class="nc"><i>182</i>&nbsp;        } catch (NumberFormatException e) {</b>
+<b class="nc"><i>183</i>&nbsp;            throw new IllegalArgumentException(&quot;For input string: \&quot;&quot; + stringValue + &quot;\&quot;&quot;);</b>
+<b class="nc"><i>184</i>&nbsp;        }</b>
+<i>185</i>&nbsp;
+<b class="nc"><i>186</i>&nbsp;        if (bigIntegerValue.compareTo(LONG_MAX_VALUE_AS_BIGINTEGER) &gt; 0 || bigIntegerValue.compareTo(LONG_MIN_VALUE_AS_BIGINTEGER) &lt; 0) {</b>
+<b class="nc"><i>187</i>&nbsp;            throw new IllegalArgumentException(&quot;Value [&quot; + stringValue + &quot;] is out of range for a long&quot;);</b>
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<b class="nc"><i>190</i>&nbsp;        assert bigIntegerValue.longValueExact() &lt;= Long.MAX_VALUE; // asserting that no ArithmeticException is thrown</b>
+<b class="nc"><i>191</i>&nbsp;        return bigIntegerValue.longValue();</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    @Override
+<i>195</i>&nbsp;    public long longValue() throws IOException {
+<b class="fc"><i>196</i>&nbsp;        return longValue(DEFAULT_NUMBER_COERCE_POLICY);</b>
+<i>197</i>&nbsp;    }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;    @Override
+<i>200</i>&nbsp;    public long longValue(boolean coerce) throws IOException {
+<b class="fc"><i>201</i>&nbsp;        Token token = currentToken();</b>
+<b class="fc"><i>202</i>&nbsp;        if (token == Token.VALUE_STRING) {</b>
+<b class="nc"><i>203</i>&nbsp;            checkCoerceString(coerce, Long.class);</b>
+<b class="nc"><i>204</i>&nbsp;            return toLong(text(), coerce);</b>
+<i>205</i>&nbsp;        }
+<b class="fc"><i>206</i>&nbsp;        long result = doLongValue();</b>
+<b class="fc"><i>207</i>&nbsp;        ensureNumberConversion(coerce, result, Long.class);</b>
+<b class="fc"><i>208</i>&nbsp;        return result;</b>
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    protected abstract long doLongValue() throws IOException;
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    @Override
+<i>214</i>&nbsp;    public float floatValue() throws IOException {
+<b class="fc"><i>215</i>&nbsp;        return floatValue(DEFAULT_NUMBER_COERCE_POLICY);</b>
+<i>216</i>&nbsp;    }
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    @Override
+<i>219</i>&nbsp;    public float floatValue(boolean coerce) throws IOException {
+<b class="fc"><i>220</i>&nbsp;        Token token = currentToken();</b>
+<b class="fc"><i>221</i>&nbsp;        if (token == Token.VALUE_STRING) {</b>
+<b class="nc"><i>222</i>&nbsp;            checkCoerceString(coerce, Float.class);</b>
+<b class="nc"><i>223</i>&nbsp;            return Float.parseFloat(text());</b>
+<i>224</i>&nbsp;        }
+<b class="fc"><i>225</i>&nbsp;        return doFloatValue();</b>
+<i>226</i>&nbsp;    }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    protected abstract float doFloatValue() throws IOException;
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    @Override
+<i>232</i>&nbsp;    public double doubleValue() throws IOException {
+<b class="fc"><i>233</i>&nbsp;        return doubleValue(DEFAULT_NUMBER_COERCE_POLICY);</b>
+<i>234</i>&nbsp;    }
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    @Override
+<i>237</i>&nbsp;    public double doubleValue(boolean coerce) throws IOException {
+<b class="fc"><i>238</i>&nbsp;        Token token = currentToken();</b>
+<b class="fc"><i>239</i>&nbsp;        if (token == Token.VALUE_STRING) {</b>
+<b class="nc"><i>240</i>&nbsp;            checkCoerceString(coerce, Double.class);</b>
+<b class="nc"><i>241</i>&nbsp;            return Double.parseDouble(text());</b>
+<i>242</i>&nbsp;        }
+<b class="fc"><i>243</i>&nbsp;        return doDoubleValue();</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    protected abstract double doDoubleValue() throws IOException;
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    @Override
+<i>249</i>&nbsp;    public final String textOrNull() throws IOException {
+<b class="nc"><i>250</i>&nbsp;        if (currentToken() == Token.VALUE_NULL) {</b>
+<b class="nc"><i>251</i>&nbsp;            return null;</b>
+<i>252</i>&nbsp;        }
+<b class="nc"><i>253</i>&nbsp;        return text();</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    @Override
+<i>257</i>&nbsp;    public CharBuffer charBufferOrNull() throws IOException {
+<b class="nc"><i>258</i>&nbsp;        if (currentToken() == Token.VALUE_NULL) {</b>
+<b class="nc"><i>259</i>&nbsp;            return null;</b>
+<i>260</i>&nbsp;        }
+<b class="nc"><i>261</i>&nbsp;        return charBuffer();</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    @Override
+<i>265</i>&nbsp;    public Map&lt;String, Object&gt; map() throws IOException {
+<b class="fc"><i>266</i>&nbsp;        return readMap(this);</b>
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    @Override
+<i>270</i>&nbsp;    public Map&lt;String, Object&gt; mapOrdered() throws IOException {
+<b class="fc"><i>271</i>&nbsp;        return readOrderedMap(this);</b>
+<i>272</i>&nbsp;    }
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;    @Override
+<i>275</i>&nbsp;    public Map&lt;String, String&gt; mapStrings() throws IOException {
+<b class="nc"><i>276</i>&nbsp;        return readMapStrings(this);</b>
+<i>277</i>&nbsp;    }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;    @Override
+<i>280</i>&nbsp;    public &lt;T&gt; Map&lt;String, T&gt; map(
+<i>281</i>&nbsp;            Supplier&lt;Map&lt;String, T&gt;&gt; mapFactory, CheckedFunction&lt;XContentParser, T, IOException&gt; mapValueParser) throws IOException {
+<b class="nc"><i>282</i>&nbsp;        return readGenericMap(this, mapFactory, mapValueParser);</b>
+<i>283</i>&nbsp;    }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    @Override
+<i>286</i>&nbsp;    public List&lt;Object&gt; list() throws IOException {
+<b class="nc"><i>287</i>&nbsp;        return readList(this);</b>
+<i>288</i>&nbsp;    }
+<i>289</i>&nbsp;
+<i>290</i>&nbsp;    @Override
+<i>291</i>&nbsp;    public List&lt;Object&gt; listOrderedMap() throws IOException {
+<b class="nc"><i>292</i>&nbsp;        return readListOrderedMap(this);</b>
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;
+<b class="fc"><i>295</i>&nbsp;    static final Supplier&lt;Map&lt;String, Object&gt;&gt; SIMPLE_MAP_FACTORY = HashMap::new;</b>
+<i>296</i>&nbsp;
+<b class="fc"><i>297</i>&nbsp;    static final Supplier&lt;Map&lt;String, Object&gt;&gt; ORDERED_MAP_FACTORY = LinkedHashMap::new;</b>
+<i>298</i>&nbsp;
+<b class="fc"><i>299</i>&nbsp;    static final Supplier&lt;Map&lt;String, String&gt;&gt; SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;</b>
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;    static Map&lt;String, Object&gt; readMap(XContentParser parser) throws IOException {
+<b class="fc"><i>302</i>&nbsp;        return readMap(parser, SIMPLE_MAP_FACTORY);</b>
+<i>303</i>&nbsp;    }
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;    static Map&lt;String, Object&gt; readOrderedMap(XContentParser parser) throws IOException {
+<b class="fc"><i>306</i>&nbsp;        return readMap(parser, ORDERED_MAP_FACTORY);</b>
+<i>307</i>&nbsp;    }
+<i>308</i>&nbsp;
+<i>309</i>&nbsp;    static Map&lt;String, String&gt; readMapStrings(XContentParser parser) throws IOException {
+<b class="nc"><i>310</i>&nbsp;        return readGenericMap(parser, SIMPLE_MAP_STRINGS_FACTORY, XContentParser::text);</b>
+<i>311</i>&nbsp;    }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;    static List&lt;Object&gt; readList(XContentParser parser) throws IOException {
+<b class="nc"><i>314</i>&nbsp;        return readList(parser, SIMPLE_MAP_FACTORY);</b>
+<i>315</i>&nbsp;    }
+<i>316</i>&nbsp;
+<i>317</i>&nbsp;    static List&lt;Object&gt; readListOrderedMap(XContentParser parser) throws IOException {
+<b class="nc"><i>318</i>&nbsp;        return readList(parser, ORDERED_MAP_FACTORY);</b>
+<i>319</i>&nbsp;    }
+<i>320</i>&nbsp;
+<i>321</i>&nbsp;    static Map&lt;String, Object&gt; readMap(XContentParser parser, Supplier&lt;Map&lt;String, Object&gt;&gt; mapFactory) throws IOException {
+<b class="fc"><i>322</i>&nbsp;        return readGenericMap(parser, mapFactory, p -&gt; readValue(p, mapFactory));</b>
+<i>323</i>&nbsp;    }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;    static &lt;T&gt; Map&lt;String, T&gt; readGenericMap(
+<i>326</i>&nbsp;            XContentParser parser,
+<i>327</i>&nbsp;            Supplier&lt;Map&lt;String, T&gt;&gt; mapFactory,
+<i>328</i>&nbsp;            CheckedFunction&lt;XContentParser, T, IOException&gt; mapValueParser) throws IOException {
+<b class="fc"><i>329</i>&nbsp;        Map&lt;String, T&gt; map = mapFactory.get();</b>
+<b class="fc"><i>330</i>&nbsp;        XContentParser.Token token = parser.currentToken();</b>
+<b class="fc"><i>331</i>&nbsp;        if (token == null) {</b>
+<b class="fc"><i>332</i>&nbsp;            token = parser.nextToken();</b>
+<i>333</i>&nbsp;        }
+<b class="fc"><i>334</i>&nbsp;        if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="fc"><i>335</i>&nbsp;            token = parser.nextToken();</b>
+<i>336</i>&nbsp;        }
+<b class="fc"><i>337</i>&nbsp;        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {</b>
+<i>338</i>&nbsp;            // Must point to field name
+<b class="fc"><i>339</i>&nbsp;            String fieldName = parser.currentName();</b>
+<i>340</i>&nbsp;            // And then the value...
+<b class="fc"><i>341</i>&nbsp;            parser.nextToken();</b>
+<b class="fc"><i>342</i>&nbsp;            T value = mapValueParser.apply(parser);</b>
+<b class="fc"><i>343</i>&nbsp;            map.put(fieldName, value);</b>
+<i>344</i>&nbsp;        }
+<b class="fc"><i>345</i>&nbsp;        return map;</b>
+<i>346</i>&nbsp;    }
+<i>347</i>&nbsp;
+<i>348</i>&nbsp;    static List&lt;Object&gt; readList(XContentParser parser, Supplier&lt;Map&lt;String, Object&gt;&gt; mapFactory) throws IOException {
+<b class="fc"><i>349</i>&nbsp;        XContentParser.Token token = parser.currentToken();</b>
+<b class="fc"><i>350</i>&nbsp;        if (token == null) {</b>
+<b class="nc"><i>351</i>&nbsp;            token = parser.nextToken();</b>
+<i>352</i>&nbsp;        }
+<b class="fc"><i>353</i>&nbsp;        if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>354</i>&nbsp;            token = parser.nextToken();</b>
+<i>355</i>&nbsp;        }
+<b class="fc"><i>356</i>&nbsp;        if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="fc"><i>357</i>&nbsp;            token = parser.nextToken();</b>
+<i>358</i>&nbsp;        } else {
+<b class="nc"><i>359</i>&nbsp;            throw new XContentParseException(parser.getTokenLocation(), &quot;Failed to parse list:  expecting &quot;</b>
+<i>360</i>&nbsp;                    + XContentParser.Token.START_ARRAY + &quot; but got &quot; + token);
+<i>361</i>&nbsp;        }
+<i>362</i>&nbsp;
+<b class="fc"><i>363</i>&nbsp;        ArrayList&lt;Object&gt; list = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>364</i>&nbsp;        for (; token != null &amp;&amp; token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {</b>
+<b class="fc"><i>365</i>&nbsp;            list.add(readValue(parser, mapFactory));</b>
+<i>366</i>&nbsp;        }
+<b class="fc"><i>367</i>&nbsp;        return list;</b>
+<i>368</i>&nbsp;    }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;    public static Object readValue(XContentParser parser, Supplier&lt;Map&lt;String, Object&gt;&gt; mapFactory) throws IOException {
+<b class="fc"><i>371</i>&nbsp;        switch (parser.currentToken()) {</b>
+<b class="fc"><i>372</i>&nbsp;            case VALUE_STRING: return parser.text();</b>
+<b class="fc"><i>373</i>&nbsp;            case VALUE_NUMBER: return parser.numberValue();</b>
+<b class="fc"><i>374</i>&nbsp;            case VALUE_BOOLEAN: return parser.booleanValue();</b>
+<b class="fc"><i>375</i>&nbsp;            case START_OBJECT: return readMap(parser, mapFactory);</b>
+<b class="fc"><i>376</i>&nbsp;            case START_ARRAY: return readList(parser, mapFactory);</b>
+<b class="fc"><i>377</i>&nbsp;            case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();</b>
+<i>378</i>&nbsp;            case VALUE_NULL:
+<b class="nc"><i>379</i>&nbsp;            default: return null;</b>
+<i>380</i>&nbsp;        }
+<i>381</i>&nbsp;    }
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;    @Override
+<i>384</i>&nbsp;    public &lt;T&gt; T namedObject(Class&lt;T&gt; categoryClass, String name, Object context) throws IOException {
+<b class="fc"><i>385</i>&nbsp;        return xContentRegistry.parseNamedObject(categoryClass, name, this, context);</b>
+<i>386</i>&nbsp;    }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;    @Override
+<i>389</i>&nbsp;    public NamedXContentRegistry getXContentRegistry() {
+<b class="nc"><i>390</i>&nbsp;        return xContentRegistry;</b>
+<i>391</i>&nbsp;    }
+<i>392</i>&nbsp;
+<i>393</i>&nbsp;    @Override
+<i>394</i>&nbsp;    public abstract boolean isClosed();
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;    @Override
+<i>397</i>&nbsp;    public DeprecationHandler getDeprecationHandler() {
+<b class="fc"><i>398</i>&nbsp;        return deprecationHandler;</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

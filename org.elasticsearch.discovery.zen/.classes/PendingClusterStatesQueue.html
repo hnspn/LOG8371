@@ -1,0 +1,370 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PendingClusterStatesQueue</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery.zen</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PendingClusterStatesQueue (org.elasticsearch.discovery.zen)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+</tr>
+  <tr>
+    <td class="name">PendingClusterStatesQueue$StateProcessedListener</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery.zen;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.coordination.CoordinationMetaData;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.util.ArrayList;
+<i>30</i>&nbsp;import java.util.Locale;
+<i>31</i>&nbsp;import java.util.Objects;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;/**
+<i>34</i>&nbsp; * A queue that holds all &quot;in-flight&quot; incoming cluster states from the master. Once a master commits a cluster
+<i>35</i>&nbsp; * state, it is made available via {@link #getNextClusterStateToProcess()}. The class also takes care of batching
+<i>36</i>&nbsp; * cluster states for processing and failures.
+<i>37</i>&nbsp; * &lt;p&gt;
+<i>38</i>&nbsp; * The queue is bound by {@link #maxQueueSize}. When the queue is at capacity and a new cluster state is inserted
+<i>39</i>&nbsp; * the oldest cluster state will be dropped. This is safe because:
+<i>40</i>&nbsp; * 1) Under normal operations, master will publish &amp;amp; commit a cluster state before processing
+<i>41</i>&nbsp; *    another change (i.e., the queue length is 1)
+<i>42</i>&nbsp; * 2) If the master fails to commit a change, it will step down, causing a master election, which will flush the queue.
+<i>43</i>&nbsp; * 3) In general it&#39;s safe to process the incoming cluster state as a replacement to the cluster state that&#39;s dropped.
+<i>44</i>&nbsp; * a) If the dropped cluster is from the same master as the incoming one is, it is likely to be superseded by the
+<i>45</i>&nbsp; *    incoming state (or another state in the queue).
+<i>46</i>&nbsp; * This is only not true in very extreme cases of out of order delivery.
+<i>47</i>&nbsp; * b) If the dropping cluster state is not from the same master, it means that:
+<i>48</i>&nbsp; * i) we are no longer following the master of the dropped cluster state but follow the incoming one
+<i>49</i>&nbsp; * ii) we are no longer following any master, in which case it doesn&#39;t matter which cluster state will be processed first.
+<i>50</i>&nbsp; * &lt;p&gt;
+<i>51</i>&nbsp; * The class is fully thread safe and can be used concurrently.
+<i>52</i>&nbsp; */
+<i>53</i>&nbsp;public class PendingClusterStatesQueue {
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    interface StateProcessedListener {
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;        void onNewClusterStateProcessed();
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;        void onNewClusterStateFailed(Exception e);
+<i>60</i>&nbsp;    }
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    final ArrayList&lt;ClusterStateContext&gt; pendingStates = new ArrayList&lt;&gt;();
+<i>63</i>&nbsp;    final Logger logger;
+<i>64</i>&nbsp;    final int maxQueueSize;
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    public PendingClusterStatesQueue(Logger logger, int maxQueueSize) {
+<i>67</i>&nbsp;        this.logger = logger;
+<i>68</i>&nbsp;        this.maxQueueSize = maxQueueSize;
+<i>69</i>&nbsp;    }
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    /** Add an incoming, not yet committed cluster state */
+<i>72</i>&nbsp;    public synchronized void addPending(ClusterState state) {
+<i>73</i>&nbsp;        pendingStates.add(new ClusterStateContext(state));
+<i>74</i>&nbsp;        if (pendingStates.size() &gt; maxQueueSize) {
+<i>75</i>&nbsp;            ClusterStateContext context = pendingStates.remove(0);
+<i>76</i>&nbsp;            logger.warn(&quot;dropping pending state [{}]. more than [{}] pending states.&quot;, context, maxQueueSize);
+<i>77</i>&nbsp;            if (context.committed()) {
+<i>78</i>&nbsp;                context.listener.onNewClusterStateFailed(new ElasticsearchException(&quot;too many pending states ([{}] pending)&quot;,
+<i>79</i>&nbsp;                    maxQueueSize));
+<i>80</i>&nbsp;            }
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;    }
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    /**
+<i>85</i>&nbsp;     * Mark a previously added cluster state as committed. This will make it available via {@link #getNextClusterStateToProcess()}
+<i>86</i>&nbsp;     * When the cluster state is processed (or failed), the supplied listener will be called
+<i>87</i>&nbsp;     **/
+<i>88</i>&nbsp;    public synchronized ClusterState markAsCommitted(String stateUUID, StateProcessedListener listener) {
+<i>89</i>&nbsp;        final ClusterStateContext context = findState(stateUUID);
+<i>90</i>&nbsp;        if (context == null) {
+<i>91</i>&nbsp;            listener.onNewClusterStateFailed(new IllegalStateException(&quot;can&#39;t resolve cluster state with uuid&quot; +
+<i>92</i>&nbsp;                &quot; [&quot; + stateUUID + &quot;] to commit&quot;));
+<i>93</i>&nbsp;            return null;
+<i>94</i>&nbsp;        }
+<i>95</i>&nbsp;        if (context.committed()) {
+<i>96</i>&nbsp;            listener.onNewClusterStateFailed(new IllegalStateException(&quot;cluster state with uuid&quot; +
+<i>97</i>&nbsp;                &quot; [&quot; + stateUUID + &quot;] is already committed&quot;));
+<i>98</i>&nbsp;            return null;
+<i>99</i>&nbsp;        }
+<i>100</i>&nbsp;        context.markAsCommitted(listener);
+<i>101</i>&nbsp;        return context.state;
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    /**
+<i>105</i>&nbsp;     * mark that the processing of the given state has failed. All committed states that are
+<i>106</i>&nbsp;     * {@link ClusterState#supersedes(ClusterState)}-ed by this failed state, will be failed as well
+<i>107</i>&nbsp;     */
+<i>108</i>&nbsp;    public synchronized void markAsFailed(ClusterState state, Exception reason) {
+<i>109</i>&nbsp;        final ClusterStateContext failedContext = findState(state.stateUUID());
+<i>110</i>&nbsp;        if (failedContext == null) {
+<i>111</i>&nbsp;            throw new IllegalArgumentException(&quot;can&#39;t resolve failed cluster state with uuid [&quot; + state.stateUUID()
+<i>112</i>&nbsp;                + &quot;], version [&quot; + state.version() + &quot;]&quot;);
+<i>113</i>&nbsp;        }
+<i>114</i>&nbsp;        if (failedContext.committed() == false) {
+<i>115</i>&nbsp;            throw new IllegalArgumentException(&quot;failed cluster state is not committed &quot; + state);
+<i>116</i>&nbsp;        }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;        // fail all committed states which are batch together with the failed state
+<i>119</i>&nbsp;        ArrayList&lt;ClusterStateContext&gt; statesToRemove = new ArrayList&lt;&gt;();
+<i>120</i>&nbsp;        for (int index = 0; index &lt; pendingStates.size(); index++) {
+<i>121</i>&nbsp;            final ClusterStateContext pendingContext = pendingStates.get(index);
+<i>122</i>&nbsp;            if (pendingContext.committed() == false) {
+<i>123</i>&nbsp;                continue;
+<i>124</i>&nbsp;            }
+<i>125</i>&nbsp;            final ClusterState pendingState = pendingContext.state;
+<i>126</i>&nbsp;            if (pendingContext.equals(failedContext)) {
+<i>127</i>&nbsp;                statesToRemove.add(pendingContext);
+<i>128</i>&nbsp;                pendingContext.listener.onNewClusterStateFailed(reason);
+<i>129</i>&nbsp;            } else if (state.supersedes(pendingState)) {
+<i>130</i>&nbsp;                statesToRemove.add(pendingContext);
+<i>131</i>&nbsp;                logger.debug(&quot;failing committed state {} together with state {}&quot;, pendingContext, failedContext);
+<i>132</i>&nbsp;                pendingContext.listener.onNewClusterStateFailed(reason);
+<i>133</i>&nbsp;            }
+<i>134</i>&nbsp;        }
+<i>135</i>&nbsp;        pendingStates.removeAll(statesToRemove);
+<i>136</i>&nbsp;        assert findState(state.stateUUID()) == null : &quot;state was marked as processed but can still be found in pending list &quot; + state;
+<i>137</i>&nbsp;    }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * indicates that a cluster state was successfully processed. Any committed state that is
+<i>141</i>&nbsp;     * {@link ClusterState#supersedes(ClusterState)}-ed by the processed state will be marked as processed as well.
+<i>142</i>&nbsp;     * &lt;p&gt;
+<i>143</i>&nbsp;     * NOTE: successfully processing a state indicates we are following the master it came from. Any committed state
+<i>144</i>&nbsp;     * from another master will be failed by this method
+<i>145</i>&nbsp;     */
+<i>146</i>&nbsp;    public synchronized void markAsProcessed(ClusterState state) {
+<i>147</i>&nbsp;        if (findState(state.stateUUID()) == null) {
+<i>148</i>&nbsp;            throw new IllegalStateException(&quot;can&#39;t resolve processed cluster state with uuid [&quot; + state.stateUUID()
+<i>149</i>&nbsp;                + &quot;], version [&quot; + state.version() + &quot;]&quot;);
+<i>150</i>&nbsp;        }
+<i>151</i>&nbsp;        final DiscoveryNode currentMaster = state.nodes().getMasterNode();
+<i>152</i>&nbsp;        assert currentMaster != null : &quot;processed cluster state mast have a master. &quot; + state;
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;        // fail or remove any incoming state from a different master
+<i>155</i>&nbsp;        // respond to any committed state from the same master with same or lower version (we processed a higher version)
+<i>156</i>&nbsp;        ArrayList&lt;ClusterStateContext&gt; contextsToRemove = new ArrayList&lt;&gt;();
+<i>157</i>&nbsp;        for (int index = 0; index &lt; pendingStates.size(); index++) {
+<i>158</i>&nbsp;            final ClusterStateContext pendingContext = pendingStates.get(index);
+<i>159</i>&nbsp;            final ClusterState pendingState = pendingContext.state;
+<i>160</i>&nbsp;            final DiscoveryNode pendingMasterNode = pendingState.nodes().getMasterNode();
+<i>161</i>&nbsp;            if (Objects.equals(currentMaster, pendingMasterNode) == false) {
+<i>162</i>&nbsp;                contextsToRemove.add(pendingContext);
+<i>163</i>&nbsp;                if (pendingContext.committed()) {
+<i>164</i>&nbsp;                    // this is a committed state , warn
+<i>165</i>&nbsp;                    logger.warn(&quot;received a cluster state (uuid[{}]/v[{}]) from a different master than the current one,&quot;
+<i>166</i>&nbsp;                        + &quot; rejecting (received {}, current {})&quot;,
+<i>167</i>&nbsp;                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode, currentMaster);
+<i>168</i>&nbsp;                    pendingContext.listener.onNewClusterStateFailed(
+<i>169</i>&nbsp;                            new IllegalStateException(&quot;cluster state from a different master than the current one,&quot; +
+<i>170</i>&nbsp;                                &quot; rejecting (received &quot; + pendingMasterNode + &quot;, current &quot; + currentMaster + &quot;)&quot;));
+<i>171</i>&nbsp;                } else {
+<i>172</i>&nbsp;                    logger.trace(&quot;removing non-committed state with uuid[{}]/v[{}] from [{}] - a state from&quot; +
+<i>173</i>&nbsp;                            &quot; [{}] was successfully processed&quot;,
+<i>174</i>&nbsp;                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode, currentMaster);
+<i>175</i>&nbsp;                }
+<i>176</i>&nbsp;            } else if (pendingState.stateUUID().equals(state.stateUUID())) {
+<i>177</i>&nbsp;                assert pendingContext.committed() : &quot;processed cluster state is not committed &quot; + state;
+<i>178</i>&nbsp;                contextsToRemove.add(pendingContext);
+<i>179</i>&nbsp;                pendingContext.listener.onNewClusterStateProcessed();
+<i>180</i>&nbsp;            } else if (state.version() &gt;= pendingState.version()) {
+<i>181</i>&nbsp;                logger.trace(&quot;processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]&quot;,
+<i>182</i>&nbsp;                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
+<i>183</i>&nbsp;                );
+<i>184</i>&nbsp;                contextsToRemove.add(pendingContext);
+<i>185</i>&nbsp;                if (pendingContext.committed()) {
+<i>186</i>&nbsp;                    pendingContext.listener.onNewClusterStateProcessed();
+<i>187</i>&nbsp;                }
+<i>188</i>&nbsp;            }
+<i>189</i>&nbsp;        }
+<i>190</i>&nbsp;        // now ack the processed state
+<i>191</i>&nbsp;        pendingStates.removeAll(contextsToRemove);
+<i>192</i>&nbsp;        assert findState(state.stateUUID()) == null : &quot;state was marked as processed but can still be found in pending list &quot; + state;
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    ClusterStateContext findState(String stateUUID) {
+<i>197</i>&nbsp;        for (int i = 0; i &lt; pendingStates.size(); i++) {
+<i>198</i>&nbsp;            final ClusterStateContext context = pendingStates.get(i);
+<i>199</i>&nbsp;            if (context.stateUUID().equals(stateUUID)) {
+<i>200</i>&nbsp;                return context;
+<i>201</i>&nbsp;            }
+<i>202</i>&nbsp;        }
+<i>203</i>&nbsp;        return null;
+<i>204</i>&nbsp;    }
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    /** clear the incoming queue. any committed state will be failed
+<i>207</i>&nbsp;     */
+<i>208</i>&nbsp;    public synchronized void failAllStatesAndClear(Exception reason) {
+<i>209</i>&nbsp;        for (ClusterStateContext pendingState : pendingStates) {
+<i>210</i>&nbsp;            if (pendingState.committed()) {
+<i>211</i>&nbsp;                pendingState.listener.onNewClusterStateFailed(reason);
+<i>212</i>&nbsp;            }
+<i>213</i>&nbsp;        }
+<i>214</i>&nbsp;        pendingStates.clear();
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * Gets the next committed state to process.
+<i>219</i>&nbsp;     * &lt;p&gt;
+<i>220</i>&nbsp;     * The method tries to batch operation by getting the cluster state the highest possible committed states
+<i>221</i>&nbsp;     * which succeeds the first committed state in queue (i.e., it comes from the same master).
+<i>222</i>&nbsp;     */
+<i>223</i>&nbsp;    public synchronized ClusterState getNextClusterStateToProcess() {
+<i>224</i>&nbsp;        if (pendingStates.isEmpty()) {
+<i>225</i>&nbsp;            return null;
+<i>226</i>&nbsp;        }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;        ClusterStateContext stateToProcess = null;
+<i>229</i>&nbsp;        int index = 0;
+<i>230</i>&nbsp;        for (; index &lt; pendingStates.size(); index++) {
+<i>231</i>&nbsp;            ClusterStateContext potentialState = pendingStates.get(index);
+<i>232</i>&nbsp;            if (potentialState.committed()) {
+<i>233</i>&nbsp;                stateToProcess = potentialState;
+<i>234</i>&nbsp;                break;
+<i>235</i>&nbsp;            }
+<i>236</i>&nbsp;        }
+<i>237</i>&nbsp;        if (stateToProcess == null) {
+<i>238</i>&nbsp;            return null;
+<i>239</i>&nbsp;        }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;        // now try to find the highest committed state from the same master
+<i>242</i>&nbsp;        for (; index &lt; pendingStates.size(); index++) {
+<i>243</i>&nbsp;            ClusterStateContext potentialState = pendingStates.get(index);
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;            if (potentialState.state.supersedes(stateToProcess.state) &amp;&amp; potentialState.committed()) {
+<i>246</i>&nbsp;                // we found a new one
+<i>247</i>&nbsp;                stateToProcess = potentialState;
+<i>248</i>&nbsp;            }
+<i>249</i>&nbsp;        }
+<i>250</i>&nbsp;        assert stateToProcess.committed() : &quot;should only return committed cluster state. found &quot; + stateToProcess.state;
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;        final ClusterState committedState = stateToProcess.state;
+<i>253</i>&nbsp;        final CoordinationMetaData coordinationMetaData = committedState.coordinationMetaData();
+<i>254</i>&nbsp;        if (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration())) {
+<i>255</i>&nbsp;            return committedState;
+<i>256</i>&nbsp;        } else {
+<i>257</i>&nbsp;            return ClusterState.builder(committedState).metaData(MetaData.builder(committedState.metaData())
+<i>258</i>&nbsp;                .coordinationMetaData(CoordinationMetaData.builder(coordinationMetaData)
+<i>259</i>&nbsp;                    .lastCommittedConfiguration(committedState.getLastAcceptedConfiguration()).build())).build();
+<i>260</i>&nbsp;        }
+<i>261</i>&nbsp;    }
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    /** returns all pending states, committed or not */
+<i>264</i>&nbsp;    public synchronized ClusterState[] pendingClusterStates() {
+<i>265</i>&nbsp;        ArrayList&lt;ClusterState&gt; states = new ArrayList&lt;&gt;();
+<i>266</i>&nbsp;        for (ClusterStateContext context : pendingStates) {
+<i>267</i>&nbsp;            states.add(context.state);
+<i>268</i>&nbsp;        }
+<i>269</i>&nbsp;        return states.toArray(new ClusterState[states.size()]);
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    static class ClusterStateContext {
+<i>273</i>&nbsp;        final ClusterState state;
+<i>274</i>&nbsp;        StateProcessedListener listener;
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;        ClusterStateContext(ClusterState clusterState) {
+<i>277</i>&nbsp;            this.state = clusterState;
+<i>278</i>&nbsp;        }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;        void markAsCommitted(StateProcessedListener listener) {
+<i>281</i>&nbsp;            if (this.listener != null) {
+<i>282</i>&nbsp;                throw new IllegalStateException(toString() + &quot;is already committed&quot;);
+<i>283</i>&nbsp;            }
+<i>284</i>&nbsp;            this.listener = listener;
+<i>285</i>&nbsp;        }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;        boolean committed() {
+<i>288</i>&nbsp;            return listener != null;
+<i>289</i>&nbsp;        }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;        public String stateUUID() {
+<i>292</i>&nbsp;            return state.stateUUID();
+<i>293</i>&nbsp;        }
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;        @Override
+<i>296</i>&nbsp;        public String toString() {
+<i>297</i>&nbsp;            return String.format(
+<i>298</i>&nbsp;                    Locale.ROOT,
+<i>299</i>&nbsp;                    &quot;[uuid[%s], v[%d], m[%s]]&quot;,
+<i>300</i>&nbsp;                    stateUUID(),
+<i>301</i>&nbsp;                    state.version(),
+<i>302</i>&nbsp;                    state.nodes().getMasterNodeId()
+<i>303</i>&nbsp;            );
+<i>304</i>&nbsp;        }
+<i>305</i>&nbsp;    }
+<i>306</i>&nbsp;
+<i>307</i>&nbsp;    public synchronized PendingClusterStateStats stats() {
+<i>308</i>&nbsp;
+<i>309</i>&nbsp;        // calculate committed cluster state
+<i>310</i>&nbsp;        int committed = 0;
+<i>311</i>&nbsp;        for (ClusterStateContext clusterStatsContext : pendingStates) {
+<i>312</i>&nbsp;            if (clusterStatsContext.committed()) {
+<i>313</i>&nbsp;                committed += 1;
+<i>314</i>&nbsp;            }
+<i>315</i>&nbsp;        }
+<i>316</i>&nbsp;
+<i>317</i>&nbsp;        return new PendingClusterStateStats(pendingStates.size(), pendingStates.size() - committed, committed);
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

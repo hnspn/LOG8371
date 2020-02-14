@@ -1,0 +1,156 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RecoveryTargetHandler</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.indices.recovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RecoveryTargetHandler (org.elasticsearch.indices.recovery)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+</tr>
+<tr>
+  <td class="name">RecoveryTargetHandler</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.indices.recovery;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>22</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>23</i>&nbsp;import org.elasticsearch.index.seqno.ReplicationTracker;
+<i>24</i>&nbsp;import org.elasticsearch.index.seqno.RetentionLeases;
+<i>25</i>&nbsp;import org.elasticsearch.index.store.Store;
+<i>26</i>&nbsp;import org.elasticsearch.index.store.StoreFileMetaData;
+<i>27</i>&nbsp;import org.elasticsearch.index.translog.Translog;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.util.List;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;public interface RecoveryTargetHandler {
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;    /**
+<i>34</i>&nbsp;     * Prepares the target to receive translog operations, after all file have been copied
+<i>35</i>&nbsp;     *
+<i>36</i>&nbsp;     * @param totalTranslogOps  total translog operations expected to be sent
+<i>37</i>&nbsp;     */
+<i>38</i>&nbsp;    void prepareForTranslogOperations(int totalTranslogOps, ActionListener&lt;Void&gt; listener);
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    /**
+<i>41</i>&nbsp;     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, updates
+<i>42</i>&nbsp;     * the global checkpoint.
+<i>43</i>&nbsp;     *
+<i>44</i>&nbsp;     * @param globalCheckpoint the global checkpoint on the recovery source
+<i>45</i>&nbsp;     * @param trimAboveSeqNo   The recovery target should erase its existing translog above this sequence number
+<i>46</i>&nbsp;     *                         from the previous primary terms.
+<i>47</i>&nbsp;     * @param listener         the listener which will be notified when this method is completed
+<i>48</i>&nbsp;     */
+<i>49</i>&nbsp;    void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener&lt;Void&gt; listener);
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    /**
+<i>52</i>&nbsp;     * Handoff the primary context between the relocation source and the relocation target.
+<i>53</i>&nbsp;     *
+<i>54</i>&nbsp;     * @param primaryContext the primary context from the relocation source
+<i>55</i>&nbsp;     */
+<i>56</i>&nbsp;    void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext);
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    /**
+<i>59</i>&nbsp;     * Index a set of translog operations on the target
+<i>60</i>&nbsp;     *
+<i>61</i>&nbsp;     * @param operations                          operations to index
+<i>62</i>&nbsp;     * @param totalTranslogOps                    current number of total operations expected to be indexed
+<i>63</i>&nbsp;     * @param maxSeenAutoIdTimestampOnPrimary     the maximum auto_id_timestamp of all append-only requests processed by the primary shard
+<i>64</i>&nbsp;     * @param maxSeqNoOfUpdatesOrDeletesOnPrimary the max seq_no of update operations (index operations overwrite Lucene) or delete ops on
+<i>65</i>&nbsp;     *                                            the primary shard when capturing these operations. This value is at least as high as the
+<i>66</i>&nbsp;     *                                            max_seq_no_of_updates on the primary was when any of these ops were processed on it.
+<i>67</i>&nbsp;     * @param retentionLeases                     the retention leases on the primary
+<i>68</i>&nbsp;     * @param mappingVersionOnPrimary             the mapping version which is at least as up to date as the mapping version that the
+<i>69</i>&nbsp;     *                                            primary used to index translog {@code operations} in this request.
+<i>70</i>&nbsp;     *                                            If the mapping version on the replica is not older this version, we should not retry on
+<i>71</i>&nbsp;     *                                            {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a
+<i>72</i>&nbsp;     *                                            new mapping then retry.
+<i>73</i>&nbsp;     * @param listener                            a listener which will be notified with the local checkpoint on the target
+<i>74</i>&nbsp;     *                                            after these operations are successfully indexed on the target.
+<i>75</i>&nbsp;     */
+<i>76</i>&nbsp;    void indexTranslogOperations(
+<i>77</i>&nbsp;            List&lt;Translog.Operation&gt; operations,
+<i>78</i>&nbsp;            int totalTranslogOps,
+<i>79</i>&nbsp;            long maxSeenAutoIdTimestampOnPrimary,
+<i>80</i>&nbsp;            long maxSeqNoOfUpdatesOrDeletesOnPrimary,
+<i>81</i>&nbsp;            RetentionLeases retentionLeases,
+<i>82</i>&nbsp;            long mappingVersionOnPrimary,
+<i>83</i>&nbsp;            ActionListener&lt;Long&gt; listener);
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    /**
+<i>86</i>&nbsp;     * Notifies the target of the files it is going to receive
+<i>87</i>&nbsp;     */
+<i>88</i>&nbsp;    void receiveFileInfo(List&lt;String&gt; phase1FileNames,
+<i>89</i>&nbsp;                         List&lt;Long&gt; phase1FileSizes,
+<i>90</i>&nbsp;                         List&lt;String&gt; phase1ExistingFileNames,
+<i>91</i>&nbsp;                         List&lt;Long&gt; phase1ExistingFileSizes,
+<i>92</i>&nbsp;                         int totalTranslogOps,
+<i>93</i>&nbsp;                         ActionListener&lt;Void&gt; listener);
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    /**
+<i>96</i>&nbsp;     * After all source files has been sent over, this command is sent to the target so it can clean any local
+<i>97</i>&nbsp;     * files that are not part of the source store
+<i>98</i>&nbsp;     *
+<i>99</i>&nbsp;     * @param totalTranslogOps an update number of translog operations that will be replayed later on
+<i>100</i>&nbsp;     * @param globalCheckpoint the global checkpoint on the primary
+<i>101</i>&nbsp;     * @param sourceMetaData   meta data of the source store
+<i>102</i>&nbsp;     */
+<i>103</i>&nbsp;    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData, ActionListener&lt;Void&gt; listener);
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    /** writes a partial file chunk to the target store */
+<i>106</i>&nbsp;    void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+<i>107</i>&nbsp;                        boolean lastChunk, int totalTranslogOps, ActionListener&lt;Void&gt; listener);
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

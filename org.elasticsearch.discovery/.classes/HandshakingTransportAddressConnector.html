@@ -1,0 +1,243 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: HandshakingTransportAddressConnector</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: HandshakingTransportAddressConnector (org.elasticsearch.discovery)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">HandshakingTransportAddressConnector</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (2/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (12/ 15)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.action.NotifyOnceListener;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>29</i>&nbsp;import org.elasticsearch.common.Randomness;
+<i>30</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>33</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>35</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>36</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>37</i>&nbsp;import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
+<i>38</i>&nbsp;import org.elasticsearch.transport.ConnectTransportException;
+<i>39</i>&nbsp;import org.elasticsearch.transport.ConnectionProfile;
+<i>40</i>&nbsp;import org.elasticsearch.transport.Transport.Connection;
+<i>41</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions.Type;
+<i>42</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>45</i>&nbsp;import static java.util.Collections.emptySet;
+<i>46</i>&nbsp;
+<b class="nc"><i>47</i>&nbsp;public class HandshakingTransportAddressConnector implements TransportAddressConnector {</b>
+<i>48</i>&nbsp;
+<b class="fc"><i>49</i>&nbsp;    private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    // connection timeout for probes
+<b class="fc"><i>52</i>&nbsp;    public static final Setting&lt;TimeValue&gt; PROBE_CONNECT_TIMEOUT_SETTING =</b>
+<b class="fc"><i>53</i>&nbsp;        Setting.timeSetting(&quot;discovery.probe.connect_timeout&quot;,</b>
+<b class="fc"><i>54</i>&nbsp;            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);</b>
+<i>55</i>&nbsp;    // handshake timeout for probes
+<b class="fc"><i>56</i>&nbsp;    public static final Setting&lt;TimeValue&gt; PROBE_HANDSHAKE_TIMEOUT_SETTING =</b>
+<b class="fc"><i>57</i>&nbsp;        Setting.timeSetting(&quot;discovery.probe.handshake_timeout&quot;,</b>
+<b class="fc"><i>58</i>&nbsp;            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    private final TransportService transportService;
+<i>61</i>&nbsp;    private final TimeValue probeConnectTimeout;
+<i>62</i>&nbsp;    private final TimeValue probeHandshakeTimeout;
+<i>63</i>&nbsp;
+<b class="fc"><i>64</i>&nbsp;    public HandshakingTransportAddressConnector(Settings settings, TransportService transportService) {</b>
+<b class="fc"><i>65</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>66</i>&nbsp;        probeConnectTimeout = PROBE_CONNECT_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>67</i>&nbsp;        probeHandshakeTimeout = PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>68</i>&nbsp;    }</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    @Override
+<i>71</i>&nbsp;    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener&lt;DiscoveryNode&gt; listener) {
+<b class="nc"><i>72</i>&nbsp;        transportService.getThreadPool().generic().execute(new AbstractRunnable() {</b>
+<i>73</i>&nbsp;            private final AbstractRunnable thisConnectionAttempt = this;
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;            @Override
+<i>76</i>&nbsp;            protected void doRun() {
+<i>77</i>&nbsp;                // TODO if transportService is already connected to this address then skip the handshaking
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;                final DiscoveryNode targetNode = new DiscoveryNode(&quot;&quot;, transportAddress.toString(),
+<i>80</i>&nbsp;                    UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
+<i>81</i>&nbsp;                    transportAddress.address().getHostString(), transportAddress.getAddress(), transportAddress, emptyMap(),
+<i>82</i>&nbsp;                    emptySet(), Version.CURRENT.minimumCompatibilityVersion());
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;                logger.trace(&quot;[{}] opening probe connection&quot;, thisConnectionAttempt);
+<i>85</i>&nbsp;                transportService.openConnection(targetNode,
+<i>86</i>&nbsp;                    ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
+<i>87</i>&nbsp;                        TimeValue.MINUS_ONE, null), new ActionListener&lt;Connection&gt;() {
+<i>88</i>&nbsp;                        @Override
+<i>89</i>&nbsp;                        public void onResponse(Connection connection) {
+<i>90</i>&nbsp;                            logger.trace(&quot;[{}] opened probe connection&quot;, thisConnectionAttempt);
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;                            // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
+<i>93</i>&nbsp;                            // the connection is closed in the onResponse handler
+<i>94</i>&nbsp;                            transportService.handshake(connection, probeHandshakeTimeout.millis(), new NotifyOnceListener&lt;DiscoveryNode&gt;() {
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;                                @Override
+<i>97</i>&nbsp;                                protected void innerOnResponse(DiscoveryNode remoteNode) {
+<i>98</i>&nbsp;                                    try {
+<i>99</i>&nbsp;                                        // success means (amongst other things) that the cluster names match
+<i>100</i>&nbsp;                                        logger.trace(&quot;[{}] handshake successful: {}&quot;, thisConnectionAttempt, remoteNode);
+<i>101</i>&nbsp;                                        IOUtils.closeWhileHandlingException(connection);
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;                                        if (remoteNode.equals(transportService.getLocalNode())) {
+<i>104</i>&nbsp;                                            // TODO cache this result for some time? forever?
+<i>105</i>&nbsp;                                            listener.onFailure(new ConnectTransportException(remoteNode, &quot;local node found&quot;));
+<i>106</i>&nbsp;                                        } else if (remoteNode.isMasterNode() == false) {
+<i>107</i>&nbsp;                                            // TODO cache this result for some time?
+<i>108</i>&nbsp;                                            listener.onFailure(new ConnectTransportException(remoteNode, &quot;non-master-eligible node found&quot;));
+<i>109</i>&nbsp;                                        } else {
+<i>110</i>&nbsp;                                            transportService.connectToNode(remoteNode, new ActionListener&lt;Void&gt;() {
+<i>111</i>&nbsp;                                                @Override
+<i>112</i>&nbsp;                                                public void onResponse(Void ignored) {
+<i>113</i>&nbsp;                                                    logger.trace(&quot;[{}] full connection successful: {}&quot;, thisConnectionAttempt, remoteNode);
+<i>114</i>&nbsp;                                                    listener.onResponse(remoteNode);
+<i>115</i>&nbsp;                                                }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;                                                @Override
+<i>118</i>&nbsp;                                                public void onFailure(Exception e) {
+<i>119</i>&nbsp;                                                    listener.onFailure(e);
+<i>120</i>&nbsp;                                                }
+<i>121</i>&nbsp;                                            });
+<i>122</i>&nbsp;                                        }
+<i>123</i>&nbsp;                                    } catch (Exception e) {
+<i>124</i>&nbsp;                                        listener.onFailure(e);
+<i>125</i>&nbsp;                                    }
+<i>126</i>&nbsp;                                }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;                                @Override
+<i>129</i>&nbsp;                                protected void innerOnFailure(Exception e) {
+<i>130</i>&nbsp;                                    // we opened a connection and successfully performed a low-level handshake, so we were definitely
+<i>131</i>&nbsp;                                    // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
+<i>132</i>&nbsp;                                    // mismatched configurations (e.g. cluster name) that the user should address
+<i>133</i>&nbsp;                                    logger.warn(new ParameterizedMessage(&quot;handshake failed for [{}]&quot;, thisConnectionAttempt), e);
+<i>134</i>&nbsp;                                    IOUtils.closeWhileHandlingException(connection);
+<i>135</i>&nbsp;                                    listener.onFailure(e);
+<i>136</i>&nbsp;                                }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;                            });
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;                        }
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;                        @Override
+<i>143</i>&nbsp;                        public void onFailure(Exception e) {
+<i>144</i>&nbsp;                            listener.onFailure(e);
+<i>145</i>&nbsp;                        }
+<i>146</i>&nbsp;                    });
+<i>147</i>&nbsp;            }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;            @Override
+<i>150</i>&nbsp;            public void onFailure(Exception e) {
+<i>151</i>&nbsp;                listener.onFailure(e);
+<i>152</i>&nbsp;            }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;            @Override
+<i>155</i>&nbsp;            public String toString() {
+<i>156</i>&nbsp;                return &quot;connectToRemoteMasterNode[&quot; + transportAddress + &quot;]&quot;;
+<i>157</i>&nbsp;            }
+<i>158</i>&nbsp;        });
+<b class="nc"><i>159</i>&nbsp;    }</b>
+<i>160</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

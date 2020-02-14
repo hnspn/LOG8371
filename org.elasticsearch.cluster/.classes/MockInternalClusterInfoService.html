@@ -1,0 +1,192 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MockInternalClusterInfoService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MockInternalClusterInfoService (org.elasticsearch.cluster)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">MockInternalClusterInfoService$TestPlugin</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.cluster;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+<i>22</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>26</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>28</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>29</i>&nbsp;import org.elasticsearch.monitor.fs.FsInfo;
+<i>30</i>&nbsp;import org.elasticsearch.plugins.Plugin;
+<i>31</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.util.List;
+<i>34</i>&nbsp;import java.util.function.BiFunction;
+<i>35</i>&nbsp;import java.util.function.Function;
+<i>36</i>&nbsp;import java.util.stream.Collectors;
+<i>37</i>&nbsp;import java.util.stream.StreamSupport;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;public class MockInternalClusterInfoService extends InternalClusterInfoService {
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;    /** This is a marker plugin used to trigger MockNode to use this mock info service. */
+<b class="nc"><i>42</i>&nbsp;    public static class TestPlugin extends Plugin {}</b>
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    @Nullable // if no fakery should take place
+<i>45</i>&nbsp;    public volatile Function&lt;ShardRouting, Long&gt; shardSizeFunction;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    @Nullable // if no fakery should take place
+<i>48</i>&nbsp;    public volatile BiFunction&lt;DiscoveryNode, FsInfo.Path, FsInfo.Path&gt; diskUsageFunction;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
+<i>51</i>&nbsp;        super(settings, clusterService, threadPool, client);
+<i>52</i>&nbsp;    }
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    @Override
+<i>55</i>&nbsp;    public ClusterInfo getClusterInfo() {
+<i>56</i>&nbsp;        final ClusterInfo clusterInfo = super.getClusterInfo();
+<i>57</i>&nbsp;        return new SizeFakingClusterInfo(clusterInfo);
+<i>58</i>&nbsp;    }
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    @Override
+<i>61</i>&nbsp;    List&lt;NodeStats&gt; adjustNodesStats(List&lt;NodeStats&gt; nodesStats) {
+<i>62</i>&nbsp;        final BiFunction&lt;DiscoveryNode, FsInfo.Path, FsInfo.Path&gt; diskUsageFunction = this.diskUsageFunction;
+<i>63</i>&nbsp;        if (diskUsageFunction == null) {
+<i>64</i>&nbsp;            return nodesStats;
+<i>65</i>&nbsp;        }
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;        return nodesStats.stream().map(nodeStats -&gt; {
+<i>68</i>&nbsp;            final DiscoveryNode discoveryNode = nodeStats.getNode();
+<i>69</i>&nbsp;            final FsInfo oldFsInfo = nodeStats.getFs();
+<i>70</i>&nbsp;            return new NodeStats(discoveryNode, nodeStats.getTimestamp(), nodeStats.getIndices(), nodeStats.getOs(),
+<i>71</i>&nbsp;                nodeStats.getProcess(), nodeStats.getJvm(), nodeStats.getThreadPool(), new FsInfo(oldFsInfo.getTimestamp(),
+<i>72</i>&nbsp;                oldFsInfo.getIoStats(),
+<i>73</i>&nbsp;                StreamSupport.stream(oldFsInfo.spliterator(), false)
+<i>74</i>&nbsp;                    .map(fsInfoPath -&gt; diskUsageFunction.apply(discoveryNode, fsInfoPath))
+<i>75</i>&nbsp;                    .toArray(FsInfo.Path[]::new)), nodeStats.getTransport(),
+<i>76</i>&nbsp;                nodeStats.getHttp(), nodeStats.getBreaker(), nodeStats.getScriptStats(), nodeStats.getDiscoveryStats(),
+<i>77</i>&nbsp;                nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats());
+<i>78</i>&nbsp;        }).collect(Collectors.toList());
+<i>79</i>&nbsp;    }
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    class SizeFakingClusterInfo extends ClusterInfo {
+<i>82</i>&nbsp;        SizeFakingClusterInfo(ClusterInfo delegate) {
+<i>83</i>&nbsp;            super(delegate.getNodeLeastAvailableDiskUsages(), delegate.getNodeMostAvailableDiskUsages(),
+<i>84</i>&nbsp;                delegate.shardSizes, delegate.routingToDataPath);
+<i>85</i>&nbsp;        }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;        @Override
+<i>88</i>&nbsp;        public Long getShardSize(ShardRouting shardRouting) {
+<i>89</i>&nbsp;            final Function&lt;ShardRouting, Long&gt; shardSizeFunction = MockInternalClusterInfoService.this.shardSizeFunction;
+<i>90</i>&nbsp;            if (shardSizeFunction == null) {
+<i>91</i>&nbsp;                return super.getShardSize(shardRouting);
+<i>92</i>&nbsp;            }
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;            return shardSizeFunction.apply(shardRouting);
+<i>95</i>&nbsp;        }
+<i>96</i>&nbsp;    }
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    @Override
+<i>99</i>&nbsp;    public void setUpdateFrequency(TimeValue updateFrequency) {
+<i>100</i>&nbsp;        super.setUpdateFrequency(updateFrequency);
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,392 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: JavaDateFormatter</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.time</a> ]
+</div>
+
+<h1>Coverage Summary for Class: JavaDateFormatter (org.elasticsearch.common.time)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">JavaDateFormatter</td>
+<td class="coverageStat">
+  <span class="percent">
+    65.2%
+  </span>
+  <span class="absValue">
+    (15/ 23)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.6%
+  </span>
+  <span class="absValue">
+    (62/ 99)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">JavaDateFormatter$RoundUpFormatter</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (3/ 4)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    65.4%
+  </span>
+  <span class="absValue">
+    (17/ 26)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    63.1%
+  </span>
+  <span class="absValue">
+    (65/ 103)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.time;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.text.ParsePosition;
+<i>25</i>&nbsp;import java.time.ZoneId;
+<i>26</i>&nbsp;import java.time.format.DateTimeFormatter;
+<i>27</i>&nbsp;import java.time.format.DateTimeFormatterBuilder;
+<i>28</i>&nbsp;import java.time.format.DateTimeParseException;
+<i>29</i>&nbsp;import java.time.temporal.ChronoField;
+<i>30</i>&nbsp;import java.time.temporal.TemporalAccessor;
+<i>31</i>&nbsp;import java.time.temporal.TemporalField;
+<i>32</i>&nbsp;import java.util.ArrayList;
+<i>33</i>&nbsp;import java.util.Arrays;
+<i>34</i>&nbsp;import java.util.Collection;
+<i>35</i>&nbsp;import java.util.Collections;
+<i>36</i>&nbsp;import java.util.HashMap;
+<i>37</i>&nbsp;import java.util.List;
+<i>38</i>&nbsp;import java.util.Locale;
+<i>39</i>&nbsp;import java.util.Map;
+<i>40</i>&nbsp;import java.util.Objects;
+<i>41</i>&nbsp;import java.util.function.Consumer;
+<i>42</i>&nbsp;import java.util.stream.Collectors;
+<i>43</i>&nbsp;
+<b class="fc"><i>44</i>&nbsp;class JavaDateFormatter implements DateFormatter {</b>
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    // base fields which should be used for default parsing, when we round up for date math
+<b class="fc"><i>47</i>&nbsp;    private static final Map&lt;TemporalField, Long&gt; ROUND_UP_BASE_FIELDS = new HashMap&lt;&gt;(6);</b>
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    {
+<b class="fc"><i>50</i>&nbsp;        ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);</b>
+<b class="fc"><i>51</i>&nbsp;        ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);</b>
+<b class="fc"><i>52</i>&nbsp;        ROUND_UP_BASE_FIELDS.put(ChronoField.HOUR_OF_DAY, 23L);</b>
+<b class="fc"><i>53</i>&nbsp;        ROUND_UP_BASE_FIELDS.put(ChronoField.MINUTE_OF_HOUR, 59L);</b>
+<b class="fc"><i>54</i>&nbsp;        ROUND_UP_BASE_FIELDS.put(ChronoField.SECOND_OF_MINUTE, 59L);</b>
+<b class="fc"><i>55</i>&nbsp;        ROUND_UP_BASE_FIELDS.put(ChronoField.NANO_OF_SECOND, 999_999_999L);</b>
+<i>56</i>&nbsp;    }
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final String format;
+<i>59</i>&nbsp;    private final DateTimeFormatter printer;
+<i>60</i>&nbsp;    private final List&lt;DateTimeFormatter&gt; parsers;
+<i>61</i>&nbsp;    private final JavaDateFormatter roundupParser;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    static class RoundUpFormatter extends JavaDateFormatter{
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;        RoundUpFormatter(String format, List&lt;DateTimeFormatter&gt; roundUpParsers) {
+<b class="fc"><i>66</i>&nbsp;            super(format,  firstFrom(roundUpParsers),null, roundUpParsers);</b>
+<b class="fc"><i>67</i>&nbsp;        }</b>
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;        private static DateTimeFormatter firstFrom(List&lt;DateTimeFormatter&gt; roundUpParsers) {
+<b class="fc"><i>70</i>&nbsp;            return roundUpParsers.get(0);</b>
+<i>71</i>&nbsp;        }
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;        @Override
+<i>74</i>&nbsp;        JavaDateFormatter getRoundupParser() {
+<b class="nc"><i>75</i>&nbsp;            throw new UnsupportedOperationException(&quot;RoundUpFormatter does not have another roundUpFormatter&quot;);</b>
+<i>76</i>&nbsp;        }
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    // named formatters use default roundUpParser
+<i>80</i>&nbsp;    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+<b class="fc"><i>81</i>&nbsp;        this(format, printer, builder -&gt; ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), parsers);</b>
+<b class="fc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    // subclasses override roundUpParser
+<i>85</i>&nbsp;    JavaDateFormatter(String format,
+<i>86</i>&nbsp;                      DateTimeFormatter printer,
+<i>87</i>&nbsp;                      Consumer&lt;DateTimeFormatterBuilder&gt; roundupParserConsumer,
+<b class="fc"><i>88</i>&nbsp;                      DateTimeFormatter... parsers) {</b>
+<b class="fc"><i>89</i>&nbsp;        if (printer == null) {</b>
+<b class="nc"><i>90</i>&nbsp;            throw new IllegalArgumentException(&quot;printer may not be null&quot;);</b>
+<i>91</i>&nbsp;        }
+<b class="fc"><i>92</i>&nbsp;        long distinctZones = Arrays.stream(parsers).map(DateTimeFormatter::getZone).distinct().count();</b>
+<b class="fc"><i>93</i>&nbsp;        if (distinctZones &gt; 1) {</b>
+<b class="nc"><i>94</i>&nbsp;            throw new IllegalArgumentException(&quot;formatters must have the same time zone&quot;);</b>
+<i>95</i>&nbsp;        }
+<b class="fc"><i>96</i>&nbsp;        long distinctLocales = Arrays.stream(parsers).map(DateTimeFormatter::getLocale).distinct().count();</b>
+<b class="fc"><i>97</i>&nbsp;        if (distinctLocales &gt; 1) {</b>
+<b class="nc"><i>98</i>&nbsp;            throw new IllegalArgumentException(&quot;formatters must have the same locale&quot;);</b>
+<i>99</i>&nbsp;        }
+<b class="fc"><i>100</i>&nbsp;        this.printer = printer;</b>
+<b class="fc"><i>101</i>&nbsp;        this.format = format;</b>
+<i>102</i>&nbsp;
+<b class="fc"><i>103</i>&nbsp;        if (parsers.length == 0) {</b>
+<b class="fc"><i>104</i>&nbsp;            this.parsers = Collections.singletonList(printer);</b>
+<i>105</i>&nbsp;        } else {
+<b class="fc"><i>106</i>&nbsp;            this.parsers = Arrays.asList(parsers);</b>
+<i>107</i>&nbsp;        }
+<i>108</i>&nbsp;        //this is when the RoundUp Formatter is created. In further merges (with ||) it will only append this one to a list.
+<b class="fc"><i>109</i>&nbsp;        List&lt;DateTimeFormatter&gt; roundUp = createRoundUpParser(format, roundupParserConsumer);</b>
+<b class="fc"><i>110</i>&nbsp;        this.roundupParser = new RoundUpFormatter(format, roundUp) ;</b>
+<b class="fc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    private List&lt;DateTimeFormatter&gt; createRoundUpParser(String format,
+<i>114</i>&nbsp;                                                        Consumer&lt;DateTimeFormatterBuilder&gt; roundupParserConsumer) {
+<b class="fc"><i>115</i>&nbsp;        if (format.contains(&quot;||&quot;) == false) {</b>
+<b class="fc"><i>116</i>&nbsp;            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();</b>
+<b class="fc"><i>117</i>&nbsp;            builder.append(this.parsers.get(0));</b>
+<b class="fc"><i>118</i>&nbsp;            roundupParserConsumer.accept(builder);</b>
+<b class="fc"><i>119</i>&nbsp;            return Arrays.asList(builder.toFormatter(locale()));</b>
+<i>120</i>&nbsp;        }
+<b class="nc"><i>121</i>&nbsp;        return null;</b>
+<i>122</i>&nbsp;    }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    public static DateFormatter combined(String input, List&lt;DateFormatter&gt; formatters) {
+<b class="fc"><i>125</i>&nbsp;        assert formatters.size() &gt; 0;</b>
+<i>126</i>&nbsp;
+<b class="fc"><i>127</i>&nbsp;        List&lt;DateTimeFormatter&gt; parsers = new ArrayList&lt;&gt;(formatters.size());</b>
+<b class="fc"><i>128</i>&nbsp;        List&lt;DateTimeFormatter&gt; roundUpParsers = new ArrayList&lt;&gt;(formatters.size());</b>
+<i>129</i>&nbsp;
+<b class="fc"><i>130</i>&nbsp;        DateTimeFormatter printer = null;</b>
+<b class="fc"><i>131</i>&nbsp;        for (DateFormatter formatter : formatters) {</b>
+<b class="fc"><i>132</i>&nbsp;            assert formatter instanceof JavaDateFormatter;</b>
+<b class="fc"><i>133</i>&nbsp;            JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;</b>
+<b class="fc"><i>134</i>&nbsp;            if (printer == null) {</b>
+<b class="fc"><i>135</i>&nbsp;                printer = javaDateFormatter.getPrinter();</b>
+<i>136</i>&nbsp;            }
+<b class="fc"><i>137</i>&nbsp;            parsers.addAll(javaDateFormatter.getParsers());</b>
+<b class="fc"><i>138</i>&nbsp;            roundUpParsers.addAll(javaDateFormatter.getRoundupParser().getParsers());</b>
+<b class="fc"><i>139</i>&nbsp;        }</b>
+<i>140</i>&nbsp;
+<b class="fc"><i>141</i>&nbsp;        return new JavaDateFormatter(input, printer, roundUpParsers, parsers);</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;     private JavaDateFormatter(String format, DateTimeFormatter printer, List&lt;DateTimeFormatter&gt; roundUpParsers,
+<b class="fc"><i>145</i>&nbsp;                               List&lt;DateTimeFormatter&gt; parsers) {</b>
+<b class="fc"><i>146</i>&nbsp;        this.format = format;</b>
+<b class="fc"><i>147</i>&nbsp;        this.printer = printer;</b>
+<b class="fc"><i>148</i>&nbsp;        this.roundupParser = roundUpParsers != null ? new RoundUpFormatter(format,  roundUpParsers ) : null;</b>
+<b class="fc"><i>149</i>&nbsp;        this.parsers = parsers;</b>
+<b class="fc"><i>150</i>&nbsp;    }</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    JavaDateFormatter getRoundupParser() {
+<b class="fc"><i>153</i>&nbsp;        return roundupParser;</b>
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    DateTimeFormatter getPrinter() {
+<b class="fc"><i>157</i>&nbsp;        return printer;</b>
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;    @Override
+<i>161</i>&nbsp;    public TemporalAccessor parse(String input) {
+<b class="nc"><i>162</i>&nbsp;        if (Strings.isNullOrEmpty(input)) {</b>
+<b class="nc"><i>163</i>&nbsp;            throw new IllegalArgumentException(&quot;cannot parse empty date&quot;);</b>
+<i>164</i>&nbsp;        }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;        try {
+<b class="nc"><i>167</i>&nbsp;            return doParse(input);</b>
+<b class="nc"><i>168</i>&nbsp;        } catch (DateTimeParseException e) {</b>
+<b class="nc"><i>169</i>&nbsp;            throw new IllegalArgumentException(&quot;failed to parse date field [&quot; + input + &quot;] with format [&quot; + format + &quot;]&quot;, e);</b>
+<i>170</i>&nbsp;        }
+<i>171</i>&nbsp;    }
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    /**
+<i>174</i>&nbsp;     * Attempt parsing the input without throwing exception. If multiple parsers are provided,
+<i>175</i>&nbsp;     * it will continue iterating if the previous parser failed. The pattern must fully match, meaning whole input was used.
+<i>176</i>&nbsp;     * This also means that this method depends on &lt;code&gt;DateTimeFormatter.ClassicFormat.parseObject&lt;/code&gt;
+<i>177</i>&nbsp;     * which does not throw exceptions when parsing failed.
+<i>178</i>&nbsp;     *
+<i>179</i>&nbsp;     * The approach with collection of parsers was taken because java-time requires ordering on optional (composite)
+<i>180</i>&nbsp;     * patterns. Joda does not suffer from this.
+<i>181</i>&nbsp;     * https://bugs.openjdk.java.net/browse/JDK-8188771
+<i>182</i>&nbsp;     *
+<i>183</i>&nbsp;     * @param input An arbitrary string resembling the string representation of a date or time
+<i>184</i>&nbsp;     * @return a TemporalAccessor if parsing was successful.
+<i>185</i>&nbsp;     * @throws DateTimeParseException when unable to parse with any parsers
+<i>186</i>&nbsp;     */
+<i>187</i>&nbsp;    private TemporalAccessor doParse(String input) {
+<b class="nc"><i>188</i>&nbsp;        if (parsers.size() &gt; 1) {</b>
+<b class="nc"><i>189</i>&nbsp;            for (DateTimeFormatter formatter : parsers) {</b>
+<b class="nc"><i>190</i>&nbsp;                ParsePosition pos = new ParsePosition(0);</b>
+<b class="nc"><i>191</i>&nbsp;                Object object = formatter.toFormat().parseObject(input, pos);</b>
+<b class="nc"><i>192</i>&nbsp;                if (parsingSucceeded(object, input, pos) == true) {</b>
+<b class="nc"><i>193</i>&nbsp;                    return (TemporalAccessor) object;</b>
+<i>194</i>&nbsp;                }
+<b class="nc"><i>195</i>&nbsp;            }</b>
+<b class="nc"><i>196</i>&nbsp;            throw new DateTimeParseException(&quot;Failed to parse with all enclosed parsers&quot;, input, 0);</b>
+<i>197</i>&nbsp;        }
+<b class="nc"><i>198</i>&nbsp;        return this.parsers.get(0).parse(input);</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    private boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
+<b class="nc"><i>202</i>&nbsp;        return object != null &amp;&amp; pos.getIndex() == input.length();</b>
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    @Override
+<i>206</i>&nbsp;    public DateFormatter withZone(ZoneId zoneId) {
+<i>207</i>&nbsp;        // shortcurt to not create new objects unnecessarily
+<b class="fc"><i>208</i>&nbsp;        if (zoneId.equals(zone())) {</b>
+<b class="nc"><i>209</i>&nbsp;            return this;</b>
+<i>210</i>&nbsp;        }
+<b class="fc"><i>211</i>&nbsp;        List&lt;DateTimeFormatter&gt; parsers = this.parsers.stream().map(p -&gt; p.withZone(zoneId)).collect(Collectors.toList());</b>
+<b class="fc"><i>212</i>&nbsp;        List&lt;DateTimeFormatter&gt; roundUpParsers = this.roundupParser.getParsers()</b>
+<b class="fc"><i>213</i>&nbsp;                                                                   .stream()</b>
+<b class="fc"><i>214</i>&nbsp;                                                                   .map(p -&gt; p.withZone(zoneId))</b>
+<b class="fc"><i>215</i>&nbsp;                                                                   .collect(Collectors.toList());</b>
+<b class="fc"><i>216</i>&nbsp;        return new JavaDateFormatter(format, printer.withZone(zoneId), roundUpParsers, parsers);</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    @Override
+<i>220</i>&nbsp;    public DateFormatter withLocale(Locale locale) {
+<i>221</i>&nbsp;        // shortcurt to not create new objects unnecessarily
+<b class="nc"><i>222</i>&nbsp;        if (locale.equals(locale())) {</b>
+<b class="nc"><i>223</i>&nbsp;            return this;</b>
+<i>224</i>&nbsp;        }
+<b class="nc"><i>225</i>&nbsp;        List&lt;DateTimeFormatter&gt; parsers = this.parsers.stream().map(p -&gt; p.withLocale(locale)).collect(Collectors.toList());</b>
+<b class="nc"><i>226</i>&nbsp;        List&lt;DateTimeFormatter&gt; roundUpParsers = this.roundupParser.getParsers()</b>
+<b class="nc"><i>227</i>&nbsp;                                                                   .stream()</b>
+<b class="nc"><i>228</i>&nbsp;                                                                   .map(p -&gt; p.withLocale(locale))</b>
+<b class="nc"><i>229</i>&nbsp;                                                                   .collect(Collectors.toList());</b>
+<b class="nc"><i>230</i>&nbsp;        return new JavaDateFormatter(format, printer.withLocale(locale), roundUpParsers, parsers);</b>
+<i>231</i>&nbsp;    }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    @Override
+<i>234</i>&nbsp;    public String format(TemporalAccessor accessor) {
+<b class="nc"><i>235</i>&nbsp;        return printer.format(DateFormatters.from(accessor));</b>
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    @Override
+<i>239</i>&nbsp;    public String pattern() {
+<b class="fc"><i>240</i>&nbsp;        return format;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    @Override
+<i>244</i>&nbsp;    public Locale locale() {
+<b class="fc"><i>245</i>&nbsp;        return this.printer.getLocale();</b>
+<i>246</i>&nbsp;    }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    @Override
+<i>249</i>&nbsp;    public ZoneId zone() {
+<b class="fc"><i>250</i>&nbsp;        return this.printer.getZone();</b>
+<i>251</i>&nbsp;    }
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    @Override
+<i>254</i>&nbsp;    public DateMathParser toDateMathParser() {
+<b class="fc"><i>255</i>&nbsp;        return new JavaDateMathParser(format, this, getRoundupParser());</b>
+<i>256</i>&nbsp;    }
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    @Override
+<i>259</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>260</i>&nbsp;        return Objects.hash(locale(), printer.getZone(), format);</b>
+<i>261</i>&nbsp;    }
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    @Override
+<i>264</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>265</i>&nbsp;        if (obj.getClass().equals(this.getClass()) == false) {</b>
+<b class="nc"><i>266</i>&nbsp;            return false;</b>
+<i>267</i>&nbsp;        }
+<b class="nc"><i>268</i>&nbsp;        JavaDateFormatter other = (JavaDateFormatter) obj;</b>
+<i>269</i>&nbsp;
+<b class="nc"><i>270</i>&nbsp;        return Objects.equals(format, other.format) &amp;&amp;</b>
+<b class="nc"><i>271</i>&nbsp;            Objects.equals(locale(), other.locale()) &amp;&amp;</b>
+<b class="nc"><i>272</i>&nbsp;            Objects.equals(this.printer.getZone(), other.printer.getZone());</b>
+<i>273</i>&nbsp;    }
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;    @Override
+<i>276</i>&nbsp;    public String toString() {
+<b class="nc"><i>277</i>&nbsp;        return String.format(Locale.ROOT, &quot;format[%s] locale[%s]&quot;, format, locale());</b>
+<i>278</i>&nbsp;    }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    Collection&lt;DateTimeFormatter&gt; getParsers() {
+<b class="fc"><i>281</i>&nbsp;        return parsers;</b>
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

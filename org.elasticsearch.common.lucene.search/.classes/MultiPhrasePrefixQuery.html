@@ -1,0 +1,401 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MultiPhrasePrefixQuery</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.lucene.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MultiPhrasePrefixQuery (org.elasticsearch.common.lucene.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MultiPhrasePrefixQuery</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 133)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.lucene.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectHashSet;
+<i>23</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>24</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>25</i>&nbsp;import org.apache.lucene.index.Term;
+<i>26</i>&nbsp;import org.apache.lucene.index.Terms;
+<i>27</i>&nbsp;import org.apache.lucene.index.TermsEnum;
+<i>28</i>&nbsp;import org.apache.lucene.search.BooleanClause;
+<i>29</i>&nbsp;import org.apache.lucene.search.BooleanQuery;
+<i>30</i>&nbsp;import org.apache.lucene.search.MatchNoDocsQuery;
+<i>31</i>&nbsp;import org.apache.lucene.search.MultiPhraseQuery;
+<i>32</i>&nbsp;import org.apache.lucene.search.Query;
+<i>33</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>34</i>&nbsp;import org.apache.lucene.util.StringHelper;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;import java.io.IOException;
+<i>37</i>&nbsp;import java.util.ArrayList;
+<i>38</i>&nbsp;import java.util.Arrays;
+<i>39</i>&nbsp;import java.util.Iterator;
+<i>40</i>&nbsp;import java.util.List;
+<i>41</i>&nbsp;import java.util.ListIterator;
+<i>42</i>&nbsp;import java.util.Objects;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;public class MultiPhrasePrefixQuery extends Query {
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    private final String field;
+<b class="nc"><i>47</i>&nbsp;    private ArrayList&lt;Term[]&gt; termArrays = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>48</i>&nbsp;    private ArrayList&lt;Integer&gt; positions = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>49</i>&nbsp;    private int maxExpansions = Integer.MAX_VALUE;</b>
+<i>50</i>&nbsp;
+<b class="nc"><i>51</i>&nbsp;    private int slop = 0;</b>
+<i>52</i>&nbsp;
+<b class="nc"><i>53</i>&nbsp;    public MultiPhrasePrefixQuery(String field) {</b>
+<b class="nc"><i>54</i>&nbsp;        this.field = Objects.requireNonNull(field);</b>
+<b class="nc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    /**
+<i>58</i>&nbsp;     * Sets the phrase slop for this query.
+<i>59</i>&nbsp;     *
+<i>60</i>&nbsp;     * @see org.apache.lucene.search.PhraseQuery.Builder#setSlop(int)
+<i>61</i>&nbsp;     */
+<i>62</i>&nbsp;    public void setSlop(int s) {
+<b class="nc"><i>63</i>&nbsp;        slop = s;</b>
+<b class="nc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    public void setMaxExpansions(int maxExpansions) {
+<b class="nc"><i>67</i>&nbsp;        this.maxExpansions = maxExpansions;</b>
+<b class="nc"><i>68</i>&nbsp;    }</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    /**
+<i>71</i>&nbsp;     * Sets the phrase slop for this query.
+<i>72</i>&nbsp;     *
+<i>73</i>&nbsp;     * @see org.apache.lucene.search.PhraseQuery.Builder#getSlop()
+<i>74</i>&nbsp;     */
+<i>75</i>&nbsp;    public int getSlop() {
+<b class="nc"><i>76</i>&nbsp;        return slop;</b>
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    /**
+<i>80</i>&nbsp;     * Add a single term at the next position in the phrase.
+<i>81</i>&nbsp;     *
+<i>82</i>&nbsp;     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
+<i>83</i>&nbsp;     */
+<i>84</i>&nbsp;    public void add(Term term) {
+<b class="nc"><i>85</i>&nbsp;        add(new Term[]{term});</b>
+<b class="nc"><i>86</i>&nbsp;    }</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    /**
+<i>89</i>&nbsp;     * Add multiple terms at the next position in the phrase.  Any of the terms
+<i>90</i>&nbsp;     * may match.
+<i>91</i>&nbsp;     *
+<i>92</i>&nbsp;     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public void add(Term[] terms) {
+<b class="nc"><i>95</i>&nbsp;        int position = 0;</b>
+<b class="nc"><i>96</i>&nbsp;        if (positions.size() &gt; 0)</b>
+<b class="nc"><i>97</i>&nbsp;            position = positions.get(positions.size() - 1) + 1;</b>
+<i>98</i>&nbsp;
+<b class="nc"><i>99</i>&nbsp;        add(terms, position);</b>
+<b class="nc"><i>100</i>&nbsp;    }</b>
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    /**
+<i>103</i>&nbsp;     * Allows to specify the relative position of terms within the phrase.
+<i>104</i>&nbsp;     *
+<i>105</i>&nbsp;     * @param terms the terms
+<i>106</i>&nbsp;     * @param position the position of the terms provided as argument
+<i>107</i>&nbsp;     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term, int)
+<i>108</i>&nbsp;     */
+<i>109</i>&nbsp;    public void add(Term[] terms, int position) {
+<b class="nc"><i>110</i>&nbsp;        for (int i = 0; i &lt; terms.length; i++) {</b>
+<b class="nc"><i>111</i>&nbsp;            if (terms[i].field() != field) {</b>
+<b class="nc"><i>112</i>&nbsp;                throw new IllegalArgumentException(</b>
+<i>113</i>&nbsp;                        &quot;All phrase terms must be in the same field (&quot; + field + &quot;): &quot;
+<i>114</i>&nbsp;                                + terms[i]);
+<i>115</i>&nbsp;            }
+<i>116</i>&nbsp;        }
+<i>117</i>&nbsp;
+<b class="nc"><i>118</i>&nbsp;        termArrays.add(terms);</b>
+<b class="nc"><i>119</i>&nbsp;        positions.add(position);</b>
+<b class="nc"><i>120</i>&nbsp;    }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    /**
+<i>123</i>&nbsp;     * Returns the terms for each position in this phrase
+<i>124</i>&nbsp;     */
+<i>125</i>&nbsp;    public Term[][] getTerms() {
+<b class="nc"><i>126</i>&nbsp;        Term[][] terms = new Term[termArrays.size()][];</b>
+<b class="nc"><i>127</i>&nbsp;        for (int i = 0; i &lt; termArrays.size(); i++) {</b>
+<b class="nc"><i>128</i>&nbsp;            terms[i] = new Term[termArrays.get(i).length];</b>
+<b class="nc"><i>129</i>&nbsp;            System.arraycopy(termArrays.get(i), 0, terms[i], 0, termArrays.get(i).length);</b>
+<i>130</i>&nbsp;        }
+<b class="nc"><i>131</i>&nbsp;        return terms;</b>
+<i>132</i>&nbsp;    }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;    /**
+<i>135</i>&nbsp;     * Returns the relative positions of terms in this phrase.
+<i>136</i>&nbsp;     */
+<i>137</i>&nbsp;    public int[] getPositions() {
+<b class="nc"><i>138</i>&nbsp;        int[] result = new int[positions.size()];</b>
+<b class="nc"><i>139</i>&nbsp;        for (int i = 0; i &lt; positions.size(); i++)</b>
+<b class="nc"><i>140</i>&nbsp;            result[i] = positions.get(i);</b>
+<b class="nc"><i>141</i>&nbsp;        return result;</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    @Override
+<i>145</i>&nbsp;    public Query rewrite(IndexReader reader) throws IOException {
+<b class="nc"><i>146</i>&nbsp;        Query rewritten = super.rewrite(reader);</b>
+<b class="nc"><i>147</i>&nbsp;        if (rewritten != this) {</b>
+<b class="nc"><i>148</i>&nbsp;            return rewritten;</b>
+<i>149</i>&nbsp;        }
+<b class="nc"><i>150</i>&nbsp;        if (termArrays.isEmpty()) {</b>
+<b class="nc"><i>151</i>&nbsp;            return new MatchNoDocsQuery();</b>
+<i>152</i>&nbsp;        }
+<b class="nc"><i>153</i>&nbsp;        MultiPhraseQuery.Builder query = new MultiPhraseQuery.Builder();</b>
+<b class="nc"><i>154</i>&nbsp;        query.setSlop(slop);</b>
+<b class="nc"><i>155</i>&nbsp;        int sizeMinus1 = termArrays.size() - 1;</b>
+<b class="nc"><i>156</i>&nbsp;        for (int i = 0; i &lt; sizeMinus1; i++) {</b>
+<b class="nc"><i>157</i>&nbsp;            query.add(termArrays.get(i), positions.get(i));</b>
+<i>158</i>&nbsp;        }
+<b class="nc"><i>159</i>&nbsp;        Term[] suffixTerms = termArrays.get(sizeMinus1);</b>
+<b class="nc"><i>160</i>&nbsp;        int position = positions.get(sizeMinus1);</b>
+<b class="nc"><i>161</i>&nbsp;        ObjectHashSet&lt;Term&gt; terms = new ObjectHashSet&lt;&gt;();</b>
+<b class="nc"><i>162</i>&nbsp;        for (Term term : suffixTerms) {</b>
+<b class="nc"><i>163</i>&nbsp;            getPrefixTerms(terms, term, reader);</b>
+<b class="nc"><i>164</i>&nbsp;            if (terms.size() &gt; maxExpansions) {</b>
+<b class="nc"><i>165</i>&nbsp;                break;</b>
+<i>166</i>&nbsp;            }
+<i>167</i>&nbsp;        }
+<b class="nc"><i>168</i>&nbsp;        if (terms.isEmpty()) {</b>
+<b class="nc"><i>169</i>&nbsp;            if (sizeMinus1 == 0) {</b>
+<i>170</i>&nbsp;                // no prefix and the phrase query is empty
+<b class="nc"><i>171</i>&nbsp;                return Queries.newMatchNoDocsQuery(&quot;No terms supplied for &quot; + MultiPhrasePrefixQuery.class.getName());</b>
+<i>172</i>&nbsp;            }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
+<i>175</i>&nbsp;            // which rewrites query with an empty reader.
+<b class="nc"><i>176</i>&nbsp;            return new BooleanQuery.Builder()</b>
+<b class="nc"><i>177</i>&nbsp;                .add(query.build(), BooleanClause.Occur.MUST)</b>
+<b class="nc"><i>178</i>&nbsp;                .add(Queries.newMatchNoDocsQuery(&quot;No terms supplied for &quot; + MultiPhrasePrefixQuery.class.getName()),</b>
+<b class="nc"><i>179</i>&nbsp;                    BooleanClause.Occur.MUST).build();</b>
+<i>180</i>&nbsp;        }
+<b class="nc"><i>181</i>&nbsp;        query.add(terms.toArray(Term.class), position);</b>
+<b class="nc"><i>182</i>&nbsp;        return query.build();</b>
+<i>183</i>&nbsp;    }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    private void getPrefixTerms(ObjectHashSet&lt;Term&gt; terms, final Term prefix, final IndexReader reader) throws IOException {
+<i>186</i>&nbsp;        // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
+<i>187</i>&nbsp;        // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
+<b class="nc"><i>188</i>&nbsp;        List&lt;LeafReaderContext&gt; leaves = reader.leaves();</b>
+<b class="nc"><i>189</i>&nbsp;        for (LeafReaderContext leaf : leaves) {</b>
+<b class="nc"><i>190</i>&nbsp;            Terms _terms = leaf.reader().terms(field);</b>
+<b class="nc"><i>191</i>&nbsp;            if (_terms == null) {</b>
+<b class="nc"><i>192</i>&nbsp;                continue;</b>
+<i>193</i>&nbsp;            }
+<i>194</i>&nbsp;
+<b class="nc"><i>195</i>&nbsp;            TermsEnum termsEnum = _terms.iterator();</b>
+<b class="nc"><i>196</i>&nbsp;            TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(prefix.bytes());</b>
+<b class="nc"><i>197</i>&nbsp;            if (TermsEnum.SeekStatus.END == seekStatus) {</b>
+<b class="nc"><i>198</i>&nbsp;                continue;</b>
+<i>199</i>&nbsp;            }
+<i>200</i>&nbsp;
+<b class="nc"><i>201</i>&nbsp;            for (BytesRef term = termsEnum.term(); term != null; term = termsEnum.next()) {</b>
+<b class="nc"><i>202</i>&nbsp;                if (!StringHelper.startsWith(term, prefix.bytes())) {</b>
+<b class="nc"><i>203</i>&nbsp;                    break;</b>
+<i>204</i>&nbsp;                }
+<i>205</i>&nbsp;
+<b class="nc"><i>206</i>&nbsp;                terms.add(new Term(field, BytesRef.deepCopyOf(term)));</b>
+<b class="nc"><i>207</i>&nbsp;                if (terms.size() &gt;= maxExpansions) {</b>
+<b class="nc"><i>208</i>&nbsp;                    return;</b>
+<i>209</i>&nbsp;                }
+<i>210</i>&nbsp;            }
+<b class="nc"><i>211</i>&nbsp;        }</b>
+<b class="nc"><i>212</i>&nbsp;    }</b>
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;    @Override
+<i>215</i>&nbsp;    public final String toString(String f) {
+<b class="nc"><i>216</i>&nbsp;        StringBuilder buffer = new StringBuilder();</b>
+<b class="nc"><i>217</i>&nbsp;        if (field.equals(f) == false) {</b>
+<b class="nc"><i>218</i>&nbsp;            buffer.append(field);</b>
+<b class="nc"><i>219</i>&nbsp;            buffer.append(&quot;:&quot;);</b>
+<i>220</i>&nbsp;        }
+<i>221</i>&nbsp;
+<b class="nc"><i>222</i>&nbsp;        buffer.append(&quot;\&quot;&quot;);</b>
+<b class="nc"><i>223</i>&nbsp;        Iterator&lt;Term[]&gt; i = termArrays.iterator();</b>
+<b class="nc"><i>224</i>&nbsp;        while (i.hasNext()) {</b>
+<b class="nc"><i>225</i>&nbsp;            Term[] terms = i.next();</b>
+<b class="nc"><i>226</i>&nbsp;            if (terms.length &gt; 1) {</b>
+<b class="nc"><i>227</i>&nbsp;                buffer.append(&quot;(&quot;);</b>
+<b class="nc"><i>228</i>&nbsp;                for (int j = 0; j &lt; terms.length; j++) {</b>
+<b class="nc"><i>229</i>&nbsp;                    buffer.append(terms[j].text());</b>
+<b class="nc"><i>230</i>&nbsp;                    if (j &lt; terms.length - 1) {</b>
+<b class="nc"><i>231</i>&nbsp;                        if (i.hasNext()) {</b>
+<b class="nc"><i>232</i>&nbsp;                            buffer.append(&quot; &quot;);</b>
+<i>233</i>&nbsp;                        } else {
+<b class="nc"><i>234</i>&nbsp;                            buffer.append(&quot;* &quot;);</b>
+<i>235</i>&nbsp;                        }
+<i>236</i>&nbsp;                    }
+<i>237</i>&nbsp;                }
+<b class="nc"><i>238</i>&nbsp;                if (i.hasNext()) {</b>
+<b class="nc"><i>239</i>&nbsp;                    buffer.append(&quot;) &quot;);</b>
+<i>240</i>&nbsp;                } else {
+<b class="nc"><i>241</i>&nbsp;                    buffer.append(&quot;*)&quot;);</b>
+<i>242</i>&nbsp;                }
+<i>243</i>&nbsp;            } else {
+<b class="nc"><i>244</i>&nbsp;                buffer.append(terms[0].text());</b>
+<b class="nc"><i>245</i>&nbsp;                if (i.hasNext()) {</b>
+<b class="nc"><i>246</i>&nbsp;                    buffer.append(&quot; &quot;);</b>
+<i>247</i>&nbsp;                } else {
+<b class="nc"><i>248</i>&nbsp;                    buffer.append(&quot;*&quot;);</b>
+<i>249</i>&nbsp;                }
+<i>250</i>&nbsp;            }
+<b class="nc"><i>251</i>&nbsp;        }</b>
+<b class="nc"><i>252</i>&nbsp;        buffer.append(&quot;\&quot;&quot;);</b>
+<i>253</i>&nbsp;
+<b class="nc"><i>254</i>&nbsp;        if (slop != 0) {</b>
+<b class="nc"><i>255</i>&nbsp;            buffer.append(&quot;~&quot;);</b>
+<b class="nc"><i>256</i>&nbsp;            buffer.append(slop);</b>
+<i>257</i>&nbsp;        }
+<i>258</i>&nbsp;
+<b class="nc"><i>259</i>&nbsp;        return buffer.toString();</b>
+<i>260</i>&nbsp;    }
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;    /**
+<i>263</i>&nbsp;     * Returns true if &lt;code&gt;o&lt;/code&gt; is equal to this.
+<i>264</i>&nbsp;     */
+<i>265</i>&nbsp;    @Override
+<i>266</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>267</i>&nbsp;        if (sameClassAs(o) == false) {</b>
+<b class="nc"><i>268</i>&nbsp;            return false;</b>
+<i>269</i>&nbsp;        }
+<b class="nc"><i>270</i>&nbsp;        MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;</b>
+<b class="nc"><i>271</i>&nbsp;        return this.slop == other.slop</b>
+<b class="nc"><i>272</i>&nbsp;                &amp;&amp; termArraysEquals(this.termArrays, other.termArrays)</b>
+<b class="nc"><i>273</i>&nbsp;                &amp;&amp; this.positions.equals(other.positions);</b>
+<i>274</i>&nbsp;    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    /**
+<i>277</i>&nbsp;     * Returns a hash code value for this object.
+<i>278</i>&nbsp;     */
+<i>279</i>&nbsp;    @Override
+<i>280</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>281</i>&nbsp;        return classHash()</b>
+<i>282</i>&nbsp;                ^ slop
+<b class="nc"><i>283</i>&nbsp;                ^ termArraysHashCode()</b>
+<b class="nc"><i>284</i>&nbsp;                ^ positions.hashCode();</b>
+<i>285</i>&nbsp;    }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;    // Breakout calculation of the termArrays hashcode
+<i>288</i>&nbsp;    private int termArraysHashCode() {
+<b class="nc"><i>289</i>&nbsp;        int hashCode = 1;</b>
+<b class="nc"><i>290</i>&nbsp;        for (final Term[] termArray : termArrays) {</b>
+<b class="nc"><i>291</i>&nbsp;            hashCode = 31 * hashCode</b>
+<b class="nc"><i>292</i>&nbsp;                    + (termArray == null ? 0 : Arrays.hashCode(termArray));</b>
+<b class="nc"><i>293</i>&nbsp;        }</b>
+<b class="nc"><i>294</i>&nbsp;        return hashCode;</b>
+<i>295</i>&nbsp;    }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    // Breakout calculation of the termArrays equals
+<i>298</i>&nbsp;    private boolean termArraysEquals(List&lt;Term[]&gt; termArrays1, List&lt;Term[]&gt; termArrays2) {
+<b class="nc"><i>299</i>&nbsp;        if (termArrays1.size() != termArrays2.size()) {</b>
+<b class="nc"><i>300</i>&nbsp;            return false;</b>
+<i>301</i>&nbsp;        }
+<b class="nc"><i>302</i>&nbsp;        ListIterator&lt;Term[]&gt; iterator1 = termArrays1.listIterator();</b>
+<b class="nc"><i>303</i>&nbsp;        ListIterator&lt;Term[]&gt; iterator2 = termArrays2.listIterator();</b>
+<b class="nc"><i>304</i>&nbsp;        while (iterator1.hasNext()) {</b>
+<b class="nc"><i>305</i>&nbsp;            Term[] termArray1 = iterator1.next();</b>
+<b class="nc"><i>306</i>&nbsp;            Term[] termArray2 = iterator2.next();</b>
+<b class="nc"><i>307</i>&nbsp;            if (!(termArray1 == null ? termArray2 == null : Arrays.equals(termArray1,</b>
+<i>308</i>&nbsp;                    termArray2))) {
+<b class="nc"><i>309</i>&nbsp;                return false;</b>
+<i>310</i>&nbsp;            }
+<b class="nc"><i>311</i>&nbsp;        }</b>
+<b class="nc"><i>312</i>&nbsp;        return true;</b>
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    public String getField() {
+<b class="nc"><i>316</i>&nbsp;        return field;</b>
+<i>317</i>&nbsp;    }
+<i>318</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

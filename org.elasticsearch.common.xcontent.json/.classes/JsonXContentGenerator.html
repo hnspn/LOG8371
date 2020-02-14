@@ -1,0 +1,599 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: JsonXContentGenerator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.xcontent.json</a> ]
+</div>
+
+<h1>Coverage Summary for Class: JsonXContentGenerator (org.elasticsearch.common.xcontent.json)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">JsonXContentGenerator</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    58.5%
+  </span>
+  <span class="absValue">
+    (31/ 53)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41.3%
+  </span>
+  <span class="absValue">
+    (86/ 208)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.xcontent.json;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.fasterxml.jackson.core.JsonGenerator;
+<i>23</i>&nbsp;import com.fasterxml.jackson.core.JsonStreamContext;
+<i>24</i>&nbsp;import com.fasterxml.jackson.core.base.GeneratorBase;
+<i>25</i>&nbsp;import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
+<i>26</i>&nbsp;import com.fasterxml.jackson.core.io.SerializedString;
+<i>27</i>&nbsp;import com.fasterxml.jackson.core.json.JsonWriteContext;
+<i>28</i>&nbsp;import com.fasterxml.jackson.core.util.DefaultIndenter;
+<i>29</i>&nbsp;import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+<i>30</i>&nbsp;import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.DeprecationHandler;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.XContent;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.XContentFactory;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentGenerator;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>38</i>&nbsp;import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
+<i>39</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import java.io.BufferedInputStream;
+<i>42</i>&nbsp;import java.io.IOException;
+<i>43</i>&nbsp;import java.io.InputStream;
+<i>44</i>&nbsp;import java.io.OutputStream;
+<i>45</i>&nbsp;import java.math.BigDecimal;
+<i>46</i>&nbsp;import java.math.BigInteger;
+<i>47</i>&nbsp;import java.util.Objects;
+<i>48</i>&nbsp;import java.util.Set;
+<i>49</i>&nbsp;
+<b class="fc"><i>50</i>&nbsp;public class JsonXContentGenerator implements XContentGenerator {</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    /** Generator used to write content **/
+<i>53</i>&nbsp;    protected final JsonGenerator generator;
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    /**
+<i>56</i>&nbsp;     * Reference to base generator because
+<i>57</i>&nbsp;     * writing raw values needs a specific method call.
+<i>58</i>&nbsp;     */
+<i>59</i>&nbsp;    private final GeneratorBase base;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * Reference to filtering generator because
+<i>63</i>&nbsp;     * writing an empty object &#39;{}&#39; when everything is filtered
+<i>64</i>&nbsp;     * out needs a specific treatment
+<i>65</i>&nbsp;     */
+<i>66</i>&nbsp;    private final FilteringGeneratorDelegate filter;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    private final OutputStream os;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    private boolean writeLineFeedAtEnd;
+<b class="fc"><i>71</i>&nbsp;    private static final SerializedString LF = new SerializedString(&quot;\n&quot;);</b>
+<b class="fc"><i>72</i>&nbsp;    private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter(&quot;  &quot;, LF.getValue());</b>
+<b class="fc"><i>73</i>&nbsp;    private boolean prettyPrint = false;</b>
+<i>74</i>&nbsp;
+<b class="fc"><i>75</i>&nbsp;    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set&lt;String&gt; includes, Set&lt;String&gt; excludes) {</b>
+<b class="fc"><i>76</i>&nbsp;        Objects.requireNonNull(includes, &quot;Including filters must not be null&quot;);</b>
+<b class="fc"><i>77</i>&nbsp;        Objects.requireNonNull(excludes, &quot;Excluding filters must not be null&quot;);</b>
+<b class="fc"><i>78</i>&nbsp;        this.os = os;</b>
+<b class="fc"><i>79</i>&nbsp;        if (jsonGenerator instanceof GeneratorBase) {</b>
+<b class="fc"><i>80</i>&nbsp;            this.base = (GeneratorBase) jsonGenerator;</b>
+<i>81</i>&nbsp;        } else {
+<b class="nc"><i>82</i>&nbsp;            this.base = null;</b>
+<i>83</i>&nbsp;        }
+<i>84</i>&nbsp;
+<b class="fc"><i>85</i>&nbsp;        JsonGenerator generator = jsonGenerator;</b>
+<i>86</i>&nbsp;
+<b class="fc"><i>87</i>&nbsp;        boolean hasExcludes = excludes.isEmpty() == false;</b>
+<b class="fc"><i>88</i>&nbsp;        if (hasExcludes) {</b>
+<b class="nc"><i>89</i>&nbsp;            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);</b>
+<i>90</i>&nbsp;        }
+<i>91</i>&nbsp;
+<b class="fc"><i>92</i>&nbsp;        boolean hasIncludes = includes.isEmpty() == false;</b>
+<b class="fc"><i>93</i>&nbsp;        if (hasIncludes) {</b>
+<b class="nc"><i>94</i>&nbsp;            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);</b>
+<i>95</i>&nbsp;        }
+<i>96</i>&nbsp;
+<b class="fc"><i>97</i>&nbsp;        if (hasExcludes || hasIncludes) {</b>
+<b class="nc"><i>98</i>&nbsp;            this.filter = (FilteringGeneratorDelegate) generator;</b>
+<i>99</i>&nbsp;        } else {
+<b class="fc"><i>100</i>&nbsp;            this.filter = null;</b>
+<i>101</i>&nbsp;        }
+<b class="fc"><i>102</i>&nbsp;        this.generator = generator;</b>
+<b class="fc"><i>103</i>&nbsp;    }</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    @Override
+<i>106</i>&nbsp;    public XContentType contentType() {
+<b class="fc"><i>107</i>&nbsp;        return XContentType.JSON;</b>
+<i>108</i>&nbsp;    }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    @Override
+<i>111</i>&nbsp;    public final void usePrettyPrint() {
+<b class="fc"><i>112</i>&nbsp;        generator.setPrettyPrinter(new DefaultPrettyPrinter().withObjectIndenter(INDENTER).withArrayIndenter(INDENTER));</b>
+<b class="fc"><i>113</i>&nbsp;        prettyPrint = true;</b>
+<b class="fc"><i>114</i>&nbsp;    }</b>
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    @Override
+<i>117</i>&nbsp;    public boolean isPrettyPrint() {
+<b class="fc"><i>118</i>&nbsp;        return this.prettyPrint;</b>
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    @Override
+<i>122</i>&nbsp;    public void usePrintLineFeedAtEnd() {
+<b class="nc"><i>123</i>&nbsp;        writeLineFeedAtEnd = true;</b>
+<b class="nc"><i>124</i>&nbsp;    }</b>
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    private boolean isFiltered() {
+<b class="fc"><i>127</i>&nbsp;        return filter != null;</b>
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    private JsonGenerator getLowLevelGenerator() {
+<b class="fc"><i>131</i>&nbsp;        if (isFiltered()) {</b>
+<b class="nc"><i>132</i>&nbsp;            JsonGenerator delegate = filter.getDelegate();</b>
+<b class="nc"><i>133</i>&nbsp;            if (delegate instanceof JsonGeneratorDelegate) {</b>
+<i>134</i>&nbsp;                // In case of combined inclusion and exclusion filters, we have one and only one another delegating level
+<b class="nc"><i>135</i>&nbsp;                delegate = ((JsonGeneratorDelegate) delegate).getDelegate();</b>
+<b class="nc"><i>136</i>&nbsp;                assert delegate instanceof JsonGeneratorDelegate == false;</b>
+<i>137</i>&nbsp;            }
+<b class="nc"><i>138</i>&nbsp;            return delegate;</b>
+<i>139</i>&nbsp;        }
+<b class="fc"><i>140</i>&nbsp;        return generator;</b>
+<i>141</i>&nbsp;    }
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    private boolean inRoot() {
+<b class="fc"><i>144</i>&nbsp;        JsonStreamContext context = generator.getOutputContext();</b>
+<b class="fc"><i>145</i>&nbsp;        return ((context != null) &amp;&amp; (context.inRoot() &amp;&amp; context.getCurrentName() == null));</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    @Override
+<i>149</i>&nbsp;    public void writeStartObject() throws IOException {
+<b class="fc"><i>150</i>&nbsp;        if (inRoot()) {</b>
+<i>151</i>&nbsp;            // Use the low level generator to write the startObject so that the root
+<i>152</i>&nbsp;            // start object is always written even if a filtered generator is used
+<b class="fc"><i>153</i>&nbsp;            getLowLevelGenerator().writeStartObject();</b>
+<b class="fc"><i>154</i>&nbsp;            return;</b>
+<i>155</i>&nbsp;        }
+<b class="fc"><i>156</i>&nbsp;        generator.writeStartObject();</b>
+<b class="fc"><i>157</i>&nbsp;    }</b>
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    @Override
+<i>160</i>&nbsp;    public void writeEndObject() throws IOException {
+<b class="fc"><i>161</i>&nbsp;        if (inRoot()) {</b>
+<i>162</i>&nbsp;            // Use the low level generator to write the startObject so that the root
+<i>163</i>&nbsp;            // start object is always written even if a filtered generator is used
+<b class="nc"><i>164</i>&nbsp;            getLowLevelGenerator().writeEndObject();</b>
+<b class="nc"><i>165</i>&nbsp;            return;</b>
+<i>166</i>&nbsp;        }
+<b class="fc"><i>167</i>&nbsp;        generator.writeEndObject();</b>
+<b class="fc"><i>168</i>&nbsp;    }</b>
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    @Override
+<i>172</i>&nbsp;    public void writeStartArray() throws IOException {
+<b class="fc"><i>173</i>&nbsp;        generator.writeStartArray();</b>
+<b class="fc"><i>174</i>&nbsp;    }</b>
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    @Override
+<i>177</i>&nbsp;    public void writeEndArray() throws IOException {
+<b class="fc"><i>178</i>&nbsp;        generator.writeEndArray();</b>
+<b class="fc"><i>179</i>&nbsp;    }</b>
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    @Override
+<i>182</i>&nbsp;    public void writeFieldName(String name) throws IOException {
+<b class="fc"><i>183</i>&nbsp;        generator.writeFieldName(name);</b>
+<b class="fc"><i>184</i>&nbsp;    }</b>
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;    @Override
+<i>187</i>&nbsp;    public void writeNull() throws IOException {
+<b class="nc"><i>188</i>&nbsp;        generator.writeNull();</b>
+<b class="nc"><i>189</i>&nbsp;    }</b>
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;    @Override
+<i>192</i>&nbsp;    public void writeNullField(String name) throws IOException {
+<b class="nc"><i>193</i>&nbsp;        generator.writeNullField(name);</b>
+<b class="nc"><i>194</i>&nbsp;    }</b>
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    @Override
+<i>197</i>&nbsp;    public void writeBooleanField(String name, boolean value) throws IOException {
+<b class="fc"><i>198</i>&nbsp;        generator.writeBooleanField(name, value);</b>
+<b class="fc"><i>199</i>&nbsp;    }</b>
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    @Override
+<i>202</i>&nbsp;    public void writeBoolean(boolean value) throws IOException {
+<b class="fc"><i>203</i>&nbsp;        generator.writeBoolean(value);</b>
+<b class="fc"><i>204</i>&nbsp;    }</b>
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    @Override
+<i>207</i>&nbsp;    public void writeNumberField(String name, double value) throws IOException {
+<b class="fc"><i>208</i>&nbsp;        generator.writeNumberField(name, value);</b>
+<b class="fc"><i>209</i>&nbsp;    }</b>
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    @Override
+<i>212</i>&nbsp;    public void writeNumber(double value) throws IOException {
+<b class="fc"><i>213</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="fc"><i>214</i>&nbsp;    }</b>
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    @Override
+<i>217</i>&nbsp;    public void writeNumberField(String name, float value) throws IOException {
+<b class="fc"><i>218</i>&nbsp;        generator.writeNumberField(name, value);</b>
+<b class="fc"><i>219</i>&nbsp;    }</b>
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;    @Override
+<i>222</i>&nbsp;    public void writeNumber(float value) throws IOException {
+<b class="fc"><i>223</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="fc"><i>224</i>&nbsp;    }</b>
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;    @Override
+<i>227</i>&nbsp;    public void writeNumberField(String name, int value) throws IOException {
+<b class="fc"><i>228</i>&nbsp;        generator.writeNumberField(name, value);</b>
+<b class="fc"><i>229</i>&nbsp;    }</b>
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    @Override
+<i>232</i>&nbsp;    public void writeNumberField(String name, BigInteger value) throws IOException {
+<i>233</i>&nbsp;        // as jackson&#39;s JsonGenerator doesn&#39;t have this method for BigInteger
+<i>234</i>&nbsp;        // we have to implement it ourselves
+<b class="nc"><i>235</i>&nbsp;        generator.writeFieldName(name);</b>
+<b class="nc"><i>236</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="nc"><i>237</i>&nbsp;    }</b>
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    @Override
+<i>240</i>&nbsp;    public void writeNumberField(String name, BigDecimal value) throws IOException {
+<b class="nc"><i>241</i>&nbsp;        generator.writeNumberField(name, value);</b>
+<b class="nc"><i>242</i>&nbsp;    }</b>
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;    @Override
+<i>245</i>&nbsp;    public void writeNumber(int value) throws IOException {
+<b class="fc"><i>246</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="fc"><i>247</i>&nbsp;    }</b>
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;    @Override
+<i>250</i>&nbsp;    public void writeNumberField(String name, long value) throws IOException {
+<b class="fc"><i>251</i>&nbsp;        generator.writeNumberField(name, value);</b>
+<b class="fc"><i>252</i>&nbsp;    }</b>
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    @Override
+<i>255</i>&nbsp;    public void writeNumber(long value) throws IOException {
+<b class="fc"><i>256</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="fc"><i>257</i>&nbsp;    }</b>
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    @Override
+<i>260</i>&nbsp;    public void writeNumber(short value) throws IOException {
+<b class="fc"><i>261</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="fc"><i>262</i>&nbsp;    }</b>
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    @Override
+<i>265</i>&nbsp;    public void writeNumber(BigInteger value) throws IOException {
+<b class="nc"><i>266</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="nc"><i>267</i>&nbsp;    }</b>
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    @Override
+<i>270</i>&nbsp;    public void writeNumber(BigDecimal value) throws IOException {
+<b class="nc"><i>271</i>&nbsp;        generator.writeNumber(value);</b>
+<b class="nc"><i>272</i>&nbsp;    }</b>
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;    @Override
+<i>275</i>&nbsp;    public void writeStringField(String name, String value) throws IOException {
+<b class="fc"><i>276</i>&nbsp;        generator.writeStringField(name, value);</b>
+<b class="fc"><i>277</i>&nbsp;    }</b>
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;    @Override
+<i>280</i>&nbsp;    public void writeString(String value) throws IOException {
+<b class="fc"><i>281</i>&nbsp;        generator.writeString(value);</b>
+<b class="fc"><i>282</i>&nbsp;    }</b>
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    @Override
+<i>285</i>&nbsp;    public void writeString(char[] value, int offset, int len) throws IOException {
+<b class="fc"><i>286</i>&nbsp;        generator.writeString(value, offset, len);</b>
+<b class="fc"><i>287</i>&nbsp;    }</b>
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;    @Override
+<i>290</i>&nbsp;    public void writeUTF8String(byte[] value, int offset, int length) throws IOException {
+<b class="nc"><i>291</i>&nbsp;        generator.writeUTF8String(value, offset, length);</b>
+<b class="nc"><i>292</i>&nbsp;    }</b>
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;    @Override
+<i>295</i>&nbsp;    public void writeBinaryField(String name, byte[] value) throws IOException {
+<b class="fc"><i>296</i>&nbsp;        generator.writeBinaryField(name, value);</b>
+<b class="fc"><i>297</i>&nbsp;    }</b>
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    @Override
+<i>300</i>&nbsp;    public void writeBinary(byte[] value) throws IOException {
+<b class="fc"><i>301</i>&nbsp;        generator.writeBinary(value);</b>
+<b class="fc"><i>302</i>&nbsp;    }</b>
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;    @Override
+<i>305</i>&nbsp;    public void writeBinary(byte[] value, int offset, int len) throws IOException {
+<b class="nc"><i>306</i>&nbsp;        generator.writeBinary(value, offset, len);</b>
+<b class="nc"><i>307</i>&nbsp;    }</b>
+<i>308</i>&nbsp;
+<i>309</i>&nbsp;    private void writeStartRaw(String name) throws IOException {
+<b class="nc"><i>310</i>&nbsp;        writeFieldName(name);</b>
+<b class="nc"><i>311</i>&nbsp;        generator.writeRaw(&#39;:&#39;);</b>
+<b class="nc"><i>312</i>&nbsp;    }</b>
+<i>313</i>&nbsp;
+<i>314</i>&nbsp;    public void writeEndRaw() {
+<b class="nc"><i>315</i>&nbsp;        assert base != null : &quot;JsonGenerator should be of instance GeneratorBase but was: &quot; + generator.getClass();</b>
+<b class="nc"><i>316</i>&nbsp;        if (base != null) {</b>
+<b class="nc"><i>317</i>&nbsp;            JsonStreamContext context = base.getOutputContext();</b>
+<b class="nc"><i>318</i>&nbsp;            assert (context instanceof JsonWriteContext) : &quot;Expected an instance of JsonWriteContext but was: &quot; + context.getClass();</b>
+<b class="nc"><i>319</i>&nbsp;            ((JsonWriteContext) context).writeValue();</b>
+<i>320</i>&nbsp;        }
+<b class="nc"><i>321</i>&nbsp;    }</b>
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    @Override
+<i>324</i>&nbsp;    public void writeRawField(String name, InputStream content) throws IOException {
+<b class="nc"><i>325</i>&nbsp;        if (content.markSupported() == false) {</b>
+<i>326</i>&nbsp;            // needed for the XContentFactory.xContentType call
+<b class="nc"><i>327</i>&nbsp;            content = new BufferedInputStream(content);</b>
+<i>328</i>&nbsp;        }
+<b class="nc"><i>329</i>&nbsp;        XContentType contentType = XContentFactory.xContentType(content);</b>
+<b class="nc"><i>330</i>&nbsp;        if (contentType == null) {</b>
+<b class="nc"><i>331</i>&nbsp;            throw new IllegalArgumentException(&quot;Can&#39;t write raw bytes whose xcontent-type can&#39;t be guessed&quot;);</b>
+<i>332</i>&nbsp;        }
+<b class="nc"><i>333</i>&nbsp;        writeRawField(name, content, contentType);</b>
+<b class="nc"><i>334</i>&nbsp;    }</b>
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    @Override
+<i>337</i>&nbsp;    public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
+<b class="nc"><i>338</i>&nbsp;        if (mayWriteRawData(contentType) == false) {</b>
+<i>339</i>&nbsp;            // EMPTY is safe here because we never call namedObject when writing raw data
+<b class="nc"><i>340</i>&nbsp;            try (XContentParser parser = XContentFactory.xContent(contentType)</b>
+<i>341</i>&nbsp;                    // It&#39;s okay to pass the throwing deprecation handler
+<i>342</i>&nbsp;                    // because we should not be writing raw fields when
+<i>343</i>&nbsp;                    // generating JSON
+<b class="nc"><i>344</i>&nbsp;                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)) {</b>
+<b class="nc"><i>345</i>&nbsp;                parser.nextToken();</b>
+<b class="nc"><i>346</i>&nbsp;                writeFieldName(name);</b>
+<b class="nc"><i>347</i>&nbsp;                copyCurrentStructure(parser);</b>
+<b class="nc"><i>348</i>&nbsp;            }</b>
+<i>349</i>&nbsp;        } else {
+<b class="nc"><i>350</i>&nbsp;            writeStartRaw(name);</b>
+<b class="nc"><i>351</i>&nbsp;            flush();</b>
+<b class="nc"><i>352</i>&nbsp;            copyStream(content, os);</b>
+<b class="nc"><i>353</i>&nbsp;            writeEndRaw();</b>
+<i>354</i>&nbsp;        }
+<b class="nc"><i>355</i>&nbsp;    }</b>
+<i>356</i>&nbsp;
+<i>357</i>&nbsp;    @Override
+<i>358</i>&nbsp;    public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
+<b class="nc"><i>359</i>&nbsp;        if (mayWriteRawData(xContentType) == false) {</b>
+<b class="nc"><i>360</i>&nbsp;            copyRawValue(stream, xContentType.xContent());</b>
+<i>361</i>&nbsp;        } else {
+<b class="nc"><i>362</i>&nbsp;            if (generator.getOutputContext().getCurrentName() != null) {</b>
+<i>363</i>&nbsp;                // If we&#39;ve just started a field we&#39;ll need to add the separator
+<b class="nc"><i>364</i>&nbsp;                generator.writeRaw(&#39;:&#39;);</b>
+<i>365</i>&nbsp;            }
+<b class="nc"><i>366</i>&nbsp;            flush();</b>
+<b class="nc"><i>367</i>&nbsp;            transfer(stream, os);</b>
+<b class="nc"><i>368</i>&nbsp;            writeEndRaw();</b>
+<i>369</i>&nbsp;        }
+<b class="nc"><i>370</i>&nbsp;    }</b>
+<i>371</i>&nbsp;
+<i>372</i>&nbsp;    // A basic copy of Java 9&#39;s InputStream#transferTo
+<i>373</i>&nbsp;    private static long transfer(InputStream in, OutputStream out) throws IOException {
+<b class="nc"><i>374</i>&nbsp;        Objects.requireNonNull(out, &quot;out&quot;);</b>
+<b class="nc"><i>375</i>&nbsp;        long transferred = 0;</b>
+<b class="nc"><i>376</i>&nbsp;        byte[] buffer = new byte[8192];</b>
+<i>377</i>&nbsp;        int read;
+<b class="nc"><i>378</i>&nbsp;        while ((read = in.read(buffer, 0, 8192)) &gt;= 0) {</b>
+<b class="nc"><i>379</i>&nbsp;            out.write(buffer, 0, read);</b>
+<b class="nc"><i>380</i>&nbsp;            transferred += read;</b>
+<i>381</i>&nbsp;        }
+<b class="nc"><i>382</i>&nbsp;        return transferred;</b>
+<i>383</i>&nbsp;    }
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;    private boolean mayWriteRawData(XContentType contentType) {
+<i>386</i>&nbsp;        // When the current generator is filtered (ie filter != null)
+<i>387</i>&nbsp;        // or the content is in a different format than the current generator,
+<i>388</i>&nbsp;        // we need to copy the whole structure so that it will be correctly
+<i>389</i>&nbsp;        // filtered or converted
+<b class="nc"><i>390</i>&nbsp;        return supportsRawWrites()</b>
+<b class="nc"><i>391</i>&nbsp;                &amp;&amp; isFiltered() == false</b>
+<b class="nc"><i>392</i>&nbsp;                &amp;&amp; contentType == contentType()</b>
+<i>393</i>&nbsp;                &amp;&amp; prettyPrint == false;
+<i>394</i>&nbsp;    }
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;    /** Whether this generator supports writing raw data directly */
+<i>397</i>&nbsp;    protected boolean supportsRawWrites() {
+<b class="nc"><i>398</i>&nbsp;        return true;</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;    protected void copyRawValue(InputStream stream, XContent xContent) throws IOException {
+<i>402</i>&nbsp;        // EMPTY is safe here because we never call namedObject
+<b class="nc"><i>403</i>&nbsp;        try (XContentParser parser = xContent</b>
+<i>404</i>&nbsp;                 // It&#39;s okay to pass the throwing deprecation handler because we
+<i>405</i>&nbsp;                 // should not be writing raw fields when generating JSON
+<b class="nc"><i>406</i>&nbsp;                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {</b>
+<b class="nc"><i>407</i>&nbsp;            copyCurrentStructure(parser);</b>
+<b class="nc"><i>408</i>&nbsp;        }</b>
+<b class="nc"><i>409</i>&nbsp;    }</b>
+<i>410</i>&nbsp;
+<i>411</i>&nbsp;    @Override
+<i>412</i>&nbsp;    public void copyCurrentStructure(XContentParser parser) throws IOException {
+<i>413</i>&nbsp;        // the start of the parser
+<b class="fc"><i>414</i>&nbsp;        if (parser.currentToken() == null) {</b>
+<b class="nc"><i>415</i>&nbsp;            parser.nextToken();</b>
+<i>416</i>&nbsp;        }
+<b class="fc"><i>417</i>&nbsp;        if (parser instanceof JsonXContentParser) {</b>
+<b class="fc"><i>418</i>&nbsp;            generator.copyCurrentStructure(((JsonXContentParser) parser).parser);</b>
+<i>419</i>&nbsp;        } else {
+<b class="nc"><i>420</i>&nbsp;            copyCurrentStructure(this, parser);</b>
+<i>421</i>&nbsp;        }
+<b class="fc"><i>422</i>&nbsp;    }</b>
+<i>423</i>&nbsp;
+<i>424</i>&nbsp;    /**
+<i>425</i>&nbsp;     * Low level implementation detail of {@link XContentGenerator#copyCurrentStructure(XContentParser)}.
+<i>426</i>&nbsp;     */
+<i>427</i>&nbsp;    private static void copyCurrentStructure(XContentGenerator destination, XContentParser parser) throws IOException {
+<b class="nc"><i>428</i>&nbsp;        XContentParser.Token token = parser.currentToken();</b>
+<i>429</i>&nbsp;
+<i>430</i>&nbsp;        // Let&#39;s handle field-name separately first
+<b class="nc"><i>431</i>&nbsp;        if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>432</i>&nbsp;            destination.writeFieldName(parser.currentName());</b>
+<b class="nc"><i>433</i>&nbsp;            token = parser.nextToken();</b>
+<i>434</i>&nbsp;            // fall-through to copy the associated value
+<i>435</i>&nbsp;        }
+<i>436</i>&nbsp;
+<b class="nc"><i>437</i>&nbsp;        switch (token) {</b>
+<i>438</i>&nbsp;            case START_ARRAY:
+<b class="nc"><i>439</i>&nbsp;                destination.writeStartArray();</b>
+<b class="nc"><i>440</i>&nbsp;                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>441</i>&nbsp;                    copyCurrentStructure(destination, parser);</b>
+<i>442</i>&nbsp;                }
+<b class="nc"><i>443</i>&nbsp;                destination.writeEndArray();</b>
+<b class="nc"><i>444</i>&nbsp;                break;</b>
+<i>445</i>&nbsp;            case START_OBJECT:
+<b class="nc"><i>446</i>&nbsp;                destination.writeStartObject();</b>
+<b class="nc"><i>447</i>&nbsp;                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>448</i>&nbsp;                    copyCurrentStructure(destination, parser);</b>
+<i>449</i>&nbsp;                }
+<b class="nc"><i>450</i>&nbsp;                destination.writeEndObject();</b>
+<b class="nc"><i>451</i>&nbsp;                break;</b>
+<i>452</i>&nbsp;            default: // others are simple:
+<b class="nc"><i>453</i>&nbsp;                destination.copyCurrentEvent(parser);</b>
+<i>454</i>&nbsp;        }
+<b class="nc"><i>455</i>&nbsp;    }</b>
+<i>456</i>&nbsp;
+<i>457</i>&nbsp;    @Override
+<i>458</i>&nbsp;    public void flush() throws IOException {
+<b class="nc"><i>459</i>&nbsp;        generator.flush();</b>
+<b class="nc"><i>460</i>&nbsp;    }</b>
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;    @Override
+<i>463</i>&nbsp;    public void close() throws IOException {
+<b class="fc"><i>464</i>&nbsp;        if (generator.isClosed()) {</b>
+<b class="fc"><i>465</i>&nbsp;            return;</b>
+<i>466</i>&nbsp;        }
+<b class="fc"><i>467</i>&nbsp;        JsonStreamContext context = generator.getOutputContext();</b>
+<b class="fc"><i>468</i>&nbsp;        if ((context != null) &amp;&amp; (context.inRoot() ==  false)) {</b>
+<b class="nc"><i>469</i>&nbsp;            throw new IOException(&quot;Unclosed object or array found&quot;);</b>
+<i>470</i>&nbsp;        }
+<b class="fc"><i>471</i>&nbsp;        if (writeLineFeedAtEnd) {</b>
+<b class="nc"><i>472</i>&nbsp;            flush();</b>
+<i>473</i>&nbsp;            // Bypass generator to always write the line feed
+<b class="nc"><i>474</i>&nbsp;            getLowLevelGenerator().writeRaw(LF);</b>
+<i>475</i>&nbsp;        }
+<b class="fc"><i>476</i>&nbsp;        generator.close();</b>
+<b class="fc"><i>477</i>&nbsp;    }</b>
+<i>478</i>&nbsp;
+<i>479</i>&nbsp;    @Override
+<i>480</i>&nbsp;    public boolean isClosed() {
+<b class="nc"><i>481</i>&nbsp;        return generator.isClosed();</b>
+<i>482</i>&nbsp;    }
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;    /**
+<i>485</i>&nbsp;     * Copy the contents of the given InputStream to the given OutputStream.
+<i>486</i>&nbsp;     * Closes both streams when done.
+<i>487</i>&nbsp;     *
+<i>488</i>&nbsp;     * @param in  the stream to copy from
+<i>489</i>&nbsp;     * @param out the stream to copy to
+<i>490</i>&nbsp;     * @return the number of bytes copied
+<i>491</i>&nbsp;     * @throws IOException in case of I/O errors
+<i>492</i>&nbsp;     */
+<i>493</i>&nbsp;    private static long copyStream(InputStream in, OutputStream out) throws IOException {
+<b class="nc"><i>494</i>&nbsp;        Objects.requireNonNull(in, &quot;No InputStream specified&quot;);</b>
+<b class="nc"><i>495</i>&nbsp;        Objects.requireNonNull(out, &quot;No OutputStream specified&quot;);</b>
+<b class="nc"><i>496</i>&nbsp;        final byte[] buffer = new byte[8192];</b>
+<b class="nc"><i>497</i>&nbsp;        boolean success = false;</b>
+<i>498</i>&nbsp;        try {
+<b class="nc"><i>499</i>&nbsp;            long byteCount = 0;</b>
+<i>500</i>&nbsp;            int bytesRead;
+<b class="nc"><i>501</i>&nbsp;            while ((bytesRead = in.read(buffer)) != -1) {</b>
+<b class="nc"><i>502</i>&nbsp;                out.write(buffer, 0, bytesRead);</b>
+<b class="nc"><i>503</i>&nbsp;                byteCount += bytesRead;</b>
+<i>504</i>&nbsp;            }
+<b class="nc"><i>505</i>&nbsp;            out.flush();</b>
+<b class="nc"><i>506</i>&nbsp;            success = true;</b>
+<b class="nc"><i>507</i>&nbsp;            return byteCount;</b>
+<i>508</i>&nbsp;        } finally {
+<b class="nc"><i>509</i>&nbsp;            if (success) {</b>
+<b class="nc"><i>510</i>&nbsp;                IOUtils.close(in, out);</b>
+<i>511</i>&nbsp;            } else {
+<b class="nc"><i>512</i>&nbsp;                IOUtils.closeWhileHandlingException(in, out);</b>
+<i>513</i>&nbsp;            }
+<b class="nc"><i>514</i>&nbsp;        }</b>
+<i>515</i>&nbsp;    }
+<i>516</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

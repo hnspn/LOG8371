@@ -1,0 +1,360 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndicesFieldDataCache</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.indices.fielddata.cache</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndicesFieldDataCache (org.elasticsearch.indices.fielddata.cache)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndicesFieldDataCache</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (4/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    51.7%
+  </span>
+  <span class="absValue">
+    (15/ 29)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndicesFieldDataCache$IndexFieldCache</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (1/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (7/ 56)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    35.7%
+  </span>
+  <span class="absValue">
+    (5/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25.9%
+  </span>
+  <span class="absValue">
+    (22/ 85)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.indices.fielddata.cache;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.util.Collections;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>25</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>26</i>&nbsp;import org.apache.lucene.index.DirectoryReader;
+<i>27</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>28</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>29</i>&nbsp;import org.apache.lucene.index.IndexReader.CacheKey;
+<i>30</i>&nbsp;import org.apache.lucene.util.Accountable;
+<i>31</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>32</i>&nbsp;import org.elasticsearch.common.cache.Cache;
+<i>33</i>&nbsp;import org.elasticsearch.common.cache.CacheBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.common.cache.RemovalListener;
+<i>35</i>&nbsp;import org.elasticsearch.common.cache.RemovalNotification;
+<i>36</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>37</i>&nbsp;import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+<i>38</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>39</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>40</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>41</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>42</i>&nbsp;import org.elasticsearch.index.Index;
+<i>43</i>&nbsp;import org.elasticsearch.index.fielddata.AtomicFieldData;
+<i>44</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>45</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+<i>46</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>47</i>&nbsp;import org.elasticsearch.index.shard.ShardUtils;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import java.io.IOException;
+<i>50</i>&nbsp;import java.util.ArrayList;
+<i>51</i>&nbsp;import java.util.List;
+<i>52</i>&nbsp;import java.util.function.ToLongBiFunction;
+<i>53</i>&nbsp;
+<b class="fc"><i>54</i>&nbsp;public class IndicesFieldDataCache implements RemovalListener&lt;IndicesFieldDataCache.Key, Accountable&gt;, Releasable{</b>
+<i>55</i>&nbsp;
+<b class="fc"><i>56</i>&nbsp;    private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);</b>
+<i>57</i>&nbsp;
+<b class="fc"><i>58</i>&nbsp;    public static final Setting&lt;ByteSizeValue&gt; INDICES_FIELDDATA_CACHE_SIZE_KEY =</b>
+<b class="fc"><i>59</i>&nbsp;        Setting.memorySizeSetting(&quot;indices.fielddata.cache.size&quot;, new ByteSizeValue(-1), Property.NodeScope);</b>
+<i>60</i>&nbsp;    private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
+<i>61</i>&nbsp;    private final Cache&lt;Key, Accountable&gt; cache;
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;    public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {</b>
+<b class="fc"><i>64</i>&nbsp;        this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;</b>
+<b class="fc"><i>65</i>&nbsp;        final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();</b>
+<b class="fc"><i>66</i>&nbsp;        CacheBuilder&lt;Key, Accountable&gt; cacheBuilder = CacheBuilder.&lt;Key, Accountable&gt;builder()</b>
+<b class="fc"><i>67</i>&nbsp;                .removalListener(this);</b>
+<b class="fc"><i>68</i>&nbsp;        if (sizeInBytes &gt; 0) {</b>
+<b class="nc"><i>69</i>&nbsp;            cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());</b>
+<i>70</i>&nbsp;        }
+<b class="fc"><i>71</i>&nbsp;        cache = cacheBuilder.build();</b>
+<b class="fc"><i>72</i>&nbsp;    }</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    @Override
+<i>75</i>&nbsp;    public void close() {
+<b class="fc"><i>76</i>&nbsp;        cache.invalidateAll();</b>
+<b class="fc"><i>77</i>&nbsp;    }</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
+<b class="fc"><i>80</i>&nbsp;        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);</b>
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    public Cache&lt;Key, Accountable&gt; getCache() {
+<b class="nc"><i>84</i>&nbsp;        return cache;</b>
+<i>85</i>&nbsp;    }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    @Override
+<i>88</i>&nbsp;    public void onRemoval(RemovalNotification&lt;Key, Accountable&gt; notification) {
+<b class="nc"><i>89</i>&nbsp;        Key key = notification.getKey();</b>
+<b class="nc"><i>90</i>&nbsp;        assert key != null &amp;&amp; key.listeners != null;</b>
+<b class="nc"><i>91</i>&nbsp;        IndexFieldCache indexCache = key.indexCache;</b>
+<b class="nc"><i>92</i>&nbsp;        final Accountable value = notification.getValue();</b>
+<b class="nc"><i>93</i>&nbsp;        for (IndexFieldDataCache.Listener listener : key.listeners) {</b>
+<i>94</i>&nbsp;            try {
+<b class="nc"><i>95</i>&nbsp;                listener.onRemoval(</b>
+<i>96</i>&nbsp;                    key.shardId, indexCache.fieldName,
+<b class="nc"><i>97</i>&nbsp;                    notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED, value.ramBytesUsed()</b>
+<i>98</i>&nbsp;                );
+<b class="nc"><i>99</i>&nbsp;            } catch (Exception e) {</b>
+<i>100</i>&nbsp;                // load anyway since listeners should not throw exceptions
+<b class="nc"><i>101</i>&nbsp;                logger.error(&quot;Failed to call listener on field data cache unloading&quot;, e);</b>
+<b class="nc"><i>102</i>&nbsp;            }</b>
+<b class="nc"><i>103</i>&nbsp;        }</b>
+<b class="nc"><i>104</i>&nbsp;    }</b>
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    public static class FieldDataWeigher implements ToLongBiFunction&lt;Key, Accountable&gt; {
+<i>107</i>&nbsp;        @Override
+<i>108</i>&nbsp;        public long applyAsLong(Key key, Accountable ramUsage) {
+<i>109</i>&nbsp;            int weight = (int) Math.min(ramUsage.ramBytesUsed(), Integer.MAX_VALUE);
+<i>110</i>&nbsp;            return weight == 0 ? 1 : weight;
+<i>111</i>&nbsp;        }
+<i>112</i>&nbsp;    }
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /**
+<i>115</i>&nbsp;     * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
+<i>116</i>&nbsp;     */
+<i>117</i>&nbsp;    static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
+<i>118</i>&nbsp;        private final Logger logger;
+<i>119</i>&nbsp;        final Index index;
+<i>120</i>&nbsp;        final String fieldName;
+<i>121</i>&nbsp;        private final Cache&lt;Key, Accountable&gt; cache;
+<i>122</i>&nbsp;        private final Listener[] listeners;
+<i>123</i>&nbsp;
+<b class="fc"><i>124</i>&nbsp;        IndexFieldCache(Logger logger,final Cache&lt;Key, Accountable&gt; cache, Index index, String fieldName, Listener... listeners) {</b>
+<b class="fc"><i>125</i>&nbsp;            this.logger = logger;</b>
+<b class="fc"><i>126</i>&nbsp;            this.listeners = listeners;</b>
+<b class="fc"><i>127</i>&nbsp;            this.index = index;</b>
+<b class="fc"><i>128</i>&nbsp;            this.fieldName = fieldName;</b>
+<b class="fc"><i>129</i>&nbsp;            this.cache = cache;</b>
+<b class="fc"><i>130</i>&nbsp;        }</b>
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;        @Override
+<i>133</i>&nbsp;        public &lt;FD extends AtomicFieldData, IFD extends IndexFieldData&lt;FD&gt;&gt; FD load(final LeafReaderContext context,
+<i>134</i>&nbsp;                final IFD indexFieldData) throws Exception {
+<b class="nc"><i>135</i>&nbsp;            final ShardId shardId = ShardUtils.extractShardId(context.reader());</b>
+<b class="nc"><i>136</i>&nbsp;            final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();</b>
+<b class="nc"><i>137</i>&nbsp;            if (cacheHelper == null) {</b>
+<b class="nc"><i>138</i>&nbsp;                throw new IllegalArgumentException(&quot;Reader &quot; + context.reader() + &quot; does not support caching&quot;);</b>
+<i>139</i>&nbsp;            }
+<b class="nc"><i>140</i>&nbsp;            final Key key = new Key(this, cacheHelper.getKey(), shardId);</b>
+<i>141</i>&nbsp;            //noinspection unchecked
+<b class="nc"><i>142</i>&nbsp;            final Accountable accountable = cache.computeIfAbsent(key, k -&gt; {</b>
+<b class="nc"><i>143</i>&nbsp;                cacheHelper.addClosedListener(IndexFieldCache.this);</b>
+<b class="nc"><i>144</i>&nbsp;                Collections.addAll(k.listeners, this.listeners);</b>
+<b class="nc"><i>145</i>&nbsp;                final AtomicFieldData fieldData = indexFieldData.loadDirect(context);</b>
+<b class="nc"><i>146</i>&nbsp;                for (Listener listener : k.listeners) {</b>
+<i>147</i>&nbsp;                    try {
+<b class="nc"><i>148</i>&nbsp;                        listener.onCache(shardId, fieldName, fieldData);</b>
+<b class="nc"><i>149</i>&nbsp;                    } catch (Exception e) {</b>
+<i>150</i>&nbsp;                        // load anyway since listeners should not throw exceptions
+<b class="nc"><i>151</i>&nbsp;                        logger.error(&quot;Failed to call listener on atomic field data loading&quot;, e);</b>
+<b class="nc"><i>152</i>&nbsp;                    }</b>
+<b class="nc"><i>153</i>&nbsp;                }</b>
+<b class="nc"><i>154</i>&nbsp;                return fieldData;</b>
+<i>155</i>&nbsp;            });
+<b class="nc"><i>156</i>&nbsp;            return (FD) accountable;</b>
+<i>157</i>&nbsp;        }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;        @Override
+<i>160</i>&nbsp;        public &lt;FD extends AtomicFieldData, IFD extends IndexFieldData.Global&lt;FD&gt;&gt; IFD load(final DirectoryReader indexReader,
+<i>161</i>&nbsp;                final IFD indexFieldData) throws Exception {
+<b class="nc"><i>162</i>&nbsp;            final ShardId shardId = ShardUtils.extractShardId(indexReader);</b>
+<b class="nc"><i>163</i>&nbsp;            final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();</b>
+<b class="nc"><i>164</i>&nbsp;            if (cacheHelper == null) {</b>
+<b class="nc"><i>165</i>&nbsp;                throw new IllegalArgumentException(&quot;Reader &quot; + indexReader + &quot; does not support caching&quot;);</b>
+<i>166</i>&nbsp;            }
+<b class="nc"><i>167</i>&nbsp;            final Key key = new Key(this, cacheHelper.getKey(), shardId);</b>
+<i>168</i>&nbsp;            //noinspection unchecked
+<b class="nc"><i>169</i>&nbsp;            final Accountable accountable = cache.computeIfAbsent(key, k -&gt; {</b>
+<b class="nc"><i>170</i>&nbsp;                ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);</b>
+<b class="nc"><i>171</i>&nbsp;                Collections.addAll(k.listeners, this.listeners);</b>
+<b class="nc"><i>172</i>&nbsp;                final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);</b>
+<b class="nc"><i>173</i>&nbsp;                for (Listener listener : k.listeners) {</b>
+<i>174</i>&nbsp;                    try {
+<b class="nc"><i>175</i>&nbsp;                        listener.onCache(shardId, fieldName, ifd);</b>
+<b class="nc"><i>176</i>&nbsp;                    } catch (Exception e) {</b>
+<i>177</i>&nbsp;                        // load anyway since listeners should not throw exceptions
+<b class="nc"><i>178</i>&nbsp;                        logger.error(&quot;Failed to call listener on global ordinals loading&quot;, e);</b>
+<b class="nc"><i>179</i>&nbsp;                    }</b>
+<b class="nc"><i>180</i>&nbsp;                }</b>
+<b class="nc"><i>181</i>&nbsp;                return ifd;</b>
+<i>182</i>&nbsp;            });
+<b class="nc"><i>183</i>&nbsp;            return (IFD) accountable;</b>
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        @Override
+<i>187</i>&nbsp;        public void onClose(CacheKey key) throws IOException {
+<b class="nc"><i>188</i>&nbsp;            cache.invalidate(new Key(this, key, null));</b>
+<i>189</i>&nbsp;            // don&#39;t call cache.cleanUp here as it would have bad performance implications
+<b class="nc"><i>190</i>&nbsp;        }</b>
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;        @Override
+<i>193</i>&nbsp;        public void clear() {
+<b class="nc"><i>194</i>&nbsp;            for (Key key : cache.keys()) {</b>
+<b class="nc"><i>195</i>&nbsp;                if (key.indexCache.index.equals(index)) {</b>
+<b class="nc"><i>196</i>&nbsp;                    cache.invalidate(key);</b>
+<i>197</i>&nbsp;                }
+<b class="nc"><i>198</i>&nbsp;            }</b>
+<i>199</i>&nbsp;            // force eviction
+<b class="nc"><i>200</i>&nbsp;            cache.refresh();</b>
+<b class="nc"><i>201</i>&nbsp;        }</b>
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;        @Override
+<i>204</i>&nbsp;        public void clear(String fieldName) {
+<b class="nc"><i>205</i>&nbsp;            for (Key key : cache.keys()) {</b>
+<b class="nc"><i>206</i>&nbsp;                if (key.indexCache.index.equals(index)) {</b>
+<b class="nc"><i>207</i>&nbsp;                    if (key.indexCache.fieldName.equals(fieldName)) {</b>
+<b class="nc"><i>208</i>&nbsp;                        cache.invalidate(key);</b>
+<i>209</i>&nbsp;                    }
+<i>210</i>&nbsp;                }
+<b class="nc"><i>211</i>&nbsp;            }</b>
+<i>212</i>&nbsp;            // we call refresh because this is a manual operation, should happen
+<i>213</i>&nbsp;            // rarely and probably means the user wants to see memory returned as
+<i>214</i>&nbsp;            // soon as possible
+<b class="nc"><i>215</i>&nbsp;            cache.refresh();</b>
+<b class="nc"><i>216</i>&nbsp;        }</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    public static class Key {
+<i>220</i>&nbsp;        public final IndexFieldCache indexCache;
+<i>221</i>&nbsp;        public final IndexReader.CacheKey readerKey;
+<i>222</i>&nbsp;        public final ShardId shardId;
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;        public final List&lt;IndexFieldDataCache.Listener&gt; listeners = new ArrayList&lt;&gt;();
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        Key(IndexFieldCache indexCache, IndexReader.CacheKey readerKey, @Nullable ShardId shardId) {
+<i>227</i>&nbsp;            this.indexCache = indexCache;
+<i>228</i>&nbsp;            this.readerKey = readerKey;
+<i>229</i>&nbsp;            this.shardId = shardId;
+<i>230</i>&nbsp;        }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;        @Override
+<i>233</i>&nbsp;        public boolean equals(Object o) {
+<i>234</i>&nbsp;            if (this == o) return true;
+<i>235</i>&nbsp;            if (o == null || getClass() != o.getClass()) return false;
+<i>236</i>&nbsp;            Key key = (Key) o;
+<i>237</i>&nbsp;            if (!indexCache.equals(key.indexCache)) return false;
+<i>238</i>&nbsp;            if (!readerKey.equals(key.readerKey)) return false;
+<i>239</i>&nbsp;            return true;
+<i>240</i>&nbsp;        }
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;        @Override
+<i>243</i>&nbsp;        public int hashCode() {
+<i>244</i>&nbsp;            int result = indexCache.hashCode();
+<i>245</i>&nbsp;            result = 31 * result + readerKey.hashCode();
+<i>246</i>&nbsp;            return result;
+<i>247</i>&nbsp;        }
+<i>248</i>&nbsp;    }
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

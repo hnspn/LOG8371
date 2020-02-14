@@ -1,0 +1,435 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ConnectionManager</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.transport</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ConnectionManager (org.elasticsearch.transport)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ConnectionManager</td>
+<td class="coverageStat">
+  <span class="percent">
+    29.2%
+  </span>
+  <span class="absValue">
+    (7/ 24)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.5%
+  </span>
+  <span class="absValue">
+    (25/ 111)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ConnectionManager$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (5/ 10)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ConnectionManager$ConnectionValidator</td>
+  </tr>
+  <tr>
+    <td class="name">ConnectionManager$DelegatingNodeConnectionListener</td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (1/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.1%
+  </span>
+  <span class="absValue">
+    (2/ 18)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    32.3%
+  </span>
+  <span class="absValue">
+    (10/ 31)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    23%
+  </span>
+  <span class="absValue">
+    (32/ 139)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.transport;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>25</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>26</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+<i>27</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>28</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>29</i>&nbsp;import org.elasticsearch.common.util.concurrent.ListenableFuture;
+<i>30</i>&nbsp;import org.elasticsearch.common.util.concurrent.RunOnce;
+<i>31</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.Closeable;
+<i>34</i>&nbsp;import java.util.Iterator;
+<i>35</i>&nbsp;import java.util.Map;
+<i>36</i>&nbsp;import java.util.concurrent.ConcurrentMap;
+<i>37</i>&nbsp;import java.util.concurrent.CopyOnWriteArrayList;
+<i>38</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>39</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;/**
+<i>42</i>&nbsp; * This class manages node connections. The connection is opened by the underlying transport. Once the
+<i>43</i>&nbsp; * connection is opened, this class manages the connection. This includes keep-alive pings and closing
+<i>44</i>&nbsp; * the connection when the connection manager is closed.
+<i>45</i>&nbsp; */
+<b class="fc"><i>46</i>&nbsp;public class ConnectionManager implements Closeable {</b>
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ConnectionManager.class);</b>
+<i>49</i>&nbsp;
+<b class="fc"><i>50</i>&nbsp;    private final ConcurrentMap&lt;DiscoveryNode, Transport.Connection&gt; connectedNodes = ConcurrentCollections.newConcurrentMap();</b>
+<b class="fc"><i>51</i>&nbsp;    private final ConcurrentMap&lt;DiscoveryNode, ListenableFuture&lt;Void&gt;&gt; pendingConnections = ConcurrentCollections.newConcurrentMap();</b>
+<b class="fc"><i>52</i>&nbsp;    private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted(&quot;connection manager&quot;) {</b>
+<i>53</i>&nbsp;        @Override
+<i>54</i>&nbsp;        protected void closeInternal() {
+<b class="fc"><i>55</i>&nbsp;            Iterator&lt;Map.Entry&lt;DiscoveryNode, Transport.Connection&gt;&gt; iterator = connectedNodes.entrySet().iterator();</b>
+<b class="fc"><i>56</i>&nbsp;            while (iterator.hasNext()) {</b>
+<b class="nc"><i>57</i>&nbsp;                Map.Entry&lt;DiscoveryNode, Transport.Connection&gt; next = iterator.next();</b>
+<i>58</i>&nbsp;                try {
+<b class="nc"><i>59</i>&nbsp;                    IOUtils.closeWhileHandlingException(next.getValue());</b>
+<i>60</i>&nbsp;                } finally {
+<b class="nc"><i>61</i>&nbsp;                    iterator.remove();</b>
+<b class="nc"><i>62</i>&nbsp;                }</b>
+<b class="nc"><i>63</i>&nbsp;            }</b>
+<b class="fc"><i>64</i>&nbsp;            closeLatch.countDown();</b>
+<b class="fc"><i>65</i>&nbsp;        }</b>
+<i>66</i>&nbsp;    };
+<i>67</i>&nbsp;    private final Transport transport;
+<i>68</i>&nbsp;    private final ConnectionProfile defaultProfile;
+<b class="fc"><i>69</i>&nbsp;    private final AtomicBoolean closing = new AtomicBoolean(false);</b>
+<b class="fc"><i>70</i>&nbsp;    private final CountDownLatch closeLatch = new CountDownLatch(1);</b>
+<b class="fc"><i>71</i>&nbsp;    private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    public ConnectionManager(Settings settings, Transport transport) {
+<b class="fc"><i>74</i>&nbsp;        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport);</b>
+<b class="fc"><i>75</i>&nbsp;    }</b>
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;    public ConnectionManager(ConnectionProfile connectionProfile, Transport transport) {</b>
+<b class="fc"><i>78</i>&nbsp;        this.transport = transport;</b>
+<b class="fc"><i>79</i>&nbsp;        this.defaultProfile = connectionProfile;</b>
+<b class="fc"><i>80</i>&nbsp;    }</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    public void addListener(TransportConnectionListener listener) {
+<b class="fc"><i>83</i>&nbsp;        this.connectionListener.listeners.addIfAbsent(listener);</b>
+<b class="fc"><i>84</i>&nbsp;    }</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    public void removeListener(TransportConnectionListener listener) {
+<b class="nc"><i>87</i>&nbsp;        this.connectionListener.listeners.remove(listener);</b>
+<b class="nc"><i>88</i>&nbsp;    }</b>
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener&lt;Transport.Connection&gt; listener) {
+<b class="nc"><i>91</i>&nbsp;        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);</b>
+<b class="nc"><i>92</i>&nbsp;        internalOpenConnection(node, resolvedProfile, listener);</b>
+<b class="nc"><i>93</i>&nbsp;    }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    @FunctionalInterface
+<i>96</i>&nbsp;    public interface ConnectionValidator {
+<i>97</i>&nbsp;        void validate(Transport.Connection connection, ConnectionProfile profile, ActionListener&lt;Void&gt; listener);
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    /**
+<i>101</i>&nbsp;     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
+<i>102</i>&nbsp;     * Once a successful is established, it can be validated before being exposed.
+<i>103</i>&nbsp;     * The ActionListener will be called on the calling thread or the generic thread pool.
+<i>104</i>&nbsp;     */
+<i>105</i>&nbsp;    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+<i>106</i>&nbsp;                              ConnectionValidator connectionValidator,
+<i>107</i>&nbsp;                              ActionListener&lt;Void&gt; listener) throws ConnectTransportException {
+<b class="nc"><i>108</i>&nbsp;        ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);</b>
+<b class="nc"><i>109</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>110</i>&nbsp;            listener.onFailure(new ConnectTransportException(null, &quot;can&#39;t connect to a null node&quot;));</b>
+<b class="nc"><i>111</i>&nbsp;            return;</b>
+<i>112</i>&nbsp;        }
+<i>113</i>&nbsp;
+<b class="nc"><i>114</i>&nbsp;        if (connectingRefCounter.tryIncRef() == false) {</b>
+<b class="nc"><i>115</i>&nbsp;            listener.onFailure(new IllegalStateException(&quot;connection manager is closed&quot;));</b>
+<b class="nc"><i>116</i>&nbsp;            return;</b>
+<i>117</i>&nbsp;        }
+<i>118</i>&nbsp;
+<b class="nc"><i>119</i>&nbsp;        if (connectedNodes.containsKey(node)) {</b>
+<b class="nc"><i>120</i>&nbsp;            connectingRefCounter.decRef();</b>
+<b class="nc"><i>121</i>&nbsp;            listener.onResponse(null);</b>
+<b class="nc"><i>122</i>&nbsp;            return;</b>
+<i>123</i>&nbsp;        }
+<i>124</i>&nbsp;
+<b class="nc"><i>125</i>&nbsp;        final ListenableFuture&lt;Void&gt; currentListener = new ListenableFuture&lt;&gt;();</b>
+<b class="nc"><i>126</i>&nbsp;        final ListenableFuture&lt;Void&gt; existingListener = pendingConnections.putIfAbsent(node, currentListener);</b>
+<b class="nc"><i>127</i>&nbsp;        if (existingListener != null) {</b>
+<i>128</i>&nbsp;            try {
+<i>129</i>&nbsp;                // wait on previous entry to complete connection attempt
+<b class="nc"><i>130</i>&nbsp;                existingListener.addListener(listener, EsExecutors.newDirectExecutorService());</b>
+<i>131</i>&nbsp;            } finally {
+<b class="nc"><i>132</i>&nbsp;                connectingRefCounter.decRef();</b>
+<b class="nc"><i>133</i>&nbsp;            }</b>
+<b class="nc"><i>134</i>&nbsp;            return;</b>
+<i>135</i>&nbsp;        }
+<i>136</i>&nbsp;
+<b class="nc"><i>137</i>&nbsp;        currentListener.addListener(listener, EsExecutors.newDirectExecutorService());</b>
+<i>138</i>&nbsp;
+<b class="nc"><i>139</i>&nbsp;        final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);</b>
+<b class="nc"><i>140</i>&nbsp;        internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -&gt; {</b>
+<b class="nc"><i>141</i>&nbsp;            connectionValidator.validate(conn, resolvedProfile, ActionListener.wrap(</b>
+<i>142</i>&nbsp;                ignored -&gt; {
+<b class="nc"><i>143</i>&nbsp;                    assert Transports.assertNotTransportThread(&quot;connection validator success&quot;);</b>
+<i>144</i>&nbsp;                    try {
+<b class="nc"><i>145</i>&nbsp;                        if (connectedNodes.putIfAbsent(node, conn) != null) {</b>
+<b class="nc"><i>146</i>&nbsp;                            logger.debug(&quot;existing connection to node [{}], closing new redundant connection&quot;, node);</b>
+<b class="nc"><i>147</i>&nbsp;                            IOUtils.closeWhileHandlingException(conn);</b>
+<i>148</i>&nbsp;                        } else {
+<b class="nc"><i>149</i>&nbsp;                            logger.debug(&quot;connected to node [{}]&quot;, node);</b>
+<i>150</i>&nbsp;                            try {
+<b class="nc"><i>151</i>&nbsp;                                connectionListener.onNodeConnected(node, conn);</b>
+<i>152</i>&nbsp;                            } finally {
+<b class="nc"><i>153</i>&nbsp;                                final Transport.Connection finalConnection = conn;</b>
+<b class="nc"><i>154</i>&nbsp;                                conn.addCloseListener(ActionListener.wrap(() -&gt; {</b>
+<b class="nc"><i>155</i>&nbsp;                                    logger.trace(&quot;unregistering {} after connection close and marking as disconnected&quot;, node);</b>
+<b class="nc"><i>156</i>&nbsp;                                    connectedNodes.remove(node, finalConnection);</b>
+<b class="nc"><i>157</i>&nbsp;                                    connectionListener.onNodeDisconnected(node, conn);</b>
+<b class="nc"><i>158</i>&nbsp;                                }));</b>
+<b class="nc"><i>159</i>&nbsp;                            }</b>
+<i>160</i>&nbsp;                        }
+<i>161</i>&nbsp;                    } finally {
+<b class="nc"><i>162</i>&nbsp;                        ListenableFuture&lt;Void&gt; future = pendingConnections.remove(node);</b>
+<b class="nc"><i>163</i>&nbsp;                        assert future == currentListener : &quot;Listener in pending map is different than the expected listener&quot;;</b>
+<b class="nc"><i>164</i>&nbsp;                        releaseOnce.run();</b>
+<b class="nc"><i>165</i>&nbsp;                        future.onResponse(null);</b>
+<b class="nc"><i>166</i>&nbsp;                    }</b>
+<b class="nc"><i>167</i>&nbsp;                }, e -&gt; {</b>
+<b class="nc"><i>168</i>&nbsp;                    assert Transports.assertNotTransportThread(&quot;connection validator failure&quot;);</b>
+<b class="nc"><i>169</i>&nbsp;                    IOUtils.closeWhileHandlingException(conn);</b>
+<b class="nc"><i>170</i>&nbsp;                    failConnectionListeners(node, releaseOnce, e, currentListener);</b>
+<b class="nc"><i>171</i>&nbsp;                }));</b>
+<b class="nc"><i>172</i>&nbsp;        }, e -&gt; {</b>
+<b class="nc"><i>173</i>&nbsp;            assert Transports.assertNotTransportThread(&quot;internalOpenConnection failure&quot;);</b>
+<b class="nc"><i>174</i>&nbsp;            failConnectionListeners(node, releaseOnce, e, currentListener);</b>
+<b class="nc"><i>175</i>&nbsp;        }));</b>
+<b class="nc"><i>176</i>&nbsp;    }</b>
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    /**
+<i>179</i>&nbsp;     * Returns a connection for the given node if the node is connected.
+<i>180</i>&nbsp;     * Connections returned from this method must not be closed. The lifecycle of this connection is
+<i>181</i>&nbsp;     * maintained by this connection manager
+<i>182</i>&nbsp;     *
+<i>183</i>&nbsp;     * @throws NodeNotConnectedException if the node is not connected
+<i>184</i>&nbsp;     * @see #connectToNode(DiscoveryNode, ConnectionProfile, ConnectionValidator, ActionListener)
+<i>185</i>&nbsp;     */
+<i>186</i>&nbsp;    public Transport.Connection getConnection(DiscoveryNode node) {
+<b class="nc"><i>187</i>&nbsp;        Transport.Connection connection = connectedNodes.get(node);</b>
+<b class="nc"><i>188</i>&nbsp;        if (connection == null) {</b>
+<b class="nc"><i>189</i>&nbsp;            throw new NodeNotConnectedException(node, &quot;Node not connected&quot;);</b>
+<i>190</i>&nbsp;        }
+<b class="nc"><i>191</i>&nbsp;        return connection;</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    /**
+<i>195</i>&nbsp;     * Returns {@code true} if the node is connected.
+<i>196</i>&nbsp;     */
+<i>197</i>&nbsp;    public boolean nodeConnected(DiscoveryNode node) {
+<b class="nc"><i>198</i>&nbsp;        return connectedNodes.containsKey(node);</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    /**
+<i>202</i>&nbsp;     * Disconnected from the given node, if not connected, will do nothing.
+<i>203</i>&nbsp;     */
+<i>204</i>&nbsp;    public void disconnectFromNode(DiscoveryNode node) {
+<b class="nc"><i>205</i>&nbsp;        Transport.Connection nodeChannels = connectedNodes.remove(node);</b>
+<b class="nc"><i>206</i>&nbsp;        if (nodeChannels != null) {</b>
+<i>207</i>&nbsp;            // if we found it and removed it we close
+<b class="nc"><i>208</i>&nbsp;            nodeChannels.close();</b>
+<i>209</i>&nbsp;        }
+<b class="nc"><i>210</i>&nbsp;    }</b>
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    /**
+<i>213</i>&nbsp;     * Returns the number of nodes this manager is connected to.
+<i>214</i>&nbsp;     */
+<i>215</i>&nbsp;    public int size() {
+<b class="nc"><i>216</i>&nbsp;        return connectedNodes.size();</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    @Override
+<i>220</i>&nbsp;    public void close() {
+<b class="fc"><i>221</i>&nbsp;        internalClose(true);</b>
+<b class="fc"><i>222</i>&nbsp;    }</b>
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    public void closeNoBlock() {
+<b class="nc"><i>225</i>&nbsp;        internalClose(false);</b>
+<b class="nc"><i>226</i>&nbsp;    }</b>
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    private void internalClose(boolean waitForPendingConnections) {
+<b class="fc"><i>229</i>&nbsp;        assert Transports.assertNotTransportThread(&quot;Closing ConnectionManager&quot;);</b>
+<b class="fc"><i>230</i>&nbsp;        if (closing.compareAndSet(false, true)) {</b>
+<b class="fc"><i>231</i>&nbsp;            connectingRefCounter.decRef();</b>
+<b class="fc"><i>232</i>&nbsp;            if (waitForPendingConnections) {</b>
+<i>233</i>&nbsp;                try {
+<b class="fc"><i>234</i>&nbsp;                    closeLatch.await();</b>
+<b class="nc"><i>235</i>&nbsp;                } catch (InterruptedException e) {</b>
+<b class="nc"><i>236</i>&nbsp;                    Thread.currentThread().interrupt();</b>
+<b class="nc"><i>237</i>&nbsp;                    throw new IllegalStateException(e);</b>
+<b class="fc"><i>238</i>&nbsp;                }</b>
+<i>239</i>&nbsp;            }
+<i>240</i>&nbsp;        }
+<b class="fc"><i>241</i>&nbsp;    }</b>
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    private void internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+<i>244</i>&nbsp;                                        ActionListener&lt;Transport.Connection&gt; listener) {
+<b class="nc"><i>245</i>&nbsp;        transport.openConnection(node, connectionProfile, ActionListener.map(listener, connection -&gt; {</b>
+<b class="nc"><i>246</i>&nbsp;            assert Transports.assertNotTransportThread(&quot;internalOpenConnection success&quot;);</b>
+<i>247</i>&nbsp;            try {
+<b class="nc"><i>248</i>&nbsp;                connectionListener.onConnectionOpened(connection);</b>
+<i>249</i>&nbsp;            } finally {
+<b class="nc"><i>250</i>&nbsp;                connection.addCloseListener(ActionListener.wrap(() -&gt; connectionListener.onConnectionClosed(connection)));</b>
+<b class="nc"><i>251</i>&nbsp;            }</b>
+<b class="nc"><i>252</i>&nbsp;            if (connection.isClosed()) {</b>
+<b class="nc"><i>253</i>&nbsp;                throw new ConnectTransportException(node, &quot;a channel closed while connecting&quot;);</b>
+<i>254</i>&nbsp;            }
+<b class="nc"><i>255</i>&nbsp;            return connection;</b>
+<i>256</i>&nbsp;        }));
+<b class="nc"><i>257</i>&nbsp;    }</b>
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    private void failConnectionListeners(DiscoveryNode node, RunOnce releaseOnce, Exception e, ListenableFuture&lt;Void&gt; expectedListener) {
+<b class="nc"><i>260</i>&nbsp;        ListenableFuture&lt;Void&gt; future = pendingConnections.remove(node);</b>
+<b class="nc"><i>261</i>&nbsp;        releaseOnce.run();</b>
+<b class="nc"><i>262</i>&nbsp;        if (future != null) {</b>
+<b class="nc"><i>263</i>&nbsp;            assert future == expectedListener : &quot;Listener in pending map is different than the expected listener&quot;;</b>
+<b class="nc"><i>264</i>&nbsp;            future.onFailure(e);</b>
+<i>265</i>&nbsp;        }
+<b class="nc"><i>266</i>&nbsp;    }</b>
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    ConnectionProfile getConnectionProfile() {
+<b class="nc"><i>269</i>&nbsp;        return defaultProfile;</b>
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<b class="fc"><i>272</i>&nbsp;    private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {</b>
+<i>273</i>&nbsp;
+<b class="fc"><i>274</i>&nbsp;        private final CopyOnWriteArrayList&lt;TransportConnectionListener&gt; listeners = new CopyOnWriteArrayList&lt;&gt;();</b>
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;        @Override
+<i>277</i>&nbsp;        public void onNodeDisconnected(DiscoveryNode key, Transport.Connection connection) {
+<b class="nc"><i>278</i>&nbsp;            for (TransportConnectionListener listener : listeners) {</b>
+<b class="nc"><i>279</i>&nbsp;                listener.onNodeDisconnected(key, connection);</b>
+<b class="nc"><i>280</i>&nbsp;            }</b>
+<b class="nc"><i>281</i>&nbsp;        }</b>
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;        @Override
+<i>284</i>&nbsp;        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+<b class="nc"><i>285</i>&nbsp;            for (TransportConnectionListener listener : listeners) {</b>
+<b class="nc"><i>286</i>&nbsp;                listener.onNodeConnected(node, connection);</b>
+<b class="nc"><i>287</i>&nbsp;            }</b>
+<b class="nc"><i>288</i>&nbsp;        }</b>
+<i>289</i>&nbsp;
+<i>290</i>&nbsp;        @Override
+<i>291</i>&nbsp;        public void onConnectionOpened(Transport.Connection connection) {
+<b class="nc"><i>292</i>&nbsp;            for (TransportConnectionListener listener : listeners) {</b>
+<b class="nc"><i>293</i>&nbsp;                listener.onConnectionOpened(connection);</b>
+<b class="nc"><i>294</i>&nbsp;            }</b>
+<b class="nc"><i>295</i>&nbsp;        }</b>
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;        @Override
+<i>298</i>&nbsp;        public void onConnectionClosed(Transport.Connection connection) {
+<b class="nc"><i>299</i>&nbsp;            for (TransportConnectionListener listener : listeners) {</b>
+<b class="nc"><i>300</i>&nbsp;                listener.onConnectionClosed(connection);</b>
+<b class="nc"><i>301</i>&nbsp;            }</b>
+<b class="nc"><i>302</i>&nbsp;        }</b>
+<i>303</i>&nbsp;    }
+<i>304</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

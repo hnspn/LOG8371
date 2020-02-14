@@ -1,0 +1,211 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: StupidBackoff</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.suggest.phrase</a> ]
+</div>
+
+<h1>Coverage Summary for Class: StupidBackoff (org.elasticsearch.search.suggest.phrase)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">StupidBackoff</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 28)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.suggest.phrase;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>23</i>&nbsp;import org.apache.lucene.index.Terms;
+<i>24</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser.Token;
+<i>31</i>&nbsp;import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.util.Objects;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * A &quot;stupid-backoff&quot; smoothing model similar to &lt;a
+<i>38</i>&nbsp; * href=&quot;http://en.wikipedia.org/wiki/Katz&#39;s_back-off_model&quot;&gt; Katz&#39;s
+<i>39</i>&nbsp; * Backoff&lt;/a&gt;. This model is used as the default if no model is configured.
+<i>40</i>&nbsp; * &lt;p&gt;
+<i>41</i>&nbsp; * See &lt;a
+<i>42</i>&nbsp; * href=&quot;http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques&quot;&gt;N-Gram
+<i>43</i>&nbsp; * Smoothing&lt;/a&gt; for details.
+<i>44</i>&nbsp; * &lt;/p&gt;
+<i>45</i>&nbsp; */
+<i>46</i>&nbsp;public final class StupidBackoff extends SmoothingModel {
+<i>47</i>&nbsp;    /**
+<i>48</i>&nbsp;     * Default discount parameter for {@link StupidBackoff} smoothing
+<i>49</i>&nbsp;     */
+<i>50</i>&nbsp;    public static final double DEFAULT_BACKOFF_DISCOUNT = 0.4;
+<i>51</i>&nbsp;    public static final String NAME = &quot;stupid_backoff&quot;;
+<b class="nc"><i>52</i>&nbsp;    private static final ParseField DISCOUNT_FIELD = new ParseField(&quot;discount&quot;);</b>
+<b class="nc"><i>53</i>&nbsp;    static final ParseField PARSE_FIELD = new ParseField(NAME);</b>
+<i>54</i>&nbsp;
+<b class="nc"><i>55</i>&nbsp;    private double discount = DEFAULT_BACKOFF_DISCOUNT;</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    /**
+<i>58</i>&nbsp;     * Creates a Stupid-Backoff smoothing model.
+<i>59</i>&nbsp;     *
+<i>60</i>&nbsp;     * @param discount
+<i>61</i>&nbsp;     *            the discount given to lower order ngrams if the higher order ngram doesn&#39;t exits
+<i>62</i>&nbsp;     */
+<b class="nc"><i>63</i>&nbsp;    public StupidBackoff(double discount) {</b>
+<b class="nc"><i>64</i>&nbsp;        this.discount = discount;</b>
+<b class="nc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    /**
+<i>68</i>&nbsp;     * Read from a stream.
+<i>69</i>&nbsp;     */
+<b class="nc"><i>70</i>&nbsp;    public StupidBackoff(StreamInput in) throws IOException {</b>
+<b class="nc"><i>71</i>&nbsp;        discount = in.readDouble();</b>
+<b class="nc"><i>72</i>&nbsp;    }</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    @Override
+<i>75</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>76</i>&nbsp;        out.writeDouble(discount);</b>
+<b class="nc"><i>77</i>&nbsp;    }</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    /**
+<i>80</i>&nbsp;     * @return the discount parameter of the model
+<i>81</i>&nbsp;     */
+<i>82</i>&nbsp;    public double getDiscount() {
+<b class="nc"><i>83</i>&nbsp;        return this.discount;</b>
+<i>84</i>&nbsp;    }
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    @Override
+<i>87</i>&nbsp;    protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>88</i>&nbsp;        builder.field(DISCOUNT_FIELD.getPreferredName(), discount);</b>
+<b class="nc"><i>89</i>&nbsp;        return builder;</b>
+<i>90</i>&nbsp;    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    @Override
+<i>93</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>94</i>&nbsp;        return NAME;</b>
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    @Override
+<i>98</i>&nbsp;    protected boolean doEquals(SmoothingModel other) {
+<b class="nc"><i>99</i>&nbsp;        StupidBackoff otherModel = (StupidBackoff) other;</b>
+<b class="nc"><i>100</i>&nbsp;        return Objects.equals(discount, otherModel.discount);</b>
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    @Override
+<i>104</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>105</i>&nbsp;        return Objects.hash(discount);</b>
+<i>106</i>&nbsp;    }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    public static SmoothingModel fromXContent(XContentParser parser) throws IOException {
+<i>109</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>110</i>&nbsp;        String fieldName = null;</b>
+<b class="nc"><i>111</i>&nbsp;        double discount = DEFAULT_BACKOFF_DISCOUNT;</b>
+<b class="nc"><i>112</i>&nbsp;        while ((token = parser.nextToken()) != Token.END_OBJECT) {</b>
+<b class="nc"><i>113</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>114</i>&nbsp;                fieldName = parser.currentName();</b>
+<i>115</i>&nbsp;            }
+<b class="nc"><i>116</i>&nbsp;            if (token.isValue() &amp;&amp; DISCOUNT_FIELD.match(fieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>117</i>&nbsp;                discount = parser.doubleValue();</b>
+<i>118</i>&nbsp;            }
+<i>119</i>&nbsp;        }
+<b class="nc"><i>120</i>&nbsp;        return new StupidBackoff(discount);</b>
+<i>121</i>&nbsp;    }
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    @Override
+<i>124</i>&nbsp;    public WordScorerFactory buildWordScorerFactory() {
+<b class="nc"><i>125</i>&nbsp;        return (IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator)</b>
+<b class="nc"><i>126</i>&nbsp;                -&gt; new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, discount);</b>
+<i>127</i>&nbsp;    }
+<i>128</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

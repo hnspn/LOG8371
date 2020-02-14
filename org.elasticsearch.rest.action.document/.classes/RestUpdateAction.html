@@ -1,0 +1,198 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestUpdateAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.document</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestUpdateAction (org.elasticsearch.rest.action.document)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestUpdateAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (2/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    13.3%
+  </span>
+  <span class="absValue">
+    (6/ 45)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.document;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>24</i>&nbsp;import org.elasticsearch.action.index.IndexRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.support.ActiveShardCount;
+<i>26</i>&nbsp;import org.elasticsearch.action.update.UpdateRequest;
+<i>27</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>28</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>29</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>30</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>31</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>32</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>33</i>&nbsp;import org.elasticsearch.rest.action.RestActions;
+<i>34</i>&nbsp;import org.elasticsearch.rest.action.RestStatusToXContentListener;
+<i>35</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.io.IOException;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.POST;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;public class RestUpdateAction extends BaseRestHandler {
+<b class="fc"><i>42</i>&nbsp;    private static final DeprecationLogger deprecationLogger =</b>
+<b class="fc"><i>43</i>&nbsp;        new DeprecationLogger(LogManager.getLogger(RestUpdateAction.class));</b>
+<i>44</i>&nbsp;    public static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal] Specifying types in &quot; +
+<i>45</i>&nbsp;        &quot;document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.&quot;;
+<i>46</i>&nbsp;
+<b class="fc"><i>47</i>&nbsp;    public RestUpdateAction(RestController controller) {</b>
+<b class="fc"><i>48</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/_update/{id}&quot;, this);</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;        // Deprecated typed endpoint.
+<b class="fc"><i>51</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/{type}/{id}/_update&quot;, this);</b>
+<b class="fc"><i>52</i>&nbsp;    }</b>
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    @Override
+<i>55</i>&nbsp;    public String getName() {
+<b class="nc"><i>56</i>&nbsp;        return &quot;document_update_action&quot;;</b>
+<i>57</i>&nbsp;    }
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    @Override
+<i>60</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<i>61</i>&nbsp;        UpdateRequest updateRequest;
+<b class="nc"><i>62</i>&nbsp;        if (request.hasParam(&quot;type&quot;)) {</b>
+<b class="nc"><i>63</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;update_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<b class="nc"><i>64</i>&nbsp;            updateRequest = new UpdateRequest(request.param(&quot;index&quot;),</b>
+<b class="nc"><i>65</i>&nbsp;                request.param(&quot;type&quot;),</b>
+<b class="nc"><i>66</i>&nbsp;                request.param(&quot;id&quot;));</b>
+<i>67</i>&nbsp;        } else {
+<b class="nc"><i>68</i>&nbsp;            updateRequest = new UpdateRequest(request.param(&quot;index&quot;), request.param(&quot;id&quot;));</b>
+<i>69</i>&nbsp;        }
+<i>70</i>&nbsp;
+<b class="nc"><i>71</i>&nbsp;        updateRequest.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>72</i>&nbsp;        updateRequest.timeout(request.paramAsTime(&quot;timeout&quot;, updateRequest.timeout()));</b>
+<b class="nc"><i>73</i>&nbsp;        updateRequest.setRefreshPolicy(request.param(&quot;refresh&quot;));</b>
+<b class="nc"><i>74</i>&nbsp;        String waitForActiveShards = request.param(&quot;wait_for_active_shards&quot;);</b>
+<b class="nc"><i>75</i>&nbsp;        if (waitForActiveShards != null) {</b>
+<b class="nc"><i>76</i>&nbsp;            updateRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));</b>
+<i>77</i>&nbsp;        }
+<b class="nc"><i>78</i>&nbsp;        updateRequest.docAsUpsert(request.paramAsBoolean(&quot;doc_as_upsert&quot;, updateRequest.docAsUpsert()));</b>
+<b class="nc"><i>79</i>&nbsp;        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);</b>
+<b class="nc"><i>80</i>&nbsp;        if (fetchSourceContext != null) {</b>
+<b class="nc"><i>81</i>&nbsp;            updateRequest.fetchSource(fetchSourceContext);</b>
+<i>82</i>&nbsp;        }
+<i>83</i>&nbsp;
+<b class="nc"><i>84</i>&nbsp;        updateRequest.retryOnConflict(request.paramAsInt(&quot;retry_on_conflict&quot;, updateRequest.retryOnConflict()));</b>
+<b class="nc"><i>85</i>&nbsp;        if (request.hasParam(&quot;version&quot;) || request.hasParam(&quot;version_type&quot;)) {</b>
+<b class="nc"><i>86</i>&nbsp;            final ActionRequestValidationException versioningError = new ActionRequestValidationException();</b>
+<b class="nc"><i>87</i>&nbsp;            versioningError.addValidationError(&quot;internal versioning can not be used for optimistic concurrency control. &quot; +</b>
+<i>88</i>&nbsp;                &quot;Please use `if_seq_no` and `if_primary_term` instead&quot;);
+<b class="nc"><i>89</i>&nbsp;            throw versioningError;</b>
+<i>90</i>&nbsp;        }
+<i>91</i>&nbsp;
+<b class="nc"><i>92</i>&nbsp;        updateRequest.setIfSeqNo(request.paramAsLong(&quot;if_seq_no&quot;, updateRequest.ifSeqNo()));</b>
+<b class="nc"><i>93</i>&nbsp;        updateRequest.setIfPrimaryTerm(request.paramAsLong(&quot;if_primary_term&quot;, updateRequest.ifPrimaryTerm()));</b>
+<i>94</i>&nbsp;
+<b class="nc"><i>95</i>&nbsp;        request.applyContentParser(parser -&gt; {</b>
+<b class="nc"><i>96</i>&nbsp;            updateRequest.fromXContent(parser);</b>
+<b class="nc"><i>97</i>&nbsp;            IndexRequest upsertRequest = updateRequest.upsertRequest();</b>
+<b class="nc"><i>98</i>&nbsp;            if (upsertRequest != null) {</b>
+<b class="nc"><i>99</i>&nbsp;                upsertRequest.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>100</i>&nbsp;                upsertRequest.version(RestActions.parseVersion(request));</b>
+<b class="nc"><i>101</i>&nbsp;                upsertRequest.versionType(VersionType.fromString(request.param(&quot;version_type&quot;), upsertRequest.versionType()));</b>
+<i>102</i>&nbsp;            }
+<b class="nc"><i>103</i>&nbsp;            IndexRequest doc = updateRequest.doc();</b>
+<b class="nc"><i>104</i>&nbsp;            if (doc != null) {</b>
+<b class="nc"><i>105</i>&nbsp;                doc.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>106</i>&nbsp;                doc.version(RestActions.parseVersion(request));</b>
+<b class="nc"><i>107</i>&nbsp;                doc.versionType(VersionType.fromString(request.param(&quot;version_type&quot;), doc.versionType()));</b>
+<i>108</i>&nbsp;            }
+<b class="nc"><i>109</i>&nbsp;        });</b>
+<i>110</i>&nbsp;
+<b class="nc"><i>111</i>&nbsp;        return channel -&gt;</b>
+<b class="nc"><i>112</i>&nbsp;                client.update(updateRequest, new RestStatusToXContentListener&lt;&gt;(channel, r -&gt; r.getLocation(updateRequest.routing())));</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

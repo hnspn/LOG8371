@@ -1,0 +1,281 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FilterAllocationDecider</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation.decider</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FilterAllocationDecider (org.elasticsearch.cluster.routing.allocation.decider)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FilterAllocationDecider</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    86.7%
+  </span>
+  <span class="absValue">
+    (13/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.7%
+  </span>
+  <span class="absValue">
+    (42/ 67)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation.decider;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.util.Map;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
+<i>36</i>&nbsp;import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
+<i>37</i>&nbsp;import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;/**
+<i>40</i>&nbsp; * This {@link AllocationDecider} control shard allocation by include and
+<i>41</i>&nbsp; * exclude filters via dynamic cluster and index routing settings.
+<i>42</i>&nbsp; * &lt;p&gt;
+<i>43</i>&nbsp; * This filter is used to make explicit decision on which nodes certain shard
+<i>44</i>&nbsp; * can / should be allocated. The decision if a shard can be allocated, must not
+<i>45</i>&nbsp; * be allocated or should be allocated is based on either cluster wide dynamic
+<i>46</i>&nbsp; * settings ({@code cluster.routing.allocation.*}) or index specific dynamic
+<i>47</i>&nbsp; * settings ({@code index.routing.allocation.*}). All of those settings can be
+<i>48</i>&nbsp; * changed at runtime via the cluster or the index update settings API.
+<i>49</i>&nbsp; * &lt;/p&gt;
+<i>50</i>&nbsp; * Note: Cluster settings are applied first and will override index specific
+<i>51</i>&nbsp; * settings such that if a shard can be allocated according to the index routing
+<i>52</i>&nbsp; * settings it wont be allocated on a node if the cluster specific settings
+<i>53</i>&nbsp; * would disallow the allocation. Filters are applied in the following order:
+<i>54</i>&nbsp; * &lt;ol&gt;
+<i>55</i>&nbsp; * &lt;li&gt;{@code required} - filters required allocations.
+<i>56</i>&nbsp; * If any {@code required} filters are set the allocation is denied if the index is &lt;b&gt;not&lt;/b&gt; in the set of {@code required} to allocate
+<i>57</i>&nbsp; * on the filtered node&lt;/li&gt;
+<i>58</i>&nbsp; * &lt;li&gt;{@code include} - filters &quot;allowed&quot; allocations.
+<i>59</i>&nbsp; * If any {@code include} filters are set the allocation is denied if the index is &lt;b&gt;not&lt;/b&gt; in the set of {@code include} filters for
+<i>60</i>&nbsp; * the filtered node&lt;/li&gt;
+<i>61</i>&nbsp; * &lt;li&gt;{@code exclude} - filters &quot;prohibited&quot; allocations.
+<i>62</i>&nbsp; * If any {@code exclude} filters are set the allocation is denied if the index is in the set of {@code exclude} filters for the
+<i>63</i>&nbsp; * filtered node&lt;/li&gt;
+<i>64</i>&nbsp; * &lt;/ol&gt;
+<i>65</i>&nbsp; */
+<i>66</i>&nbsp;public class FilterAllocationDecider extends AllocationDecider {
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    public static final String NAME = &quot;filter&quot;;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = &quot;cluster.routing.allocation.require&quot;;
+<i>71</i>&nbsp;    private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = &quot;cluster.routing.allocation.include&quot;;
+<i>72</i>&nbsp;    private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = &quot;cluster.routing.allocation.exclude&quot;;
+<b class="fc"><i>73</i>&nbsp;    public static final Setting.AffixSetting&lt;String&gt; CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =</b>
+<b class="fc"><i>74</i>&nbsp;        Setting.prefixKeySetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + &quot;.&quot;, key -&gt;</b>
+<b class="fc"><i>75</i>&nbsp;            Setting.simpleString(key, value -&gt; IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));</b>
+<b class="fc"><i>76</i>&nbsp;    public static final Setting.AffixSetting&lt;String&gt; CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =</b>
+<b class="fc"><i>77</i>&nbsp;        Setting.prefixKeySetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + &quot;.&quot;, key -&gt;</b>
+<b class="fc"><i>78</i>&nbsp;            Setting.simpleString(key, value -&gt; IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));</b>
+<b class="fc"><i>79</i>&nbsp;    public static final Setting.AffixSetting&lt;String&gt;CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =</b>
+<b class="fc"><i>80</i>&nbsp;        Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + &quot;.&quot;, key -&gt;</b>
+<b class="fc"><i>81</i>&nbsp;            Setting.simpleString(key, value -&gt; IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    private volatile DiscoveryNodeFilters clusterRequireFilters;
+<i>84</i>&nbsp;    private volatile DiscoveryNodeFilters clusterIncludeFilters;
+<i>85</i>&nbsp;    private volatile DiscoveryNodeFilters clusterExcludeFilters;
+<i>86</i>&nbsp;
+<b class="fc"><i>87</i>&nbsp;    public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {</b>
+<b class="fc"><i>88</i>&nbsp;        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));</b>
+<b class="fc"><i>89</i>&nbsp;        setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));</b>
+<b class="fc"><i>90</i>&nbsp;        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));</b>
+<b class="fc"><i>91</i>&nbsp;        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a, b) -&gt; {});</b>
+<b class="fc"><i>92</i>&nbsp;        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -&gt; {});</b>
+<b class="fc"><i>93</i>&nbsp;        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a, b) -&gt; {});</b>
+<b class="fc"><i>94</i>&nbsp;    }</b>
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    @Override
+<i>97</i>&nbsp;    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>98</i>&nbsp;        if (shardRouting.unassigned()) {</b>
+<i>99</i>&nbsp;            // only for unassigned - we filter allocation right after the index creation (for shard shrinking) to ensure
+<i>100</i>&nbsp;            // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
+<i>101</i>&nbsp;            // this is a setting that can only be set within the system!
+<b class="fc"><i>102</i>&nbsp;            IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());</b>
+<b class="fc"><i>103</i>&nbsp;            DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();</b>
+<b class="fc"><i>104</i>&nbsp;            if (initialRecoveryFilters != null  &amp;&amp;</b>
+<b class="nc"><i>105</i>&nbsp;                shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS &amp;&amp;</b>
+<b class="nc"><i>106</i>&nbsp;                initialRecoveryFilters.match(node.node()) == false) {</b>
+<b class="nc"><i>107</i>&nbsp;                String explanation =</b>
+<i>108</i>&nbsp;                    &quot;initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index&quot;;
+<b class="nc"><i>109</i>&nbsp;                return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);</b>
+<i>110</i>&nbsp;            }
+<i>111</i>&nbsp;        }
+<b class="fc"><i>112</i>&nbsp;        return shouldFilter(shardRouting, node, allocation);</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    @Override
+<i>116</i>&nbsp;    public Decision canAllocate(IndexMetaData indexMetaData, RoutingNode node, RoutingAllocation allocation) {
+<b class="nc"><i>117</i>&nbsp;        return shouldFilter(indexMetaData, node, allocation);</b>
+<i>118</i>&nbsp;    }
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    @Override
+<i>121</i>&nbsp;    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>122</i>&nbsp;        return shouldFilter(shardRouting, node, allocation);</b>
+<i>123</i>&nbsp;    }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    private Decision shouldFilter(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>126</i>&nbsp;        Decision decision = shouldClusterFilter(node, allocation);</b>
+<b class="fc"><i>127</i>&nbsp;        if (decision != null) return decision;</b>
+<i>128</i>&nbsp;
+<b class="fc"><i>129</i>&nbsp;        decision = shouldIndexFilter(allocation.metaData().getIndexSafe(shardRouting.index()), node, allocation);</b>
+<b class="fc"><i>130</i>&nbsp;        if (decision != null) return decision;</b>
+<i>131</i>&nbsp;
+<b class="fc"><i>132</i>&nbsp;        return allocation.decision(Decision.YES, NAME, &quot;node passes include/exclude/require filters&quot;);</b>
+<i>133</i>&nbsp;    }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    private Decision shouldFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
+<b class="nc"><i>136</i>&nbsp;        Decision decision = shouldClusterFilter(node, allocation);</b>
+<b class="nc"><i>137</i>&nbsp;        if (decision != null) return decision;</b>
+<i>138</i>&nbsp;
+<b class="nc"><i>139</i>&nbsp;        decision = shouldIndexFilter(indexMd, node, allocation);</b>
+<b class="nc"><i>140</i>&nbsp;        if (decision != null) return decision;</b>
+<i>141</i>&nbsp;
+<b class="nc"><i>142</i>&nbsp;        return allocation.decision(Decision.YES, NAME, &quot;node passes include/exclude/require filters&quot;);</b>
+<i>143</i>&nbsp;    }
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;    private Decision shouldIndexFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>146</i>&nbsp;        if (indexMd.requireFilters() != null) {</b>
+<b class="nc"><i>147</i>&nbsp;            if (indexMd.requireFilters().match(node.node()) == false) {</b>
+<b class="nc"><i>148</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;node does not match index setting [%s] filters [%s]&quot;,</b>
+<b class="nc"><i>149</i>&nbsp;                    IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX, indexMd.requireFilters());</b>
+<i>150</i>&nbsp;            }
+<i>151</i>&nbsp;        }
+<b class="fc"><i>152</i>&nbsp;        if (indexMd.includeFilters() != null) {</b>
+<b class="nc"><i>153</i>&nbsp;            if (indexMd.includeFilters().match(node.node()) == false) {</b>
+<b class="nc"><i>154</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;node does not match index setting [%s] filters [%s]&quot;,</b>
+<b class="nc"><i>155</i>&nbsp;                    IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, indexMd.includeFilters());</b>
+<i>156</i>&nbsp;            }
+<i>157</i>&nbsp;        }
+<b class="fc"><i>158</i>&nbsp;        if (indexMd.excludeFilters() != null) {</b>
+<b class="nc"><i>159</i>&nbsp;            if (indexMd.excludeFilters().match(node.node())) {</b>
+<b class="nc"><i>160</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;node matches index setting [%s] filters [%s]&quot;,</b>
+<b class="nc"><i>161</i>&nbsp;                    IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), indexMd.excludeFilters());</b>
+<i>162</i>&nbsp;            }
+<i>163</i>&nbsp;        }
+<b class="fc"><i>164</i>&nbsp;        return null;</b>
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>168</i>&nbsp;        if (clusterRequireFilters != null) {</b>
+<b class="nc"><i>169</i>&nbsp;            if (clusterRequireFilters.match(node.node()) == false) {</b>
+<b class="nc"><i>170</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;node does not match cluster setting [%s] filters [%s]&quot;,</b>
+<i>171</i>&nbsp;                    CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX, clusterRequireFilters);
+<i>172</i>&nbsp;            }
+<i>173</i>&nbsp;        }
+<b class="fc"><i>174</i>&nbsp;        if (clusterIncludeFilters != null) {</b>
+<b class="nc"><i>175</i>&nbsp;            if (clusterIncludeFilters.match(node.node()) == false) {</b>
+<b class="nc"><i>176</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;node does not cluster setting [%s] filters [%s]&quot;,</b>
+<i>177</i>&nbsp;                    CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX, clusterIncludeFilters);
+<i>178</i>&nbsp;            }
+<i>179</i>&nbsp;        }
+<b class="fc"><i>180</i>&nbsp;        if (clusterExcludeFilters != null) {</b>
+<b class="nc"><i>181</i>&nbsp;            if (clusterExcludeFilters.match(node.node())) {</b>
+<b class="nc"><i>182</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;node matches cluster setting [%s] filters [%s]&quot;,</b>
+<i>183</i>&nbsp;                    CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX, clusterExcludeFilters);
+<i>184</i>&nbsp;            }
+<i>185</i>&nbsp;        }
+<b class="fc"><i>186</i>&nbsp;        return null;</b>
+<i>187</i>&nbsp;    }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    private void setClusterRequireFilters(Map&lt;String, String&gt; filters) {
+<b class="fc"><i>190</i>&nbsp;        clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, filters);</b>
+<b class="fc"><i>191</i>&nbsp;    }</b>
+<i>192</i>&nbsp;    private void setClusterIncludeFilters(Map&lt;String, String&gt; filters) {
+<b class="fc"><i>193</i>&nbsp;        clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);</b>
+<b class="fc"><i>194</i>&nbsp;    }</b>
+<i>195</i>&nbsp;    private void setClusterExcludeFilters(Map&lt;String, String&gt; filters) {
+<b class="fc"><i>196</i>&nbsp;        clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, filters);</b>
+<b class="fc"><i>197</i>&nbsp;    }</b>
+<i>198</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,279 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AutoCreateIndex</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.support</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AutoCreateIndex (org.elasticsearch.action.support)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AutoCreateIndex</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.9%
+  </span>
+  <span class="absValue">
+    (3/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    26.7%
+  </span>
+  <span class="absValue">
+    (8/ 30)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">AutoCreateIndex$AutoCreate</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    27.3%
+  </span>
+  <span class="absValue">
+    (9/ 33)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    41.7%
+  </span>
+  <span class="absValue">
+    (5/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    27%
+  </span>
+  <span class="absValue">
+    (17/ 63)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.support;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+<i>24</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>25</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>26</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>27</i>&nbsp;import org.elasticsearch.common.regex.Regex;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>32</i>&nbsp;import org.elasticsearch.index.IndexNotFoundException;
+<i>33</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.util.ArrayList;
+<i>36</i>&nbsp;import java.util.List;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;/**
+<i>39</i>&nbsp; * Encapsulates the logic of whether a new index should be automatically created when
+<i>40</i>&nbsp; * a write operation is about to happen in a non existing index.
+<i>41</i>&nbsp; */
+<i>42</i>&nbsp;public final class AutoCreateIndex {
+<i>43</i>&nbsp;
+<b class="fc"><i>44</i>&nbsp;    public static final Setting&lt;AutoCreate&gt; AUTO_CREATE_INDEX_SETTING =</b>
+<b class="fc"><i>45</i>&nbsp;        new Setting&lt;&gt;(&quot;action.auto_create_index&quot;, &quot;true&quot;, AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);</b>
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    private final boolean dynamicMappingDisabled;
+<i>48</i>&nbsp;    private final IndexNameExpressionResolver resolver;
+<i>49</i>&nbsp;    private volatile AutoCreate autoCreate;
+<i>50</i>&nbsp;
+<b class="fc"><i>51</i>&nbsp;    public AutoCreateIndex(Settings settings, ClusterSettings clusterSettings, IndexNameExpressionResolver resolver) {</b>
+<b class="fc"><i>52</i>&nbsp;        this.resolver = resolver;</b>
+<b class="fc"><i>53</i>&nbsp;        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);</b>
+<b class="fc"><i>54</i>&nbsp;        this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);</b>
+<b class="fc"><i>55</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);</b>
+<b class="fc"><i>56</i>&nbsp;    }</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    /**
+<i>59</i>&nbsp;     * Do we really need to check if an index should be auto created?
+<i>60</i>&nbsp;     */
+<i>61</i>&nbsp;    public boolean needToCheck() {
+<b class="nc"><i>62</i>&nbsp;        return this.autoCreate.autoCreateIndex;</b>
+<i>63</i>&nbsp;    }
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    /**
+<i>66</i>&nbsp;     * Should the index be auto created?
+<i>67</i>&nbsp;     * @throws IndexNotFoundException if the index doesn&#39;t exist and shouldn&#39;t be auto created
+<i>68</i>&nbsp;     */
+<i>69</i>&nbsp;    public boolean shouldAutoCreate(String index, ClusterState state) {
+<b class="nc"><i>70</i>&nbsp;        if (resolver.hasIndexOrAlias(index, state)) {</b>
+<b class="nc"><i>71</i>&nbsp;            return false;</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;        // One volatile read, so that all checks are done against the same instance:
+<b class="nc"><i>74</i>&nbsp;        final AutoCreate autoCreate = this.autoCreate;</b>
+<b class="nc"><i>75</i>&nbsp;        if (autoCreate.autoCreateIndex == false) {</b>
+<b class="nc"><i>76</i>&nbsp;            throw new IndexNotFoundException(&quot;[&quot; + AUTO_CREATE_INDEX_SETTING.getKey() + &quot;] is [false]&quot;, index);</b>
+<i>77</i>&nbsp;        }
+<b class="nc"><i>78</i>&nbsp;        if (dynamicMappingDisabled) {</b>
+<b class="nc"><i>79</i>&nbsp;            throw new IndexNotFoundException(&quot;[&quot; + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + &quot;] is [false]&quot;,</b>
+<i>80</i>&nbsp;                    index);
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;        // matches not set, default value of &quot;true&quot;
+<b class="nc"><i>83</i>&nbsp;        if (autoCreate.expressions.isEmpty()) {</b>
+<b class="nc"><i>84</i>&nbsp;            return true;</b>
+<i>85</i>&nbsp;        }
+<b class="nc"><i>86</i>&nbsp;        for (Tuple&lt;String, Boolean&gt; expression : autoCreate.expressions) {</b>
+<b class="nc"><i>87</i>&nbsp;            String indexExpression = expression.v1();</b>
+<b class="nc"><i>88</i>&nbsp;            boolean include = expression.v2();</b>
+<b class="nc"><i>89</i>&nbsp;            if (Regex.simpleMatch(indexExpression, index)) {</b>
+<b class="nc"><i>90</i>&nbsp;                if (include) {</b>
+<b class="nc"><i>91</i>&nbsp;                    return true;</b>
+<i>92</i>&nbsp;                }
+<b class="nc"><i>93</i>&nbsp;                throw new IndexNotFoundException(&quot;[&quot; + AUTO_CREATE_INDEX_SETTING.getKey() + &quot;] contains [-&quot;</b>
+<i>94</i>&nbsp;                        + indexExpression + &quot;] which forbids automatic creation of the index&quot;, index);
+<i>95</i>&nbsp;            }
+<b class="nc"><i>96</i>&nbsp;        }</b>
+<b class="nc"><i>97</i>&nbsp;        throw new IndexNotFoundException(&quot;[&quot; + AUTO_CREATE_INDEX_SETTING.getKey() + &quot;] ([&quot; + autoCreate</b>
+<i>98</i>&nbsp;                + &quot;]) doesn&#39;t match&quot;, index);
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    AutoCreate getAutoCreate() {
+<b class="nc"><i>102</i>&nbsp;        return autoCreate;</b>
+<i>103</i>&nbsp;    }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    void setAutoCreate(AutoCreate autoCreate) {
+<b class="nc"><i>106</i>&nbsp;        this.autoCreate = autoCreate;</b>
+<b class="nc"><i>107</i>&nbsp;    }</b>
+<i>108</i>&nbsp;
+<b class="fc"><i>109</i>&nbsp;    static class AutoCreate {</b>
+<i>110</i>&nbsp;        private final boolean autoCreateIndex;
+<i>111</i>&nbsp;        private final List&lt;Tuple&lt;String, Boolean&gt;&gt; expressions;
+<i>112</i>&nbsp;        private final String string;
+<i>113</i>&nbsp;
+<b class="fc"><i>114</i>&nbsp;        private AutoCreate(String value) {</b>
+<i>115</i>&nbsp;            boolean autoCreateIndex;
+<b class="fc"><i>116</i>&nbsp;            List&lt;Tuple&lt;String, Boolean&gt;&gt; expressions = new ArrayList&lt;&gt;();</b>
+<i>117</i>&nbsp;            try {
+<b class="fc"><i>118</i>&nbsp;                autoCreateIndex = Booleans.parseBoolean(value);</b>
+<b class="nc"><i>119</i>&nbsp;            } catch (IllegalArgumentException ex) {</b>
+<i>120</i>&nbsp;                try {
+<b class="nc"><i>121</i>&nbsp;                    String[] patterns = Strings.commaDelimitedListToStringArray(value);</b>
+<b class="nc"><i>122</i>&nbsp;                    for (String pattern : patterns) {</b>
+<b class="nc"><i>123</i>&nbsp;                        if (pattern == null || pattern.trim().length() == 0) {</b>
+<b class="nc"><i>124</i>&nbsp;                            throw new IllegalArgumentException(&quot;Can&#39;t parse [&quot; + value + &quot;] for setting [action.auto_create_index] must &quot;</b>
+<i>125</i>&nbsp;                                    + &quot;be either [true, false, or a comma separated list of index patterns]&quot;);
+<i>126</i>&nbsp;                        }
+<b class="nc"><i>127</i>&nbsp;                        pattern = pattern.trim();</b>
+<i>128</i>&nbsp;                        Tuple&lt;String, Boolean&gt; expression;
+<b class="nc"><i>129</i>&nbsp;                        if (pattern.startsWith(&quot;-&quot;)) {</b>
+<b class="nc"><i>130</i>&nbsp;                            if (pattern.length() == 1) {</b>
+<b class="nc"><i>131</i>&nbsp;                                throw new IllegalArgumentException(&quot;Can&#39;t parse [&quot; + value + &quot;] for setting [action.auto_create_index] &quot;</b>
+<i>132</i>&nbsp;                                        + &quot;must contain an index name after [-]&quot;);
+<i>133</i>&nbsp;                            }
+<b class="nc"><i>134</i>&nbsp;                            expression = new Tuple&lt;&gt;(pattern.substring(1), false);</b>
+<b class="nc"><i>135</i>&nbsp;                        } else if(pattern.startsWith(&quot;+&quot;)) {</b>
+<b class="nc"><i>136</i>&nbsp;                            if (pattern.length() == 1) {</b>
+<b class="nc"><i>137</i>&nbsp;                                throw new IllegalArgumentException(&quot;Can&#39;t parse [&quot; + value + &quot;] for setting [action.auto_create_index] &quot;</b>
+<i>138</i>&nbsp;                                        + &quot;must contain an index name after [+]&quot;);
+<i>139</i>&nbsp;                            }
+<b class="nc"><i>140</i>&nbsp;                            expression = new Tuple&lt;&gt;(pattern.substring(1), true);</b>
+<i>141</i>&nbsp;                        } else {
+<b class="nc"><i>142</i>&nbsp;                            expression = new Tuple&lt;&gt;(pattern, true);</b>
+<i>143</i>&nbsp;                        }
+<b class="nc"><i>144</i>&nbsp;                        expressions.add(expression);</b>
+<i>145</i>&nbsp;                    }
+<b class="nc"><i>146</i>&nbsp;                    autoCreateIndex = true;</b>
+<b class="nc"><i>147</i>&nbsp;                } catch (IllegalArgumentException ex1) {</b>
+<b class="nc"><i>148</i>&nbsp;                    ex1.addSuppressed(ex);</b>
+<b class="nc"><i>149</i>&nbsp;                    throw ex1;</b>
+<b class="nc"><i>150</i>&nbsp;                }</b>
+<b class="fc"><i>151</i>&nbsp;            }</b>
+<b class="fc"><i>152</i>&nbsp;            this.expressions = expressions;</b>
+<b class="fc"><i>153</i>&nbsp;            this.autoCreateIndex = autoCreateIndex;</b>
+<b class="fc"><i>154</i>&nbsp;            this.string = value;</b>
+<b class="fc"><i>155</i>&nbsp;        }</b>
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;        boolean isAutoCreateIndex() {
+<b class="nc"><i>158</i>&nbsp;            return autoCreateIndex;</b>
+<i>159</i>&nbsp;        }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;        List&lt;Tuple&lt;String, Boolean&gt;&gt; getExpressions() {
+<b class="nc"><i>162</i>&nbsp;            return expressions;</b>
+<i>163</i>&nbsp;        }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;        @Override
+<i>166</i>&nbsp;        public String toString() {
+<b class="nc"><i>167</i>&nbsp;            return string;</b>
+<i>168</i>&nbsp;        }
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,217 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestGetSourceAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.document</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestGetSourceAction (org.elasticsearch.rest.action.document)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestGetSourceAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28%
+  </span>
+  <span class="absValue">
+    (7/ 25)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.document;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.elasticsearch.ResourceNotFoundException;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>25</i>&nbsp;import org.elasticsearch.action.get.GetRequest;
+<i>26</i>&nbsp;import org.elasticsearch.action.get.GetResponse;
+<i>27</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>28</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>29</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>32</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>33</i>&nbsp;import org.elasticsearch.rest.BytesRestResponse;
+<i>34</i>&nbsp;import org.elasticsearch.rest.RestChannel;
+<i>35</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>36</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>37</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>38</i>&nbsp;import org.elasticsearch.rest.action.RestResponseListener;
+<i>39</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import java.io.IOException;
+<i>42</i>&nbsp;import java.io.InputStream;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>45</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+<i>46</i>&nbsp;import static org.elasticsearch.rest.RestStatus.OK;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;/**
+<i>49</i>&nbsp; * The REST handler for get source and head source APIs.
+<i>50</i>&nbsp; */
+<i>51</i>&nbsp;public class RestGetSourceAction extends BaseRestHandler {
+<i>52</i>&nbsp;
+<b class="fc"><i>53</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetSourceAction.class));</b>
+<i>54</i>&nbsp;    static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal] Specifying types in get_source and exist_source&quot;
+<i>55</i>&nbsp;            + &quot;requests is deprecated.&quot;;
+<i>56</i>&nbsp;
+<b class="fc"><i>57</i>&nbsp;    public RestGetSourceAction(final RestController controller) {</b>
+<b class="fc"><i>58</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/_source/{id}&quot;, this);</b>
+<b class="fc"><i>59</i>&nbsp;        controller.registerHandler(HEAD, &quot;/{index}/_source/{id}&quot;, this);</b>
+<b class="fc"><i>60</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/{type}/{id}/_source&quot;, this);</b>
+<b class="fc"><i>61</i>&nbsp;        controller.registerHandler(HEAD, &quot;/{index}/{type}/{id}/_source&quot;, this);</b>
+<b class="fc"><i>62</i>&nbsp;    }</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    @Override
+<i>65</i>&nbsp;    public String getName() {
+<b class="nc"><i>66</i>&nbsp;        return &quot;document_get_source_action&quot;;</b>
+<i>67</i>&nbsp;    }
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    @Override
+<i>70</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<i>71</i>&nbsp;        final GetRequest getRequest;
+<b class="nc"><i>72</i>&nbsp;        if (request.hasParam(&quot;type&quot;)) {</b>
+<b class="nc"><i>73</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;get_source_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<b class="nc"><i>74</i>&nbsp;            getRequest = new GetRequest(request.param(&quot;index&quot;), request.param(&quot;type&quot;), request.param(&quot;id&quot;));</b>
+<i>75</i>&nbsp;        } else {
+<b class="nc"><i>76</i>&nbsp;            getRequest = new GetRequest(request.param(&quot;index&quot;), request.param(&quot;id&quot;));</b>
+<i>77</i>&nbsp;        }
+<b class="nc"><i>78</i>&nbsp;        getRequest.refresh(request.paramAsBoolean(&quot;refresh&quot;, getRequest.refresh()));</b>
+<b class="nc"><i>79</i>&nbsp;        getRequest.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>80</i>&nbsp;        getRequest.preference(request.param(&quot;preference&quot;));</b>
+<b class="nc"><i>81</i>&nbsp;        getRequest.realtime(request.paramAsBoolean(&quot;realtime&quot;, getRequest.realtime()));</b>
+<i>82</i>&nbsp;
+<b class="nc"><i>83</i>&nbsp;        getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));</b>
+<i>84</i>&nbsp;
+<b class="nc"><i>85</i>&nbsp;        return channel -&gt; {</b>
+<b class="nc"><i>86</i>&nbsp;            if (getRequest.fetchSourceContext() != null &amp;&amp; !getRequest.fetchSourceContext().fetchSource()) {</b>
+<b class="nc"><i>87</i>&nbsp;                final ActionRequestValidationException validationError = new ActionRequestValidationException();</b>
+<b class="nc"><i>88</i>&nbsp;                validationError.addValidationError(&quot;fetching source can not be disabled&quot;);</b>
+<b class="nc"><i>89</i>&nbsp;                channel.sendResponse(new BytesRestResponse(channel, validationError));</b>
+<b class="nc"><i>90</i>&nbsp;            } else {</b>
+<b class="nc"><i>91</i>&nbsp;                client.get(getRequest, new RestGetSourceResponseListener(channel, request));</b>
+<i>92</i>&nbsp;            }
+<b class="nc"><i>93</i>&nbsp;        };</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    static class RestGetSourceResponseListener extends RestResponseListener&lt;GetResponse&gt; {
+<i>97</i>&nbsp;        private final RestRequest request;
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;        RestGetSourceResponseListener(RestChannel channel, RestRequest request) {
+<i>100</i>&nbsp;            super(channel);
+<i>101</i>&nbsp;            this.request = request;
+<i>102</i>&nbsp;        }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;        @Override
+<i>105</i>&nbsp;        public RestResponse buildResponse(final GetResponse response) throws Exception {
+<i>106</i>&nbsp;            checkResource(response);
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;            final XContentBuilder builder = channel.newBuilder(request.getXContentType(), false);
+<i>109</i>&nbsp;            final BytesReference source = response.getSourceInternal();
+<i>110</i>&nbsp;            try (InputStream stream = source.streamInput()) {
+<i>111</i>&nbsp;                builder.rawValue(stream, XContentHelper.xContentType(source));
+<i>112</i>&nbsp;            }
+<i>113</i>&nbsp;            return new BytesRestResponse(OK, builder);
+<i>114</i>&nbsp;        }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;        /**
+<i>117</i>&nbsp;         * Checks if the requested document or source is missing.
+<i>118</i>&nbsp;         *
+<i>119</i>&nbsp;         * @param response a response
+<i>120</i>&nbsp;         * @throws ResourceNotFoundException if the document or source is missing
+<i>121</i>&nbsp;         */
+<i>122</i>&nbsp;        private void checkResource(final GetResponse response) {
+<i>123</i>&nbsp;            final String index = response.getIndex();
+<i>124</i>&nbsp;            final String type = response.getType();
+<i>125</i>&nbsp;            final String id = response.getId();
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;            if (response.isExists() == false) {
+<i>128</i>&nbsp;                throw new ResourceNotFoundException(&quot;Document not found [&quot; + index + &quot;]/[&quot; + type + &quot;]/[&quot; + id + &quot;]&quot;);
+<i>129</i>&nbsp;            } else if (response.isSourceEmpty()) {
+<i>130</i>&nbsp;                throw new ResourceNotFoundException(&quot;Source not found [&quot; + index + &quot;]/[&quot; + type + &quot;]/[&quot; + id + &quot;]&quot;);
+<i>131</i>&nbsp;            }
+<i>132</i>&nbsp;        }
+<i>133</i>&nbsp;    }
+<i>134</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

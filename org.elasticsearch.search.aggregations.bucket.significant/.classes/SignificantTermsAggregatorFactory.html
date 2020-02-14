@@ -1,0 +1,448 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SignificantTermsAggregatorFactory</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.bucket.significant</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SignificantTermsAggregatorFactory (org.elasticsearch.search.aggregations.bucket.significant)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SignificantTermsAggregatorFactory</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 82)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.bucket.significant;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>24</i>&nbsp;import org.apache.lucene.index.PostingsEnum;
+<i>25</i>&nbsp;import org.apache.lucene.index.Term;
+<i>26</i>&nbsp;import org.apache.lucene.search.BooleanClause.Occur;
+<i>27</i>&nbsp;import org.apache.lucene.search.BooleanQuery;
+<i>28</i>&nbsp;import org.apache.lucene.search.IndexSearcher;
+<i>29</i>&nbsp;import org.apache.lucene.search.Query;
+<i>30</i>&nbsp;import org.apache.lucene.search.TermQuery;
+<i>31</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>32</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>33</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>34</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>35</i>&nbsp;import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
+<i>36</i>&nbsp;import org.elasticsearch.common.lucene.index.FreqTermsEnum;
+<i>37</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>38</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>39</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>40</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>41</i>&nbsp;import org.elasticsearch.search.aggregations.AggregationExecutionException;
+<i>42</i>&nbsp;import org.elasticsearch.search.aggregations.Aggregator;
+<i>43</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactories;
+<i>44</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactory;
+<i>45</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation;
+<i>46</i>&nbsp;import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+<i>47</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+<i>48</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+<i>49</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+<i>50</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+<i>51</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+<i>52</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+<i>53</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSource;
+<i>54</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+<i>55</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+<i>56</i>&nbsp;import org.elasticsearch.search.internal.SearchContext;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;import java.io.IOException;
+<i>59</i>&nbsp;import java.util.List;
+<i>60</i>&nbsp;import java.util.Map;
+<i>61</i>&nbsp;
+<b class="nc"><i>62</i>&nbsp;public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory&lt;ValuesSource&gt;</b>
+<i>63</i>&nbsp;        implements Releasable {
+<b class="nc"><i>64</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(</b>
+<b class="nc"><i>65</i>&nbsp;            LogManager.getLogger(SignificantTermsAggregatorFactory.class));</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    private final IncludeExclude includeExclude;
+<i>68</i>&nbsp;    private final String executionHint;
+<i>69</i>&nbsp;    private String indexedFieldName;
+<i>70</i>&nbsp;    private MappedFieldType fieldType;
+<i>71</i>&nbsp;    private FilterableTermsEnum termsEnum;
+<i>72</i>&nbsp;    private int numberOfAggregatorsCreated;
+<i>73</i>&nbsp;    final Query filter;
+<i>74</i>&nbsp;    private final int supersetNumDocs;
+<i>75</i>&nbsp;    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+<i>76</i>&nbsp;    private final SignificanceHeuristic significanceHeuristic;
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    public SignificantTermsAggregatorFactory(String name,
+<i>79</i>&nbsp;                                             ValuesSourceConfig&lt;ValuesSource&gt; config,
+<i>80</i>&nbsp;                                             IncludeExclude includeExclude,
+<i>81</i>&nbsp;                                             String executionHint,
+<i>82</i>&nbsp;                                             QueryBuilder filterBuilder,
+<i>83</i>&nbsp;                                             TermsAggregator.BucketCountThresholds bucketCountThresholds,
+<i>84</i>&nbsp;                                             SignificanceHeuristic significanceHeuristic,
+<i>85</i>&nbsp;                                             QueryShardContext queryShardContext,
+<i>86</i>&nbsp;                                             AggregatorFactory parent,
+<i>87</i>&nbsp;                                             AggregatorFactories.Builder subFactoriesBuilder,
+<i>88</i>&nbsp;                                             Map&lt;String, Object&gt; metaData) throws IOException {
+<b class="nc"><i>89</i>&nbsp;        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);</b>
+<i>90</i>&nbsp;
+<b class="nc"><i>91</i>&nbsp;        if (!config.unmapped()) {</b>
+<b class="nc"><i>92</i>&nbsp;            this.fieldType = config.fieldContext().fieldType();</b>
+<b class="nc"><i>93</i>&nbsp;            this.indexedFieldName = fieldType.name();</b>
+<i>94</i>&nbsp;        }
+<i>95</i>&nbsp;
+<b class="nc"><i>96</i>&nbsp;        this.includeExclude = includeExclude;</b>
+<b class="nc"><i>97</i>&nbsp;        this.executionHint = executionHint;</b>
+<b class="nc"><i>98</i>&nbsp;        this.filter = filterBuilder == null</b>
+<b class="nc"><i>99</i>&nbsp;                ? null</b>
+<b class="nc"><i>100</i>&nbsp;                : filterBuilder.toQuery(queryShardContext);</b>
+<b class="nc"><i>101</i>&nbsp;        IndexSearcher searcher = queryShardContext.searcher();</b>
+<b class="nc"><i>102</i>&nbsp;        this.supersetNumDocs = filter == null</b>
+<i>103</i>&nbsp;                // Important - need to use the doc count that includes deleted docs
+<i>104</i>&nbsp;                // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
+<b class="nc"><i>105</i>&nbsp;                ? searcher.getIndexReader().maxDoc()</b>
+<b class="nc"><i>106</i>&nbsp;                : searcher.count(filter);</b>
+<b class="nc"><i>107</i>&nbsp;        this.bucketCountThresholds = bucketCountThresholds;</b>
+<b class="nc"><i>108</i>&nbsp;        this.significanceHeuristic = significanceHeuristic;</b>
+<b class="nc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    /**
+<i>112</i>&nbsp;     * Get the number of docs in the superset.
+<i>113</i>&nbsp;     */
+<i>114</i>&nbsp;    public long getSupersetNumDocs() {
+<b class="nc"><i>115</i>&nbsp;        return supersetNumDocs;</b>
+<i>116</i>&nbsp;    }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    private FilterableTermsEnum getTermsEnum(String field) throws IOException {
+<b class="nc"><i>119</i>&nbsp;        if (termsEnum != null) {</b>
+<b class="nc"><i>120</i>&nbsp;            return termsEnum;</b>
+<i>121</i>&nbsp;        }
+<b class="nc"><i>122</i>&nbsp;        IndexReader reader = queryShardContext.getIndexReader();</b>
+<b class="nc"><i>123</i>&nbsp;        if (numberOfAggregatorsCreated &gt; 1) {</b>
+<b class="nc"><i>124</i>&nbsp;            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, queryShardContext.bigArrays());</b>
+<i>125</i>&nbsp;        } else {
+<b class="nc"><i>126</i>&nbsp;            termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);</b>
+<i>127</i>&nbsp;        }
+<b class="nc"><i>128</i>&nbsp;        return termsEnum;</b>
+<i>129</i>&nbsp;    }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    private long getBackgroundFrequency(String value) throws IOException {
+<b class="nc"><i>132</i>&nbsp;        Query query = fieldType.termQuery(value, queryShardContext);</b>
+<b class="nc"><i>133</i>&nbsp;        if (query instanceof TermQuery) {</b>
+<i>134</i>&nbsp;            // for types that use the inverted index, we prefer using a caching terms
+<i>135</i>&nbsp;            // enum that will do a better job at reusing index inputs
+<b class="nc"><i>136</i>&nbsp;            Term term = ((TermQuery) query).getTerm();</b>
+<b class="nc"><i>137</i>&nbsp;            FilterableTermsEnum termsEnum = getTermsEnum(term.field());</b>
+<b class="nc"><i>138</i>&nbsp;            if (termsEnum.seekExact(term.bytes())) {</b>
+<b class="nc"><i>139</i>&nbsp;                return termsEnum.docFreq();</b>
+<i>140</i>&nbsp;            } else {
+<b class="nc"><i>141</i>&nbsp;                return 0;</b>
+<i>142</i>&nbsp;            }
+<i>143</i>&nbsp;        }
+<i>144</i>&nbsp;        // otherwise do it the naive way
+<b class="nc"><i>145</i>&nbsp;        if (filter != null) {</b>
+<b class="nc"><i>146</i>&nbsp;            query = new BooleanQuery.Builder()</b>
+<b class="nc"><i>147</i>&nbsp;                    .add(query, Occur.FILTER)</b>
+<b class="nc"><i>148</i>&nbsp;                    .add(filter, Occur.FILTER)</b>
+<b class="nc"><i>149</i>&nbsp;                    .build();</b>
+<i>150</i>&nbsp;        }
+<b class="nc"><i>151</i>&nbsp;        return queryShardContext.searcher().count(query);</b>
+<i>152</i>&nbsp;    }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
+<b class="nc"><i>155</i>&nbsp;        String value = config.format().format(termBytes).toString();</b>
+<b class="nc"><i>156</i>&nbsp;        return getBackgroundFrequency(value);</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    public long getBackgroundFrequency(long termNum) throws IOException {
+<b class="nc"><i>160</i>&nbsp;        String value = config.format().format(termNum).toString();</b>
+<b class="nc"><i>161</i>&nbsp;        return getBackgroundFrequency(value);</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    @Override
+<i>165</i>&nbsp;    protected Aggregator createUnmapped(SearchContext searchContext,
+<i>166</i>&nbsp;                                            Aggregator parent,
+<i>167</i>&nbsp;                                            List&lt;PipelineAggregator&gt; pipelineAggregators,
+<i>168</i>&nbsp;                                            Map&lt;String, Object&gt; metaData) throws IOException {
+<b class="nc"><i>169</i>&nbsp;        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),</b>
+<b class="nc"><i>170</i>&nbsp;                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);</b>
+<b class="nc"><i>171</i>&nbsp;        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {</b>
+<i>172</i>&nbsp;            @Override
+<i>173</i>&nbsp;            public InternalAggregation buildEmptyAggregation() {
+<i>174</i>&nbsp;                return aggregation;
+<i>175</i>&nbsp;            }
+<i>176</i>&nbsp;        };
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    @Override
+<i>180</i>&nbsp;    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+<i>181</i>&nbsp;                                            SearchContext searchContext,
+<i>182</i>&nbsp;                                            Aggregator parent,
+<i>183</i>&nbsp;                                            boolean collectsFromSingleBucket,
+<i>184</i>&nbsp;                                            List&lt;PipelineAggregator&gt; pipelineAggregators,
+<i>185</i>&nbsp;                                            Map&lt;String, Object&gt; metaData) throws IOException {
+<b class="nc"><i>186</i>&nbsp;        if (collectsFromSingleBucket == false) {</b>
+<b class="nc"><i>187</i>&nbsp;            return asMultiBucketAggregator(this, searchContext, parent);</b>
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<b class="nc"><i>190</i>&nbsp;        numberOfAggregatorsCreated++;</b>
+<b class="nc"><i>191</i>&nbsp;        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);</b>
+<b class="nc"><i>192</i>&nbsp;        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {</b>
+<i>193</i>&nbsp;            // The user has not made a shardSize selection .
+<i>194</i>&nbsp;            // Use default heuristic to avoid any wrong-ranking caused by
+<i>195</i>&nbsp;            // distributed counting
+<i>196</i>&nbsp;            // but request double the usual amount.
+<i>197</i>&nbsp;            // We typically need more than the number of &quot;top&quot; terms requested
+<i>198</i>&nbsp;            // by other aggregations
+<i>199</i>&nbsp;            // as the significance algorithm is in less of a position to
+<i>200</i>&nbsp;            // down-select at shard-level -
+<i>201</i>&nbsp;            // some of the things we want to find have only one occurrence on
+<i>202</i>&nbsp;            // each shard and as
+<i>203</i>&nbsp;            // such are impossible to differentiate from non-significant terms
+<i>204</i>&nbsp;            // at that early stage.
+<b class="nc"><i>205</i>&nbsp;            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));</b>
+<i>206</i>&nbsp;        }
+<i>207</i>&nbsp;
+<b class="nc"><i>208</i>&nbsp;        if (valuesSource instanceof ValuesSource.Bytes) {</b>
+<b class="nc"><i>209</i>&nbsp;            ExecutionMode execution = null;</b>
+<b class="nc"><i>210</i>&nbsp;            if (executionHint != null) {</b>
+<b class="nc"><i>211</i>&nbsp;                execution = ExecutionMode.fromString(executionHint, deprecationLogger);</b>
+<i>212</i>&nbsp;            }
+<b class="nc"><i>213</i>&nbsp;            if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {</b>
+<b class="nc"><i>214</i>&nbsp;                execution = ExecutionMode.MAP;</b>
+<i>215</i>&nbsp;            }
+<b class="nc"><i>216</i>&nbsp;            if (execution == null) {</b>
+<b class="nc"><i>217</i>&nbsp;                execution = ExecutionMode.GLOBAL_ORDINALS;</b>
+<i>218</i>&nbsp;            }
+<b class="nc"><i>219</i>&nbsp;            assert execution != null;</b>
+<i>220</i>&nbsp;
+<b class="nc"><i>221</i>&nbsp;            DocValueFormat format = config.format();</b>
+<b class="nc"><i>222</i>&nbsp;            if ((includeExclude != null) &amp;&amp; (includeExclude.isRegexBased()) &amp;&amp; format != DocValueFormat.RAW) {</b>
+<b class="nc"><i>223</i>&nbsp;                throw new AggregationExecutionException(&quot;Aggregation [&quot; + name + &quot;] cannot support regular expression style &quot;</b>
+<i>224</i>&nbsp;                        + &quot;include/exclude settings as they can only be applied to string fields. Use an array of values for &quot;
+<i>225</i>&nbsp;                        + &quot;include/exclude clauses&quot;);
+<i>226</i>&nbsp;            }
+<i>227</i>&nbsp;
+<b class="nc"><i>228</i>&nbsp;            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, searchContext, parent,</b>
+<i>229</i>&nbsp;                    significanceHeuristic, this, pipelineAggregators, metaData);
+<i>230</i>&nbsp;        }
+<i>231</i>&nbsp;
+<b class="nc"><i>232</i>&nbsp;        if ((includeExclude != null) &amp;&amp; (includeExclude.isRegexBased())) {</b>
+<b class="nc"><i>233</i>&nbsp;            throw new AggregationExecutionException(&quot;Aggregation [&quot; + name + &quot;] cannot support regular expression style include/exclude &quot;</b>
+<i>234</i>&nbsp;                    + &quot;settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses &quot;
+<i>235</i>&nbsp;                    + &quot;used to filter numeric fields&quot;);
+<i>236</i>&nbsp;        }
+<i>237</i>&nbsp;
+<b class="nc"><i>238</i>&nbsp;        if (valuesSource instanceof ValuesSource.Numeric) {</b>
+<i>239</i>&nbsp;
+<b class="nc"><i>240</i>&nbsp;            if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {</b>
+<b class="nc"><i>241</i>&nbsp;                throw new UnsupportedOperationException(&quot;No support for examining floating point numerics&quot;);</b>
+<i>242</i>&nbsp;            }
+<b class="nc"><i>243</i>&nbsp;            IncludeExclude.LongFilter longFilter = null;</b>
+<b class="nc"><i>244</i>&nbsp;            if (includeExclude != null) {</b>
+<b class="nc"><i>245</i>&nbsp;                longFilter = includeExclude.convertToLongFilter(config.format());</b>
+<i>246</i>&nbsp;            }
+<b class="nc"><i>247</i>&nbsp;            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),</b>
+<i>248</i>&nbsp;                    bucketCountThresholds, searchContext, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
+<i>249</i>&nbsp;                    metaData);
+<i>250</i>&nbsp;        }
+<i>251</i>&nbsp;
+<b class="nc"><i>252</i>&nbsp;        throw new AggregationExecutionException(&quot;significant_terms aggregation cannot be applied to field [&quot;</b>
+<b class="nc"><i>253</i>&nbsp;                + config.fieldContext().field() + &quot;]. It can only be applied to numeric or string fields.&quot;);</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    public enum ExecutionMode {
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;        MAP(new ParseField(&quot;map&quot;)) {
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;            @Override
+<i>261</i>&nbsp;            Aggregator create(String name,
+<i>262</i>&nbsp;                              AggregatorFactories factories,
+<i>263</i>&nbsp;                              ValuesSource valuesSource,
+<i>264</i>&nbsp;                              DocValueFormat format,
+<i>265</i>&nbsp;                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
+<i>266</i>&nbsp;                              IncludeExclude includeExclude,
+<i>267</i>&nbsp;                              SearchContext aggregationContext,
+<i>268</i>&nbsp;                              Aggregator parent,
+<i>269</i>&nbsp;                              SignificanceHeuristic significanceHeuristic,
+<i>270</i>&nbsp;                              SignificantTermsAggregatorFactory termsAggregatorFactory,
+<i>271</i>&nbsp;                              List&lt;PipelineAggregator&gt; pipelineAggregators,
+<i>272</i>&nbsp;                              Map&lt;String, Object&gt; metaData) throws IOException {
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+<i>275</i>&nbsp;                return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
+<i>276</i>&nbsp;                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;            }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;        },
+<i>281</i>&nbsp;        GLOBAL_ORDINALS(new ParseField(&quot;global_ordinals&quot;)) {
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;            @Override
+<i>284</i>&nbsp;            Aggregator create(String name,
+<i>285</i>&nbsp;                              AggregatorFactories factories,
+<i>286</i>&nbsp;                              ValuesSource valuesSource,
+<i>287</i>&nbsp;                              DocValueFormat format,
+<i>288</i>&nbsp;                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
+<i>289</i>&nbsp;                              IncludeExclude includeExclude,
+<i>290</i>&nbsp;                              SearchContext aggregationContext,
+<i>291</i>&nbsp;                              Aggregator parent,
+<i>292</i>&nbsp;                              SignificanceHeuristic significanceHeuristic,
+<i>293</i>&nbsp;                              SignificantTermsAggregatorFactory termsAggregatorFactory,
+<i>294</i>&nbsp;                              List&lt;PipelineAggregator&gt; pipelineAggregators,
+<i>295</i>&nbsp;                              Map&lt;String, Object&gt; metaData) throws IOException {
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
+<i>298</i>&nbsp;                boolean remapGlobalOrd = true;
+<i>299</i>&nbsp;                if (Aggregator.descendsFromBucketAggregator(parent) == false &amp;&amp;
+<i>300</i>&nbsp;                        factories == AggregatorFactories.EMPTY &amp;&amp;
+<i>301</i>&nbsp;                        includeExclude == null) {
+<i>302</i>&nbsp;                    /**
+<i>303</i>&nbsp;                     * We don&#39;t need to remap global ords iff this aggregator:
+<i>304</i>&nbsp;                     *    - is not a child of a bucket aggregator AND
+<i>305</i>&nbsp;                     *    - has no include/exclude rules AND
+<i>306</i>&nbsp;                     *    - has no sub-aggregator
+<i>307</i>&nbsp;                     **/
+<i>308</i>&nbsp;                    remapGlobalOrd = false;
+<i>309</i>&nbsp;                }
+<i>310</i>&nbsp;                return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
+<i>311</i>&nbsp;                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
+<i>312</i>&nbsp;                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators,
+<i>313</i>&nbsp;                        metaData);
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;            }
+<i>316</i>&nbsp;        };
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;        public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
+<i>319</i>&nbsp;            if (&quot;global_ordinals&quot;.equals(value)) {
+<i>320</i>&nbsp;                return GLOBAL_ORDINALS;
+<i>321</i>&nbsp;            } else if (&quot;global_ordinals_hash&quot;.equals(value)) {
+<i>322</i>&nbsp;                deprecationLogger.deprecated(&quot;global_ordinals_hash is deprecated. Please use [global_ordinals] instead.&quot;);
+<i>323</i>&nbsp;                return GLOBAL_ORDINALS;
+<i>324</i>&nbsp;            } else if (&quot;map&quot;.equals(value)) {
+<i>325</i>&nbsp;                return MAP;
+<i>326</i>&nbsp;            }
+<i>327</i>&nbsp;            throw new IllegalArgumentException(&quot;Unknown `execution_hint`: [&quot; + value + &quot;], expected any of [map, global_ordinals]&quot;);
+<i>328</i>&nbsp;        }
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;        private final ParseField parseField;
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;        ExecutionMode(ParseField parseField) {
+<i>333</i>&nbsp;            this.parseField = parseField;
+<i>334</i>&nbsp;        }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;        abstract Aggregator create(String name,
+<i>337</i>&nbsp;                                   AggregatorFactories factories,
+<i>338</i>&nbsp;                                   ValuesSource valuesSource,
+<i>339</i>&nbsp;                                   DocValueFormat format,
+<i>340</i>&nbsp;                                   TermsAggregator.BucketCountThresholds bucketCountThresholds,
+<i>341</i>&nbsp;                                   IncludeExclude includeExclude,
+<i>342</i>&nbsp;                                   SearchContext aggregationContext,
+<i>343</i>&nbsp;                                   Aggregator parent,
+<i>344</i>&nbsp;                                   SignificanceHeuristic significanceHeuristic,
+<i>345</i>&nbsp;                                   SignificantTermsAggregatorFactory termsAggregatorFactory,
+<i>346</i>&nbsp;                                   List&lt;PipelineAggregator&gt; pipelineAggregators,
+<i>347</i>&nbsp;                                   Map&lt;String, Object&gt; metaData) throws IOException;
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;        @Override
+<i>350</i>&nbsp;        public String toString() {
+<i>351</i>&nbsp;            return parseField.getPreferredName();
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    @Override
+<i>356</i>&nbsp;    public void close() {
+<i>357</i>&nbsp;        try {
+<b class="nc"><i>358</i>&nbsp;            if (termsEnum instanceof Releasable) {</b>
+<b class="nc"><i>359</i>&nbsp;                ((Releasable) termsEnum).close();</b>
+<i>360</i>&nbsp;            }
+<i>361</i>&nbsp;        } finally {
+<b class="nc"><i>362</i>&nbsp;            termsEnum = null;</b>
+<b class="nc"><i>363</i>&nbsp;        }</b>
+<b class="nc"><i>364</i>&nbsp;    }</b>
+<i>365</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

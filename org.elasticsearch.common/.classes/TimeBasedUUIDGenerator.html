@@ -1,0 +1,203 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TimeBasedUUIDGenerator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TimeBasedUUIDGenerator (org.elasticsearch.common)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TimeBasedUUIDGenerator</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.6%
+  </span>
+  <span class="absValue">
+    (5/ 32)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.util.Base64;
+<i>23</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;/**
+<i>26</i>&nbsp; * These are essentially flake ids but we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. We also reorder
+<i>27</i>&nbsp; * bytes in a way that does not make ids sort in order anymore, but is more friendly to the way that the Lucene terms dictionary is
+<i>28</i>&nbsp; * structured.
+<i>29</i>&nbsp; * For more information about flake ids, check out
+<i>30</i>&nbsp; * https://archive.fo/2015.07.08-082503/http://www.boundary.com/blog/2012/01/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang/
+<i>31</i>&nbsp; */
+<i>32</i>&nbsp;
+<b class="fc"><i>33</i>&nbsp;class TimeBasedUUIDGenerator implements UUIDGenerator {</b>
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;    // We only use bottom 3 bytes for the sequence number.  Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
+<i>36</i>&nbsp;    // backwards, and JVM comes back up, we are less likely to be on the same sequenceNumber at the same time:
+<b class="fc"><i>37</i>&nbsp;    private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());</b>
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;    // Used to ensure clock moves forward:
+<i>40</i>&nbsp;    private long lastTimestamp;
+<i>41</i>&nbsp;
+<b class="fc"><i>42</i>&nbsp;    private static final byte[] SECURE_MUNGED_ADDRESS = MacAddressProvider.getSecureMungedAddress();</b>
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    static {
+<b class="fc"><i>45</i>&nbsp;        assert SECURE_MUNGED_ADDRESS.length == 6;</b>
+<b class="fc"><i>46</i>&nbsp;    }</b>
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    // protected for testing
+<i>49</i>&nbsp;    protected long currentTimeMillis() {
+<b class="nc"><i>50</i>&nbsp;        return System.currentTimeMillis();</b>
+<i>51</i>&nbsp;    }
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    // protected for testing
+<i>54</i>&nbsp;    protected byte[] macAddress() {
+<b class="nc"><i>55</i>&nbsp;        return SECURE_MUNGED_ADDRESS;</b>
+<i>56</i>&nbsp;    }
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    @Override
+<i>59</i>&nbsp;    public String getBase64UUID()  {
+<b class="nc"><i>60</i>&nbsp;        final int sequenceId = sequenceNumber.incrementAndGet() &amp; 0xffffff;</b>
+<b class="nc"><i>61</i>&nbsp;        long timestamp = currentTimeMillis();</b>
+<i>62</i>&nbsp;
+<b class="nc"><i>63</i>&nbsp;        synchronized (this) {</b>
+<i>64</i>&nbsp;            // Don&#39;t let timestamp go backwards, at least &quot;on our watch&quot; (while this JVM is running).  We are still vulnerable if we are
+<i>65</i>&nbsp;            // shut down, clock goes backwards, and we restart... for this we randomize the sequenceNumber on init to decrease chance of
+<i>66</i>&nbsp;            // collision:
+<b class="nc"><i>67</i>&nbsp;            timestamp = Math.max(lastTimestamp, timestamp);</b>
+<i>68</i>&nbsp;
+<b class="nc"><i>69</i>&nbsp;            if (sequenceId == 0) {</b>
+<i>70</i>&nbsp;                // Always force the clock to increment whenever sequence number is 0, in case we have a long time-slip backwards:
+<b class="nc"><i>71</i>&nbsp;                timestamp++;</b>
+<i>72</i>&nbsp;            }
+<i>73</i>&nbsp;
+<b class="nc"><i>74</i>&nbsp;            lastTimestamp = timestamp;</b>
+<b class="nc"><i>75</i>&nbsp;        }</b>
+<i>76</i>&nbsp;
+<b class="nc"><i>77</i>&nbsp;        final byte[] uuidBytes = new byte[15];</b>
+<b class="nc"><i>78</i>&nbsp;        int i = 0;</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;        // We have auto-generated ids, which are usually used for append-only workloads.
+<i>81</i>&nbsp;        // So we try to optimize the order of bytes for indexing speed (by having quite
+<i>82</i>&nbsp;        // unique bytes close to the beginning of the ids so that sorting is fast) and
+<i>83</i>&nbsp;        // compression (by making sure we share common prefixes between enough ids),
+<i>84</i>&nbsp;        // but not necessarily for lookup speed (by having the leading bytes identify
+<i>85</i>&nbsp;        // segments whenever possible)
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;        // Blocks in the block tree have between 25 and 48 terms. So all prefixes that
+<i>88</i>&nbsp;        // are shared by ~30 terms should be well compressed. I first tried putting the
+<i>89</i>&nbsp;        // two lower bytes of the sequence id in the beginning of the id, but compression
+<i>90</i>&nbsp;        // is only triggered when you have at least 30*2^16 ~= 2M documents in a segment,
+<i>91</i>&nbsp;        // which is already quite large. So instead, we are putting the 1st and 3rd byte
+<i>92</i>&nbsp;        // of the sequence number so that compression starts to be triggered with smaller
+<i>93</i>&nbsp;        // segment sizes and still gives pretty good indexing speed. We use the sequenceId
+<i>94</i>&nbsp;        // rather than the timestamp because the distribution of the timestamp depends too
+<i>95</i>&nbsp;        // much on the indexing rate, so it is less reliable.
+<i>96</i>&nbsp;
+<b class="nc"><i>97</i>&nbsp;        uuidBytes[i++] = (byte) sequenceId;</b>
+<i>98</i>&nbsp;        // changes every 65k docs, so potentially every second if you have a steady indexing rate
+<b class="nc"><i>99</i>&nbsp;        uuidBytes[i++] = (byte) (sequenceId &gt;&gt;&gt; 16);</b>
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;        // Now we start focusing on compression and put bytes that should not change too often.
+<b class="nc"><i>102</i>&nbsp;        uuidBytes[i++] = (byte) (timestamp &gt;&gt;&gt; 16); // changes every ~65 secs</b>
+<b class="nc"><i>103</i>&nbsp;        uuidBytes[i++] = (byte) (timestamp &gt;&gt;&gt; 24); // changes every ~4.5h</b>
+<b class="nc"><i>104</i>&nbsp;        uuidBytes[i++] = (byte) (timestamp &gt;&gt;&gt; 32); // changes every ~50 days</b>
+<b class="nc"><i>105</i>&nbsp;        uuidBytes[i++] = (byte) (timestamp &gt;&gt;&gt; 40); // changes every 35 years</b>
+<b class="nc"><i>106</i>&nbsp;        byte[] macAddress = macAddress();</b>
+<b class="nc"><i>107</i>&nbsp;        assert macAddress.length == 6;</b>
+<b class="nc"><i>108</i>&nbsp;        System.arraycopy(macAddress, 0, uuidBytes, i, macAddress.length);</b>
+<b class="nc"><i>109</i>&nbsp;        i += macAddress.length;</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;        // Finally we put the remaining bytes, which will likely not be compressed at all.
+<b class="nc"><i>112</i>&nbsp;        uuidBytes[i++] = (byte) (timestamp &gt;&gt;&gt; 8);</b>
+<b class="nc"><i>113</i>&nbsp;        uuidBytes[i++] = (byte) (sequenceId &gt;&gt;&gt; 8);</b>
+<b class="nc"><i>114</i>&nbsp;        uuidBytes[i++] = (byte) timestamp;</b>
+<i>115</i>&nbsp;
+<b class="nc"><i>116</i>&nbsp;        assert i == uuidBytes.length;</b>
+<i>117</i>&nbsp;
+<b class="nc"><i>118</i>&nbsp;        return Base64.getUrlEncoder().withoutPadding().encodeToString(uuidBytes);</b>
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

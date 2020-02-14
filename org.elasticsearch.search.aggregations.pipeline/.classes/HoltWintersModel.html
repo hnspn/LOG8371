@@ -1,0 +1,573 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: HoltWintersModel</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.pipeline</a> ]
+</div>
+
+<h1>Coverage Summary for Class: HoltWintersModel (org.elasticsearch.search.aggregations.pipeline)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">HoltWintersModel</td>
+<td class="coverageStat">
+  <span class="percent">
+    10%
+  </span>
+  <span class="absValue">
+    (2/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    4.1%
+  </span>
+  <span class="absValue">
+    (3/ 73)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">HoltWintersModel$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    5.9%
+  </span>
+  <span class="absValue">
+    (1/ 17)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">HoltWintersModel$SeasonalityType</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.9%
+  </span>
+  <span class="absValue">
+    (3/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.2%
+  </span>
+  <span class="absValue">
+    (6/ 27)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    20.7%
+  </span>
+  <span class="absValue">
+    (6/ 29)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8.5%
+  </span>
+  <span class="absValue">
+    (10/ 117)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.pipeline;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;
+<i>23</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>24</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.io.IOException;
+<i>32</i>&nbsp;import java.text.ParseException;
+<i>33</i>&nbsp;import java.util.ArrayList;
+<i>34</i>&nbsp;import java.util.Collection;
+<i>35</i>&nbsp;import java.util.List;
+<i>36</i>&nbsp;import java.util.Map;
+<i>37</i>&nbsp;import java.util.Objects;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;/**
+<i>40</i>&nbsp; * Calculate a triple exponential weighted moving average
+<i>41</i>&nbsp; */
+<b class="fc"><i>42</i>&nbsp;public class HoltWintersModel extends MovAvgModel {</b>
+<i>43</i>&nbsp;    public static final String NAME = &quot;holt_winters&quot;;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;    private static final double DEFAULT_ALPHA = 0.3;
+<i>46</i>&nbsp;    private static final double DEFAULT_BETA = 0.1;
+<i>47</i>&nbsp;    private static final double DEFAULT_GAMMA = 0.3;
+<i>48</i>&nbsp;    private static final int DEFAULT_PERIOD = 1;
+<b class="fc"><i>49</i>&nbsp;    private static final SeasonalityType DEFAULT_SEASONALITY_TYPE = SeasonalityType.ADDITIVE;</b>
+<i>50</i>&nbsp;    private static final boolean DEFAULT_PAD = false;
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;    public enum SeasonalityType {</b>
+<b class="fc"><i>53</i>&nbsp;        ADDITIVE((byte) 0, &quot;add&quot;), MULTIPLICATIVE((byte) 1, &quot;mult&quot;);</b>
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;        /**
+<i>56</i>&nbsp;         * Parse a string SeasonalityType into the byte enum
+<i>57</i>&nbsp;         *
+<i>58</i>&nbsp;         * @param text                SeasonalityType in string format (e.g. &quot;add&quot;)
+<i>59</i>&nbsp;         * @return                    SeasonalityType enum
+<i>60</i>&nbsp;         */
+<i>61</i>&nbsp;        @Nullable
+<i>62</i>&nbsp;        public static SeasonalityType parse(String text) {
+<b class="nc"><i>63</i>&nbsp;            if (text == null) {</b>
+<b class="nc"><i>64</i>&nbsp;                return null;</b>
+<i>65</i>&nbsp;            }
+<b class="nc"><i>66</i>&nbsp;            SeasonalityType result = null;</b>
+<b class="nc"><i>67</i>&nbsp;            for (SeasonalityType policy : values()) {</b>
+<b class="nc"><i>68</i>&nbsp;                if (policy.parseField.match(text, LoggingDeprecationHandler.INSTANCE)) {</b>
+<b class="nc"><i>69</i>&nbsp;                    result = policy;</b>
+<b class="nc"><i>70</i>&nbsp;                    break;</b>
+<i>71</i>&nbsp;                }
+<i>72</i>&nbsp;            }
+<b class="nc"><i>73</i>&nbsp;            if (result == null) {</b>
+<b class="nc"><i>74</i>&nbsp;                final List&lt;String&gt; validNames = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>75</i>&nbsp;                for (SeasonalityType policy : values()) {</b>
+<b class="nc"><i>76</i>&nbsp;                    validNames.add(policy.getName());</b>
+<i>77</i>&nbsp;                }
+<b class="nc"><i>78</i>&nbsp;                throw new ElasticsearchParseException(&quot;failed to parse seasonality type [{}]. accepted values are [{}]&quot;, text, validNames);</b>
+<i>79</i>&nbsp;            }
+<b class="nc"><i>80</i>&nbsp;            return result;</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        private final byte id;
+<i>84</i>&nbsp;        private final ParseField parseField;
+<i>85</i>&nbsp;
+<b class="fc"><i>86</i>&nbsp;        SeasonalityType(byte id, String name) {</b>
+<b class="fc"><i>87</i>&nbsp;            this.id = id;</b>
+<b class="fc"><i>88</i>&nbsp;            this.parseField = new ParseField(name);</b>
+<b class="fc"><i>89</i>&nbsp;        }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;        /**
+<i>92</i>&nbsp;         * Serialize the SeasonalityType to the output stream
+<i>93</i>&nbsp;         */
+<i>94</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>95</i>&nbsp;            out.writeByte(id);</b>
+<b class="nc"><i>96</i>&nbsp;        }</b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;        /**
+<i>99</i>&nbsp;         * Deserialize the SeasonalityType from the input stream
+<i>100</i>&nbsp;         *
+<i>101</i>&nbsp;         * @param in  the input stream
+<i>102</i>&nbsp;         * @return    SeasonalityType Enum
+<i>103</i>&nbsp;         */
+<i>104</i>&nbsp;        public static SeasonalityType readFrom(StreamInput in) throws IOException {
+<b class="nc"><i>105</i>&nbsp;            byte id = in.readByte();</b>
+<b class="nc"><i>106</i>&nbsp;            for (SeasonalityType seasonalityType : values()) {</b>
+<b class="nc"><i>107</i>&nbsp;                if (id == seasonalityType.id) {</b>
+<b class="nc"><i>108</i>&nbsp;                    return seasonalityType;</b>
+<i>109</i>&nbsp;                }
+<i>110</i>&nbsp;            }
+<b class="nc"><i>111</i>&nbsp;            throw new IllegalStateException(&quot;Unknown Seasonality Type with id [&quot; + id + &quot;]&quot;);</b>
+<i>112</i>&nbsp;        }
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;        /**
+<i>115</i>&nbsp;         * Return the english-formatted name of the SeasonalityType
+<i>116</i>&nbsp;         *
+<i>117</i>&nbsp;         * @return English representation of SeasonalityType
+<i>118</i>&nbsp;         */
+<i>119</i>&nbsp;        public String getName() {
+<b class="nc"><i>120</i>&nbsp;            return parseField.getPreferredName();</b>
+<i>121</i>&nbsp;        }
+<i>122</i>&nbsp;    }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    /**
+<i>125</i>&nbsp;     * Controls smoothing of data.  Also known as &quot;level&quot; value.
+<i>126</i>&nbsp;     * Alpha = 1 retains no memory of past values
+<i>127</i>&nbsp;     * (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
+<i>128</i>&nbsp;     * mean of the series).
+<i>129</i>&nbsp;     */
+<i>130</i>&nbsp;    private final double alpha;
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    /**
+<i>133</i>&nbsp;     * Controls smoothing of trend.
+<i>134</i>&nbsp;     * Beta = 1 retains no memory of past values
+<i>135</i>&nbsp;     * (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
+<i>136</i>&nbsp;     * mean of the series).
+<i>137</i>&nbsp;     */
+<i>138</i>&nbsp;    private final double beta;
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /**
+<i>141</i>&nbsp;     * Controls smoothing of seasonality.
+<i>142</i>&nbsp;     * Gamma = 1 retains no memory of past values
+<i>143</i>&nbsp;     * (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
+<i>144</i>&nbsp;     * mean of the series).
+<i>145</i>&nbsp;     */
+<i>146</i>&nbsp;    private final double gamma;
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /**
+<i>149</i>&nbsp;     * Periodicity of the data
+<i>150</i>&nbsp;     */
+<i>151</i>&nbsp;    private final int period;
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    /**
+<i>154</i>&nbsp;     * Whether this is a multiplicative or additive HW
+<i>155</i>&nbsp;     */
+<i>156</i>&nbsp;    private final SeasonalityType seasonalityType;
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /**
+<i>159</i>&nbsp;     * Padding is used to add a very small amount to values, so that zeroes do not interfere
+<i>160</i>&nbsp;     * with multiplicative seasonality math (e.g. division by zero)
+<i>161</i>&nbsp;     */
+<i>162</i>&nbsp;    private final boolean pad;
+<i>163</i>&nbsp;    private final double padding;
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    public HoltWintersModel() {
+<b class="nc"><i>166</i>&nbsp;        this(DEFAULT_ALPHA, DEFAULT_BETA, DEFAULT_GAMMA, DEFAULT_PERIOD, DEFAULT_SEASONALITY_TYPE, DEFAULT_PAD);</b>
+<b class="nc"><i>167</i>&nbsp;    }</b>
+<i>168</i>&nbsp;
+<b class="nc"><i>169</i>&nbsp;    public HoltWintersModel(double alpha, double beta, double gamma, int period, SeasonalityType seasonalityType, boolean pad) {</b>
+<b class="nc"><i>170</i>&nbsp;        this.alpha = alpha;</b>
+<b class="nc"><i>171</i>&nbsp;        this.beta = beta;</b>
+<b class="nc"><i>172</i>&nbsp;        this.gamma = gamma;</b>
+<b class="nc"><i>173</i>&nbsp;        this.period = period;</b>
+<b class="nc"><i>174</i>&nbsp;        this.seasonalityType = seasonalityType;</b>
+<b class="nc"><i>175</i>&nbsp;        this.pad = pad;</b>
+<b class="nc"><i>176</i>&nbsp;        this.padding = inferPadding();</b>
+<b class="nc"><i>177</i>&nbsp;    }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    /**
+<i>180</i>&nbsp;     * Read from a stream.
+<i>181</i>&nbsp;     */
+<b class="nc"><i>182</i>&nbsp;    public HoltWintersModel(StreamInput in) throws IOException {</b>
+<b class="nc"><i>183</i>&nbsp;        alpha = in.readDouble();</b>
+<b class="nc"><i>184</i>&nbsp;        beta = in.readDouble();</b>
+<b class="nc"><i>185</i>&nbsp;        gamma = in.readDouble();</b>
+<b class="nc"><i>186</i>&nbsp;        period = in.readVInt();</b>
+<b class="nc"><i>187</i>&nbsp;        seasonalityType = SeasonalityType.readFrom(in);</b>
+<b class="nc"><i>188</i>&nbsp;        pad = in.readBoolean();</b>
+<b class="nc"><i>189</i>&nbsp;        this.padding = inferPadding();</b>
+<b class="nc"><i>190</i>&nbsp;    }</b>
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    /**
+<i>193</i>&nbsp;     * Only pad if we are multiplicative and padding is enabled. the padding amount is not currently user-configurable.
+<i>194</i>&nbsp;     */
+<i>195</i>&nbsp;    private double inferPadding() {
+<b class="nc"><i>196</i>&nbsp;        return seasonalityType.equals(SeasonalityType.MULTIPLICATIVE) &amp;&amp; pad ? 0.0000000001 : 0;</b>
+<i>197</i>&nbsp;    }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;    @Override
+<i>200</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>201</i>&nbsp;        out.writeDouble(alpha);</b>
+<b class="nc"><i>202</i>&nbsp;        out.writeDouble(beta);</b>
+<b class="nc"><i>203</i>&nbsp;        out.writeDouble(gamma);</b>
+<b class="nc"><i>204</i>&nbsp;        out.writeVInt(period);</b>
+<b class="nc"><i>205</i>&nbsp;        seasonalityType.writeTo(out);</b>
+<b class="nc"><i>206</i>&nbsp;        out.writeBoolean(pad);</b>
+<b class="nc"><i>207</i>&nbsp;    }</b>
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;    @Override
+<i>210</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>211</i>&nbsp;        return NAME;</b>
+<i>212</i>&nbsp;    }
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;    @Override
+<i>215</i>&nbsp;    public boolean minimizeByDefault() {
+<b class="nc"><i>216</i>&nbsp;        return true;</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    @Override
+<i>220</i>&nbsp;    public boolean canBeMinimized() {
+<b class="nc"><i>221</i>&nbsp;        return true;</b>
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    @Override
+<i>225</i>&nbsp;    public MovAvgModel neighboringModel() {
+<b class="nc"><i>226</i>&nbsp;        double newValue = Math.random();</b>
+<b class="nc"><i>227</i>&nbsp;        switch ((int) (Math.random() * 3)) {</b>
+<i>228</i>&nbsp;            case 0:
+<b class="nc"><i>229</i>&nbsp;                return new HoltWintersModel(newValue, beta, gamma, period, seasonalityType, pad);</b>
+<i>230</i>&nbsp;            case 1:
+<b class="nc"><i>231</i>&nbsp;                return new HoltWintersModel(alpha, newValue, gamma, period, seasonalityType, pad);</b>
+<i>232</i>&nbsp;            case 2:
+<b class="nc"><i>233</i>&nbsp;                return new HoltWintersModel(alpha, beta, newValue, period, seasonalityType, pad);</b>
+<i>234</i>&nbsp;            default:
+<b class="nc"><i>235</i>&nbsp;                assert (false): &quot;Random value fell outside of range [0-2]&quot;;</b>
+<b class="nc"><i>236</i>&nbsp;                return new HoltWintersModel(newValue, beta, gamma, period, seasonalityType, pad); // This should never technically happen...</b>
+<i>237</i>&nbsp;        }
+<i>238</i>&nbsp;    }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;    @Override
+<i>241</i>&nbsp;    public MovAvgModel clone() {
+<b class="nc"><i>242</i>&nbsp;        return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);</b>
+<i>243</i>&nbsp;    }
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;    @Override
+<i>246</i>&nbsp;    public boolean hasValue(int valuesAvailable) {
+<i>247</i>&nbsp;        // We need at least (period * 2) data-points (e.g. two &quot;seasons&quot;)
+<b class="nc"><i>248</i>&nbsp;        return valuesAvailable &gt;= period * 2;</b>
+<i>249</i>&nbsp;    }
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    /**
+<i>252</i>&nbsp;     * Predicts the next `n` values in the series, using the smoothing model to generate new values.
+<i>253</i>&nbsp;     * Unlike the other moving averages, HoltWinters has forecasting/prediction built into the algorithm.
+<i>254</i>&nbsp;     * Prediction is more than simply adding the next prediction to the window and repeating.  HoltWinters
+<i>255</i>&nbsp;     * will extrapolate into the future by applying the trend and seasonal information to the smoothed data.
+<i>256</i>&nbsp;     *
+<i>257</i>&nbsp;     * @param values            Collection of numerics to movingAvg, usually windowed
+<i>258</i>&nbsp;     * @param numPredictions    Number of newly generated predictions to return
+<i>259</i>&nbsp;     * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
+<i>260</i>&nbsp;     */
+<i>261</i>&nbsp;    @Override
+<i>262</i>&nbsp;    protected double[] doPredict(Collection&lt;Double&gt; values, int numPredictions) {
+<b class="nc"><i>263</i>&nbsp;        return next(values, numPredictions);</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    @Override
+<i>267</i>&nbsp;    public double next(Collection&lt;Double&gt; values) {
+<b class="nc"><i>268</i>&nbsp;        return next(values, 1)[0];</b>
+<i>269</i>&nbsp;    }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;    /**
+<i>272</i>&nbsp;     * Calculate a doubly exponential weighted moving average
+<i>273</i>&nbsp;     *
+<i>274</i>&nbsp;     * @param values Collection of values to calculate avg for
+<i>275</i>&nbsp;     * @param numForecasts number of forecasts into the future to return
+<i>276</i>&nbsp;     *
+<i>277</i>&nbsp;     * @return       Returns a Double containing the moving avg for the window
+<i>278</i>&nbsp;     */
+<i>279</i>&nbsp;    public double[] next(Collection&lt;Double&gt; values, int numForecasts) {
+<b class="nc"><i>280</i>&nbsp;        return MovingFunctions.holtWintersForecast(values.stream().mapToDouble(Double::doubleValue).toArray(),</b>
+<b class="nc"><i>281</i>&nbsp;            alpha, beta, gamma, period, padding, seasonalityType.equals(SeasonalityType.MULTIPLICATIVE), numForecasts);</b>
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    @Override
+<i>285</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>286</i>&nbsp;        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);</b>
+<b class="nc"><i>287</i>&nbsp;        builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());</b>
+<b class="nc"><i>288</i>&nbsp;        builder.field(&quot;alpha&quot;, alpha);</b>
+<b class="nc"><i>289</i>&nbsp;        builder.field(&quot;beta&quot;, beta);</b>
+<b class="nc"><i>290</i>&nbsp;        builder.field(&quot;gamma&quot;, gamma);</b>
+<b class="nc"><i>291</i>&nbsp;        builder.field(&quot;period&quot;, period);</b>
+<b class="nc"><i>292</i>&nbsp;        builder.field(&quot;pad&quot;, pad);</b>
+<b class="nc"><i>293</i>&nbsp;        builder.field(&quot;type&quot;, seasonalityType.getName());</b>
+<b class="nc"><i>294</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>295</i>&nbsp;        return builder;</b>
+<i>296</i>&nbsp;    }
+<i>297</i>&nbsp;
+<b class="fc"><i>298</i>&nbsp;    public static final AbstractModelParser PARSER = new AbstractModelParser() {</b>
+<i>299</i>&nbsp;        @Override
+<i>300</i>&nbsp;        public MovAvgModel parse(@Nullable Map&lt;String, Object&gt; settings, String pipelineName, int windowSize) throws ParseException {
+<i>301</i>&nbsp;
+<b class="nc"><i>302</i>&nbsp;            double alpha = parseDoubleParam(settings, &quot;alpha&quot;, DEFAULT_ALPHA);</b>
+<b class="nc"><i>303</i>&nbsp;            double beta = parseDoubleParam(settings, &quot;beta&quot;, DEFAULT_BETA);</b>
+<b class="nc"><i>304</i>&nbsp;            double gamma = parseDoubleParam(settings, &quot;gamma&quot;, DEFAULT_GAMMA);</b>
+<b class="nc"><i>305</i>&nbsp;            int period = parseIntegerParam(settings, &quot;period&quot;, DEFAULT_PERIOD);</b>
+<i>306</i>&nbsp;
+<b class="nc"><i>307</i>&nbsp;            SeasonalityType seasonalityType = DEFAULT_SEASONALITY_TYPE;</b>
+<i>308</i>&nbsp;
+<b class="nc"><i>309</i>&nbsp;            if (settings != null) {</b>
+<b class="nc"><i>310</i>&nbsp;                Object value = settings.get(&quot;type&quot;);</b>
+<b class="nc"><i>311</i>&nbsp;                if (value != null) {</b>
+<b class="nc"><i>312</i>&nbsp;                    if (value instanceof String) {</b>
+<b class="nc"><i>313</i>&nbsp;                        seasonalityType = SeasonalityType.parse((String)value);</b>
+<b class="nc"><i>314</i>&nbsp;                        settings.remove(&quot;type&quot;);</b>
+<i>315</i>&nbsp;                    } else {
+<b class="nc"><i>316</i>&nbsp;                        throw new ParseException(&quot;Parameter [type] must be a String, type `&quot;</b>
+<b class="nc"><i>317</i>&nbsp;                                + value.getClass().getSimpleName() + &quot;` provided instead&quot;, 0);</b>
+<i>318</i>&nbsp;                    }
+<i>319</i>&nbsp;                }
+<i>320</i>&nbsp;            }
+<i>321</i>&nbsp;
+<b class="nc"><i>322</i>&nbsp;            boolean pad = parseBoolParam(settings, &quot;pad&quot;, seasonalityType.equals(SeasonalityType.MULTIPLICATIVE));</b>
+<i>323</i>&nbsp;
+<b class="nc"><i>324</i>&nbsp;            checkUnrecognizedParams(settings);</b>
+<b class="nc"><i>325</i>&nbsp;            return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);</b>
+<i>326</i>&nbsp;        }
+<i>327</i>&nbsp;    };
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;    /**
+<i>330</i>&nbsp;     * If the model is a HoltWinters, we need to ensure the window and period are compatible.
+<i>331</i>&nbsp;     * This is verified in the XContent parsing, but transport clients need these checks since they
+<i>332</i>&nbsp;     * skirt XContent parsing
+<i>333</i>&nbsp;     */
+<i>334</i>&nbsp;    @Override
+<i>335</i>&nbsp;    protected void validate(long window, String aggregationName) {
+<b class="nc"><i>336</i>&nbsp;        super.validate(window, aggregationName);</b>
+<b class="nc"><i>337</i>&nbsp;        if (window &lt; 2 * period) {</b>
+<b class="nc"><i>338</i>&nbsp;            throw new IllegalArgumentException(&quot;Field [window] must be at least twice as large as the period when &quot; +</b>
+<i>339</i>&nbsp;                &quot;using Holt-Winters.  Value provided was [&quot; + window + &quot;], which is less than (2*period) == &quot;
+<i>340</i>&nbsp;                + (2 * period));
+<i>341</i>&nbsp;        }
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    @Override
+<i>345</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>346</i>&nbsp;        return Objects.hash(alpha, beta, gamma, period, seasonalityType, pad);</b>
+<i>347</i>&nbsp;    }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;    @Override
+<i>350</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>351</i>&nbsp;        if (obj == null) {</b>
+<b class="nc"><i>352</i>&nbsp;            return false;</b>
+<i>353</i>&nbsp;        }
+<b class="nc"><i>354</i>&nbsp;        if (getClass() != obj.getClass()) {</b>
+<b class="nc"><i>355</i>&nbsp;            return false;</b>
+<i>356</i>&nbsp;        }
+<b class="nc"><i>357</i>&nbsp;        HoltWintersModel other = (HoltWintersModel) obj;</b>
+<b class="nc"><i>358</i>&nbsp;        return Objects.equals(alpha, other.alpha)</b>
+<b class="nc"><i>359</i>&nbsp;                &amp;&amp; Objects.equals(beta, other.beta)</b>
+<b class="nc"><i>360</i>&nbsp;                &amp;&amp; Objects.equals(gamma, other.gamma)</b>
+<b class="nc"><i>361</i>&nbsp;                &amp;&amp; Objects.equals(period, other.period)</b>
+<b class="nc"><i>362</i>&nbsp;                &amp;&amp; Objects.equals(seasonalityType, other.seasonalityType)</b>
+<b class="nc"><i>363</i>&nbsp;                &amp;&amp; Objects.equals(pad, other.pad);</b>
+<i>364</i>&nbsp;    }
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;    public static class HoltWintersModelBuilder implements MovAvgModelBuilder {
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;        private double alpha = DEFAULT_ALPHA;
+<i>369</i>&nbsp;        private double beta = DEFAULT_BETA;
+<i>370</i>&nbsp;        private double gamma = DEFAULT_GAMMA;
+<i>371</i>&nbsp;        private int period = DEFAULT_PERIOD;
+<i>372</i>&nbsp;        private SeasonalityType seasonalityType = DEFAULT_SEASONALITY_TYPE;
+<i>373</i>&nbsp;        private Boolean pad = null;
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;        /**
+<i>376</i>&nbsp;         * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
+<i>377</i>&nbsp;         * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
+<i>378</i>&nbsp;         * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
+<i>379</i>&nbsp;         *
+<i>380</i>&nbsp;         * @param alpha A double between 0-1 inclusive, controls data smoothing
+<i>381</i>&nbsp;         *
+<i>382</i>&nbsp;         * @return The builder to continue chaining
+<i>383</i>&nbsp;         */
+<i>384</i>&nbsp;        public HoltWintersModelBuilder alpha(double alpha) {
+<i>385</i>&nbsp;            this.alpha = alpha;
+<i>386</i>&nbsp;            return this;
+<i>387</i>&nbsp;        }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;        /**
+<i>390</i>&nbsp;         * Equivalent to &lt;code&gt;alpha&lt;/code&gt;, but controls the smoothing of the trend instead of the data
+<i>391</i>&nbsp;         *
+<i>392</i>&nbsp;         * @param beta a double between 0-1 inclusive, controls trend smoothing
+<i>393</i>&nbsp;         *
+<i>394</i>&nbsp;         * @return The builder to continue chaining
+<i>395</i>&nbsp;         */
+<i>396</i>&nbsp;        public HoltWintersModelBuilder beta(double beta) {
+<i>397</i>&nbsp;            this.beta = beta;
+<i>398</i>&nbsp;            return this;
+<i>399</i>&nbsp;        }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;        public HoltWintersModelBuilder gamma(double gamma) {
+<i>402</i>&nbsp;            this.gamma = gamma;
+<i>403</i>&nbsp;            return this;
+<i>404</i>&nbsp;        }
+<i>405</i>&nbsp;
+<i>406</i>&nbsp;        public HoltWintersModelBuilder period(int period) {
+<i>407</i>&nbsp;            this.period = period;
+<i>408</i>&nbsp;            return this;
+<i>409</i>&nbsp;        }
+<i>410</i>&nbsp;
+<i>411</i>&nbsp;        public HoltWintersModelBuilder seasonalityType(SeasonalityType type) {
+<i>412</i>&nbsp;            this.seasonalityType = type;
+<i>413</i>&nbsp;            return this;
+<i>414</i>&nbsp;        }
+<i>415</i>&nbsp;
+<i>416</i>&nbsp;        public HoltWintersModelBuilder pad(boolean pad) {
+<i>417</i>&nbsp;            this.pad = pad;
+<i>418</i>&nbsp;            return this;
+<i>419</i>&nbsp;        }
+<i>420</i>&nbsp;
+<i>421</i>&nbsp;        @Override
+<i>422</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>423</i>&nbsp;            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
+<i>424</i>&nbsp;            builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
+<i>425</i>&nbsp;            builder.field(&quot;alpha&quot;, alpha);
+<i>426</i>&nbsp;            builder.field(&quot;beta&quot;, beta);
+<i>427</i>&nbsp;            builder.field(&quot;gamma&quot;, gamma);
+<i>428</i>&nbsp;            builder.field(&quot;period&quot;, period);
+<i>429</i>&nbsp;            if (pad != null) {
+<i>430</i>&nbsp;                builder.field(&quot;pad&quot;, pad);
+<i>431</i>&nbsp;            }
+<i>432</i>&nbsp;            builder.field(&quot;type&quot;, seasonalityType.getName());
+<i>433</i>&nbsp;
+<i>434</i>&nbsp;            builder.endObject();
+<i>435</i>&nbsp;            return builder;
+<i>436</i>&nbsp;        }
+<i>437</i>&nbsp;
+<i>438</i>&nbsp;        @Override
+<i>439</i>&nbsp;        public MovAvgModel build() {
+<i>440</i>&nbsp;            boolean pad = this.pad == null ? (seasonalityType == SeasonalityType.MULTIPLICATIVE) : this.pad;
+<i>441</i>&nbsp;            return new HoltWintersModel(alpha, beta, gamma, period, seasonalityType, pad);
+<i>442</i>&nbsp;        }
+<i>443</i>&nbsp;    }
+<i>444</i>&nbsp;}
+<i>445</i>&nbsp;
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

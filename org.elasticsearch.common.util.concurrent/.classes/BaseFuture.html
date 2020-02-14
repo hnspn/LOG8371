@@ -1,0 +1,452 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BaseFuture</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util.concurrent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BaseFuture (org.elasticsearch.common.util.concurrent)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BaseFuture</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.5%
+  </span>
+  <span class="absValue">
+    (6/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.6%
+  </span>
+  <span class="absValue">
+    (15/ 28)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">BaseFuture$Sync</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (9/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    71%
+  </span>
+  <span class="absValue">
+    (22/ 31)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    65.2%
+  </span>
+  <span class="absValue">
+    (15/ 23)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.7%
+  </span>
+  <span class="absValue">
+    (37/ 59)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.util.concurrent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.service.ClusterApplierService;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.service.MasterService;
+<i>24</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>25</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>26</i>&nbsp;import org.elasticsearch.transport.Transports;
+<i>27</i>&nbsp;
+<i>28</i>&nbsp;import java.util.Objects;
+<i>29</i>&nbsp;import java.util.concurrent.CancellationException;
+<i>30</i>&nbsp;import java.util.concurrent.ExecutionException;
+<i>31</i>&nbsp;import java.util.concurrent.Future;
+<i>32</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>33</i>&nbsp;import java.util.concurrent.TimeoutException;
+<i>34</i>&nbsp;import java.util.concurrent.locks.AbstractQueuedSynchronizer;
+<i>35</i>&nbsp;
+<b class="fc"><i>36</i>&nbsp;public abstract class BaseFuture&lt;V&gt; implements Future&lt;V&gt; {</b>
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    private static final String BLOCKING_OP_REASON = &quot;Blocking operation&quot;;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    /**
+<i>41</i>&nbsp;     * Synchronization control for AbstractFutures.
+<i>42</i>&nbsp;     */
+<b class="fc"><i>43</i>&nbsp;    private final Sync&lt;V&gt; sync = new Sync&lt;&gt;();</b>
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;    /*
+<i>46</i>&nbsp;    * Improve the documentation of when InterruptedException is thrown. Our
+<i>47</i>&nbsp;    * behavior matches the JDK&#39;s, but the JDK&#39;s documentation is misleading.
+<i>48</i>&nbsp;    */
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    /**
+<i>51</i>&nbsp;     * {@inheritDoc}
+<i>52</i>&nbsp;     * &lt;p&gt;
+<i>53</i>&nbsp;     * The default {@link BaseFuture} implementation throws {@code
+<i>54</i>&nbsp;     * InterruptedException} if the current thread is interrupted before or during
+<i>55</i>&nbsp;     * the call, even if the value is already available.
+<i>56</i>&nbsp;     *
+<i>57</i>&nbsp;     * @throws InterruptedException  if the current thread was interrupted before
+<i>58</i>&nbsp;     *                               or during the call (optional but recommended).
+<i>59</i>&nbsp;     * @throws CancellationException {@inheritDoc}
+<i>60</i>&nbsp;     */
+<i>61</i>&nbsp;    @Override
+<i>62</i>&nbsp;    public V get(long timeout, TimeUnit unit) throws InterruptedException,
+<i>63</i>&nbsp;            TimeoutException, ExecutionException {
+<b class="fc"><i>64</i>&nbsp;        assert timeout &lt;= 0 || blockingAllowed();</b>
+<b class="fc"><i>65</i>&nbsp;        return sync.get(unit.toNanos(timeout));</b>
+<i>66</i>&nbsp;    }
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    /*
+<i>69</i>&nbsp;    * Improve the documentation of when InterruptedException is thrown. Our
+<i>70</i>&nbsp;    * behavior matches the JDK&#39;s, but the JDK&#39;s documentation is misleading.
+<i>71</i>&nbsp;    */
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    /**
+<i>74</i>&nbsp;     * {@inheritDoc}
+<i>75</i>&nbsp;     * &lt;p&gt;
+<i>76</i>&nbsp;     * The default {@link BaseFuture} implementation throws {@code
+<i>77</i>&nbsp;     * InterruptedException} if the current thread is interrupted before or during
+<i>78</i>&nbsp;     * the call, even if the value is already available.
+<i>79</i>&nbsp;     *
+<i>80</i>&nbsp;     * @throws InterruptedException  if the current thread was interrupted before
+<i>81</i>&nbsp;     *                               or during the call (optional but recommended).
+<i>82</i>&nbsp;     * @throws CancellationException {@inheritDoc}
+<i>83</i>&nbsp;     */
+<i>84</i>&nbsp;    @Override
+<i>85</i>&nbsp;    public V get() throws InterruptedException, ExecutionException {
+<b class="fc"><i>86</i>&nbsp;        assert blockingAllowed();</b>
+<b class="fc"><i>87</i>&nbsp;        return sync.get();</b>
+<i>88</i>&nbsp;    }
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    // protected so that it can be overridden in specific instances
+<i>91</i>&nbsp;    protected boolean blockingAllowed() {
+<b class="fc"><i>92</i>&nbsp;        return Transports.assertNotTransportThread(BLOCKING_OP_REASON) &amp;&amp;</b>
+<b class="fc"><i>93</i>&nbsp;            ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON) &amp;&amp;</b>
+<b class="fc"><i>94</i>&nbsp;            ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON) &amp;&amp;</b>
+<b class="fc"><i>95</i>&nbsp;            MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);</b>
+<i>96</i>&nbsp;    }
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    @Override
+<i>99</i>&nbsp;    public boolean isDone() {
+<b class="nc"><i>100</i>&nbsp;        return sync.isDone();</b>
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    @Override
+<i>104</i>&nbsp;    public boolean isCancelled() {
+<b class="nc"><i>105</i>&nbsp;        return sync.isCancelled();</b>
+<i>106</i>&nbsp;    }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    @Override
+<i>109</i>&nbsp;    public boolean cancel(boolean mayInterruptIfRunning) {
+<b class="nc"><i>110</i>&nbsp;        if (!sync.cancel()) {</b>
+<b class="nc"><i>111</i>&nbsp;            return false;</b>
+<i>112</i>&nbsp;        }
+<b class="nc"><i>113</i>&nbsp;        done();</b>
+<b class="nc"><i>114</i>&nbsp;        if (mayInterruptIfRunning) {</b>
+<b class="nc"><i>115</i>&nbsp;            interruptTask();</b>
+<i>116</i>&nbsp;        }
+<b class="nc"><i>117</i>&nbsp;        return true;</b>
+<i>118</i>&nbsp;    }
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    /**
+<i>121</i>&nbsp;     * Subclasses can override this method to implement interruption of the
+<i>122</i>&nbsp;     * future&#39;s computation. The method is invoked automatically by a successful
+<i>123</i>&nbsp;     * call to {@link #cancel(boolean) cancel(true)}.
+<i>124</i>&nbsp;     * &lt;p&gt;
+<i>125</i>&nbsp;     * The default implementation does nothing.
+<i>126</i>&nbsp;     *
+<i>127</i>&nbsp;     * @since 10.0
+<i>128</i>&nbsp;     */
+<i>129</i>&nbsp;    protected void interruptTask() {
+<b class="nc"><i>130</i>&nbsp;    }</b>
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    /**
+<i>133</i>&nbsp;     * Subclasses should invoke this method to set the result of the computation
+<i>134</i>&nbsp;     * to {@code value}.  This will set the state of the future to
+<i>135</i>&nbsp;     * {@link BaseFuture.Sync#COMPLETED} and call {@link #done()} if the
+<i>136</i>&nbsp;     * state was successfully changed.
+<i>137</i>&nbsp;     *
+<i>138</i>&nbsp;     * @param value the value that was the result of the task.
+<i>139</i>&nbsp;     * @return true if the state was successfully changed.
+<i>140</i>&nbsp;     */
+<i>141</i>&nbsp;    protected boolean set(@Nullable V value) {
+<b class="fc"><i>142</i>&nbsp;        boolean result = sync.set(value);</b>
+<b class="fc"><i>143</i>&nbsp;        if (result) {</b>
+<b class="fc"><i>144</i>&nbsp;            done();</b>
+<i>145</i>&nbsp;        }
+<b class="fc"><i>146</i>&nbsp;        return result;</b>
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    /**
+<i>150</i>&nbsp;     * Subclasses should invoke this method to set the result of the computation
+<i>151</i>&nbsp;     * to an error, {@code throwable}.  This will set the state of the future to
+<i>152</i>&nbsp;     * {@link BaseFuture.Sync#COMPLETED} and call {@link #done()} if the
+<i>153</i>&nbsp;     * state was successfully changed.
+<i>154</i>&nbsp;     *
+<i>155</i>&nbsp;     * @param throwable the exception that the task failed with.
+<i>156</i>&nbsp;     * @return true if the state was successfully changed.
+<i>157</i>&nbsp;     * @throws Error if the throwable was an {@link Error}.
+<i>158</i>&nbsp;     */
+<i>159</i>&nbsp;    protected boolean setException(Throwable throwable) {
+<b class="nc"><i>160</i>&nbsp;        boolean result = sync.setException(Objects.requireNonNull(throwable));</b>
+<b class="nc"><i>161</i>&nbsp;        if (result) {</b>
+<b class="nc"><i>162</i>&nbsp;            done();</b>
+<i>163</i>&nbsp;        }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;        // If it&#39;s an Error, we want to make sure it reaches the top of the
+<i>166</i>&nbsp;        // call stack, so we rethrow it.
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;        // we want to notify the listeners we have with errors as well, as it breaks
+<i>169</i>&nbsp;        // how we work in ES in terms of using assertions
+<i>170</i>&nbsp;//        if (throwable instanceof Error) {
+<i>171</i>&nbsp;//            throw (Error) throwable;
+<i>172</i>&nbsp;//        }
+<b class="nc"><i>173</i>&nbsp;        return result;</b>
+<i>174</i>&nbsp;    }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    protected void done() {
+<b class="fc"><i>177</i>&nbsp;    }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    /**
+<i>180</i>&nbsp;     * &lt;p&gt;Following the contract of {@link AbstractQueuedSynchronizer} we create a
+<i>181</i>&nbsp;     * private subclass to hold the synchronizer.  This synchronizer is used to
+<i>182</i>&nbsp;     * implement the blocking and waiting calls as well as to handle state changes
+<i>183</i>&nbsp;     * in a thread-safe manner.  The current state of the future is held in the
+<i>184</i>&nbsp;     * Sync state, and the lock is released whenever the state changes to either
+<i>185</i>&nbsp;     * {@link #COMPLETED} or {@link #CANCELLED}.
+<i>186</i>&nbsp;     * &lt;p&gt;
+<i>187</i>&nbsp;     * To avoid races between threads doing release and acquire, we transition
+<i>188</i>&nbsp;     * to the final state in two steps.  One thread will successfully CAS from
+<i>189</i>&nbsp;     * RUNNING to COMPLETING, that thread will then set the result of the
+<i>190</i>&nbsp;     * computation, and only then transition to COMPLETED or CANCELLED.
+<i>191</i>&nbsp;     * &lt;p&gt;
+<i>192</i>&nbsp;     * We don&#39;t use the integer argument passed between acquire methods so we
+<i>193</i>&nbsp;     * pass around a -1 everywhere.
+<i>194</i>&nbsp;     */
+<b class="fc"><i>195</i>&nbsp;    static final class Sync&lt;V&gt; extends AbstractQueuedSynchronizer {</b>
+<i>196</i>&nbsp;        /* Valid states. */
+<i>197</i>&nbsp;        static final int RUNNING = 0;
+<i>198</i>&nbsp;        static final int COMPLETING = 1;
+<i>199</i>&nbsp;        static final int COMPLETED = 2;
+<i>200</i>&nbsp;        static final int CANCELLED = 4;
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;        private V value;
+<i>203</i>&nbsp;        private Throwable exception;
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;        /*
+<i>206</i>&nbsp;        * Acquisition succeeds if the future is done, otherwise it fails.
+<i>207</i>&nbsp;        */
+<i>208</i>&nbsp;        @Override
+<i>209</i>&nbsp;        protected int tryAcquireShared(int ignored) {
+<b class="fc"><i>210</i>&nbsp;            if (isDone()) {</b>
+<b class="fc"><i>211</i>&nbsp;                return 1;</b>
+<i>212</i>&nbsp;            }
+<b class="fc"><i>213</i>&nbsp;            return -1;</b>
+<i>214</i>&nbsp;        }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;        /*
+<i>217</i>&nbsp;        * We always allow a release to go through, this means the state has been
+<i>218</i>&nbsp;        * successfully changed and the result is available.
+<i>219</i>&nbsp;        */
+<i>220</i>&nbsp;        @Override
+<i>221</i>&nbsp;        protected boolean tryReleaseShared(int finalState) {
+<b class="fc"><i>222</i>&nbsp;            setState(finalState);</b>
+<b class="fc"><i>223</i>&nbsp;            return true;</b>
+<i>224</i>&nbsp;        }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        /**
+<i>227</i>&nbsp;         * Blocks until the task is complete or the timeout expires.  Throws a
+<i>228</i>&nbsp;         * {@link TimeoutException} if the timer expires, otherwise behaves like
+<i>229</i>&nbsp;         * {@link #get()}.
+<i>230</i>&nbsp;         */
+<i>231</i>&nbsp;        V get(long nanos) throws TimeoutException, CancellationException,
+<i>232</i>&nbsp;                ExecutionException, InterruptedException {
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;            // Attempt to acquire the shared lock with a timeout.
+<b class="fc"><i>235</i>&nbsp;            if (!tryAcquireSharedNanos(-1, nanos)) {</b>
+<b class="nc"><i>236</i>&nbsp;                throw new TimeoutException(&quot;Timeout waiting for task.&quot;);</b>
+<i>237</i>&nbsp;            }
+<i>238</i>&nbsp;
+<b class="fc"><i>239</i>&nbsp;            return getValue();</b>
+<i>240</i>&nbsp;        }
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;        /**
+<i>243</i>&nbsp;         * Blocks until {@link #complete(Object, Throwable, int)} has been
+<i>244</i>&nbsp;         * successfully called.  Throws a {@link CancellationException} if the task
+<i>245</i>&nbsp;         * was cancelled, or a {@link ExecutionException} if the task completed with
+<i>246</i>&nbsp;         * an error.
+<i>247</i>&nbsp;         */
+<i>248</i>&nbsp;        V get() throws CancellationException, ExecutionException,
+<i>249</i>&nbsp;                InterruptedException {
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;            // Acquire the shared lock allowing interruption.
+<b class="fc"><i>252</i>&nbsp;            acquireSharedInterruptibly(-1);</b>
+<b class="fc"><i>253</i>&nbsp;            return getValue();</b>
+<i>254</i>&nbsp;        }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;        /**
+<i>257</i>&nbsp;         * Implementation of the actual value retrieval.  Will return the value
+<i>258</i>&nbsp;         * on success, an exception on failure, a cancellation on cancellation, or
+<i>259</i>&nbsp;         * an illegal state if the synchronizer is in an invalid state.
+<i>260</i>&nbsp;         */
+<i>261</i>&nbsp;        private V getValue() throws CancellationException, ExecutionException {
+<b class="fc"><i>262</i>&nbsp;            int state = getState();</b>
+<b class="fc"><i>263</i>&nbsp;            switch (state) {</b>
+<i>264</i>&nbsp;                case COMPLETED:
+<b class="fc"><i>265</i>&nbsp;                    if (exception != null) {</b>
+<b class="nc"><i>266</i>&nbsp;                        throw new ExecutionException(exception);</b>
+<i>267</i>&nbsp;                    } else {
+<b class="fc"><i>268</i>&nbsp;                        return value;</b>
+<i>269</i>&nbsp;                    }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;                case CANCELLED:
+<b class="nc"><i>272</i>&nbsp;                    throw new CancellationException(&quot;Task was cancelled.&quot;);</b>
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;                default:
+<b class="nc"><i>275</i>&nbsp;                    throw new IllegalStateException(</b>
+<i>276</i>&nbsp;                            &quot;Error, synchronizer in invalid state: &quot; + state);
+<i>277</i>&nbsp;            }
+<i>278</i>&nbsp;        }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;        /**
+<i>281</i>&nbsp;         * Checks if the state is {@link #COMPLETED} or {@link #CANCELLED}.
+<i>282</i>&nbsp;         */
+<i>283</i>&nbsp;        boolean isDone() {
+<b class="fc"><i>284</i>&nbsp;            return (getState() &amp; (COMPLETED | CANCELLED)) != 0;</b>
+<i>285</i>&nbsp;        }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;        /**
+<i>288</i>&nbsp;         * Checks if the state is {@link #CANCELLED}.
+<i>289</i>&nbsp;         */
+<i>290</i>&nbsp;        boolean isCancelled() {
+<b class="nc"><i>291</i>&nbsp;            return getState() == CANCELLED;</b>
+<i>292</i>&nbsp;        }
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;        /**
+<i>295</i>&nbsp;         * Transition to the COMPLETED state and set the value.
+<i>296</i>&nbsp;         */
+<i>297</i>&nbsp;        boolean set(@Nullable V v) {
+<b class="fc"><i>298</i>&nbsp;            return complete(v, null, COMPLETED);</b>
+<i>299</i>&nbsp;        }
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;        /**
+<i>302</i>&nbsp;         * Transition to the COMPLETED state and set the exception.
+<i>303</i>&nbsp;         */
+<i>304</i>&nbsp;        boolean setException(Throwable t) {
+<b class="nc"><i>305</i>&nbsp;            return complete(null, t, COMPLETED);</b>
+<i>306</i>&nbsp;        }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;        /**
+<i>309</i>&nbsp;         * Transition to the CANCELLED state.
+<i>310</i>&nbsp;         */
+<i>311</i>&nbsp;        boolean cancel() {
+<b class="nc"><i>312</i>&nbsp;            return complete(null, null, CANCELLED);</b>
+<i>313</i>&nbsp;        }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;        /**
+<i>316</i>&nbsp;         * Implementation of completing a task.  Either {@code v} or {@code t} will
+<i>317</i>&nbsp;         * be set but not both.  The {@code finalState} is the state to change to
+<i>318</i>&nbsp;         * from {@link #RUNNING}.  If the state is not in the RUNNING state we
+<i>319</i>&nbsp;         * return {@code false} after waiting for the state to be set to a valid
+<i>320</i>&nbsp;         * final state ({@link #COMPLETED} or {@link #CANCELLED}).
+<i>321</i>&nbsp;         *
+<i>322</i>&nbsp;         * @param v          the value to set as the result of the computation.
+<i>323</i>&nbsp;         * @param t          the exception to set as the result of the computation.
+<i>324</i>&nbsp;         * @param finalState the state to transition to.
+<i>325</i>&nbsp;         */
+<i>326</i>&nbsp;        private boolean complete(@Nullable V v, @Nullable Throwable t,
+<i>327</i>&nbsp;                                 int finalState) {
+<b class="fc"><i>328</i>&nbsp;            boolean doCompletion = compareAndSetState(RUNNING, COMPLETING);</b>
+<b class="fc"><i>329</i>&nbsp;            if (doCompletion) {</b>
+<i>330</i>&nbsp;                // If this thread successfully transitioned to COMPLETING, set the value
+<i>331</i>&nbsp;                // and exception and then release to the final state.
+<b class="fc"><i>332</i>&nbsp;                this.value = v;</b>
+<b class="fc"><i>333</i>&nbsp;                this.exception = t;</b>
+<b class="fc"><i>334</i>&nbsp;                releaseShared(finalState);</b>
+<b class="nc"><i>335</i>&nbsp;            } else if (getState() == COMPLETING) {</b>
+<i>336</i>&nbsp;                // If some other thread is currently completing the future, block until
+<i>337</i>&nbsp;                // they are done so we can guarantee completion.
+<b class="nc"><i>338</i>&nbsp;                acquireShared(-1);</b>
+<i>339</i>&nbsp;            }
+<b class="fc"><i>340</i>&nbsp;            return doCompletion;</b>
+<i>341</i>&nbsp;        }
+<i>342</i>&nbsp;    }
+<i>343</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

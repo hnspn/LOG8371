@@ -1,0 +1,215 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Text</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.text</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Text (org.elasticsearch.common.text)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">Text</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.4%
+  </span>
+  <span class="absValue">
+    (2/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.1%
+  </span>
+  <span class="absValue">
+    (4/ 33)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.common.text;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>22</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>23</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>24</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>25</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>26</i>&nbsp;
+<i>27</i>&nbsp;import java.io.IOException;
+<i>28</i>&nbsp;import java.nio.charset.StandardCharsets;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;/**
+<i>31</i>&nbsp; * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
+<i>32</i>&nbsp; * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
+<i>33</i>&nbsp; */
+<i>34</i>&nbsp;public final class Text implements Comparable&lt;Text&gt;, ToXContentFragment {
+<i>35</i>&nbsp;
+<b class="fc"><i>36</i>&nbsp;    public static final Text[] EMPTY_ARRAY = new Text[0];</b>
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    public static Text[] convertFromStringArray(String[] strings) {
+<b class="nc"><i>39</i>&nbsp;        if (strings.length == 0) {</b>
+<b class="nc"><i>40</i>&nbsp;            return EMPTY_ARRAY;</b>
+<i>41</i>&nbsp;        }
+<b class="nc"><i>42</i>&nbsp;        Text[] texts = new Text[strings.length];</b>
+<b class="nc"><i>43</i>&nbsp;        for (int i = 0; i &lt; strings.length; i++) {</b>
+<b class="nc"><i>44</i>&nbsp;            texts[i] = new Text(strings[i]);</b>
+<i>45</i>&nbsp;        }
+<b class="nc"><i>46</i>&nbsp;        return texts;</b>
+<i>47</i>&nbsp;    }
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    private BytesReference bytes;
+<i>50</i>&nbsp;    private String text;
+<i>51</i>&nbsp;    private int hash;
+<i>52</i>&nbsp;
+<b class="nc"><i>53</i>&nbsp;    public Text(BytesReference bytes) {</b>
+<b class="nc"><i>54</i>&nbsp;        this.bytes = bytes;</b>
+<b class="nc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<b class="fc"><i>57</i>&nbsp;    public Text(String text) {</b>
+<b class="fc"><i>58</i>&nbsp;        this.text = text;</b>
+<b class="fc"><i>59</i>&nbsp;    }</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * Whether a {@link BytesReference} view of the data is already materialized.
+<i>63</i>&nbsp;     */
+<i>64</i>&nbsp;    public boolean hasBytes() {
+<b class="nc"><i>65</i>&nbsp;        return bytes != null;</b>
+<i>66</i>&nbsp;    }
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    /**
+<i>69</i>&nbsp;     * Returns a {@link BytesReference} view of the data.
+<i>70</i>&nbsp;     */
+<i>71</i>&nbsp;    public BytesReference bytes() {
+<b class="nc"><i>72</i>&nbsp;        if (bytes == null) {</b>
+<b class="nc"><i>73</i>&nbsp;            bytes = new BytesArray(text.getBytes(StandardCharsets.UTF_8));</b>
+<i>74</i>&nbsp;        }
+<b class="nc"><i>75</i>&nbsp;        return bytes;</b>
+<i>76</i>&nbsp;    }
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    /**
+<i>79</i>&nbsp;     * Whether a {@link String} view of the data is already materialized.
+<i>80</i>&nbsp;     */
+<i>81</i>&nbsp;    public boolean hasString() {
+<b class="nc"><i>82</i>&nbsp;        return text != null;</b>
+<i>83</i>&nbsp;    }
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    /**
+<i>86</i>&nbsp;     * Returns a {@link String} view of the data.
+<i>87</i>&nbsp;     */
+<i>88</i>&nbsp;    public String string() {
+<b class="nc"><i>89</i>&nbsp;        return text == null ? bytes.utf8ToString() : text;</b>
+<i>90</i>&nbsp;    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    @Override
+<i>93</i>&nbsp;    public String toString() {
+<b class="nc"><i>94</i>&nbsp;        return string();</b>
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    @Override
+<i>98</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>99</i>&nbsp;        if (hash == 0) {</b>
+<b class="nc"><i>100</i>&nbsp;            hash = bytes().hashCode();</b>
+<i>101</i>&nbsp;        }
+<b class="nc"><i>102</i>&nbsp;        return hash;</b>
+<i>103</i>&nbsp;    }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    @Override
+<i>106</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>107</i>&nbsp;        if (this == obj) {</b>
+<b class="nc"><i>108</i>&nbsp;            return true;</b>
+<i>109</i>&nbsp;        }
+<b class="nc"><i>110</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="nc"><i>111</i>&nbsp;            return false;</b>
+<i>112</i>&nbsp;        }
+<b class="nc"><i>113</i>&nbsp;        return bytes().equals(((Text) obj).bytes());</b>
+<i>114</i>&nbsp;    }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    @Override
+<i>117</i>&nbsp;    public int compareTo(Text text) {
+<b class="nc"><i>118</i>&nbsp;        return bytes().compareTo(text.bytes());</b>
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    @Override
+<i>122</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>123</i>&nbsp;        if (hasString()) {</b>
+<b class="nc"><i>124</i>&nbsp;            return builder.value(this.string());</b>
+<i>125</i>&nbsp;        } else {
+<i>126</i>&nbsp;            // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
+<i>127</i>&nbsp;            // request to jackson to support InputStream as well?
+<b class="nc"><i>128</i>&nbsp;            BytesRef br = this.bytes().toBytesRef();</b>
+<b class="nc"><i>129</i>&nbsp;            return builder.utf8Value(br.bytes, br.offset, br.length);</b>
+<i>130</i>&nbsp;        }
+<i>131</i>&nbsp;    }
+<i>132</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

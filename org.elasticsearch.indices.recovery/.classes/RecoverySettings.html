@@ -1,0 +1,283 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RecoverySettings</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.indices.recovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RecoverySettings (org.elasticsearch.indices.recovery)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RecoverySettings</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.8%
+  </span>
+  <span class="absValue">
+    (3/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.9%
+  </span>
+  <span class="absValue">
+    (39/ 71)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.indices.recovery;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.lucene.store.RateLimiter;
+<i>25</i>&nbsp;import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+<i>26</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>30</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeUnit;
+<i>31</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>32</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;public class RecoverySettings {
+<i>35</i>&nbsp;
+<b class="fc"><i>36</i>&nbsp;    private static final Logger logger = LogManager.getLogger(RecoverySettings.class);</b>
+<i>37</i>&nbsp;
+<b class="fc"><i>38</i>&nbsp;    public static final Setting&lt;ByteSizeValue&gt; INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING =</b>
+<b class="fc"><i>39</i>&nbsp;        Setting.byteSizeSetting(&quot;indices.recovery.max_bytes_per_sec&quot;, new ByteSizeValue(40, ByteSizeUnit.MB),</b>
+<i>40</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    /**
+<i>43</i>&nbsp;     * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.
+<i>44</i>&nbsp;     */
+<b class="fc"><i>45</i>&nbsp;    public static final Setting&lt;Integer&gt; INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING =</b>
+<b class="fc"><i>46</i>&nbsp;        Setting.intSetting(&quot;indices.recovery.max_concurrent_file_chunks&quot;, 2, 1, 5, Property.Dynamic, Property.NodeScope);</b>
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    /**
+<i>49</i>&nbsp;     * how long to wait before retrying after issues cause by cluster state syncing between nodes
+<i>50</i>&nbsp;     * i.e., local node is not yet known on remote node, remote shard not yet started etc.
+<i>51</i>&nbsp;     */
+<b class="fc"><i>52</i>&nbsp;    public static final Setting&lt;TimeValue&gt; INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING =</b>
+<b class="fc"><i>53</i>&nbsp;        Setting.positiveTimeSetting(&quot;indices.recovery.retry_delay_state_sync&quot;, TimeValue.timeValueMillis(500),</b>
+<i>54</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    /** how long to wait before retrying after network related issues */
+<b class="fc"><i>57</i>&nbsp;    public static final Setting&lt;TimeValue&gt; INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING =</b>
+<b class="fc"><i>58</i>&nbsp;        Setting.positiveTimeSetting(&quot;indices.recovery.retry_delay_network&quot;, TimeValue.timeValueSeconds(5),</b>
+<i>59</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /** timeout value to use for requests made as part of the recovery process */
+<b class="fc"><i>62</i>&nbsp;    public static final Setting&lt;TimeValue&gt; INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING =</b>
+<b class="fc"><i>63</i>&nbsp;        Setting.positiveTimeSetting(&quot;indices.recovery.internal_action_timeout&quot;, TimeValue.timeValueMinutes(15),</b>
+<i>64</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    /**
+<i>67</i>&nbsp;     * timeout value to use for requests made as part of the recovery process that are expected to take long time.
+<i>68</i>&nbsp;     * defaults to twice `indices.recovery.internal_action_timeout`.
+<i>69</i>&nbsp;     */
+<b class="fc"><i>70</i>&nbsp;    public static final Setting&lt;TimeValue&gt; INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING =</b>
+<b class="fc"><i>71</i>&nbsp;        Setting.timeSetting(&quot;indices.recovery.internal_action_long_timeout&quot;,</b>
+<b class="fc"><i>72</i>&nbsp;            (s) -&gt; TimeValue.timeValueMillis(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(s).millis() * 2),</b>
+<b class="fc"><i>73</i>&nbsp;            TimeValue.timeValueSeconds(0), Property.Dynamic,  Property.NodeScope);</b>
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * recoveries that don&#39;t show any activity for more then this interval will be failed.
+<i>77</i>&nbsp;     * defaults to `indices.recovery.internal_action_long_timeout`
+<i>78</i>&nbsp;     */
+<b class="fc"><i>79</i>&nbsp;    public static final Setting&lt;TimeValue&gt; INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING =</b>
+<b class="fc"><i>80</i>&nbsp;        Setting.timeSetting(&quot;indices.recovery.recovery_activity_timeout&quot;,</b>
+<b class="fc"><i>81</i>&nbsp;            INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),</b>
+<i>82</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<i>83</i>&nbsp;
+<b class="fc"><i>84</i>&nbsp;    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    private volatile ByteSizeValue maxBytesPerSec;
+<i>87</i>&nbsp;    private volatile int maxConcurrentFileChunks;
+<i>88</i>&nbsp;    private volatile SimpleRateLimiter rateLimiter;
+<i>89</i>&nbsp;    private volatile TimeValue retryDelayStateSync;
+<i>90</i>&nbsp;    private volatile TimeValue retryDelayNetwork;
+<i>91</i>&nbsp;    private volatile TimeValue activityTimeout;
+<i>92</i>&nbsp;    private volatile TimeValue internalActionTimeout;
+<i>93</i>&nbsp;    private volatile TimeValue internalActionLongTimeout;
+<i>94</i>&nbsp;
+<b class="fc"><i>95</i>&nbsp;    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;</b>
+<i>96</i>&nbsp;
+<b class="fc"><i>97</i>&nbsp;    public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {</b>
+<b class="fc"><i>98</i>&nbsp;        this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);</b>
+<b class="fc"><i>99</i>&nbsp;        this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);</b>
+<i>100</i>&nbsp;        // doesn&#39;t have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
+<i>101</i>&nbsp;        // and we want to give the master time to remove a faulty node
+<b class="fc"><i>102</i>&nbsp;        this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);</b>
+<i>103</i>&nbsp;
+<b class="fc"><i>104</i>&nbsp;        this.internalActionTimeout = INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>105</i>&nbsp;        this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);</b>
+<i>106</i>&nbsp;
+<b class="fc"><i>107</i>&nbsp;        this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>108</i>&nbsp;        this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);</b>
+<b class="fc"><i>109</i>&nbsp;        if (maxBytesPerSec.getBytes() &lt;= 0) {</b>
+<b class="nc"><i>110</i>&nbsp;            rateLimiter = null;</b>
+<i>111</i>&nbsp;        } else {
+<b class="fc"><i>112</i>&nbsp;            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());</b>
+<i>113</i>&nbsp;        }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;
+<b class="fc"><i>116</i>&nbsp;        logger.debug(&quot;using max_bytes_per_sec[{}]&quot;, maxBytesPerSec);</b>
+<i>117</i>&nbsp;
+<b class="fc"><i>118</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);</b>
+<b class="fc"><i>119</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);</b>
+<b class="fc"><i>120</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);</b>
+<b class="fc"><i>121</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);</b>
+<b class="fc"><i>122</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING, this::setInternalActionTimeout);</b>
+<b class="fc"><i>123</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,</b>
+<i>124</i>&nbsp;            this::setInternalActionLongTimeout);
+<b class="fc"><i>125</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);</b>
+<b class="fc"><i>126</i>&nbsp;    }</b>
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    public RateLimiter rateLimiter() {
+<b class="nc"><i>129</i>&nbsp;        return rateLimiter;</b>
+<i>130</i>&nbsp;    }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    public TimeValue retryDelayNetwork() {
+<b class="nc"><i>133</i>&nbsp;        return retryDelayNetwork;</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    public TimeValue retryDelayStateSync() {
+<b class="nc"><i>137</i>&nbsp;        return retryDelayStateSync;</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    public TimeValue activityTimeout() {
+<b class="nc"><i>141</i>&nbsp;        return activityTimeout;</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    public TimeValue internalActionTimeout() {
+<b class="nc"><i>145</i>&nbsp;        return internalActionTimeout;</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    public TimeValue internalActionLongTimeout() {
+<b class="nc"><i>149</i>&nbsp;        return internalActionLongTimeout;</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<b class="nc"><i>152</i>&nbsp;    public ByteSizeValue getChunkSize() { return chunkSize; }</b>
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+<b class="nc"><i>155</i>&nbsp;        if (chunkSize.bytesAsInt() &lt;= 0) {</b>
+<b class="nc"><i>156</i>&nbsp;            throw new IllegalArgumentException(&quot;chunkSize must be &gt; 0&quot;);</b>
+<i>157</i>&nbsp;        }
+<b class="nc"><i>158</i>&nbsp;        this.chunkSize = chunkSize;</b>
+<b class="nc"><i>159</i>&nbsp;    }</b>
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;    public void setRetryDelayStateSync(TimeValue retryDelayStateSync) {
+<b class="nc"><i>163</i>&nbsp;        this.retryDelayStateSync = retryDelayStateSync;</b>
+<b class="nc"><i>164</i>&nbsp;    }</b>
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    public void setRetryDelayNetwork(TimeValue retryDelayNetwork) {
+<b class="nc"><i>167</i>&nbsp;        this.retryDelayNetwork = retryDelayNetwork;</b>
+<b class="nc"><i>168</i>&nbsp;    }</b>
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    public void setActivityTimeout(TimeValue activityTimeout) {
+<b class="nc"><i>171</i>&nbsp;        this.activityTimeout = activityTimeout;</b>
+<b class="nc"><i>172</i>&nbsp;    }</b>
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    public void setInternalActionTimeout(TimeValue internalActionTimeout) {
+<b class="nc"><i>175</i>&nbsp;        this.internalActionTimeout = internalActionTimeout;</b>
+<b class="nc"><i>176</i>&nbsp;    }</b>
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    public void setInternalActionLongTimeout(TimeValue internalActionLongTimeout) {
+<b class="nc"><i>179</i>&nbsp;        this.internalActionLongTimeout = internalActionLongTimeout;</b>
+<b class="nc"><i>180</i>&nbsp;    }</b>
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;    private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
+<b class="nc"><i>183</i>&nbsp;        this.maxBytesPerSec = maxBytesPerSec;</b>
+<b class="nc"><i>184</i>&nbsp;        if (maxBytesPerSec.getBytes() &lt;= 0) {</b>
+<b class="nc"><i>185</i>&nbsp;            rateLimiter = null;</b>
+<b class="nc"><i>186</i>&nbsp;        } else if (rateLimiter != null) {</b>
+<b class="nc"><i>187</i>&nbsp;            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());</b>
+<i>188</i>&nbsp;        } else {
+<b class="nc"><i>189</i>&nbsp;            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());</b>
+<i>190</i>&nbsp;        }
+<b class="nc"><i>191</i>&nbsp;    }</b>
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    public int getMaxConcurrentFileChunks() {
+<b class="nc"><i>194</i>&nbsp;        return maxConcurrentFileChunks;</b>
+<i>195</i>&nbsp;    }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    private void setMaxConcurrentFileChunks(int maxConcurrentFileChunks) {
+<b class="nc"><i>198</i>&nbsp;        this.maxConcurrentFileChunks = maxConcurrentFileChunks;</b>
+<b class="nc"><i>199</i>&nbsp;    }</b>
+<i>200</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

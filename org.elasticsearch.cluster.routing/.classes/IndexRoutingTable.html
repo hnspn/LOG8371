@@ -1,0 +1,660 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexRoutingTable</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexRoutingTable (org.elasticsearch.cluster.routing)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexRoutingTable</td>
+<td class="coverageStat">
+  <span class="percent">
+    63.6%
+  </span>
+  <span class="absValue">
+    (14/ 22)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    49.2%
+  </span>
+  <span class="absValue">
+    (65/ 132)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndexRoutingTable$Builder</td>
+<td class="coverageStat">
+  <span class="percent">
+    43.8%
+  </span>
+  <span class="absValue">
+    (7/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.4%
+  </span>
+  <span class="absValue">
+    (28/ 92)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    55.3%
+  </span>
+  <span class="absValue">
+    (21/ 38)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41.5%
+  </span>
+  <span class="absValue">
+    (93/ 224)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.IntSet;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.IntCursor;
+<i>24</i>&nbsp;import com.carrotsearch.hppc.cursors.IntObjectCursor;
+<i>25</i>&nbsp;import org.apache.lucene.util.CollectionUtil;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.AbstractDiffable;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.Diff;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+<i>35</i>&nbsp;import org.elasticsearch.common.Randomness;
+<i>36</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>38</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>39</i>&nbsp;import org.elasticsearch.index.Index;
+<i>40</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import java.io.IOException;
+<i>43</i>&nbsp;import java.util.ArrayList;
+<i>44</i>&nbsp;import java.util.Collections;
+<i>45</i>&nbsp;import java.util.HashSet;
+<i>46</i>&nbsp;import java.util.Iterator;
+<i>47</i>&nbsp;import java.util.List;
+<i>48</i>&nbsp;import java.util.Set;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;/**
+<i>51</i>&nbsp; * The {@link IndexRoutingTable} represents routing information for a single
+<i>52</i>&nbsp; * index. The routing table maintains a list of all shards in the index. A
+<i>53</i>&nbsp; * single shard in this context has one more instances namely exactly one
+<i>54</i>&nbsp; * {@link ShardRouting#primary() primary} and 1 or more replicas. In other
+<i>55</i>&nbsp; * words, each instance of a shard is considered a replica while only one
+<i>56</i>&nbsp; * replica per shard is a {@code primary} replica. The {@code primary} replica
+<i>57</i>&nbsp; * can be seen as the &quot;leader&quot; of the shard acting as the primary entry point
+<i>58</i>&nbsp; * for operations on a specific shard.
+<i>59</i>&nbsp; * &lt;p&gt;
+<i>60</i>&nbsp; * Note: The term replica is not directly
+<i>61</i>&nbsp; * reflected in the routing table or in related classes, replicas are
+<i>62</i>&nbsp; * represented as {@link ShardRouting}.
+<i>63</i>&nbsp; * &lt;/p&gt;
+<i>64</i>&nbsp; */
+<i>65</i>&nbsp;public class IndexRoutingTable extends AbstractDiffable&lt;IndexRoutingTable&gt; implements Iterable&lt;IndexShardRoutingTable&gt; {
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    private final Index index;
+<i>68</i>&nbsp;    private final ShardShuffler shuffler;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    // note, we assume that when the index routing is created, ShardRoutings are created for all possible number of
+<i>71</i>&nbsp;    // shards with state set to UNASSIGNED
+<i>72</i>&nbsp;    private final ImmutableOpenIntMap&lt;IndexShardRoutingTable&gt; shards;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    private final List&lt;ShardRouting&gt; allActiveShards;
+<i>75</i>&nbsp;
+<b class="fc"><i>76</i>&nbsp;    IndexRoutingTable(Index index, ImmutableOpenIntMap&lt;IndexShardRoutingTable&gt; shards) {</b>
+<b class="fc"><i>77</i>&nbsp;        this.index = index;</b>
+<b class="fc"><i>78</i>&nbsp;        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());</b>
+<b class="fc"><i>79</i>&nbsp;        this.shards = shards;</b>
+<b class="fc"><i>80</i>&nbsp;        List&lt;ShardRouting&gt; allActiveShards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>81</i>&nbsp;        for (IntObjectCursor&lt;IndexShardRoutingTable&gt; cursor : shards) {</b>
+<b class="fc"><i>82</i>&nbsp;            for (ShardRouting shardRouting : cursor.value) {</b>
+<b class="fc"><i>83</i>&nbsp;                if (shardRouting.active()) {</b>
+<b class="fc"><i>84</i>&nbsp;                    allActiveShards.add(shardRouting);</b>
+<i>85</i>&nbsp;                }
+<b class="fc"><i>86</i>&nbsp;            }</b>
+<b class="fc"><i>87</i>&nbsp;        }</b>
+<b class="fc"><i>88</i>&nbsp;        this.allActiveShards = Collections.unmodifiableList(allActiveShards);</b>
+<b class="fc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * Return the index id
+<i>93</i>&nbsp;     *
+<i>94</i>&nbsp;     * @return id of the index
+<i>95</i>&nbsp;     */
+<i>96</i>&nbsp;    public Index getIndex() {
+<b class="fc"><i>97</i>&nbsp;        return index;</b>
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    boolean validate(MetaData metaData) {
+<i>101</i>&nbsp;        // check index exists
+<b class="fc"><i>102</i>&nbsp;        if (!metaData.hasIndex(index.getName())) {</b>
+<b class="nc"><i>103</i>&nbsp;            throw new IllegalStateException(index + &quot; exists in routing does not exists in metadata&quot;);</b>
+<i>104</i>&nbsp;        }
+<b class="fc"><i>105</i>&nbsp;        IndexMetaData indexMetaData = metaData.index(index.getName());</b>
+<b class="fc"><i>106</i>&nbsp;        if (indexMetaData.getIndexUUID().equals(index.getUUID()) == false) {</b>
+<b class="nc"><i>107</i>&nbsp;            throw new IllegalStateException(index.getName() + &quot; exists in routing does not exists in metadata with the same uuid&quot;);</b>
+<i>108</i>&nbsp;        }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;        // check the number of shards
+<b class="fc"><i>111</i>&nbsp;        if (indexMetaData.getNumberOfShards() != shards().size()) {</b>
+<b class="nc"><i>112</i>&nbsp;            Set&lt;Integer&gt; expected = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>113</i>&nbsp;            for (int i = 0; i &lt; indexMetaData.getNumberOfShards(); i++) {</b>
+<b class="nc"><i>114</i>&nbsp;                expected.add(i);</b>
+<i>115</i>&nbsp;            }
+<b class="nc"><i>116</i>&nbsp;            for (IndexShardRoutingTable indexShardRoutingTable : this) {</b>
+<b class="nc"><i>117</i>&nbsp;                expected.remove(indexShardRoutingTable.shardId().id());</b>
+<b class="nc"><i>118</i>&nbsp;            }</b>
+<b class="nc"><i>119</i>&nbsp;            throw new IllegalStateException(&quot;Wrong number of shards in routing table, missing: &quot; + expected);</b>
+<i>120</i>&nbsp;        }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;        // check the replicas
+<b class="fc"><i>123</i>&nbsp;        for (IndexShardRoutingTable indexShardRoutingTable : this) {</b>
+<b class="fc"><i>124</i>&nbsp;            int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;</b>
+<b class="fc"><i>125</i>&nbsp;            if (routingNumberOfReplicas != indexMetaData.getNumberOfReplicas()) {</b>
+<b class="nc"><i>126</i>&nbsp;                throw new IllegalStateException(&quot;Shard [&quot; + indexShardRoutingTable.shardId().id() +</b>
+<b class="nc"><i>127</i>&nbsp;                                 &quot;] routing table has wrong number of replicas, expected [&quot; + indexMetaData.getNumberOfReplicas() +</b>
+<i>128</i>&nbsp;                                 &quot;], got [&quot; + routingNumberOfReplicas + &quot;]&quot;);
+<i>129</i>&nbsp;            }
+<b class="fc"><i>130</i>&nbsp;            for (ShardRouting shardRouting : indexShardRoutingTable) {</b>
+<b class="fc"><i>131</i>&nbsp;                if (!shardRouting.index().equals(index)) {</b>
+<b class="nc"><i>132</i>&nbsp;                    throw new IllegalStateException(&quot;shard routing has an index [&quot; + shardRouting.index() + &quot;] that is different &quot; +</b>
+<i>133</i>&nbsp;                                                    &quot;from the routing table&quot;);
+<i>134</i>&nbsp;                }
+<b class="fc"><i>135</i>&nbsp;                final Set&lt;String&gt; inSyncAllocationIds = indexMetaData.inSyncAllocationIds(shardRouting.id());</b>
+<b class="fc"><i>136</i>&nbsp;                if (shardRouting.active() &amp;&amp;</b>
+<b class="fc"><i>137</i>&nbsp;                    inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {</b>
+<b class="nc"><i>138</i>&nbsp;                    throw new IllegalStateException(&quot;active shard routing &quot; + shardRouting + &quot; has no corresponding entry in the in-sync &quot; +</b>
+<i>139</i>&nbsp;                        &quot;allocation set &quot; + inSyncAllocationIds);
+<i>140</i>&nbsp;                }
+<i>141</i>&nbsp;
+<b class="fc"><i>142</i>&nbsp;                if (shardRouting.primary() &amp;&amp; shardRouting.initializing() &amp;&amp;</b>
+<b class="fc"><i>143</i>&nbsp;                    shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {</b>
+<b class="nc"><i>144</i>&nbsp;                    if (inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)) {</b>
+<b class="nc"><i>145</i>&nbsp;                        if (inSyncAllocationIds.size() != 1) {</b>
+<b class="nc"><i>146</i>&nbsp;                            throw new IllegalStateException(&quot;a primary shard routing &quot; + shardRouting</b>
+<i>147</i>&nbsp;                                + &quot; is a primary that is recovering from a stale primary has unexpected allocation ids in in-sync &quot; +
+<i>148</i>&nbsp;                                &quot;allocation set &quot; + inSyncAllocationIds);
+<i>149</i>&nbsp;                        }
+<b class="nc"><i>150</i>&nbsp;                    } else if (inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {</b>
+<b class="nc"><i>151</i>&nbsp;                        throw new IllegalStateException(&quot;a primary shard routing &quot; + shardRouting</b>
+<i>152</i>&nbsp;                            + &quot; is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync &quot; +
+<i>153</i>&nbsp;                            &quot;allocation set &quot; + inSyncAllocationIds);
+<i>154</i>&nbsp;                    }
+<i>155</i>&nbsp;                }
+<b class="fc"><i>156</i>&nbsp;            }</b>
+<b class="fc"><i>157</i>&nbsp;        }</b>
+<b class="fc"><i>158</i>&nbsp;        return true;</b>
+<i>159</i>&nbsp;    }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;    @Override
+<i>162</i>&nbsp;    public Iterator&lt;IndexShardRoutingTable&gt; iterator() {
+<b class="fc"><i>163</i>&nbsp;        return shards.valuesIt();</b>
+<i>164</i>&nbsp;    }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    /**
+<i>167</i>&nbsp;     * Calculates the number of nodes that hold one or more shards of this index
+<i>168</i>&nbsp;     * {@link IndexRoutingTable} excluding the nodes with the node ids give as
+<i>169</i>&nbsp;     * the &lt;code&gt;excludedNodes&lt;/code&gt; parameter.
+<i>170</i>&nbsp;     *
+<i>171</i>&nbsp;     * @param excludedNodes id of nodes that will be excluded
+<i>172</i>&nbsp;     * @return number of distinct nodes this index has at least one shard allocated on
+<i>173</i>&nbsp;     */
+<i>174</i>&nbsp;    public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
+<b class="nc"><i>175</i>&nbsp;        Set&lt;String&gt; nodes = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>176</i>&nbsp;        for (IndexShardRoutingTable shardRoutingTable : this) {</b>
+<b class="nc"><i>177</i>&nbsp;            for (ShardRouting shardRouting : shardRoutingTable) {</b>
+<b class="nc"><i>178</i>&nbsp;                if (shardRouting.assignedToNode()) {</b>
+<b class="nc"><i>179</i>&nbsp;                    String currentNodeId = shardRouting.currentNodeId();</b>
+<b class="nc"><i>180</i>&nbsp;                    boolean excluded = false;</b>
+<b class="nc"><i>181</i>&nbsp;                    if (excludedNodes != null) {</b>
+<b class="nc"><i>182</i>&nbsp;                        for (String excludedNode : excludedNodes) {</b>
+<b class="nc"><i>183</i>&nbsp;                            if (currentNodeId.equals(excludedNode)) {</b>
+<b class="nc"><i>184</i>&nbsp;                                excluded = true;</b>
+<b class="nc"><i>185</i>&nbsp;                                break;</b>
+<i>186</i>&nbsp;                            }
+<i>187</i>&nbsp;                        }
+<i>188</i>&nbsp;                    }
+<b class="nc"><i>189</i>&nbsp;                    if (!excluded) {</b>
+<b class="nc"><i>190</i>&nbsp;                        nodes.add(currentNodeId);</b>
+<i>191</i>&nbsp;                    }
+<i>192</i>&nbsp;                }
+<b class="nc"><i>193</i>&nbsp;            }</b>
+<b class="nc"><i>194</i>&nbsp;        }</b>
+<b class="nc"><i>195</i>&nbsp;        return nodes.size();</b>
+<i>196</i>&nbsp;    }
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;    public ImmutableOpenIntMap&lt;IndexShardRoutingTable&gt; shards() {
+<b class="fc"><i>199</i>&nbsp;        return shards;</b>
+<i>200</i>&nbsp;    }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;    public ImmutableOpenIntMap&lt;IndexShardRoutingTable&gt; getShards() {
+<b class="fc"><i>203</i>&nbsp;        return shards();</b>
+<i>204</i>&nbsp;    }
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    public IndexShardRoutingTable shard(int shardId) {
+<b class="fc"><i>207</i>&nbsp;        return shards.get(shardId);</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /**
+<i>211</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if all shards are primary and active. Otherwise &lt;code&gt;false&lt;/code&gt;.
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    public boolean allPrimaryShardsActive() {
+<b class="fc"><i>214</i>&nbsp;        return primaryShardsActive() == shards().size();</b>
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * Calculates the number of primary shards in active state in routing table
+<i>219</i>&nbsp;     *
+<i>220</i>&nbsp;     * @return number of active primary shards
+<i>221</i>&nbsp;     */
+<i>222</i>&nbsp;    public int primaryShardsActive() {
+<b class="fc"><i>223</i>&nbsp;        int counter = 0;</b>
+<b class="fc"><i>224</i>&nbsp;        for (IndexShardRoutingTable shardRoutingTable : this) {</b>
+<b class="fc"><i>225</i>&nbsp;            if (shardRoutingTable.primaryShard().active()) {</b>
+<b class="fc"><i>226</i>&nbsp;                counter++;</b>
+<i>227</i>&nbsp;            }
+<b class="fc"><i>228</i>&nbsp;        }</b>
+<b class="fc"><i>229</i>&nbsp;        return counter;</b>
+<i>230</i>&nbsp;    }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    /**
+<i>233</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if all primary shards are in
+<i>234</i>&nbsp;     * {@link ShardRoutingState#UNASSIGNED} state. Otherwise &lt;code&gt;false&lt;/code&gt;.
+<i>235</i>&nbsp;     */
+<i>236</i>&nbsp;    public boolean allPrimaryShardsUnassigned() {
+<b class="nc"><i>237</i>&nbsp;        return primaryShardsUnassigned() == shards.size();</b>
+<i>238</i>&nbsp;    }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;    /**
+<i>241</i>&nbsp;     * Calculates the number of primary shards in the routing table the are in
+<i>242</i>&nbsp;     * {@link ShardRoutingState#UNASSIGNED} state.
+<i>243</i>&nbsp;     */
+<i>244</i>&nbsp;    public int primaryShardsUnassigned() {
+<b class="nc"><i>245</i>&nbsp;        int counter = 0;</b>
+<b class="nc"><i>246</i>&nbsp;        for (IndexShardRoutingTable shardRoutingTable : this) {</b>
+<b class="nc"><i>247</i>&nbsp;            if (shardRoutingTable.primaryShard().unassigned()) {</b>
+<b class="nc"><i>248</i>&nbsp;                counter++;</b>
+<i>249</i>&nbsp;            }
+<b class="nc"><i>250</i>&nbsp;        }</b>
+<b class="nc"><i>251</i>&nbsp;        return counter;</b>
+<i>252</i>&nbsp;    }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    /**
+<i>255</i>&nbsp;     * Returns a {@link List} of shards that match one of the states listed in {@link ShardRoutingState states}
+<i>256</i>&nbsp;     *
+<i>257</i>&nbsp;     * @param state {@link ShardRoutingState} to retrieve
+<i>258</i>&nbsp;     * @return a {@link List} of shards that match one of the given {@link ShardRoutingState states}
+<i>259</i>&nbsp;     */
+<i>260</i>&nbsp;    public List&lt;ShardRouting&gt; shardsWithState(ShardRoutingState state) {
+<b class="fc"><i>261</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>262</i>&nbsp;        for (IndexShardRoutingTable shardRoutingTable : this) {</b>
+<b class="fc"><i>263</i>&nbsp;            shards.addAll(shardRoutingTable.shardsWithState(state));</b>
+<b class="fc"><i>264</i>&nbsp;        }</b>
+<b class="fc"><i>265</i>&nbsp;        return shards;</b>
+<i>266</i>&nbsp;    }
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    /**
+<i>269</i>&nbsp;     * Returns an unordered iterator over all active shards (including replicas).
+<i>270</i>&nbsp;     */
+<i>271</i>&nbsp;    public ShardsIterator randomAllActiveShardsIt() {
+<b class="nc"><i>272</i>&nbsp;        return new PlainShardsIterator(shuffler.shuffle(allActiveShards));</b>
+<i>273</i>&nbsp;    }
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;    @Override
+<i>276</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>277</i>&nbsp;        if (this == o) return true;</b>
+<b class="fc"><i>278</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<i>279</i>&nbsp;
+<b class="fc"><i>280</i>&nbsp;        IndexRoutingTable that = (IndexRoutingTable) o;</b>
+<i>281</i>&nbsp;
+<b class="fc"><i>282</i>&nbsp;        if (!index.equals(that.index)) return false;</b>
+<b class="fc"><i>283</i>&nbsp;        if (!shards.equals(that.shards)) return false;</b>
+<i>284</i>&nbsp;
+<b class="nc"><i>285</i>&nbsp;        return true;</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    @Override
+<i>289</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>290</i>&nbsp;        int result = index.hashCode();</b>
+<b class="nc"><i>291</i>&nbsp;        result = 31 * result + shards.hashCode();</b>
+<b class="nc"><i>292</i>&nbsp;        return result;</b>
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;    public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
+<b class="fc"><i>296</i>&nbsp;        Index index = new Index(in);</b>
+<b class="fc"><i>297</i>&nbsp;        Builder builder = new Builder(index);</b>
+<i>298</i>&nbsp;
+<b class="fc"><i>299</i>&nbsp;        int size = in.readVInt();</b>
+<b class="fc"><i>300</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="fc"><i>301</i>&nbsp;            builder.addIndexShard(IndexShardRoutingTable.Builder.readFromThin(in, index));</b>
+<i>302</i>&nbsp;        }
+<i>303</i>&nbsp;
+<b class="fc"><i>304</i>&nbsp;        return builder.build();</b>
+<i>305</i>&nbsp;    }
+<i>306</i>&nbsp;
+<i>307</i>&nbsp;    public static Diff&lt;IndexRoutingTable&gt; readDiffFrom(StreamInput in) throws IOException {
+<b class="fc"><i>308</i>&nbsp;        return readDiffFrom(IndexRoutingTable::readFrom, in);</b>
+<i>309</i>&nbsp;    }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;    @Override
+<i>312</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>313</i>&nbsp;        index.writeTo(out);</b>
+<b class="fc"><i>314</i>&nbsp;        out.writeVInt(shards.size());</b>
+<b class="fc"><i>315</i>&nbsp;        for (IndexShardRoutingTable indexShard : this) {</b>
+<b class="fc"><i>316</i>&nbsp;            IndexShardRoutingTable.Builder.writeToThin(indexShard, out);</b>
+<b class="fc"><i>317</i>&nbsp;        }</b>
+<b class="fc"><i>318</i>&nbsp;    }</b>
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    public static Builder builder(Index index) {
+<b class="nc"><i>321</i>&nbsp;        return new Builder(index);</b>
+<i>322</i>&nbsp;    }
+<i>323</i>&nbsp;
+<b class="fc"><i>324</i>&nbsp;    public static class Builder {</b>
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;        private final Index index;
+<b class="fc"><i>327</i>&nbsp;        private final ImmutableOpenIntMap.Builder&lt;IndexShardRoutingTable&gt; shards = ImmutableOpenIntMap.builder();</b>
+<i>328</i>&nbsp;
+<b class="fc"><i>329</i>&nbsp;        public Builder(Index index) {</b>
+<b class="fc"><i>330</i>&nbsp;            this.index = index;</b>
+<b class="fc"><i>331</i>&nbsp;        }</b>
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;        /**
+<i>334</i>&nbsp;         * Initializes a new empty index, as if it was created from an API.
+<i>335</i>&nbsp;         */
+<i>336</i>&nbsp;        public Builder initializeAsNew(IndexMetaData indexMetaData) {
+<b class="fc"><i>337</i>&nbsp;            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));</b>
+<i>338</i>&nbsp;        }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;        /**
+<i>341</i>&nbsp;         * Initializes an existing index.
+<i>342</i>&nbsp;         */
+<i>343</i>&nbsp;        public Builder initializeAsRecovery(IndexMetaData indexMetaData) {
+<b class="nc"><i>344</i>&nbsp;            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));</b>
+<i>345</i>&nbsp;        }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;        /**
+<i>348</i>&nbsp;         * Initializes a new index caused by dangling index imported.
+<i>349</i>&nbsp;         */
+<i>350</i>&nbsp;        public Builder initializeAsFromDangling(IndexMetaData indexMetaData) {
+<b class="nc"><i>351</i>&nbsp;            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null));</b>
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        /**
+<i>355</i>&nbsp;         * Initializes a new empty index, as as a result of opening a closed index.
+<i>356</i>&nbsp;         */
+<i>357</i>&nbsp;        public Builder initializeAsFromCloseToOpen(IndexMetaData indexMetaData) {
+<b class="nc"><i>358</i>&nbsp;            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));</b>
+<i>359</i>&nbsp;        }
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;        /**
+<i>362</i>&nbsp;         * Initializes a new empty index, as as a result of closing an opened index.
+<i>363</i>&nbsp;         */
+<i>364</i>&nbsp;        public Builder initializeAsFromOpenToClose(IndexMetaData indexMetaData) {
+<b class="nc"><i>365</i>&nbsp;            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));</b>
+<i>366</i>&nbsp;        }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;        /**
+<i>369</i>&nbsp;         * Initializes a new empty index, to be restored from a snapshot
+<i>370</i>&nbsp;         */
+<i>371</i>&nbsp;        public Builder initializeAsNewRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+<b class="nc"><i>372</i>&nbsp;            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED,</b>
+<b class="nc"><i>373</i>&nbsp;                &quot;restore_source[&quot; + recoverySource.snapshot().getRepository() + &quot;/&quot; +</b>
+<b class="nc"><i>374</i>&nbsp;                 recoverySource.snapshot().getSnapshotId().getName() + &quot;]&quot;);</b>
+<b class="nc"><i>375</i>&nbsp;            return initializeAsRestore(indexMetaData, recoverySource, ignoreShards, true, unassignedInfo);</b>
+<i>376</i>&nbsp;        }
+<i>377</i>&nbsp;
+<i>378</i>&nbsp;        /**
+<i>379</i>&nbsp;         * Initializes an existing index, to be restored from a snapshot
+<i>380</i>&nbsp;         */
+<i>381</i>&nbsp;        public Builder initializeAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource) {
+<b class="nc"><i>382</i>&nbsp;            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,</b>
+<b class="nc"><i>383</i>&nbsp;                 &quot;restore_source[&quot; + recoverySource.snapshot().getRepository() + &quot;/&quot; +</b>
+<b class="nc"><i>384</i>&nbsp;                 recoverySource.snapshot().getSnapshotId().getName() + &quot;]&quot;);</b>
+<b class="nc"><i>385</i>&nbsp;            return initializeAsRestore(indexMetaData, recoverySource, null, false, unassignedInfo);</b>
+<i>386</i>&nbsp;        }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;        /**
+<i>389</i>&nbsp;         * Initializes an index, to be restored from snapshot
+<i>390</i>&nbsp;         */
+<i>391</i>&nbsp;        private Builder initializeAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards,
+<i>392</i>&nbsp;                                            boolean asNew, UnassignedInfo unassignedInfo) {
+<b class="nc"><i>393</i>&nbsp;            assert indexMetaData.getIndex().equals(index);</b>
+<b class="nc"><i>394</i>&nbsp;            if (!shards.isEmpty()) {</b>
+<b class="nc"><i>395</i>&nbsp;                throw new IllegalStateException(&quot;trying to initialize an index with fresh shards, but already has shards created&quot;);</b>
+<i>396</i>&nbsp;            }
+<b class="nc"><i>397</i>&nbsp;            for (int shardNumber = 0; shardNumber &lt; indexMetaData.getNumberOfShards(); shardNumber++) {</b>
+<b class="nc"><i>398</i>&nbsp;                ShardId shardId = new ShardId(index, shardNumber);</b>
+<b class="nc"><i>399</i>&nbsp;                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);</b>
+<b class="nc"><i>400</i>&nbsp;                for (int i = 0; i &lt;= indexMetaData.getNumberOfReplicas(); i++) {</b>
+<b class="nc"><i>401</i>&nbsp;                    boolean primary = i == 0;</b>
+<b class="nc"><i>402</i>&nbsp;                    if (asNew &amp;&amp; ignoreShards.contains(shardNumber)) {</b>
+<i>403</i>&nbsp;                        // This shards wasn&#39;t completely snapshotted - restore it as new shard
+<b class="nc"><i>404</i>&nbsp;                        indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,</b>
+<b class="nc"><i>405</i>&nbsp;                            primary ? EmptyStoreRecoverySource.INSTANCE : PeerRecoverySource.INSTANCE, unassignedInfo));</b>
+<i>406</i>&nbsp;                    } else {
+<b class="nc"><i>407</i>&nbsp;                        indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,</b>
+<b class="nc"><i>408</i>&nbsp;                            primary ? recoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));</b>
+<i>409</i>&nbsp;                    }
+<i>410</i>&nbsp;                }
+<b class="nc"><i>411</i>&nbsp;                shards.put(shardNumber, indexShardRoutingBuilder.build());</b>
+<i>412</i>&nbsp;            }
+<b class="nc"><i>413</i>&nbsp;            return this;</b>
+<i>414</i>&nbsp;        }
+<i>415</i>&nbsp;
+<i>416</i>&nbsp;        /**
+<i>417</i>&nbsp;         * Initializes a new empty index, with an option to control if its from an API or not.
+<i>418</i>&nbsp;         */
+<i>419</i>&nbsp;        private Builder initializeEmpty(IndexMetaData indexMetaData, UnassignedInfo unassignedInfo) {
+<b class="fc"><i>420</i>&nbsp;            assert indexMetaData.getIndex().equals(index);</b>
+<b class="fc"><i>421</i>&nbsp;            if (!shards.isEmpty()) {</b>
+<b class="nc"><i>422</i>&nbsp;                throw new IllegalStateException(&quot;trying to initialize an index with fresh shards, but already has shards created&quot;);</b>
+<i>423</i>&nbsp;            }
+<b class="fc"><i>424</i>&nbsp;            for (int shardNumber = 0; shardNumber &lt; indexMetaData.getNumberOfShards(); shardNumber++) {</b>
+<b class="fc"><i>425</i>&nbsp;                ShardId shardId = new ShardId(index, shardNumber);</b>
+<i>426</i>&nbsp;                final RecoverySource primaryRecoverySource;
+<b class="fc"><i>427</i>&nbsp;                if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {</b>
+<i>428</i>&nbsp;                    // we have previous valid copies for this shard. use them for recovery
+<b class="nc"><i>429</i>&nbsp;                    primaryRecoverySource = ExistingStoreRecoverySource.INSTANCE;</b>
+<b class="fc"><i>430</i>&nbsp;                } else if (indexMetaData.getResizeSourceIndex() != null) {</b>
+<i>431</i>&nbsp;                    // this is a new index but the initial shards should merged from another index
+<b class="nc"><i>432</i>&nbsp;                    primaryRecoverySource = LocalShardsRecoverySource.INSTANCE;</b>
+<i>433</i>&nbsp;                } else {
+<i>434</i>&nbsp;                    // a freshly created index with no restriction
+<b class="fc"><i>435</i>&nbsp;                    primaryRecoverySource = EmptyStoreRecoverySource.INSTANCE;</b>
+<i>436</i>&nbsp;                }
+<b class="fc"><i>437</i>&nbsp;                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);</b>
+<b class="fc"><i>438</i>&nbsp;                for (int i = 0; i &lt;= indexMetaData.getNumberOfReplicas(); i++) {</b>
+<b class="fc"><i>439</i>&nbsp;                    boolean primary = i == 0;</b>
+<b class="fc"><i>440</i>&nbsp;                    indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,</b>
+<b class="fc"><i>441</i>&nbsp;                        primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));</b>
+<i>442</i>&nbsp;                }
+<b class="fc"><i>443</i>&nbsp;                shards.put(shardNumber, indexShardRoutingBuilder.build());</b>
+<i>444</i>&nbsp;            }
+<b class="fc"><i>445</i>&nbsp;            return this;</b>
+<i>446</i>&nbsp;        }
+<i>447</i>&nbsp;
+<i>448</i>&nbsp;        public Builder addReplica() {
+<b class="nc"><i>449</i>&nbsp;            for (IntCursor cursor : shards.keys()) {</b>
+<b class="nc"><i>450</i>&nbsp;                int shardNumber = cursor.value;</b>
+<b class="nc"><i>451</i>&nbsp;                ShardId shardId = new ShardId(index, shardNumber);</b>
+<i>452</i>&nbsp;                // version 0, will get updated when reroute will happen
+<b class="nc"><i>453</i>&nbsp;                ShardRouting shard = ShardRouting.newUnassigned(shardId, false, PeerRecoverySource.INSTANCE,</b>
+<i>454</i>&nbsp;                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null));
+<b class="nc"><i>455</i>&nbsp;                shards.put(shardNumber,</b>
+<b class="nc"><i>456</i>&nbsp;                        new IndexShardRoutingTable.Builder(shards.get(shard.id())).addShard(shard).build()</b>
+<i>457</i>&nbsp;                );
+<b class="nc"><i>458</i>&nbsp;            }</b>
+<b class="nc"><i>459</i>&nbsp;            return this;</b>
+<i>460</i>&nbsp;        }
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;        public Builder removeReplica() {
+<b class="nc"><i>463</i>&nbsp;            for (IntCursor cursor : shards.keys()) {</b>
+<b class="nc"><i>464</i>&nbsp;                int shardId = cursor.value;</b>
+<b class="nc"><i>465</i>&nbsp;                IndexShardRoutingTable indexShard = shards.get(shardId);</b>
+<b class="nc"><i>466</i>&nbsp;                if (indexShard.replicaShards().isEmpty()) {</b>
+<i>467</i>&nbsp;                    // nothing to do here!
+<b class="nc"><i>468</i>&nbsp;                    return this;</b>
+<i>469</i>&nbsp;                }
+<i>470</i>&nbsp;                // re-add all the current ones
+<b class="nc"><i>471</i>&nbsp;                IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(indexShard.shardId());</b>
+<b class="nc"><i>472</i>&nbsp;                for (ShardRouting shardRouting : indexShard) {</b>
+<b class="nc"><i>473</i>&nbsp;                    builder.addShard(shardRouting);</b>
+<b class="nc"><i>474</i>&nbsp;                }</b>
+<i>475</i>&nbsp;                // first check if there is one that is not assigned to a node, and remove it
+<b class="nc"><i>476</i>&nbsp;                boolean removed = false;</b>
+<b class="nc"><i>477</i>&nbsp;                for (ShardRouting shardRouting : indexShard) {</b>
+<b class="nc"><i>478</i>&nbsp;                    if (!shardRouting.primary() &amp;&amp; !shardRouting.assignedToNode()) {</b>
+<b class="nc"><i>479</i>&nbsp;                        builder.removeShard(shardRouting);</b>
+<b class="nc"><i>480</i>&nbsp;                        removed = true;</b>
+<b class="nc"><i>481</i>&nbsp;                        break;</b>
+<i>482</i>&nbsp;                    }
+<b class="nc"><i>483</i>&nbsp;                }</b>
+<b class="nc"><i>484</i>&nbsp;                if (!removed) {</b>
+<b class="nc"><i>485</i>&nbsp;                    for (ShardRouting shardRouting : indexShard) {</b>
+<b class="nc"><i>486</i>&nbsp;                        if (!shardRouting.primary()) {</b>
+<b class="nc"><i>487</i>&nbsp;                            builder.removeShard(shardRouting);</b>
+<b class="nc"><i>488</i>&nbsp;                            break;</b>
+<i>489</i>&nbsp;                        }
+<b class="nc"><i>490</i>&nbsp;                    }</b>
+<i>491</i>&nbsp;                }
+<b class="nc"><i>492</i>&nbsp;                shards.put(shardId, builder.build());</b>
+<b class="nc"><i>493</i>&nbsp;            }</b>
+<b class="nc"><i>494</i>&nbsp;            return this;</b>
+<i>495</i>&nbsp;        }
+<i>496</i>&nbsp;
+<i>497</i>&nbsp;        public Builder addIndexShard(IndexShardRoutingTable indexShard) {
+<b class="fc"><i>498</i>&nbsp;            shards.put(indexShard.shardId().id(), indexShard);</b>
+<b class="fc"><i>499</i>&nbsp;            return this;</b>
+<i>500</i>&nbsp;        }
+<i>501</i>&nbsp;
+<i>502</i>&nbsp;        /**
+<i>503</i>&nbsp;         * Adds a new shard routing (makes a copy of it), with reference data used from the index shard routing table
+<i>504</i>&nbsp;         * if it needs to be created.
+<i>505</i>&nbsp;         */
+<i>506</i>&nbsp;        public Builder addShard(ShardRouting shard) {
+<b class="fc"><i>507</i>&nbsp;            IndexShardRoutingTable indexShard = shards.get(shard.id());</b>
+<b class="fc"><i>508</i>&nbsp;            if (indexShard == null) {</b>
+<b class="fc"><i>509</i>&nbsp;                indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();</b>
+<i>510</i>&nbsp;            } else {
+<b class="nc"><i>511</i>&nbsp;                indexShard = new IndexShardRoutingTable.Builder(indexShard).addShard(shard).build();</b>
+<i>512</i>&nbsp;            }
+<b class="fc"><i>513</i>&nbsp;            shards.put(indexShard.shardId().id(), indexShard);</b>
+<b class="fc"><i>514</i>&nbsp;            return this;</b>
+<i>515</i>&nbsp;        }
+<i>516</i>&nbsp;
+<i>517</i>&nbsp;        public IndexRoutingTable build() {
+<b class="fc"><i>518</i>&nbsp;            return new IndexRoutingTable(index, shards.build());</b>
+<i>519</i>&nbsp;        }
+<i>520</i>&nbsp;    }
+<i>521</i>&nbsp;
+<i>522</i>&nbsp;    public String prettyPrint() {
+<b class="nc"><i>523</i>&nbsp;        StringBuilder sb = new StringBuilder(&quot;-- index [&quot; + index + &quot;]\n&quot;);</b>
+<i>524</i>&nbsp;
+<b class="nc"><i>525</i>&nbsp;        List&lt;IndexShardRoutingTable&gt; ordered = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>526</i>&nbsp;        for (IndexShardRoutingTable indexShard : this) {</b>
+<b class="nc"><i>527</i>&nbsp;            ordered.add(indexShard);</b>
+<b class="nc"><i>528</i>&nbsp;        }</b>
+<i>529</i>&nbsp;
+<b class="nc"><i>530</i>&nbsp;        CollectionUtil.timSort(ordered, (o1, o2) -&gt; {</b>
+<b class="nc"><i>531</i>&nbsp;            int v = o1.shardId().getIndex().getName().compareTo(</b>
+<b class="nc"><i>532</i>&nbsp;                    o2.shardId().getIndex().getName());</b>
+<b class="nc"><i>533</i>&nbsp;            if (v == 0) {</b>
+<b class="nc"><i>534</i>&nbsp;                v = Integer.compare(o1.shardId().id(),</b>
+<b class="nc"><i>535</i>&nbsp;                                    o2.shardId().id());</b>
+<i>536</i>&nbsp;            }
+<b class="nc"><i>537</i>&nbsp;            return v;</b>
+<i>538</i>&nbsp;        });
+<i>539</i>&nbsp;
+<b class="nc"><i>540</i>&nbsp;        for (IndexShardRoutingTable indexShard : ordered) {</b>
+<b class="nc"><i>541</i>&nbsp;            sb.append(&quot;----shard_id [&quot;).append(indexShard.shardId().getIndex().getName())</b>
+<b class="nc"><i>542</i>&nbsp;                .append(&quot;][&quot;).append(indexShard.shardId().id()).append(&quot;]\n&quot;);</b>
+<b class="nc"><i>543</i>&nbsp;            for (ShardRouting shard : indexShard) {</b>
+<b class="nc"><i>544</i>&nbsp;                sb.append(&quot;--------&quot;).append(shard.shortSummary()).append(&quot;\n&quot;);</b>
+<b class="nc"><i>545</i>&nbsp;            }</b>
+<b class="nc"><i>546</i>&nbsp;        }</b>
+<b class="nc"><i>547</i>&nbsp;        return sb.toString();</b>
+<i>548</i>&nbsp;    }
+<i>549</i>&nbsp;
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

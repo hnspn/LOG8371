@@ -1,0 +1,212 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: JsonLogsIntegTestCase</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.logging</a> ]
+</div>
+
+<h1>Coverage Summary for Class: JsonLogsIntegTestCase (org.elasticsearch.common.logging)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">JsonLogsIntegTestCase</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 41)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.logging;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.SuppressForbidden;
+<i>23</i>&nbsp;import org.elasticsearch.test.rest.ESRestTestCase;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.io.BufferedReader;
+<i>26</i>&nbsp;import java.io.IOException;
+<i>27</i>&nbsp;import java.nio.file.Path;
+<i>28</i>&nbsp;import java.nio.file.Paths;
+<i>29</i>&nbsp;import java.util.Iterator;
+<i>30</i>&nbsp;import java.util.stream.Stream;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import static org.hamcrest.Matchers.equalTo;
+<i>33</i>&nbsp;import static org.hamcrest.Matchers.isEmptyOrNullString;
+<i>34</i>&nbsp;import static org.hamcrest.Matchers.not;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * Tests that extend this class verify that all json layout fields appear in the first few log lines after startup
+<i>38</i>&nbsp; * Fields available upon process startup: &lt;code&gt;type&lt;/code&gt;, &lt;code&gt;timestamp&lt;/code&gt;, &lt;code&gt;level&lt;/code&gt;, &lt;code&gt;component&lt;/code&gt;,
+<i>39</i>&nbsp; * &lt;code&gt;message&lt;/code&gt;, &lt;code&gt;node.name&lt;/code&gt;, &lt;code&gt;cluster.name&lt;/code&gt;.
+<i>40</i>&nbsp; * Whereas &lt;code&gt;node.id&lt;/code&gt; and &lt;code&gt;cluster.uuid&lt;/code&gt; are available later once the first clusterState has been received.
+<i>41</i>&nbsp; *
+<i>42</i>&nbsp; *
+<i>43</i>&nbsp; * &lt;code&gt;node.name&lt;/code&gt;, &lt;code&gt;cluster.name&lt;/code&gt;, &lt;code&gt;node.id&lt;/code&gt;, &lt;code&gt;cluster.uuid&lt;/code&gt;
+<i>44</i>&nbsp; * should not change across all log lines
+<i>45</i>&nbsp; *
+<i>46</i>&nbsp; * Note that this won&#39;t pass for nodes in clusters that don&#39;t have the node name defined in elasticsearch.yml &lt;strong&gt;and&lt;/strong&gt; start
+<i>47</i>&nbsp; * with DEBUG or TRACE level logging. Those nodes log a few lines before the node.name is set by &lt;code&gt;LogConfigurator.setNodeName&lt;/code&gt;.
+<i>48</i>&nbsp; */
+<b class="nc"><i>49</i>&nbsp;public abstract class JsonLogsIntegTestCase extends ESRestTestCase {</b>
+<i>50</i>&nbsp;    /**
+<i>51</i>&nbsp;     * Number of lines in the log file to check for the &lt;code&gt;node.name&lt;/code&gt;, &lt;code&gt;node.id&lt;/code&gt; or &lt;code&gt;cluster.uuid&lt;/code&gt;. We don&#39;t
+<i>52</i>&nbsp;     * just check the entire log file because it could be quite long
+<i>53</i>&nbsp;     */
+<i>54</i>&nbsp;    private static final int LINES_TO_CHECK = 10;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    /**
+<i>57</i>&nbsp;     * The node name to expect in the log file.
+<i>58</i>&nbsp;     */
+<i>59</i>&nbsp;    protected abstract org.hamcrest.Matcher&lt;String&gt; nodeNameMatcher();
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * Open the log file. This is delegated to subclasses because the test
+<i>63</i>&nbsp;     * framework doesn&#39;t have permission to read from the log file but
+<i>64</i>&nbsp;     * subclasses can grant themselves that permission.
+<i>65</i>&nbsp;     */
+<i>66</i>&nbsp;    protected abstract BufferedReader openReader(Path logFile);
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    public void testElementsPresentOnAllLinesOfLog() throws IOException {
+<b class="nc"><i>69</i>&nbsp;        JsonLogLine firstLine = findFirstLine();</b>
+<b class="nc"><i>70</i>&nbsp;        assertNotNull(firstLine);</b>
+<i>71</i>&nbsp;
+<b class="nc"><i>72</i>&nbsp;        try (Stream&lt;JsonLogLine&gt; stream = JsonLogsStream.from(openReader(getLogFile()))) {</b>
+<b class="nc"><i>73</i>&nbsp;            stream.limit(LINES_TO_CHECK)</b>
+<b class="nc"><i>74</i>&nbsp;                  .forEach(jsonLogLine -&gt; {</b>
+<b class="nc"><i>75</i>&nbsp;                      assertThat(jsonLogLine.type(), not(isEmptyOrNullString()));</b>
+<b class="nc"><i>76</i>&nbsp;                      assertThat(jsonLogLine.timestamp(), not(isEmptyOrNullString()));</b>
+<b class="nc"><i>77</i>&nbsp;                      assertThat(jsonLogLine.level(), not(isEmptyOrNullString()));</b>
+<b class="nc"><i>78</i>&nbsp;                      assertThat(jsonLogLine.component(), not(isEmptyOrNullString()));</b>
+<b class="nc"><i>79</i>&nbsp;                      assertThat(jsonLogLine.message(), not(isEmptyOrNullString()));</b>
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;                      // all lines should have the same nodeName and clusterName
+<b class="nc"><i>82</i>&nbsp;                      assertThat(jsonLogLine.nodeName(), nodeNameMatcher());</b>
+<b class="nc"><i>83</i>&nbsp;                      assertThat(jsonLogLine.clusterName(), equalTo(firstLine.clusterName()));</b>
+<b class="nc"><i>84</i>&nbsp;                  });</b>
+<b class="nc"><i>85</i>&nbsp;        }</b>
+<b class="nc"><i>86</i>&nbsp;    }</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    private JsonLogLine findFirstLine() throws IOException {
+<b class="nc"><i>89</i>&nbsp;        try (Stream&lt;JsonLogLine&gt; stream = JsonLogsStream.from(openReader(getLogFile()))) {</b>
+<b class="nc"><i>90</i>&nbsp;            return stream.findFirst()</b>
+<b class="nc"><i>91</i>&nbsp;                         .orElseThrow(() -&gt; new AssertionError(&quot;no logs at all?!&quot;));</b>
+<b class="nc"><i>92</i>&nbsp;        }</b>
+<i>93</i>&nbsp;    }
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    public void testNodeIdAndClusterIdConsistentOnceAvailable() throws IOException {
+<b class="nc"><i>96</i>&nbsp;        try (Stream&lt;JsonLogLine&gt; stream = JsonLogsStream.from(openReader(getLogFile()))) {</b>
+<b class="nc"><i>97</i>&nbsp;            Iterator&lt;JsonLogLine&gt; iterator = stream.iterator();</b>
+<i>98</i>&nbsp;
+<b class="nc"><i>99</i>&nbsp;            JsonLogLine firstLine = null;</b>
+<b class="nc"><i>100</i>&nbsp;            while (iterator.hasNext()) {</b>
+<b class="nc"><i>101</i>&nbsp;                JsonLogLine jsonLogLine = iterator.next();</b>
+<b class="nc"><i>102</i>&nbsp;                if (jsonLogLine.nodeId() != null) {</b>
+<b class="nc"><i>103</i>&nbsp;                    firstLine = jsonLogLine;</b>
+<i>104</i>&nbsp;                }
+<b class="nc"><i>105</i>&nbsp;            }</b>
+<b class="nc"><i>106</i>&nbsp;            assertNotNull(firstLine);</b>
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;            //once the nodeId and clusterId are received, they should be the same on remaining lines
+<i>109</i>&nbsp;
+<b class="nc"><i>110</i>&nbsp;            int i = 0;</b>
+<b class="nc"><i>111</i>&nbsp;            while (iterator.hasNext() &amp;&amp; i++ &lt; LINES_TO_CHECK) {</b>
+<b class="nc"><i>112</i>&nbsp;                JsonLogLine jsonLogLine = iterator.next();</b>
+<b class="nc"><i>113</i>&nbsp;                assertThat(jsonLogLine.nodeId(), equalTo(firstLine.nodeId()));</b>
+<b class="nc"><i>114</i>&nbsp;                assertThat(jsonLogLine.clusterUuid(), equalTo(firstLine.clusterUuid()));</b>
+<b class="nc"><i>115</i>&nbsp;            }</b>
+<b class="nc"><i>116</i>&nbsp;        }</b>
+<b class="nc"><i>117</i>&nbsp;    }</b>
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    @SuppressForbidden(reason = &quot;PathUtils doesn&#39;t have permission to read this file&quot;)
+<i>120</i>&nbsp;    private Path getLogFile() {
+<b class="nc"><i>121</i>&nbsp;        String logFileString = System.getProperty(&quot;tests.logfile&quot;);</b>
+<b class="nc"><i>122</i>&nbsp;        if (logFileString == null) {</b>
+<b class="nc"><i>123</i>&nbsp;            fail(&quot;tests.logfile must be set to run this test. It is automatically &quot;</b>
+<i>124</i>&nbsp;                + &quot;set by gradle. If you must set it yourself then it should be the absolute path to the &quot;
+<i>125</i>&nbsp;                + &quot;log file.&quot;);
+<i>126</i>&nbsp;        }
+<b class="nc"><i>127</i>&nbsp;        return Paths.get(logFileString);</b>
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

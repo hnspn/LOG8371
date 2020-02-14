@@ -1,0 +1,328 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MetaDataIndexUpgradeService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.metadata</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MetaDataIndexUpgradeService (org.elasticsearch.cluster.metadata)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MetaDataIndexUpgradeService</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.4%
+  </span>
+  <span class="absValue">
+    (2/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.6%
+  </span>
+  <span class="absValue">
+    (7/ 45)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">MetaDataIndexUpgradeService$2</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    13.3%
+  </span>
+  <span class="absValue">
+    (2/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    14.9%
+  </span>
+  <span class="absValue">
+    (7/ 47)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.cluster.metadata;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>24</i>&nbsp;import org.apache.lucene.analysis.Analyzer;
+<i>25</i>&nbsp;import org.apache.lucene.search.similarities.BM25Similarity;
+<i>26</i>&nbsp;import org.apache.lucene.search.similarities.Similarity;
+<i>27</i>&nbsp;import org.elasticsearch.Version;
+<i>28</i>&nbsp;import org.elasticsearch.common.TriFunction;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.IndexScopedSettings;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>32</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>33</i>&nbsp;import org.elasticsearch.index.analysis.AnalyzerScope;
+<i>34</i>&nbsp;import org.elasticsearch.index.analysis.IndexAnalyzers;
+<i>35</i>&nbsp;import org.elasticsearch.index.analysis.NamedAnalyzer;
+<i>36</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>37</i>&nbsp;import org.elasticsearch.index.similarity.SimilarityService;
+<i>38</i>&nbsp;import org.elasticsearch.indices.mapper.MapperRegistry;
+<i>39</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import java.util.AbstractMap;
+<i>42</i>&nbsp;import java.util.Collections;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Set;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;/**
+<i>47</i>&nbsp; * This service is responsible for upgrading legacy index metadata to the current version
+<i>48</i>&nbsp; * &lt;p&gt;
+<i>49</i>&nbsp; * Every time an existing index is introduced into cluster this service should be used
+<i>50</i>&nbsp; * to upgrade the existing index metadata to the latest version of the cluster. It typically
+<i>51</i>&nbsp; * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
+<i>52</i>&nbsp; * are restored from a repository.
+<i>53</i>&nbsp; */
+<i>54</i>&nbsp;public class MetaDataIndexUpgradeService {
+<i>55</i>&nbsp;
+<b class="fc"><i>56</i>&nbsp;    private static final Logger logger = LogManager.getLogger(MetaDataIndexUpgradeService.class);</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final Settings settings;
+<i>59</i>&nbsp;    private final NamedXContentRegistry xContentRegistry;
+<i>60</i>&nbsp;    private final MapperRegistry mapperRegistry;
+<i>61</i>&nbsp;    private final IndexScopedSettings indexScopedSettings;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+<b class="fc"><i>64</i>&nbsp;                                       IndexScopedSettings indexScopedSettings) {</b>
+<b class="fc"><i>65</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>66</i>&nbsp;        this.xContentRegistry = xContentRegistry;</b>
+<b class="fc"><i>67</i>&nbsp;        this.mapperRegistry = mapperRegistry;</b>
+<b class="fc"><i>68</i>&nbsp;        this.indexScopedSettings = indexScopedSettings;</b>
+<b class="fc"><i>69</i>&nbsp;    }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    /**
+<i>72</i>&nbsp;     * Checks that the index can be upgraded to the current version of the master node.
+<i>73</i>&nbsp;     *
+<i>74</i>&nbsp;     * &lt;p&gt;
+<i>75</i>&nbsp;     * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
+<i>76</i>&nbsp;     * cannot be updated the method throws an exception.
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+<i>79</i>&nbsp;        // Throws an exception if there are too-old segments:
+<b class="nc"><i>80</i>&nbsp;        if (isUpgraded(indexMetaData)) {</b>
+<i>81</i>&nbsp;            /*
+<i>82</i>&nbsp;             * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
+<i>83</i>&nbsp;             * needed by this index.
+<i>84</i>&nbsp;             */
+<b class="nc"><i>85</i>&nbsp;            return archiveBrokenIndexSettings(indexMetaData);</b>
+<i>86</i>&nbsp;        }
+<b class="nc"><i>87</i>&nbsp;        checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);</b>
+<i>88</i>&nbsp;        // we have to run this first otherwise in we try to create IndexSettings
+<i>89</i>&nbsp;        // with broken settings and fail in checkMappingsCompatibility
+<b class="nc"><i>90</i>&nbsp;        final IndexMetaData newMetaData = archiveBrokenIndexSettings(indexMetaData);</b>
+<i>91</i>&nbsp;        // only run the check with the upgraded settings!!
+<b class="nc"><i>92</i>&nbsp;        checkMappingsCompatibility(newMetaData);</b>
+<b class="nc"><i>93</i>&nbsp;        return markAsUpgraded(newMetaData);</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    /**
+<i>98</i>&nbsp;     * Checks if the index was already opened by this version of Elasticsearch and doesn&#39;t require any additional checks.
+<i>99</i>&nbsp;     */
+<i>100</i>&nbsp;    boolean isUpgraded(IndexMetaData indexMetaData) {
+<b class="nc"><i>101</i>&nbsp;        return indexMetaData.getUpgradedVersion().onOrAfter(Version.CURRENT);</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    /**
+<i>105</i>&nbsp;     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
+<i>106</i>&nbsp;     * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
+<i>107</i>&nbsp;     * before they can be opened by this version of elasticsearch.
+<i>108</i>&nbsp;     */
+<i>109</i>&nbsp;    private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+<b class="nc"><i>110</i>&nbsp;        if (indexMetaData.getState() == IndexMetaData.State.OPEN &amp;&amp; isSupportedVersion(indexMetaData,</b>
+<i>111</i>&nbsp;            minimumIndexCompatibilityVersion) == false) {
+<b class="nc"><i>112</i>&nbsp;            throw new IllegalStateException(&quot;The index [&quot; + indexMetaData.getIndex() + &quot;] was created with version [&quot;</b>
+<b class="nc"><i>113</i>&nbsp;                + indexMetaData.getCreationVersion() + &quot;] but the minimum compatible version is [&quot;</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;                + minimumIndexCompatibilityVersion + &quot;]. It should be re-indexed in Elasticsearch &quot; + minimumIndexCompatibilityVersion.major
+<i>116</i>&nbsp;                + &quot;.x before upgrading to &quot; + Version.CURRENT + &quot;.&quot;);
+<i>117</i>&nbsp;        }
+<b class="nc"><i>118</i>&nbsp;    }</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    /*
+<i>121</i>&nbsp;     * Returns true if this index can be supported by the current version of elasticsearch
+<i>122</i>&nbsp;     */
+<i>123</i>&nbsp;    private static boolean isSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+<b class="nc"><i>124</i>&nbsp;        return indexMetaData.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * Checks the mappings for compatibility with the current version
+<i>129</i>&nbsp;     */
+<i>130</i>&nbsp;    private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
+<i>131</i>&nbsp;        try {
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;            // We cannot instantiate real analysis server or similarity service at this point because the node
+<i>134</i>&nbsp;            // might not have been started yet. However, we don&#39;t really need real analyzers or similarities at
+<i>135</i>&nbsp;            // this stage - so we can fake it using constant maps accepting every key.
+<i>136</i>&nbsp;            // This is ok because all used similarities and analyzers for this index were known before the upgrade.
+<i>137</i>&nbsp;            // Missing analyzers and similarities plugin will still trigger the appropriate error during the
+<i>138</i>&nbsp;            // actual upgrade.
+<i>139</i>&nbsp;
+<b class="nc"><i>140</i>&nbsp;            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);</b>
+<i>141</i>&nbsp;
+<b class="nc"><i>142</i>&nbsp;            final Map&lt;String, TriFunction&lt;Settings, Version, ScriptService, Similarity&gt;&gt; similarityMap</b>
+<i>143</i>&nbsp;                    = new AbstractMap&lt;String, TriFunction&lt;Settings, Version, ScriptService, Similarity&gt;&gt;() {
+<i>144</i>&nbsp;                @Override
+<i>145</i>&nbsp;                public boolean containsKey(Object key) {
+<i>146</i>&nbsp;                    return true;
+<i>147</i>&nbsp;                }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;                @Override
+<i>150</i>&nbsp;                public TriFunction&lt;Settings, Version, ScriptService, Similarity&gt; get(Object key) {
+<i>151</i>&nbsp;                    assert key instanceof String : &quot;key must be a string but was: &quot; + key.getClass();
+<i>152</i>&nbsp;                    return (settings, version, scriptService) -&gt; new BM25Similarity();
+<i>153</i>&nbsp;                }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;                // this entrySet impl isn&#39;t fully correct but necessary as SimilarityService will iterate
+<i>156</i>&nbsp;                // over all similarities
+<i>157</i>&nbsp;                @Override
+<i>158</i>&nbsp;                public Set&lt;Entry&lt;String, TriFunction&lt;Settings, Version, ScriptService, Similarity&gt;&gt;&gt; entrySet() {
+<i>159</i>&nbsp;                    return Collections.emptySet();
+<i>160</i>&nbsp;                }
+<i>161</i>&nbsp;            };
+<b class="nc"><i>162</i>&nbsp;            SimilarityService similarityService = new SimilarityService(indexSettings, null, similarityMap);</b>
+<b class="nc"><i>163</i>&nbsp;            final NamedAnalyzer fakeDefault = new NamedAnalyzer(&quot;default&quot;, AnalyzerScope.INDEX, new Analyzer() {</b>
+<i>164</i>&nbsp;                @Override
+<i>165</i>&nbsp;                protected TokenStreamComponents createComponents(String fieldName) {
+<b class="nc"><i>166</i>&nbsp;                    throw new UnsupportedOperationException(&quot;shouldn&#39;t be here&quot;);</b>
+<i>167</i>&nbsp;                }
+<i>168</i>&nbsp;            });
+<i>169</i>&nbsp;
+<b class="nc"><i>170</i>&nbsp;            final Map&lt;String, NamedAnalyzer&gt; analyzerMap = new AbstractMap&lt;String, NamedAnalyzer&gt;() {</b>
+<i>171</i>&nbsp;                @Override
+<i>172</i>&nbsp;                public NamedAnalyzer get(Object key) {
+<i>173</i>&nbsp;                    assert key instanceof String : &quot;key must be a string but was: &quot; + key.getClass();
+<i>174</i>&nbsp;                    return new NamedAnalyzer((String)key, AnalyzerScope.INDEX, fakeDefault.analyzer());
+<i>175</i>&nbsp;                }
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;                // this entrySet impl isn&#39;t fully correct but necessary as IndexAnalyzers will iterate
+<i>178</i>&nbsp;                // over all analyzers to close them
+<i>179</i>&nbsp;                @Override
+<i>180</i>&nbsp;                public Set&lt;Entry&lt;String, NamedAnalyzer&gt;&gt; entrySet() {
+<i>181</i>&nbsp;                    return Collections.emptySet();
+<i>182</i>&nbsp;                }
+<i>183</i>&nbsp;            };
+<b class="nc"><i>184</i>&nbsp;            try (IndexAnalyzers fakeIndexAnalzyers =</b>
+<i>185</i>&nbsp;                     new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+<b class="nc"><i>186</i>&nbsp;                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,</b>
+<b class="nc"><i>187</i>&nbsp;                        mapperRegistry, () -&gt; null);</b>
+<b class="nc"><i>188</i>&nbsp;                mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);</b>
+<b class="nc"><i>189</i>&nbsp;            }</b>
+<b class="nc"><i>190</i>&nbsp;        } catch (Exception ex) {</b>
+<i>191</i>&nbsp;            // Wrap the inner exception so we have the index name in the exception message
+<b class="nc"><i>192</i>&nbsp;            throw new IllegalStateException(&quot;unable to upgrade the mappings for the index [&quot; + indexMetaData.getIndex() + &quot;]&quot;, ex);</b>
+<b class="nc"><i>193</i>&nbsp;        }</b>
+<b class="nc"><i>194</i>&nbsp;    }</b>
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    /**
+<i>197</i>&nbsp;     * Marks index as upgraded so we don&#39;t have to test it again
+<i>198</i>&nbsp;     */
+<i>199</i>&nbsp;    private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
+<b class="nc"><i>200</i>&nbsp;        Settings settings = Settings.builder().put(indexMetaData.getSettings())</b>
+<b class="nc"><i>201</i>&nbsp;            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();</b>
+<b class="nc"><i>202</i>&nbsp;        return IndexMetaData.builder(indexMetaData).settings(settings).build();</b>
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    IndexMetaData archiveBrokenIndexSettings(IndexMetaData indexMetaData) {
+<b class="nc"><i>206</i>&nbsp;        final Settings settings = indexMetaData.getSettings();</b>
+<b class="nc"><i>207</i>&nbsp;        final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(</b>
+<i>208</i>&nbsp;            settings,
+<b class="nc"><i>209</i>&nbsp;            e -&gt; logger.warn(&quot;{} ignoring unknown index setting: [{}] with value [{}]; archiving&quot;,</b>
+<b class="nc"><i>210</i>&nbsp;                indexMetaData.getIndex(), e.getKey(), e.getValue()),</b>
+<b class="nc"><i>211</i>&nbsp;            (e, ex) -&gt; logger.warn(() -&gt; new ParameterizedMessage(&quot;{} ignoring invalid index setting: [{}] with value [{}]; archiving&quot;,</b>
+<b class="nc"><i>212</i>&nbsp;                indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));</b>
+<b class="nc"><i>213</i>&nbsp;        if (upgrade != settings) {</b>
+<b class="nc"><i>214</i>&nbsp;            return IndexMetaData.builder(indexMetaData).settings(upgrade).build();</b>
+<i>215</i>&nbsp;        } else {
+<b class="nc"><i>216</i>&nbsp;            return indexMetaData;</b>
+<i>217</i>&nbsp;        }
+<i>218</i>&nbsp;    }
+<i>219</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

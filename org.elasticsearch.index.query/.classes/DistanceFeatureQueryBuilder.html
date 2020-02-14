@@ -1,0 +1,314 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DistanceFeatureQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DistanceFeatureQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DistanceFeatureQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 57)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.document.LatLonPoint;
+<i>23</i>&nbsp;import org.apache.lucene.document.LongPoint;
+<i>24</i>&nbsp;import org.apache.lucene.search.Query;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>26</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>27</i>&nbsp;import org.elasticsearch.common.geo.GeoPoint;
+<i>28</i>&nbsp;import org.elasticsearch.common.geo.GeoUtils;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>31</i>&nbsp;import org.elasticsearch.common.lucene.search.Queries;
+<i>32</i>&nbsp;import org.elasticsearch.common.unit.DistanceUnit;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>37</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import org.elasticsearch.index.mapper.DateFieldMapper;
+<i>40</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>41</i>&nbsp;import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+<i>42</i>&nbsp;import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import java.io.IOException;
+<i>45</i>&nbsp;import java.util.Objects;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * A query to boost scores based on their proximity to the given origin
+<i>51</i>&nbsp; * for date, date_nanos and geo_point field types
+<i>52</i>&nbsp; */
+<i>53</i>&nbsp;public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder&lt;DistanceFeatureQueryBuilder&gt; {
+<i>54</i>&nbsp;    public static final String NAME = &quot;distance_feature&quot;;
+<i>55</i>&nbsp;
+<b class="nc"><i>56</i>&nbsp;    private static final ParseField FIELD_FIELD = new ParseField(&quot;field&quot;);</b>
+<b class="nc"><i>57</i>&nbsp;    private static final ParseField ORIGIN_FIELD = new ParseField(&quot;origin&quot;);</b>
+<b class="nc"><i>58</i>&nbsp;    private static final ParseField PIVOT_FIELD = new ParseField(&quot;pivot&quot;);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    private final String field;
+<i>61</i>&nbsp;    private final Origin origin;
+<i>62</i>&nbsp;    private final String pivot;
+<i>63</i>&nbsp;
+<b class="nc"><i>64</i>&nbsp;    private static final ConstructingObjectParser&lt;DistanceFeatureQueryBuilder, Void&gt; PARSER = new ConstructingObjectParser&lt;&gt;(</b>
+<i>65</i>&nbsp;        &quot;distance_feature&quot;, false,
+<b class="nc"><i>66</i>&nbsp;        args -&gt; new DistanceFeatureQueryBuilder((String) args[0], (Origin) args[1], (String) args[2])</b>
+<i>67</i>&nbsp;    );
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    static {
+<b class="nc"><i>70</i>&nbsp;        PARSER.declareString(constructorArg(), FIELD_FIELD);</b>
+<i>71</i>&nbsp;        // origin: number or string for date and date_nanos fields; string, array, object for geo fields
+<b class="nc"><i>72</i>&nbsp;        PARSER.declareField(constructorArg(), DistanceFeatureQueryBuilder.Origin::originFromXContent,</b>
+<i>73</i>&nbsp;            ORIGIN_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER);
+<b class="nc"><i>74</i>&nbsp;        PARSER.declareString(constructorArg(), PIVOT_FIELD);</b>
+<b class="nc"><i>75</i>&nbsp;        declareStandardFields(PARSER);</b>
+<b class="nc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<b class="nc"><i>78</i>&nbsp;    public DistanceFeatureQueryBuilder(String field, Origin origin, String pivot) {</b>
+<b class="nc"><i>79</i>&nbsp;        this.field = Objects.requireNonNull(field);</b>
+<b class="nc"><i>80</i>&nbsp;        this.origin = Objects.requireNonNull(origin);</b>
+<b class="nc"><i>81</i>&nbsp;        this.pivot = Objects.requireNonNull(pivot);</b>
+<b class="nc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    public static DistanceFeatureQueryBuilder fromXContent(XContentParser parser) {
+<b class="nc"><i>85</i>&nbsp;        return PARSER.apply(parser, null);</b>
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    @Override
+<i>89</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>90</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>91</i>&nbsp;        builder.field(FIELD_FIELD.getPreferredName(), field);</b>
+<b class="nc"><i>92</i>&nbsp;        builder.field(ORIGIN_FIELD.getPreferredName(), origin.origin);</b>
+<b class="nc"><i>93</i>&nbsp;        builder.field(PIVOT_FIELD.getPreferredName(), pivot);</b>
+<b class="nc"><i>94</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>95</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>96</i>&nbsp;    }</b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    public DistanceFeatureQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>99</i>&nbsp;        super(in);</b>
+<b class="nc"><i>100</i>&nbsp;        field = in.readString();</b>
+<b class="nc"><i>101</i>&nbsp;        origin = new Origin(in);</b>
+<b class="nc"><i>102</i>&nbsp;        pivot = in.readString();</b>
+<b class="nc"><i>103</i>&nbsp;    }</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    @Override
+<i>106</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>107</i>&nbsp;        out.writeString(field);</b>
+<b class="nc"><i>108</i>&nbsp;        origin.writeTo(out);</b>
+<b class="nc"><i>109</i>&nbsp;        out.writeString(pivot);</b>
+<b class="nc"><i>110</i>&nbsp;    }</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    @Override
+<i>113</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>114</i>&nbsp;        return NAME;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    @Override
+<i>118</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>119</i>&nbsp;        MappedFieldType fieldType = context.fieldMapper(field);</b>
+<b class="nc"><i>120</i>&nbsp;        if (fieldType == null) {</b>
+<b class="nc"><i>121</i>&nbsp;            return Queries.newMatchNoDocsQuery(&quot;Can&#39;t run [&quot; + NAME + &quot;] query on unmapped fields!&quot;);</b>
+<i>122</i>&nbsp;        }
+<b class="nc"><i>123</i>&nbsp;        Object originObj = origin.origin();</b>
+<b class="nc"><i>124</i>&nbsp;        if (fieldType instanceof DateFieldType) {</b>
+<b class="nc"><i>125</i>&nbsp;            long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);</b>
+<b class="nc"><i>126</i>&nbsp;            TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + &quot;.pivot&quot;);</b>
+<b class="nc"><i>127</i>&nbsp;            if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {</b>
+<b class="nc"><i>128</i>&nbsp;                return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getMillis());</b>
+<i>129</i>&nbsp;            } else { // NANOSECONDS
+<b class="nc"><i>130</i>&nbsp;                return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getNanos());</b>
+<i>131</i>&nbsp;            }
+<b class="nc"><i>132</i>&nbsp;        } else if (fieldType instanceof GeoPointFieldType) {</b>
+<i>133</i>&nbsp;            GeoPoint originGeoPoint;
+<b class="nc"><i>134</i>&nbsp;            if (originObj instanceof GeoPoint) {</b>
+<b class="nc"><i>135</i>&nbsp;                originGeoPoint = (GeoPoint) originObj;</b>
+<b class="nc"><i>136</i>&nbsp;            } else if (originObj instanceof String) {</b>
+<b class="nc"><i>137</i>&nbsp;                originGeoPoint = GeoUtils.parseFromString((String) originObj);</b>
+<i>138</i>&nbsp;            } else {
+<b class="nc"><i>139</i>&nbsp;                throw new IllegalArgumentException(&quot;Illegal type [&quot;+ origin.getClass() + &quot;] for [origin]! &quot; +</b>
+<i>140</i>&nbsp;                    &quot;Must be of type [geo_point] or [string] for geo_point fields!&quot;);
+<i>141</i>&nbsp;            }
+<b class="nc"><i>142</i>&nbsp;            double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);</b>
+<b class="nc"><i>143</i>&nbsp;            return LatLonPoint.newDistanceFeatureQuery(field, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);</b>
+<i>144</i>&nbsp;        }
+<b class="nc"><i>145</i>&nbsp;        throw new IllegalArgumentException(&quot;Illegal data type of [&quot; + fieldType.typeName() + &quot;]!&quot;+</b>
+<i>146</i>&nbsp;            &quot;[&quot; + NAME + &quot;] query can only be run on a date, date_nanos or geo_point field type!&quot;);
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    String fieldName() {
+<b class="nc"><i>150</i>&nbsp;        return field;</b>
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    Origin origin() {
+<b class="nc"><i>154</i>&nbsp;        return origin;</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    String pivot() {
+<b class="nc"><i>158</i>&nbsp;        return pivot;</b>
+<i>159</i>&nbsp;    }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;    @Override
+<i>162</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>163</i>&nbsp;        return Objects.hash(field, origin, pivot);</b>
+<i>164</i>&nbsp;    }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    @Override
+<i>167</i>&nbsp;    protected boolean doEquals(DistanceFeatureQueryBuilder other) {
+<b class="nc"><i>168</i>&nbsp;        return this.field.equals(other.field) &amp;&amp; Objects.equals(this.origin, other.origin) &amp;&amp; this.pivot.equals(other.pivot);</b>
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    public static class Origin {
+<i>172</i>&nbsp;        private final Object origin;
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        public Origin(Long origin) {
+<i>175</i>&nbsp;            this.origin = Objects.requireNonNull(origin);
+<i>176</i>&nbsp;        }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;        public Origin(String origin) {
+<i>179</i>&nbsp;            this.origin = Objects.requireNonNull(origin);
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        public Origin(GeoPoint origin) {
+<i>183</i>&nbsp;            this.origin = Objects.requireNonNull(origin);
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        private static Origin originFromXContent(XContentParser parser) throws IOException {
+<i>187</i>&nbsp;            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+<i>188</i>&nbsp;                return new Origin(parser.longValue());
+<i>189</i>&nbsp;            } else if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+<i>190</i>&nbsp;                return new Origin(parser.text());
+<i>191</i>&nbsp;            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+<i>192</i>&nbsp;                return new Origin(GeoUtils.parseGeoPoint(parser));
+<i>193</i>&nbsp;            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+<i>194</i>&nbsp;                return new Origin(GeoUtils.parseGeoPoint(parser));
+<i>195</i>&nbsp;            } else {
+<i>196</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(),
+<i>197</i>&nbsp;                    &quot;Illegal type while parsing [origin]! Must be [number] or [string] for date and date_nanos fields;&quot; +
+<i>198</i>&nbsp;                    &quot; or [string], [array], [object] for geo_point fields!&quot;);
+<i>199</i>&nbsp;            }
+<i>200</i>&nbsp;        }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;        private Origin(StreamInput in) throws IOException {
+<i>203</i>&nbsp;            origin = in.readGenericValue();
+<i>204</i>&nbsp;        }
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;        private void writeTo(final StreamOutput out) throws IOException {
+<i>207</i>&nbsp;            out.writeGenericValue(origin);
+<i>208</i>&nbsp;        }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;        Object origin() {
+<i>211</i>&nbsp;            return origin;
+<i>212</i>&nbsp;        }
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;        @Override
+<i>215</i>&nbsp;        public final boolean equals(Object other) {
+<i>216</i>&nbsp;            if ((other instanceof Origin) == false) return false;
+<i>217</i>&nbsp;            Object otherOrigin = ((Origin) other).origin();
+<i>218</i>&nbsp;            return this.origin().equals(otherOrigin);
+<i>219</i>&nbsp;        }
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;        @Override
+<i>222</i>&nbsp;        public int hashCode() {
+<i>223</i>&nbsp;            return Objects.hash(origin);
+<i>224</i>&nbsp;        }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        @Override
+<i>227</i>&nbsp;        public String toString() {
+<i>228</i>&nbsp;            return origin.toString();
+<i>229</i>&nbsp;        }
+<i>230</i>&nbsp;    }
+<i>231</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

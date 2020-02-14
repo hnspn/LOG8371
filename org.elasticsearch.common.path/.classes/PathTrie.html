@@ -1,0 +1,506 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PathTrie</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.path</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PathTrie (org.elasticsearch.common.path)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PathTrie</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (3/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41.5%
+  </span>
+  <span class="absValue">
+    (17/ 41)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PathTrie$Decoder</td>
+  </tr>
+  <tr>
+    <td class="name">PathTrie$TrieMatchingMode</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (5/ 5)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">PathTrie$TrieNode</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (6/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    37.7%
+  </span>
+  <span class="absValue">
+    (40/ 106)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    47.8%
+  </span>
+  <span class="absValue">
+    (11/ 23)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.8%
+  </span>
+  <span class="absValue">
+    (62/ 152)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.path;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.util.EnumSet;
+<i>23</i>&nbsp;import java.util.HashMap;
+<i>24</i>&nbsp;import java.util.Iterator;
+<i>25</i>&nbsp;import java.util.Map;
+<i>26</i>&nbsp;import java.util.NoSuchElementException;
+<i>27</i>&nbsp;import java.util.function.BiFunction;
+<i>28</i>&nbsp;import java.util.function.Supplier;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>31</i>&nbsp;import static java.util.Collections.unmodifiableMap;
+<i>32</i>&nbsp;
+<b class="nc"><i>33</i>&nbsp;public class PathTrie&lt;T&gt; {</b>
+<i>34</i>&nbsp;
+<b class="fc"><i>35</i>&nbsp;    enum TrieMatchingMode {</b>
+<i>36</i>&nbsp;        /*
+<i>37</i>&nbsp;         * Retrieve only explicitly mapped nodes, no wildcards are
+<i>38</i>&nbsp;         * matched.
+<i>39</i>&nbsp;         */
+<b class="fc"><i>40</i>&nbsp;        EXPLICIT_NODES_ONLY,</b>
+<i>41</i>&nbsp;        /*
+<i>42</i>&nbsp;         * Retrieve only explicitly mapped nodes, with wildcards
+<i>43</i>&nbsp;         * allowed as root nodes.
+<i>44</i>&nbsp;         */
+<b class="fc"><i>45</i>&nbsp;        WILDCARD_ROOT_NODES_ALLOWED,</b>
+<i>46</i>&nbsp;        /*
+<i>47</i>&nbsp;         * Retrieve only explicitly mapped nodes, with wildcards
+<i>48</i>&nbsp;         * allowed as leaf nodes.
+<i>49</i>&nbsp;         */
+<b class="fc"><i>50</i>&nbsp;        WILDCARD_LEAF_NODES_ALLOWED,</b>
+<i>51</i>&nbsp;        /*
+<i>52</i>&nbsp;         * Retrieve both explicitly mapped and wildcard nodes.
+<i>53</i>&nbsp;         */
+<b class="fc"><i>54</i>&nbsp;        WILDCARD_NODES_ALLOWED</b>
+<i>55</i>&nbsp;    }
+<i>56</i>&nbsp;
+<b class="fc"><i>57</i>&nbsp;    private static final EnumSet&lt;TrieMatchingMode&gt; EXPLICIT_OR_ROOT_WILDCARD =</b>
+<b class="fc"><i>58</i>&nbsp;            EnumSet.of(TrieMatchingMode.EXPLICIT_NODES_ONLY, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    public interface Decoder {
+<i>61</i>&nbsp;        String decode(String value);
+<i>62</i>&nbsp;    }
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    private final Decoder decoder;
+<i>65</i>&nbsp;    private final TrieNode root;
+<i>66</i>&nbsp;    private T rootValue;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    private static final String SEPARATOR = &quot;/&quot;;
+<i>69</i>&nbsp;    private static final String WILDCARD = &quot;*&quot;;
+<i>70</i>&nbsp;
+<b class="fc"><i>71</i>&nbsp;    public PathTrie(Decoder decoder) {</b>
+<b class="fc"><i>72</i>&nbsp;        this.decoder = decoder;</b>
+<b class="fc"><i>73</i>&nbsp;        root = new TrieNode(SEPARATOR, null, WILDCARD);</b>
+<b class="fc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<b class="fc"><i>76</i>&nbsp;    public class TrieNode {</b>
+<i>77</i>&nbsp;        private transient String key;
+<i>78</i>&nbsp;        private transient T value;
+<i>79</i>&nbsp;        private final String wildcard;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;        private transient String namedWildcard;
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        private Map&lt;String, TrieNode&gt; children;
+<i>84</i>&nbsp;
+<b class="fc"><i>85</i>&nbsp;        private TrieNode(String key, T value, String wildcard) {</b>
+<b class="fc"><i>86</i>&nbsp;            this.key = key;</b>
+<b class="fc"><i>87</i>&nbsp;            this.wildcard = wildcard;</b>
+<b class="fc"><i>88</i>&nbsp;            this.value = value;</b>
+<b class="fc"><i>89</i>&nbsp;            this.children = emptyMap();</b>
+<b class="fc"><i>90</i>&nbsp;            if (isNamedWildcard(key)) {</b>
+<b class="fc"><i>91</i>&nbsp;                namedWildcard = key.substring(key.indexOf(&#39;{&#39;) + 1, key.indexOf(&#39;}&#39;));</b>
+<i>92</i>&nbsp;            } else {
+<b class="fc"><i>93</i>&nbsp;                namedWildcard = null;</b>
+<i>94</i>&nbsp;            }
+<b class="fc"><i>95</i>&nbsp;        }</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;        private void updateKeyWithNamedWildcard(String key) {
+<b class="fc"><i>98</i>&nbsp;            this.key = key;</b>
+<b class="fc"><i>99</i>&nbsp;            String newNamedWildcard = key.substring(key.indexOf(&#39;{&#39;) + 1, key.indexOf(&#39;}&#39;));</b>
+<b class="fc"><i>100</i>&nbsp;            if (namedWildcard != null &amp;&amp; newNamedWildcard.equals(namedWildcard) == false) {</b>
+<b class="nc"><i>101</i>&nbsp;                throw new IllegalArgumentException(&quot;Trying to use conflicting wildcard names for same path: &quot;</b>
+<i>102</i>&nbsp;                    + namedWildcard + &quot; and &quot; + newNamedWildcard);
+<i>103</i>&nbsp;            }
+<b class="fc"><i>104</i>&nbsp;            namedWildcard = newNamedWildcard;</b>
+<b class="fc"><i>105</i>&nbsp;        }</b>
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;        private void addInnerChild(String key, TrieNode child) {
+<b class="fc"><i>108</i>&nbsp;            Map&lt;String, TrieNode&gt; newChildren = new HashMap&lt;&gt;(children);</b>
+<b class="fc"><i>109</i>&nbsp;            newChildren.put(key, child);</b>
+<b class="fc"><i>110</i>&nbsp;            children = unmodifiableMap(newChildren);</b>
+<b class="fc"><i>111</i>&nbsp;        }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;        private synchronized void insert(String[] path, int index, T value) {
+<b class="nc"><i>114</i>&nbsp;            if (index &gt;= path.length)</b>
+<b class="nc"><i>115</i>&nbsp;                return;</b>
+<i>116</i>&nbsp;
+<b class="nc"><i>117</i>&nbsp;            String token = path[index];</b>
+<b class="nc"><i>118</i>&nbsp;            String key = token;</b>
+<b class="nc"><i>119</i>&nbsp;            if (isNamedWildcard(token)) {</b>
+<b class="nc"><i>120</i>&nbsp;                key = wildcard;</b>
+<i>121</i>&nbsp;            }
+<b class="nc"><i>122</i>&nbsp;            TrieNode node = children.get(key);</b>
+<b class="nc"><i>123</i>&nbsp;            if (node == null) {</b>
+<b class="nc"><i>124</i>&nbsp;                T nodeValue = index == path.length - 1 ? value : null;</b>
+<b class="nc"><i>125</i>&nbsp;                node = new TrieNode(token, nodeValue, wildcard);</b>
+<b class="nc"><i>126</i>&nbsp;                addInnerChild(key, node);</b>
+<b class="nc"><i>127</i>&nbsp;            } else {</b>
+<b class="nc"><i>128</i>&nbsp;                if (isNamedWildcard(token)) {</b>
+<b class="nc"><i>129</i>&nbsp;                    node.updateKeyWithNamedWildcard(token);</b>
+<i>130</i>&nbsp;                }
+<i>131</i>&nbsp;                /*
+<i>132</i>&nbsp;                 * If the target node already exists, but is without a value,
+<i>133</i>&nbsp;                 *  then the value should be updated.
+<i>134</i>&nbsp;                 */
+<b class="nc"><i>135</i>&nbsp;                if (index == (path.length - 1)) {</b>
+<b class="nc"><i>136</i>&nbsp;                    if (node.value != null) {</b>
+<b class="nc"><i>137</i>&nbsp;                        throw new IllegalArgumentException(&quot;Path [&quot; + String.join(&quot;/&quot;, path)+ &quot;] already has a value [&quot;</b>
+<i>138</i>&nbsp;                                + node.value + &quot;]&quot;);
+<i>139</i>&nbsp;                    } else {
+<b class="nc"><i>140</i>&nbsp;                        node.value = value;</b>
+<i>141</i>&nbsp;                    }
+<i>142</i>&nbsp;                }
+<i>143</i>&nbsp;            }
+<i>144</i>&nbsp;
+<b class="nc"><i>145</i>&nbsp;            node.insert(path, index + 1, value);</b>
+<b class="nc"><i>146</i>&nbsp;        }</b>
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;        private synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction&lt;T, T, T&gt; updater) {
+<b class="fc"><i>149</i>&nbsp;            if (index &gt;= path.length)</b>
+<b class="fc"><i>150</i>&nbsp;                return;</b>
+<i>151</i>&nbsp;
+<b class="fc"><i>152</i>&nbsp;            String token = path[index];</b>
+<b class="fc"><i>153</i>&nbsp;            String key = token;</b>
+<b class="fc"><i>154</i>&nbsp;            if (isNamedWildcard(token)) {</b>
+<b class="fc"><i>155</i>&nbsp;                key = wildcard;</b>
+<i>156</i>&nbsp;            }
+<b class="fc"><i>157</i>&nbsp;            TrieNode node = children.get(key);</b>
+<b class="fc"><i>158</i>&nbsp;            if (node == null) {</b>
+<b class="fc"><i>159</i>&nbsp;                T nodeValue = index == path.length - 1 ? value : null;</b>
+<b class="fc"><i>160</i>&nbsp;                node = new TrieNode(token, nodeValue, wildcard);</b>
+<b class="fc"><i>161</i>&nbsp;                addInnerChild(key, node);</b>
+<b class="fc"><i>162</i>&nbsp;            } else {</b>
+<b class="fc"><i>163</i>&nbsp;                if (isNamedWildcard(token)) {</b>
+<b class="fc"><i>164</i>&nbsp;                    node.updateKeyWithNamedWildcard(token);</b>
+<i>165</i>&nbsp;                }
+<i>166</i>&nbsp;                /*
+<i>167</i>&nbsp;                 * If the target node already exists, but is without a value,
+<i>168</i>&nbsp;                 *  then the value should be updated.
+<i>169</i>&nbsp;                 */
+<b class="fc"><i>170</i>&nbsp;                if (index == (path.length - 1)) {</b>
+<b class="fc"><i>171</i>&nbsp;                    if (node.value != null) {</b>
+<b class="fc"><i>172</i>&nbsp;                        node.value = updater.apply(node.value, value);</b>
+<i>173</i>&nbsp;                    } else {
+<b class="fc"><i>174</i>&nbsp;                        node.value = value;</b>
+<i>175</i>&nbsp;                    }
+<i>176</i>&nbsp;                }
+<i>177</i>&nbsp;            }
+<i>178</i>&nbsp;
+<b class="fc"><i>179</i>&nbsp;            node.insertOrUpdate(path, index + 1, value, updater);</b>
+<b class="fc"><i>180</i>&nbsp;        }</b>
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        private boolean isNamedWildcard(String key) {
+<b class="fc"><i>183</i>&nbsp;            return key.indexOf(&#39;{&#39;) != -1 &amp;&amp; key.indexOf(&#39;}&#39;) != -1;</b>
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        private String namedWildcard() {
+<b class="nc"><i>187</i>&nbsp;            return namedWildcard;</b>
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;        private boolean isNamedWildcard() {
+<b class="nc"><i>191</i>&nbsp;            return namedWildcard != null;</b>
+<i>192</i>&nbsp;        }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        public T retrieve(String[] path, int index, Map&lt;String, String&gt; params, TrieMatchingMode trieMatchingMode) {
+<b class="nc"><i>195</i>&nbsp;            if (index &gt;= path.length)</b>
+<b class="nc"><i>196</i>&nbsp;                return null;</b>
+<i>197</i>&nbsp;
+<b class="nc"><i>198</i>&nbsp;            String token = path[index];</b>
+<b class="nc"><i>199</i>&nbsp;            TrieNode node = children.get(token);</b>
+<i>200</i>&nbsp;            boolean usedWildcard;
+<i>201</i>&nbsp;
+<b class="nc"><i>202</i>&nbsp;            if (node == null) {</b>
+<b class="nc"><i>203</i>&nbsp;                if (trieMatchingMode == TrieMatchingMode.WILDCARD_NODES_ALLOWED) {</b>
+<b class="nc"><i>204</i>&nbsp;                    node = children.get(wildcard);</b>
+<b class="nc"><i>205</i>&nbsp;                    if (node == null) {</b>
+<b class="nc"><i>206</i>&nbsp;                        return null;</b>
+<i>207</i>&nbsp;                    }
+<b class="nc"><i>208</i>&nbsp;                    usedWildcard = true;</b>
+<b class="nc"><i>209</i>&nbsp;                } else if (trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED &amp;&amp; index == 1) {</b>
+<i>210</i>&nbsp;                    /*
+<i>211</i>&nbsp;                     * Allow root node wildcard matches.
+<i>212</i>&nbsp;                     */
+<b class="nc"><i>213</i>&nbsp;                    node = children.get(wildcard);</b>
+<b class="nc"><i>214</i>&nbsp;                    if (node == null) {</b>
+<b class="nc"><i>215</i>&nbsp;                        return null;</b>
+<i>216</i>&nbsp;                    }
+<b class="nc"><i>217</i>&nbsp;                    usedWildcard = true;</b>
+<b class="nc"><i>218</i>&nbsp;                } else if (trieMatchingMode == TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED &amp;&amp; index + 1 == path.length) {</b>
+<i>219</i>&nbsp;                    /*
+<i>220</i>&nbsp;                     * Allow leaf node wildcard matches.
+<i>221</i>&nbsp;                     */
+<b class="nc"><i>222</i>&nbsp;                    node = children.get(wildcard);</b>
+<b class="nc"><i>223</i>&nbsp;                    if (node == null) {</b>
+<b class="nc"><i>224</i>&nbsp;                        return null;</b>
+<i>225</i>&nbsp;                    }
+<b class="nc"><i>226</i>&nbsp;                    usedWildcard = true;</b>
+<i>227</i>&nbsp;                } else {
+<b class="nc"><i>228</i>&nbsp;                    return null;</b>
+<i>229</i>&nbsp;                }
+<i>230</i>&nbsp;            } else {
+<b class="nc"><i>231</i>&nbsp;                if (index + 1 == path.length &amp;&amp; node.value == null &amp;&amp; children.get(wildcard) != null</b>
+<b class="nc"><i>232</i>&nbsp;                        &amp;&amp; EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode) == false) {</b>
+<i>233</i>&nbsp;                    /*
+<i>234</i>&nbsp;                     * If we are at the end of the path, the current node does not have a value but
+<i>235</i>&nbsp;                     * there is a child wildcard node, use the child wildcard node.
+<i>236</i>&nbsp;                     */
+<b class="nc"><i>237</i>&nbsp;                    node = children.get(wildcard);</b>
+<b class="nc"><i>238</i>&nbsp;                    usedWildcard = true;</b>
+<b class="nc"><i>239</i>&nbsp;                } else if (index == 1 &amp;&amp; node.value == null &amp;&amp; children.get(wildcard) != null</b>
+<i>240</i>&nbsp;                        &amp;&amp; trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED) {
+<i>241</i>&nbsp;                    /*
+<i>242</i>&nbsp;                     * If we are at the root, and root wildcards are allowed, use the child wildcard
+<i>243</i>&nbsp;                     * node.
+<i>244</i>&nbsp;                     */
+<b class="nc"><i>245</i>&nbsp;                    node = children.get(wildcard);</b>
+<b class="nc"><i>246</i>&nbsp;                    usedWildcard = true;</b>
+<i>247</i>&nbsp;                } else {
+<b class="nc"><i>248</i>&nbsp;                    usedWildcard = token.equals(wildcard);</b>
+<i>249</i>&nbsp;                }
+<i>250</i>&nbsp;            }
+<i>251</i>&nbsp;
+<b class="nc"><i>252</i>&nbsp;            put(params, node, token);</b>
+<i>253</i>&nbsp;
+<b class="nc"><i>254</i>&nbsp;            if (index == (path.length - 1)) {</b>
+<b class="nc"><i>255</i>&nbsp;                return node.value;</b>
+<i>256</i>&nbsp;            }
+<i>257</i>&nbsp;
+<b class="nc"><i>258</i>&nbsp;            T nodeValue = node.retrieve(path, index + 1, params, trieMatchingMode);</b>
+<b class="nc"><i>259</i>&nbsp;            if (nodeValue == null &amp;&amp; !usedWildcard &amp;&amp; trieMatchingMode != TrieMatchingMode.EXPLICIT_NODES_ONLY) {</b>
+<b class="nc"><i>260</i>&nbsp;                node = children.get(wildcard);</b>
+<b class="nc"><i>261</i>&nbsp;                if (node != null) {</b>
+<b class="nc"><i>262</i>&nbsp;                    put(params, node, token);</b>
+<b class="nc"><i>263</i>&nbsp;                    nodeValue = node.retrieve(path, index + 1, params, trieMatchingMode);</b>
+<i>264</i>&nbsp;                }
+<i>265</i>&nbsp;            }
+<i>266</i>&nbsp;
+<b class="nc"><i>267</i>&nbsp;            return nodeValue;</b>
+<i>268</i>&nbsp;        }
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;        private void put(Map&lt;String, String&gt; params, TrieNode node, String value) {
+<b class="nc"><i>271</i>&nbsp;            if (params != null &amp;&amp; node.isNamedWildcard()) {</b>
+<b class="nc"><i>272</i>&nbsp;                params.put(node.namedWildcard(), decoder.decode(value));</b>
+<i>273</i>&nbsp;            }
+<b class="nc"><i>274</i>&nbsp;        }</b>
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;        @Override
+<i>277</i>&nbsp;        public String toString() {
+<b class="nc"><i>278</i>&nbsp;            return key;</b>
+<i>279</i>&nbsp;        }
+<i>280</i>&nbsp;    }
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;    public void insert(String path, T value) {
+<b class="nc"><i>283</i>&nbsp;        String[] strings = path.split(SEPARATOR);</b>
+<b class="nc"><i>284</i>&nbsp;        if (strings.length == 0) {</b>
+<b class="nc"><i>285</i>&nbsp;            if (rootValue != null) {</b>
+<b class="nc"><i>286</i>&nbsp;                throw new IllegalArgumentException(&quot;Path [/] already has a value [&quot; + rootValue + &quot;]&quot;);</b>
+<i>287</i>&nbsp;            }
+<b class="nc"><i>288</i>&nbsp;            rootValue = value;</b>
+<b class="nc"><i>289</i>&nbsp;            return;</b>
+<i>290</i>&nbsp;        }
+<b class="nc"><i>291</i>&nbsp;        int index = 0;</b>
+<i>292</i>&nbsp;        // Supports initial delimiter.
+<b class="nc"><i>293</i>&nbsp;        if (strings[0].isEmpty()) {</b>
+<b class="nc"><i>294</i>&nbsp;            index = 1;</b>
+<i>295</i>&nbsp;        }
+<b class="nc"><i>296</i>&nbsp;        root.insert(strings, index, value);</b>
+<b class="nc"><i>297</i>&nbsp;    }</b>
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    /**
+<i>300</i>&nbsp;     * Insert a value for the given path. If the path already exists, replace the value with:
+<i>301</i>&nbsp;     * &lt;pre&gt;
+<i>302</i>&nbsp;     * value = updater.apply(oldValue, newValue);
+<i>303</i>&nbsp;     * &lt;/pre&gt;
+<i>304</i>&nbsp;     * allowing the value to be updated if desired.
+<i>305</i>&nbsp;     */
+<i>306</i>&nbsp;    public void insertOrUpdate(String path, T value, BiFunction&lt;T, T, T&gt; updater) {
+<b class="fc"><i>307</i>&nbsp;        String[] strings = path.split(SEPARATOR);</b>
+<b class="fc"><i>308</i>&nbsp;        if (strings.length == 0) {</b>
+<b class="fc"><i>309</i>&nbsp;            if (rootValue != null) {</b>
+<b class="fc"><i>310</i>&nbsp;                rootValue = updater.apply(rootValue, value);</b>
+<i>311</i>&nbsp;            } else {
+<b class="fc"><i>312</i>&nbsp;                rootValue = value;</b>
+<i>313</i>&nbsp;            }
+<b class="fc"><i>314</i>&nbsp;            return;</b>
+<i>315</i>&nbsp;        }
+<b class="fc"><i>316</i>&nbsp;        int index = 0;</b>
+<i>317</i>&nbsp;        // Supports initial delimiter.
+<b class="fc"><i>318</i>&nbsp;        if (strings[0].isEmpty()) {</b>
+<b class="fc"><i>319</i>&nbsp;            index = 1;</b>
+<i>320</i>&nbsp;        }
+<b class="fc"><i>321</i>&nbsp;        root.insertOrUpdate(strings, index, value, updater);</b>
+<b class="fc"><i>322</i>&nbsp;    }</b>
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    public T retrieve(String path) {
+<b class="nc"><i>325</i>&nbsp;        return retrieve(path, null, TrieMatchingMode.WILDCARD_NODES_ALLOWED);</b>
+<i>326</i>&nbsp;    }
+<i>327</i>&nbsp;
+<i>328</i>&nbsp;    public T retrieve(String path, Map&lt;String, String&gt; params) {
+<b class="nc"><i>329</i>&nbsp;        return retrieve(path, params, TrieMatchingMode.WILDCARD_NODES_ALLOWED);</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    public T retrieve(String path, Map&lt;String, String&gt; params, TrieMatchingMode trieMatchingMode) {
+<b class="nc"><i>333</i>&nbsp;        if (path.length() == 0) {</b>
+<b class="nc"><i>334</i>&nbsp;            return rootValue;</b>
+<i>335</i>&nbsp;        }
+<b class="nc"><i>336</i>&nbsp;        String[] strings = path.split(SEPARATOR);</b>
+<b class="nc"><i>337</i>&nbsp;        if (strings.length == 0) {</b>
+<b class="nc"><i>338</i>&nbsp;            return rootValue;</b>
+<i>339</i>&nbsp;        }
+<b class="nc"><i>340</i>&nbsp;        int index = 0;</b>
+<i>341</i>&nbsp;
+<i>342</i>&nbsp;        // Supports initial delimiter.
+<b class="nc"><i>343</i>&nbsp;        if (strings[0].isEmpty()) {</b>
+<b class="nc"><i>344</i>&nbsp;            index = 1;</b>
+<i>345</i>&nbsp;        }
+<i>346</i>&nbsp;
+<b class="nc"><i>347</i>&nbsp;        return root.retrieve(strings, index, params, trieMatchingMode);</b>
+<i>348</i>&nbsp;    }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    /**
+<i>351</i>&nbsp;     * Returns an iterator of the objects stored in the {@code PathTrie}, using
+<i>352</i>&nbsp;     * all possible {@code TrieMatchingMode} modes. The {@code paramSupplier}
+<i>353</i>&nbsp;     * is called between each invocation of {@code next()} to supply a new map
+<i>354</i>&nbsp;     * of parameters.
+<i>355</i>&nbsp;     */
+<i>356</i>&nbsp;    public Iterator&lt;T&gt; retrieveAll(String path, Supplier&lt;Map&lt;String, String&gt;&gt; paramSupplier) {
+<b class="nc"><i>357</i>&nbsp;        return new Iterator&lt;T&gt;() {</b>
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;            private int mode;
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;            @Override
+<i>362</i>&nbsp;            public boolean hasNext() {
+<i>363</i>&nbsp;                return mode &lt; TrieMatchingMode.values().length;
+<i>364</i>&nbsp;            }
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;            @Override
+<i>367</i>&nbsp;            public T next() {
+<i>368</i>&nbsp;                if (hasNext() == false) {
+<i>369</i>&nbsp;                    throw new NoSuchElementException(&quot;called next() without validating hasNext()! no more modes available&quot;);
+<i>370</i>&nbsp;                }
+<i>371</i>&nbsp;                return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
+<i>372</i>&nbsp;            }
+<i>373</i>&nbsp;        };
+<i>374</i>&nbsp;    }
+<i>375</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

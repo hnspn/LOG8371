@@ -1,0 +1,327 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: CollapseTopFieldDocs</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.apache.lucene.search.grouping</a> ]
+</div>
+
+<h1>Coverage Summary for Class: CollapseTopFieldDocs (org.apache.lucene.search.grouping)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">CollapseTopFieldDocs</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 64)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.apache.lucene.search.grouping;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.search.FieldComparator;
+<i>22</i>&nbsp;import org.apache.lucene.search.FieldDoc;
+<i>23</i>&nbsp;import org.apache.lucene.search.ScoreDoc;
+<i>24</i>&nbsp;import org.apache.lucene.search.Sort;
+<i>25</i>&nbsp;import org.apache.lucene.search.SortField;
+<i>26</i>&nbsp;import org.apache.lucene.search.TopFieldDocs;
+<i>27</i>&nbsp;import org.apache.lucene.search.TotalHits;
+<i>28</i>&nbsp;import org.apache.lucene.util.PriorityQueue;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.util.ArrayList;
+<i>31</i>&nbsp;import java.util.HashSet;
+<i>32</i>&nbsp;import java.util.List;
+<i>33</i>&nbsp;import java.util.Set;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;/**
+<i>36</i>&nbsp; * Represents hits returned by {@link CollapsingTopDocsCollector#getTopDocs()}.
+<i>37</i>&nbsp; */
+<b class="nc"><i>38</i>&nbsp;public final class CollapseTopFieldDocs extends TopFieldDocs {</b>
+<i>39</i>&nbsp;    /** The field used for collapsing **/
+<i>40</i>&nbsp;    public final String field;
+<i>41</i>&nbsp;    /** The collapse value for each top doc */
+<i>42</i>&nbsp;    public final Object[] collapseValues;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    public CollapseTopFieldDocs(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
+<i>45</i>&nbsp;                                SortField[] sortFields, Object[] values) {
+<b class="nc"><i>46</i>&nbsp;        super(totalHits, scoreDocs, sortFields);</b>
+<b class="nc"><i>47</i>&nbsp;        this.field = field;</b>
+<b class="nc"><i>48</i>&nbsp;        this.collapseValues = values;</b>
+<b class="nc"><i>49</i>&nbsp;    }</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    // Refers to one hit:
+<i>52</i>&nbsp;    private static final class ShardRef {
+<i>53</i>&nbsp;        // Which shard (index into shardHits[]):
+<i>54</i>&nbsp;        final int shardIndex;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;        // True if we should use the incoming ScoreDoc.shardIndex for sort order
+<i>57</i>&nbsp;        final boolean useScoreDocIndex;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;        // Which hit within the shard:
+<i>60</i>&nbsp;        int hitIndex;
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;        ShardRef(int shardIndex, boolean useScoreDocIndex) {
+<i>63</i>&nbsp;            this.shardIndex = shardIndex;
+<i>64</i>&nbsp;            this.useScoreDocIndex = useScoreDocIndex;
+<i>65</i>&nbsp;        }
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;        @Override
+<i>68</i>&nbsp;        public String toString() {
+<i>69</i>&nbsp;            return &quot;ShardRef(shardIndex=&quot; + shardIndex + &quot; hitIndex=&quot; + hitIndex + &quot;)&quot;;
+<i>70</i>&nbsp;        }
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;        int getShardIndex(ScoreDoc scoreDoc) {
+<i>73</i>&nbsp;            if (useScoreDocIndex) {
+<i>74</i>&nbsp;                if (scoreDoc.shardIndex == -1) {
+<i>75</i>&nbsp;                    throw new IllegalArgumentException(&quot;setShardIndex is false but TopDocs[&quot;
+<i>76</i>&nbsp;                        + shardIndex + &quot;].scoreDocs[&quot; + hitIndex + &quot;] is not set&quot;);
+<i>77</i>&nbsp;                }
+<i>78</i>&nbsp;                return scoreDoc.shardIndex;
+<i>79</i>&nbsp;            } else {
+<i>80</i>&nbsp;                // NOTE: we don&#39;t assert that shardIndex is -1 here, because caller could in fact have set it but asked us to ignore it now
+<i>81</i>&nbsp;                return shardIndex;
+<i>82</i>&nbsp;            }
+<i>83</i>&nbsp;        }
+<i>84</i>&nbsp;    }
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    /**
+<i>87</i>&nbsp;     * if we need to tie-break since score / sort value are the same we first compare shard index (lower shard wins)
+<i>88</i>&nbsp;     * and then iff shard index is the same we use the hit index.
+<i>89</i>&nbsp;     */
+<i>90</i>&nbsp;    static boolean tieBreakLessThan(ShardRef first, ScoreDoc firstDoc, ShardRef second, ScoreDoc secondDoc) {
+<b class="nc"><i>91</i>&nbsp;        final int firstShardIndex = first.getShardIndex(firstDoc);</b>
+<b class="nc"><i>92</i>&nbsp;        final int secondShardIndex = second.getShardIndex(secondDoc);</b>
+<i>93</i>&nbsp;        // Tie break: earlier shard wins
+<b class="nc"><i>94</i>&nbsp;        if (firstShardIndex &lt; secondShardIndex) {</b>
+<b class="nc"><i>95</i>&nbsp;            return true;</b>
+<b class="nc"><i>96</i>&nbsp;        } else if (firstShardIndex &gt; secondShardIndex) {</b>
+<b class="nc"><i>97</i>&nbsp;            return false;</b>
+<i>98</i>&nbsp;        } else {
+<i>99</i>&nbsp;            // Tie break in same shard: resolve however the
+<i>100</i>&nbsp;            // shard had resolved it:
+<b class="nc"><i>101</i>&nbsp;            assert first.hitIndex != second.hitIndex;</b>
+<b class="nc"><i>102</i>&nbsp;            return first.hitIndex &lt; second.hitIndex;</b>
+<i>103</i>&nbsp;        }
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    private static class MergeSortQueue extends PriorityQueue&lt;ShardRef&gt; {
+<i>107</i>&nbsp;        // These are really FieldDoc instances:
+<i>108</i>&nbsp;        final ScoreDoc[][] shardHits;
+<i>109</i>&nbsp;        final FieldComparator&lt;?&gt;[] comparators;
+<i>110</i>&nbsp;        final int[] reverseMul;
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;        MergeSortQueue(Sort sort, CollapseTopFieldDocs[] shardHits) {
+<i>113</i>&nbsp;            super(shardHits.length);
+<i>114</i>&nbsp;            this.shardHits = new ScoreDoc[shardHits.length][];
+<i>115</i>&nbsp;            for (int shardIDX = 0; shardIDX &lt; shardHits.length; shardIDX++) {
+<i>116</i>&nbsp;                final ScoreDoc[] shard = shardHits[shardIDX].scoreDocs;
+<i>117</i>&nbsp;                if (shard != null) {
+<i>118</i>&nbsp;                    this.shardHits[shardIDX] = shard;
+<i>119</i>&nbsp;                    // Fail gracefully if API is misused:
+<i>120</i>&nbsp;                    for (int hitIDX = 0; hitIDX &lt; shard.length; hitIDX++) {
+<i>121</i>&nbsp;                        final ScoreDoc sd = shard[hitIDX];
+<i>122</i>&nbsp;                        final FieldDoc gd = (FieldDoc) sd;
+<i>123</i>&nbsp;                        assert gd.fields != null;
+<i>124</i>&nbsp;                    }
+<i>125</i>&nbsp;                }
+<i>126</i>&nbsp;            }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;            final SortField[] sortFields = sort.getSort();
+<i>129</i>&nbsp;            comparators = new FieldComparator[sortFields.length];
+<i>130</i>&nbsp;            reverseMul = new int[sortFields.length];
+<i>131</i>&nbsp;            for (int compIDX = 0; compIDX &lt; sortFields.length; compIDX++) {
+<i>132</i>&nbsp;                final SortField sortField = sortFields[compIDX];
+<i>133</i>&nbsp;                comparators[compIDX] = sortField.getComparator(1, compIDX);
+<i>134</i>&nbsp;                reverseMul[compIDX] = sortField.getReverse() ? -1 : 1;
+<i>135</i>&nbsp;            }
+<i>136</i>&nbsp;        }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;        // Returns true if first is &lt; second
+<i>139</i>&nbsp;        @Override
+<i>140</i>&nbsp;        public boolean lessThan(ShardRef first, ShardRef second) {
+<i>141</i>&nbsp;            assert first != second;
+<i>142</i>&nbsp;            final FieldDoc firstFD = (FieldDoc) shardHits[first.shardIndex][first.hitIndex];
+<i>143</i>&nbsp;            final FieldDoc secondFD = (FieldDoc) shardHits[second.shardIndex][second.hitIndex];
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;            for (int compIDX = 0; compIDX &lt; comparators.length; compIDX++) {
+<i>146</i>&nbsp;                final FieldComparator comp = comparators[compIDX];
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;                final int cmp =
+<i>149</i>&nbsp;                    reverseMul[compIDX] * comp.compareValues(firstFD.fields[compIDX], secondFD.fields[compIDX]);
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;                if (cmp != 0) {
+<i>152</i>&nbsp;                    return cmp &lt; 0;
+<i>153</i>&nbsp;                }
+<i>154</i>&nbsp;            }
+<i>155</i>&nbsp;            return tieBreakLessThan(first, firstFD, second, secondFD);
+<i>156</i>&nbsp;        }
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    /**
+<i>160</i>&nbsp;     * Returns a new CollapseTopDocs, containing topN collapsed results across
+<i>161</i>&nbsp;     * the provided CollapseTopDocs, sorting by score. Each {@link CollapseTopFieldDocs} instance must be sorted.
+<i>162</i>&nbsp;     **/
+<i>163</i>&nbsp;    public static CollapseTopFieldDocs merge(Sort sort, int start, int size,
+<i>164</i>&nbsp;                                             CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
+<b class="nc"><i>165</i>&nbsp;        String collapseField = shardHits[0].field;</b>
+<b class="nc"><i>166</i>&nbsp;        for (int i = 1; i &lt; shardHits.length; i++) {</b>
+<b class="nc"><i>167</i>&nbsp;            if (collapseField.equals(shardHits[i].field) == false) {</b>
+<b class="nc"><i>168</i>&nbsp;                throw new IllegalArgumentException(&quot;collapse field differ across shards [&quot; +</b>
+<i>169</i>&nbsp;                    collapseField + &quot;] != [&quot; + shardHits[i].field + &quot;]&quot;);
+<i>170</i>&nbsp;            }
+<i>171</i>&nbsp;        }
+<b class="nc"><i>172</i>&nbsp;        final PriorityQueue&lt;ShardRef&gt; queue = new MergeSortQueue(sort, shardHits);</b>
+<i>173</i>&nbsp;
+<b class="nc"><i>174</i>&nbsp;        long totalHitCount = 0;</b>
+<b class="nc"><i>175</i>&nbsp;        int availHitCount = 0;</b>
+<b class="nc"><i>176</i>&nbsp;        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;</b>
+<b class="nc"><i>177</i>&nbsp;        for(int shardIDX=0;shardIDX&lt;shardHits.length;shardIDX++) {</b>
+<b class="nc"><i>178</i>&nbsp;            final CollapseTopFieldDocs shard = shardHits[shardIDX];</b>
+<i>179</i>&nbsp;            // totalHits can be non-zero even if no hits were
+<i>180</i>&nbsp;            // collected, when searchAfter was used:
+<b class="nc"><i>181</i>&nbsp;            totalHitCount += shard.totalHits.value;</b>
+<i>182</i>&nbsp;            // If any hit count is a lower bound then the merged
+<i>183</i>&nbsp;            // total hit count is a lower bound as well
+<b class="nc"><i>184</i>&nbsp;            if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {</b>
+<b class="nc"><i>185</i>&nbsp;                totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;</b>
+<i>186</i>&nbsp;            }
+<b class="nc"><i>187</i>&nbsp;            if (shard.scoreDocs != null &amp;&amp; shard.scoreDocs.length &gt; 0) {</b>
+<b class="nc"><i>188</i>&nbsp;                availHitCount += shard.scoreDocs.length;</b>
+<b class="nc"><i>189</i>&nbsp;                queue.add(new ShardRef(shardIDX, setShardIndex == false));</b>
+<i>190</i>&nbsp;            }
+<i>191</i>&nbsp;        }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;        final ScoreDoc[] hits;
+<i>194</i>&nbsp;        final Object[] values;
+<b class="nc"><i>195</i>&nbsp;        if (availHitCount &lt;= start) {</b>
+<b class="nc"><i>196</i>&nbsp;            hits = new ScoreDoc[0];</b>
+<b class="nc"><i>197</i>&nbsp;            values = new Object[0];</b>
+<i>198</i>&nbsp;        } else {
+<b class="nc"><i>199</i>&nbsp;            List&lt;ScoreDoc&gt; hitList = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>200</i>&nbsp;            List&lt;Object&gt; collapseList = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>201</i>&nbsp;            int requestedResultWindow = start + size;</b>
+<b class="nc"><i>202</i>&nbsp;            int numIterOnHits = Math.min(availHitCount, requestedResultWindow);</b>
+<b class="nc"><i>203</i>&nbsp;            int hitUpto = 0;</b>
+<b class="nc"><i>204</i>&nbsp;            Set&lt;Object&gt; seen = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>205</i>&nbsp;            while (hitUpto &lt; numIterOnHits) {</b>
+<b class="nc"><i>206</i>&nbsp;                if (queue.size() == 0) {</b>
+<b class="nc"><i>207</i>&nbsp;                    break;</b>
+<i>208</i>&nbsp;                }
+<b class="nc"><i>209</i>&nbsp;                ShardRef ref = queue.top();</b>
+<b class="nc"><i>210</i>&nbsp;                final ScoreDoc hit = shardHits[ref.shardIndex].scoreDocs[ref.hitIndex];</b>
+<b class="nc"><i>211</i>&nbsp;                final Object collapseValue = shardHits[ref.shardIndex].collapseValues[ref.hitIndex++];</b>
+<b class="nc"><i>212</i>&nbsp;                if (seen.contains(collapseValue)) {</b>
+<b class="nc"><i>213</i>&nbsp;                    if (ref.hitIndex &lt; shardHits[ref.shardIndex].scoreDocs.length) {</b>
+<b class="nc"><i>214</i>&nbsp;                        queue.updateTop();</b>
+<i>215</i>&nbsp;                    } else {
+<b class="nc"><i>216</i>&nbsp;                        queue.pop();</b>
+<i>217</i>&nbsp;                    }
+<b class="nc"><i>218</i>&nbsp;                    continue;</b>
+<i>219</i>&nbsp;                }
+<b class="nc"><i>220</i>&nbsp;                seen.add(collapseValue);</b>
+<b class="nc"><i>221</i>&nbsp;                if (setShardIndex) {</b>
+<b class="nc"><i>222</i>&nbsp;                    hit.shardIndex = ref.shardIndex;</b>
+<i>223</i>&nbsp;                }
+<b class="nc"><i>224</i>&nbsp;                if (hitUpto &gt;= start) {</b>
+<b class="nc"><i>225</i>&nbsp;                    hitList.add(hit);</b>
+<b class="nc"><i>226</i>&nbsp;                    collapseList.add(collapseValue);</b>
+<i>227</i>&nbsp;                }
+<i>228</i>&nbsp;
+<b class="nc"><i>229</i>&nbsp;                hitUpto++;</b>
+<i>230</i>&nbsp;
+<b class="nc"><i>231</i>&nbsp;                if (ref.hitIndex &lt; shardHits[ref.shardIndex].scoreDocs.length) {</b>
+<i>232</i>&nbsp;                    // Not done with this these TopDocs yet:
+<b class="nc"><i>233</i>&nbsp;                    queue.updateTop();</b>
+<i>234</i>&nbsp;                } else {
+<b class="nc"><i>235</i>&nbsp;                    queue.pop();</b>
+<i>236</i>&nbsp;                }
+<b class="nc"><i>237</i>&nbsp;            }</b>
+<b class="nc"><i>238</i>&nbsp;            hits = hitList.toArray(new ScoreDoc[0]);</b>
+<b class="nc"><i>239</i>&nbsp;            values = collapseList.toArray(new Object[0]);</b>
+<i>240</i>&nbsp;        }
+<b class="nc"><i>241</i>&nbsp;        TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);</b>
+<b class="nc"><i>242</i>&nbsp;        return new CollapseTopFieldDocs(collapseField, totalHits, hits, sort.getSort(), values);</b>
+<i>243</i>&nbsp;    }
+<i>244</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

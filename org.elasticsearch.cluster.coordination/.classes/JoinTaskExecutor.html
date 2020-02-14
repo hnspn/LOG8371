@@ -1,0 +1,403 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: JoinTaskExecutor</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.coordination</a> ]
+</div>
+
+<h1>Coverage Summary for Class: JoinTaskExecutor (org.elasticsearch.cluster.coordination)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">JoinTaskExecutor</td>
+<td class="coverageStat">
+  <span class="percent">
+    86.7%
+  </span>
+  <span class="absValue">
+    (13/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.1%
+  </span>
+  <span class="absValue">
+    (72/ 109)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">JoinTaskExecutor$Task</td>
+<td class="coverageStat">
+  <span class="percent">
+    83.3%
+  </span>
+  <span class="absValue">
+    (5/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    88.9%
+  </span>
+  <span class="absValue">
+    (8/ 9)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    85.7%
+  </span>
+  <span class="absValue">
+    (18/ 21)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    67.8%
+  </span>
+  <span class="absValue">
+    (80/ 118)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.cluster.coordination;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>22</i>&nbsp;import org.elasticsearch.Version;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.NotMasterException;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlocks;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.routing.RerouteService;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocationService;
+<i>34</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>35</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>36</i>&nbsp;import org.elasticsearch.discovery.zen.ElectMasterService;
+<i>37</i>&nbsp;import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.util.ArrayList;
+<i>40</i>&nbsp;import java.util.Collection;
+<i>41</i>&nbsp;import java.util.Collections;
+<i>42</i>&nbsp;import java.util.List;
+<i>43</i>&nbsp;import java.util.function.BiConsumer;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+<i>46</i>&nbsp;
+<b class="fc"><i>47</i>&nbsp;public class JoinTaskExecutor implements ClusterStateTaskExecutor&lt;JoinTaskExecutor.Task&gt; {</b>
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    private final AllocationService allocationService;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    private final Logger logger;
+<i>52</i>&nbsp;    private final RerouteService rerouteService;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    private final int minimumMasterNodesOnLocalNode;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    public static class Task {
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;        private final DiscoveryNode node;
+<i>59</i>&nbsp;        private final String reason;
+<i>60</i>&nbsp;
+<b class="fc"><i>61</i>&nbsp;        public Task(DiscoveryNode node, String reason) {</b>
+<b class="fc"><i>62</i>&nbsp;            this.node = node;</b>
+<b class="fc"><i>63</i>&nbsp;            this.reason = reason;</b>
+<b class="fc"><i>64</i>&nbsp;        }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;        public DiscoveryNode node() {
+<b class="fc"><i>67</i>&nbsp;            return node;</b>
+<i>68</i>&nbsp;        }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;        public String reason() {
+<b class="nc"><i>71</i>&nbsp;            return reason;</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;        @Override
+<i>75</i>&nbsp;        public String toString() {
+<b class="fc"><i>76</i>&nbsp;            return node != null ? node + &quot; &quot; + reason : reason;</b>
+<i>77</i>&nbsp;        }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;        public boolean isBecomeMasterTask() {
+<b class="fc"><i>80</i>&nbsp;            return reason.equals(BECOME_MASTER_TASK_REASON);</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        public boolean isFinishElectionTask() {
+<b class="fc"><i>84</i>&nbsp;            return reason.equals(FINISH_ELECTION_TASK_REASON);</b>
+<i>85</i>&nbsp;        }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;        private static final String BECOME_MASTER_TASK_REASON = &quot;_BECOME_MASTER_TASK_&quot;;
+<i>88</i>&nbsp;        private static final String FINISH_ELECTION_TASK_REASON = &quot;_FINISH_ELECTION_&quot;;
+<i>89</i>&nbsp;    }
+<i>90</i>&nbsp;
+<b class="fc"><i>91</i>&nbsp;    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger, RerouteService rerouteService) {</b>
+<b class="fc"><i>92</i>&nbsp;        this.allocationService = allocationService;</b>
+<b class="fc"><i>93</i>&nbsp;        this.logger = logger;</b>
+<b class="fc"><i>94</i>&nbsp;        minimumMasterNodesOnLocalNode = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>95</i>&nbsp;        this.rerouteService = rerouteService;</b>
+<b class="fc"><i>96</i>&nbsp;    }</b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    @Override
+<i>99</i>&nbsp;    public ClusterTasksResult&lt;Task&gt; execute(ClusterState currentState, List&lt;Task&gt; joiningNodes) throws Exception {
+<b class="fc"><i>100</i>&nbsp;        final ClusterTasksResult.Builder&lt;Task&gt; results = ClusterTasksResult.builder();</b>
+<i>101</i>&nbsp;
+<b class="fc"><i>102</i>&nbsp;        final DiscoveryNodes currentNodes = currentState.nodes();</b>
+<b class="fc"><i>103</i>&nbsp;        boolean nodesChanged = false;</b>
+<i>104</i>&nbsp;        ClusterState.Builder newState;
+<i>105</i>&nbsp;
+<b class="fc"><i>106</i>&nbsp;        if (joiningNodes.size() == 1 &amp;&amp; joiningNodes.get(0).isFinishElectionTask()) {</b>
+<b class="nc"><i>107</i>&nbsp;            return results.successes(joiningNodes).build(currentState);</b>
+<b class="fc"><i>108</i>&nbsp;        } else if (currentNodes.getMasterNode() == null &amp;&amp; joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {</b>
+<b class="fc"><i>109</i>&nbsp;            assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask)</b>
+<i>110</i>&nbsp;                : &quot;becoming a master but election is not finished &quot; + joiningNodes;
+<i>111</i>&nbsp;            // use these joins to try and become the master.
+<i>112</i>&nbsp;            // Note that we don&#39;t have to do any validation of the amount of joining nodes - the commit
+<i>113</i>&nbsp;            // during the cluster state publishing guarantees that we have enough
+<b class="fc"><i>114</i>&nbsp;            newState = becomeMasterAndTrimConflictingNodes(currentState, joiningNodes);</b>
+<b class="fc"><i>115</i>&nbsp;            nodesChanged = true;</b>
+<b class="nc"><i>116</i>&nbsp;        } else if (currentNodes.isLocalNodeElectedMaster() == false) {</b>
+<b class="nc"><i>117</i>&nbsp;            logger.trace(&quot;processing node joins, but we are not the master. current master: {}&quot;, currentNodes.getMasterNode());</b>
+<b class="nc"><i>118</i>&nbsp;            throw new NotMasterException(&quot;Node [&quot; + currentNodes.getLocalNode() + &quot;] not master for join request&quot;);</b>
+<i>119</i>&nbsp;        } else {
+<b class="nc"><i>120</i>&nbsp;            newState = ClusterState.builder(currentState);</b>
+<i>121</i>&nbsp;        }
+<i>122</i>&nbsp;
+<b class="fc"><i>123</i>&nbsp;        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());</b>
+<i>124</i>&nbsp;
+<b class="fc"><i>125</i>&nbsp;        assert nodesBuilder.isLocalNodeElectedMaster();</b>
+<i>126</i>&nbsp;
+<b class="fc"><i>127</i>&nbsp;        Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();</b>
+<b class="fc"><i>128</i>&nbsp;        Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();</b>
+<i>129</i>&nbsp;        // we only enforce major version transitions on a fully formed clusters
+<b class="fc"><i>130</i>&nbsp;        final boolean enforceMajorVersion = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;</b>
+<i>131</i>&nbsp;        // processing any joins
+<b class="fc"><i>132</i>&nbsp;        for (final Task joinTask : joiningNodes) {</b>
+<b class="fc"><i>133</i>&nbsp;            if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {</b>
+<i>134</i>&nbsp;                // noop
+<b class="fc"><i>135</i>&nbsp;            } else if (currentNodes.nodeExists(joinTask.node())) {</b>
+<b class="fc"><i>136</i>&nbsp;                logger.debug(&quot;received a join request for an existing node [{}]&quot;, joinTask.node());</b>
+<i>137</i>&nbsp;            } else {
+<b class="nc"><i>138</i>&nbsp;                final DiscoveryNode node = joinTask.node();</b>
+<i>139</i>&nbsp;                try {
+<b class="nc"><i>140</i>&nbsp;                    if (enforceMajorVersion) {</b>
+<b class="nc"><i>141</i>&nbsp;                        ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);</b>
+<i>142</i>&nbsp;                    }
+<b class="nc"><i>143</i>&nbsp;                    ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);</b>
+<i>144</i>&nbsp;                    // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
+<i>145</i>&nbsp;                    // we have to reject nodes that don&#39;t support all indices we have in this cluster
+<b class="nc"><i>146</i>&nbsp;                    ensureIndexCompatibility(node.getVersion(), currentState.getMetaData());</b>
+<b class="nc"><i>147</i>&nbsp;                    nodesBuilder.add(node);</b>
+<b class="nc"><i>148</i>&nbsp;                    nodesChanged = true;</b>
+<b class="nc"><i>149</i>&nbsp;                    minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());</b>
+<b class="nc"><i>150</i>&nbsp;                    maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());</b>
+<b class="nc"><i>151</i>&nbsp;                } catch (IllegalArgumentException | IllegalStateException e) {</b>
+<b class="nc"><i>152</i>&nbsp;                    results.failure(joinTask, e);</b>
+<b class="nc"><i>153</i>&nbsp;                    continue;</b>
+<b class="nc"><i>154</i>&nbsp;                }</b>
+<i>155</i>&nbsp;            }
+<b class="fc"><i>156</i>&nbsp;            results.success(joinTask);</b>
+<b class="fc"><i>157</i>&nbsp;        }</b>
+<b class="fc"><i>158</i>&nbsp;        if (nodesChanged) {</b>
+<b class="fc"><i>159</i>&nbsp;            rerouteService.reroute(&quot;post-join reroute&quot;, Priority.HIGH, ActionListener.wrap(</b>
+<b class="fc"><i>160</i>&nbsp;                r -&gt; logger.trace(&quot;post-join reroute completed&quot;),</b>
+<b class="nc"><i>161</i>&nbsp;                e -&gt; logger.debug(&quot;post-join reroute failed&quot;, e)));</b>
+<i>162</i>&nbsp;
+<b class="fc"><i>163</i>&nbsp;            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));</b>
+<i>164</i>&nbsp;        } else {
+<i>165</i>&nbsp;            // we must return a new cluster state instance to force publishing. This is important
+<i>166</i>&nbsp;            // for the joining node to finalize its join and set us as a master
+<b class="nc"><i>167</i>&nbsp;            return results.build(newState.build());</b>
+<i>168</i>&nbsp;        }
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List&lt;Task&gt; joiningNodes) {
+<b class="fc"><i>172</i>&nbsp;        assert currentState.nodes().getMasterNodeId() == null : currentState;</b>
+<b class="fc"><i>173</i>&nbsp;        DiscoveryNodes currentNodes = currentState.nodes();</b>
+<b class="fc"><i>174</i>&nbsp;        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);</b>
+<b class="fc"><i>175</i>&nbsp;        nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());</b>
+<i>176</i>&nbsp;
+<b class="fc"><i>177</i>&nbsp;        for (final Task joinTask : joiningNodes) {</b>
+<b class="fc"><i>178</i>&nbsp;            if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {</b>
+<i>179</i>&nbsp;                // noop
+<i>180</i>&nbsp;            } else {
+<b class="fc"><i>181</i>&nbsp;                final DiscoveryNode joiningNode = joinTask.node();</b>
+<b class="fc"><i>182</i>&nbsp;                final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());</b>
+<b class="fc"><i>183</i>&nbsp;                if (nodeWithSameId != null &amp;&amp; nodeWithSameId.equals(joiningNode) == false) {</b>
+<b class="nc"><i>184</i>&nbsp;                    logger.debug(&quot;removing existing node [{}], which conflicts with incoming join from [{}]&quot;, nodeWithSameId, joiningNode);</b>
+<b class="nc"><i>185</i>&nbsp;                    nodesBuilder.remove(nodeWithSameId.getId());</b>
+<i>186</i>&nbsp;                }
+<b class="fc"><i>187</i>&nbsp;                final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());</b>
+<b class="fc"><i>188</i>&nbsp;                if (nodeWithSameAddress != null &amp;&amp; nodeWithSameAddress.equals(joiningNode) == false) {</b>
+<b class="nc"><i>189</i>&nbsp;                    logger.debug(&quot;removing existing node [{}], which conflicts with incoming join from [{}]&quot;, nodeWithSameAddress,</b>
+<i>190</i>&nbsp;                        joiningNode);
+<b class="nc"><i>191</i>&nbsp;                    nodesBuilder.remove(nodeWithSameAddress.getId());</b>
+<i>192</i>&nbsp;                }
+<i>193</i>&nbsp;            }
+<b class="fc"><i>194</i>&nbsp;        }</b>
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;        // now trim any left over dead nodes - either left there when the previous master stepped down
+<i>198</i>&nbsp;        // or removed by us above
+<b class="fc"><i>199</i>&nbsp;        ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()</b>
+<b class="fc"><i>200</i>&nbsp;            .blocks(currentState.blocks())</b>
+<b class="fc"><i>201</i>&nbsp;            .removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))</b>
+<b class="fc"><i>202</i>&nbsp;            .minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnLocalNode)</b>
+<b class="fc"><i>203</i>&nbsp;            .build();</b>
+<b class="fc"><i>204</i>&nbsp;        logger.trace(&quot;becomeMasterAndTrimConflictingNodes: {}&quot;, tmpState.nodes());</b>
+<b class="fc"><i>205</i>&nbsp;        allocationService.cleanCaches();</b>
+<b class="fc"><i>206</i>&nbsp;        tmpState = PersistentTasksCustomMetaData.disassociateDeadNodes(tmpState);</b>
+<b class="fc"><i>207</i>&nbsp;        return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, &quot;removed dead nodes on election&quot;));</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    @Override
+<i>211</i>&nbsp;    public boolean runOnlyOnMaster() {
+<i>212</i>&nbsp;        // we validate that we are allowed to change the cluster state during cluster state processing
+<b class="fc"><i>213</i>&nbsp;        return false;</b>
+<i>214</i>&nbsp;    }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    public static Task newBecomeMasterTask() {
+<b class="fc"><i>217</i>&nbsp;        return new Task(null, Task.BECOME_MASTER_TASK_REASON);</b>
+<i>218</i>&nbsp;    }
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;    /**
+<i>221</i>&nbsp;     * a task that is used to signal the election is stopped and we should process pending joins.
+<i>222</i>&nbsp;     * it may be used in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
+<i>223</i>&nbsp;     */
+<i>224</i>&nbsp;    public static Task newFinishElectionTask() {
+<b class="fc"><i>225</i>&nbsp;        return new Task(null, Task.FINISH_ELECTION_TASK_REASON);</b>
+<i>226</i>&nbsp;    }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    /**
+<i>229</i>&nbsp;     * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
+<i>230</i>&nbsp;     * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
+<i>231</i>&nbsp;     * compatibility version.
+<i>232</i>&nbsp;     * @see Version#minimumIndexCompatibilityVersion()
+<i>233</i>&nbsp;     * @throws IllegalStateException if any index is incompatible with the given version
+<i>234</i>&nbsp;     */
+<i>235</i>&nbsp;    public static void ensureIndexCompatibility(final Version nodeVersion, MetaData metaData) {
+<b class="fc"><i>236</i>&nbsp;        Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();</b>
+<i>237</i>&nbsp;        // we ensure that all indices in the cluster we join are compatible with us no matter if they are
+<i>238</i>&nbsp;        // closed or not we can&#39;t read mappings of these indices so we need to reject the join...
+<b class="fc"><i>239</i>&nbsp;        for (IndexMetaData idxMetaData : metaData) {</b>
+<b class="nc"><i>240</i>&nbsp;            if (idxMetaData.getCreationVersion().after(nodeVersion)) {</b>
+<b class="nc"><i>241</i>&nbsp;                throw new IllegalStateException(&quot;index &quot; + idxMetaData.getIndex() + &quot; version not supported: &quot;</b>
+<b class="nc"><i>242</i>&nbsp;                    + idxMetaData.getCreationVersion() + &quot; the node version is: &quot; + nodeVersion);</b>
+<i>243</i>&nbsp;            }
+<b class="nc"><i>244</i>&nbsp;            if (idxMetaData.getCreationVersion().before(supportedIndexVersion)) {</b>
+<b class="nc"><i>245</i>&nbsp;                throw new IllegalStateException(&quot;index &quot; + idxMetaData.getIndex() + &quot; version not supported: &quot;</b>
+<b class="nc"><i>246</i>&nbsp;                    + idxMetaData.getCreationVersion() + &quot; minimum compatible index version is: &quot; + supportedIndexVersion);</b>
+<i>247</i>&nbsp;            }
+<b class="nc"><i>248</i>&nbsp;        }</b>
+<b class="fc"><i>249</i>&nbsp;    }</b>
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    /** ensures that the joining node has a version that&#39;s compatible with all current nodes*/
+<i>252</i>&nbsp;    public static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
+<b class="fc"><i>253</i>&nbsp;        final Version minNodeVersion = currentNodes.getMinNodeVersion();</b>
+<b class="fc"><i>254</i>&nbsp;        final Version maxNodeVersion = currentNodes.getMaxNodeVersion();</b>
+<b class="fc"><i>255</i>&nbsp;        ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);</b>
+<b class="fc"><i>256</i>&nbsp;    }</b>
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    /** ensures that the joining node has a version that&#39;s compatible with a given version range */
+<i>259</i>&nbsp;    public static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
+<b class="fc"><i>260</i>&nbsp;        assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + &quot; &gt; &quot; + maxClusterNodeVersion;</b>
+<b class="fc"><i>261</i>&nbsp;        if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {</b>
+<b class="nc"><i>262</i>&nbsp;            throw new IllegalStateException(&quot;node version [&quot; + joiningNodeVersion + &quot;] is not supported. &quot; +</b>
+<i>263</i>&nbsp;                &quot;The cluster contains nodes with version [&quot; + maxClusterNodeVersion + &quot;], which is incompatible.&quot;);
+<i>264</i>&nbsp;        }
+<b class="fc"><i>265</i>&nbsp;        if (joiningNodeVersion.isCompatible(minClusterNodeVersion) == false) {</b>
+<b class="nc"><i>266</i>&nbsp;            throw new IllegalStateException(&quot;node version [&quot; + joiningNodeVersion + &quot;] is not supported.&quot; +</b>
+<i>267</i>&nbsp;                &quot;The cluster contains nodes with version [&quot; + minClusterNodeVersion + &quot;], which is incompatible.&quot;);
+<i>268</i>&nbsp;        }
+<b class="fc"><i>269</i>&nbsp;    }</b>
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;    /**
+<i>272</i>&nbsp;     * ensures that the joining node&#39;s major version is equal or higher to the minClusterNodeVersion. This is needed
+<i>273</i>&nbsp;     * to ensure that if the master is already fully operating under the new major version, it doesn&#39;t go back to mixed
+<i>274</i>&nbsp;     * version mode
+<i>275</i>&nbsp;     **/
+<i>276</i>&nbsp;    public static void ensureMajorVersionBarrier(Version joiningNodeVersion, Version minClusterNodeVersion) {
+<b class="nc"><i>277</i>&nbsp;        final byte clusterMajor = minClusterNodeVersion.major;</b>
+<b class="nc"><i>278</i>&nbsp;        if (joiningNodeVersion.major &lt; clusterMajor) {</b>
+<b class="nc"><i>279</i>&nbsp;            throw new IllegalStateException(&quot;node version [&quot; + joiningNodeVersion + &quot;] is not supported. &quot; +</b>
+<i>280</i>&nbsp;                &quot;All nodes in the cluster are of a higher major [&quot; + clusterMajor + &quot;].&quot;);
+<i>281</i>&nbsp;        }
+<b class="nc"><i>282</i>&nbsp;    }</b>
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    public static Collection&lt;BiConsumer&lt;DiscoveryNode,ClusterState&gt;&gt; addBuiltInJoinValidators(
+<i>285</i>&nbsp;        Collection&lt;BiConsumer&lt;DiscoveryNode, ClusterState&gt;&gt; onJoinValidators) {
+<b class="fc"><i>286</i>&nbsp;        final Collection&lt;BiConsumer&lt;DiscoveryNode, ClusterState&gt;&gt; validators = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>287</i>&nbsp;        validators.add((node, state) -&gt; {</b>
+<b class="fc"><i>288</i>&nbsp;            ensureNodesCompatibility(node.getVersion(), state.getNodes());</b>
+<b class="fc"><i>289</i>&nbsp;            ensureIndexCompatibility(node.getVersion(), state.getMetaData());</b>
+<b class="fc"><i>290</i>&nbsp;        });</b>
+<b class="fc"><i>291</i>&nbsp;        validators.addAll(onJoinValidators);</b>
+<b class="fc"><i>292</i>&nbsp;        return Collections.unmodifiableCollection(validators);</b>
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,689 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FunctionScoreQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query.functionscore</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FunctionScoreQueryBuilder (org.elasticsearch.index.query.functionscore)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FunctionScoreQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 28)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 233)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query.functionscore;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.MatchAllDocsQuery;
+<i>23</i>&nbsp;import org.apache.lucene.search.Query;
+<i>24</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>29</i>&nbsp;import org.elasticsearch.common.lucene.search.function.CombineFunction;
+<i>30</i>&nbsp;import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+<i>31</i>&nbsp;import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.XContentLocation;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>36</i>&nbsp;import org.elasticsearch.index.query.AbstractQueryBuilder;
+<i>37</i>&nbsp;import org.elasticsearch.index.query.InnerHitContextBuilder;
+<i>38</i>&nbsp;import org.elasticsearch.index.query.MatchAllQueryBuilder;
+<i>39</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>40</i>&nbsp;import org.elasticsearch.index.query.QueryRewriteContext;
+<i>41</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.io.IOException;
+<i>44</i>&nbsp;import java.util.ArrayList;
+<i>45</i>&nbsp;import java.util.Arrays;
+<i>46</i>&nbsp;import java.util.List;
+<i>47</i>&nbsp;import java.util.Locale;
+<i>48</i>&nbsp;import java.util.Map;
+<i>49</i>&nbsp;import java.util.Objects;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;/**
+<i>52</i>&nbsp; * A query that uses a filters with a script associated with them to compute the
+<i>53</i>&nbsp; * score.
+<i>54</i>&nbsp; */
+<i>55</i>&nbsp;public class FunctionScoreQueryBuilder extends AbstractQueryBuilder&lt;FunctionScoreQueryBuilder&gt; {
+<i>56</i>&nbsp;    public static final String NAME = &quot;function_score&quot;;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    // For better readability of error message
+<i>59</i>&nbsp;    static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = &quot;you can either define [functions] array or a single function, not both. &quot;;
+<i>60</i>&nbsp;
+<b class="nc"><i>61</i>&nbsp;    public static final ParseField WEIGHT_FIELD = new ParseField(&quot;weight&quot;);</b>
+<b class="nc"><i>62</i>&nbsp;    public static final ParseField QUERY_FIELD = new ParseField(&quot;query&quot;);</b>
+<b class="nc"><i>63</i>&nbsp;    public static final ParseField FILTER_FIELD = new ParseField(&quot;filter&quot;);</b>
+<b class="nc"><i>64</i>&nbsp;    public static final ParseField FUNCTIONS_FIELD = new ParseField(&quot;functions&quot;);</b>
+<b class="nc"><i>65</i>&nbsp;    public static final ParseField SCORE_MODE_FIELD = new ParseField(&quot;score_mode&quot;);</b>
+<b class="nc"><i>66</i>&nbsp;    public static final ParseField BOOST_MODE_FIELD = new ParseField(&quot;boost_mode&quot;);</b>
+<b class="nc"><i>67</i>&nbsp;    public static final ParseField MAX_BOOST_FIELD = new ParseField(&quot;max_boost&quot;);</b>
+<b class="nc"><i>68</i>&nbsp;    public static final ParseField MIN_SCORE_FIELD = new ParseField(&quot;min_score&quot;);</b>
+<i>69</i>&nbsp;
+<b class="nc"><i>70</i>&nbsp;    public static final CombineFunction DEFAULT_BOOST_MODE = CombineFunction.MULTIPLY;</b>
+<b class="nc"><i>71</i>&nbsp;    public static final FunctionScoreQuery.ScoreMode DEFAULT_SCORE_MODE = FunctionScoreQuery.ScoreMode.MULTIPLY;</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    private final QueryBuilder query;
+<i>74</i>&nbsp;
+<b class="nc"><i>75</i>&nbsp;    private float maxBoost = FunctionScoreQuery.DEFAULT_MAX_BOOST;</b>
+<i>76</i>&nbsp;
+<b class="nc"><i>77</i>&nbsp;    private FunctionScoreQuery.ScoreMode scoreMode = DEFAULT_SCORE_MODE;</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    private CombineFunction boostMode;
+<i>80</i>&nbsp;
+<b class="nc"><i>81</i>&nbsp;    private Float minScore = null;</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    private final FilterFunctionBuilder[] filterFunctionBuilders;
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    /**
+<i>86</i>&nbsp;     * Creates a function_score query without functions
+<i>87</i>&nbsp;     *
+<i>88</i>&nbsp;     * @param query the query that needs to be custom scored
+<i>89</i>&nbsp;     */
+<i>90</i>&nbsp;    public FunctionScoreQueryBuilder(QueryBuilder query) {
+<b class="nc"><i>91</i>&nbsp;        this(query, new FilterFunctionBuilder[0]);</b>
+<b class="nc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    /**
+<i>95</i>&nbsp;     * Creates a function_score query that executes the provided filters and functions on all documents
+<i>96</i>&nbsp;     *
+<i>97</i>&nbsp;     * @param filterFunctionBuilders the filters and functions
+<i>98</i>&nbsp;     */
+<i>99</i>&nbsp;    public FunctionScoreQueryBuilder(FilterFunctionBuilder[] filterFunctionBuilders) {
+<b class="nc"><i>100</i>&nbsp;        this(new MatchAllQueryBuilder(), filterFunctionBuilders);</b>
+<b class="nc"><i>101</i>&nbsp;    }</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    /**
+<i>104</i>&nbsp;     * Creates a function_score query that will execute the function provided on all documents
+<i>105</i>&nbsp;     *
+<i>106</i>&nbsp;     * @param scoreFunctionBuilder score function that is executed
+<i>107</i>&nbsp;     */
+<i>108</i>&nbsp;    public FunctionScoreQueryBuilder(ScoreFunctionBuilder&lt;?&gt; scoreFunctionBuilder) {
+<b class="nc"><i>109</i>&nbsp;        this(new MatchAllQueryBuilder(), new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});</b>
+<b class="nc"><i>110</i>&nbsp;    }</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    /**
+<i>113</i>&nbsp;     * Creates a function_score query that will execute the function provided in the context of the provided query
+<i>114</i>&nbsp;     *
+<i>115</i>&nbsp;     * @param query the query to custom score
+<i>116</i>&nbsp;     * @param scoreFunctionBuilder score function that is executed
+<i>117</i>&nbsp;     */
+<i>118</i>&nbsp;    public FunctionScoreQueryBuilder(QueryBuilder query, ScoreFunctionBuilder&lt;?&gt; scoreFunctionBuilder) {
+<b class="nc"><i>119</i>&nbsp;        this(query, new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});</b>
+<b class="nc"><i>120</i>&nbsp;    }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    /**
+<i>123</i>&nbsp;     * Creates a function_score query that executes the provided filters and functions on documents that match a query.
+<i>124</i>&nbsp;     *
+<i>125</i>&nbsp;     * @param query the query that defines which documents the function_score query will be executed on.
+<i>126</i>&nbsp;     * @param filterFunctionBuilders the filters and functions
+<i>127</i>&nbsp;     */
+<b class="nc"><i>128</i>&nbsp;    public FunctionScoreQueryBuilder(QueryBuilder query, FilterFunctionBuilder[] filterFunctionBuilders) {</b>
+<b class="nc"><i>129</i>&nbsp;        if (query == null) {</b>
+<b class="nc"><i>130</i>&nbsp;            throw new IllegalArgumentException(&quot;function_score: query must not be null&quot;);</b>
+<i>131</i>&nbsp;        }
+<b class="nc"><i>132</i>&nbsp;        if (filterFunctionBuilders == null) {</b>
+<b class="nc"><i>133</i>&nbsp;            throw new IllegalArgumentException(&quot;function_score: filters and functions array must not be null&quot;);</b>
+<i>134</i>&nbsp;        }
+<b class="nc"><i>135</i>&nbsp;        for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {</b>
+<b class="nc"><i>136</i>&nbsp;            if (filterFunctionBuilder == null) {</b>
+<b class="nc"><i>137</i>&nbsp;                throw new IllegalArgumentException(&quot;function_score: each filter and function must not be null&quot;);</b>
+<i>138</i>&nbsp;            }
+<i>139</i>&nbsp;        }
+<b class="nc"><i>140</i>&nbsp;        this.query = query;</b>
+<b class="nc"><i>141</i>&nbsp;        this.filterFunctionBuilders = filterFunctionBuilders;</b>
+<b class="nc"><i>142</i>&nbsp;    }</b>
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    /**
+<i>145</i>&nbsp;     * Read from a stream.
+<i>146</i>&nbsp;     */
+<i>147</i>&nbsp;    public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>148</i>&nbsp;        super(in);</b>
+<b class="nc"><i>149</i>&nbsp;        query = in.readNamedWriteable(QueryBuilder.class);</b>
+<b class="nc"><i>150</i>&nbsp;        filterFunctionBuilders = in.readList(FilterFunctionBuilder::new).toArray(new FilterFunctionBuilder[0]);</b>
+<b class="nc"><i>151</i>&nbsp;        maxBoost = in.readFloat();</b>
+<b class="nc"><i>152</i>&nbsp;        minScore = in.readOptionalFloat();</b>
+<b class="nc"><i>153</i>&nbsp;        boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);</b>
+<b class="nc"><i>154</i>&nbsp;        scoreMode = FunctionScoreQuery.ScoreMode.readFromStream(in);</b>
+<b class="nc"><i>155</i>&nbsp;    }</b>
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    @Override
+<i>158</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>159</i>&nbsp;        out.writeNamedWriteable(query);</b>
+<b class="nc"><i>160</i>&nbsp;        out.writeList(Arrays.asList(filterFunctionBuilders));</b>
+<b class="nc"><i>161</i>&nbsp;        out.writeFloat(maxBoost);</b>
+<b class="nc"><i>162</i>&nbsp;        out.writeOptionalFloat(minScore);</b>
+<b class="nc"><i>163</i>&nbsp;        out.writeOptionalWriteable(boostMode);</b>
+<b class="nc"><i>164</i>&nbsp;        scoreMode.writeTo(out);</b>
+<b class="nc"><i>165</i>&nbsp;    }</b>
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    /**
+<i>168</i>&nbsp;     * Returns the query that defines which documents the function_score query will be executed on.
+<i>169</i>&nbsp;     */
+<i>170</i>&nbsp;    public QueryBuilder query() {
+<b class="nc"><i>171</i>&nbsp;        return this.query;</b>
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * Returns the filters and functions
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    public FilterFunctionBuilder[] filterFunctionBuilders() {
+<b class="nc"><i>178</i>&nbsp;        return this.filterFunctionBuilders;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Score mode defines how results of individual score functions will be aggregated.
+<i>183</i>&nbsp;     * @see FunctionScoreQuery.ScoreMode
+<i>184</i>&nbsp;     */
+<i>185</i>&nbsp;    public FunctionScoreQueryBuilder scoreMode(FunctionScoreQuery.ScoreMode scoreMode) {
+<b class="nc"><i>186</i>&nbsp;        if (scoreMode == null) {</b>
+<b class="nc"><i>187</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;]  requires &#39;score_mode&#39; field&quot;);</b>
+<i>188</i>&nbsp;        }
+<b class="nc"><i>189</i>&nbsp;        this.scoreMode = scoreMode;</b>
+<b class="nc"><i>190</i>&nbsp;        return this;</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    /**
+<i>194</i>&nbsp;     * Returns the score mode, meaning how results of individual score functions will be aggregated.
+<i>195</i>&nbsp;     * @see FunctionScoreQuery.ScoreMode
+<i>196</i>&nbsp;     */
+<i>197</i>&nbsp;    public FunctionScoreQuery.ScoreMode scoreMode() {
+<b class="nc"><i>198</i>&nbsp;        return this.scoreMode;</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    /**
+<i>202</i>&nbsp;     * Boost mode defines how the combined result of score functions will influence the final score together with the sub query score.
+<i>203</i>&nbsp;     * @see CombineFunction
+<i>204</i>&nbsp;     */
+<i>205</i>&nbsp;    public FunctionScoreQueryBuilder boostMode(CombineFunction combineFunction) {
+<b class="nc"><i>206</i>&nbsp;        if (combineFunction == null) {</b>
+<b class="nc"><i>207</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;]  requires &#39;boost_mode&#39; field&quot;);</b>
+<i>208</i>&nbsp;        }
+<b class="nc"><i>209</i>&nbsp;        this.boostMode = combineFunction;</b>
+<b class="nc"><i>210</i>&nbsp;        return this;</b>
+<i>211</i>&nbsp;    }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    /**
+<i>214</i>&nbsp;     * Returns the boost mode, meaning how the combined result of score functions will influence the final score together with the sub query
+<i>215</i>&nbsp;     * score.
+<i>216</i>&nbsp;     *
+<i>217</i>&nbsp;     * @see CombineFunction
+<i>218</i>&nbsp;     */
+<i>219</i>&nbsp;    public CombineFunction boostMode() {
+<b class="nc"><i>220</i>&nbsp;        return this.boostMode;</b>
+<i>221</i>&nbsp;    }
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;    /**
+<i>224</i>&nbsp;     * Sets the maximum boost that will be applied by function score.
+<i>225</i>&nbsp;     */
+<i>226</i>&nbsp;    public FunctionScoreQueryBuilder maxBoost(float maxBoost) {
+<b class="nc"><i>227</i>&nbsp;        this.maxBoost = maxBoost;</b>
+<b class="nc"><i>228</i>&nbsp;        return this;</b>
+<i>229</i>&nbsp;    }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    /**
+<i>232</i>&nbsp;     * Returns the maximum boost that will be applied by function score.
+<i>233</i>&nbsp;     */
+<i>234</i>&nbsp;    public float maxBoost() {
+<b class="nc"><i>235</i>&nbsp;        return this.maxBoost;</b>
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    @Override
+<i>239</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>240</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>241</i>&nbsp;        if (query != null) {</b>
+<b class="nc"><i>242</i>&nbsp;            builder.field(QUERY_FIELD.getPreferredName());</b>
+<b class="nc"><i>243</i>&nbsp;            query.toXContent(builder, params);</b>
+<i>244</i>&nbsp;        }
+<b class="nc"><i>245</i>&nbsp;        builder.startArray(FUNCTIONS_FIELD.getPreferredName());</b>
+<b class="nc"><i>246</i>&nbsp;        for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {</b>
+<b class="nc"><i>247</i>&nbsp;            filterFunctionBuilder.toXContent(builder, params);</b>
+<i>248</i>&nbsp;        }
+<b class="nc"><i>249</i>&nbsp;        builder.endArray();</b>
+<i>250</i>&nbsp;
+<b class="nc"><i>251</i>&nbsp;        builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));</b>
+<b class="nc"><i>252</i>&nbsp;        if (boostMode != null) {</b>
+<b class="nc"><i>253</i>&nbsp;            builder.field(BOOST_MODE_FIELD.getPreferredName(), boostMode.name().toLowerCase(Locale.ROOT));</b>
+<i>254</i>&nbsp;        }
+<b class="nc"><i>255</i>&nbsp;        builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);</b>
+<b class="nc"><i>256</i>&nbsp;        if (minScore != null) {</b>
+<b class="nc"><i>257</i>&nbsp;            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);</b>
+<i>258</i>&nbsp;        }
+<b class="nc"><i>259</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>260</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>261</i>&nbsp;    }</b>
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    public FunctionScoreQueryBuilder setMinScore(float minScore) {
+<b class="nc"><i>264</i>&nbsp;        this.minScore = minScore;</b>
+<b class="nc"><i>265</i>&nbsp;        return this;</b>
+<i>266</i>&nbsp;    }
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    public Float getMinScore() {
+<b class="nc"><i>269</i>&nbsp;        return this.minScore;</b>
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    @Override
+<i>273</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>274</i>&nbsp;        return NAME;</b>
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;    @Override
+<i>278</i>&nbsp;    protected boolean doEquals(FunctionScoreQueryBuilder other) {
+<b class="nc"><i>279</i>&nbsp;        return Objects.equals(this.query, other.query) &amp;&amp;</b>
+<b class="nc"><i>280</i>&nbsp;                Arrays.equals(this.filterFunctionBuilders, other.filterFunctionBuilders) &amp;&amp;</b>
+<b class="nc"><i>281</i>&nbsp;                Objects.equals(this.boostMode, other.boostMode) &amp;&amp;</b>
+<b class="nc"><i>282</i>&nbsp;                Objects.equals(this.scoreMode, other.scoreMode) &amp;&amp;</b>
+<b class="nc"><i>283</i>&nbsp;                Objects.equals(this.minScore, other.minScore) &amp;&amp;</b>
+<b class="nc"><i>284</i>&nbsp;                Objects.equals(this.maxBoost, other.maxBoost);</b>
+<i>285</i>&nbsp;    }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;    @Override
+<i>288</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>289</i>&nbsp;        return Objects.hash(this.query, Arrays.hashCode(this.filterFunctionBuilders), this.boostMode, this.scoreMode, this.minScore,</b>
+<b class="nc"><i>290</i>&nbsp;                this.maxBoost);</b>
+<i>291</i>&nbsp;    }
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;    @Override
+<i>294</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>295</i>&nbsp;        ScoreFunction[] filterFunctions = new ScoreFunction[filterFunctionBuilders.length];</b>
+<b class="nc"><i>296</i>&nbsp;        int i = 0;</b>
+<b class="nc"><i>297</i>&nbsp;        for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {</b>
+<b class="nc"><i>298</i>&nbsp;            ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);</b>
+<b class="nc"><i>299</i>&nbsp;            if (filterFunctionBuilder.getFilter().getName().equals(MatchAllQueryBuilder.NAME)) {</b>
+<b class="nc"><i>300</i>&nbsp;                filterFunctions[i++] = scoreFunction;</b>
+<i>301</i>&nbsp;            } else {
+<b class="nc"><i>302</i>&nbsp;                Query filter = filterFunctionBuilder.getFilter().toQuery(context);</b>
+<b class="nc"><i>303</i>&nbsp;                filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction);</b>
+<i>304</i>&nbsp;            }
+<i>305</i>&nbsp;        }
+<i>306</i>&nbsp;
+<b class="nc"><i>307</i>&nbsp;        Query query = this.query.toQuery(context);</b>
+<b class="nc"><i>308</i>&nbsp;        if (query == null) {</b>
+<b class="nc"><i>309</i>&nbsp;            query = new MatchAllDocsQuery();</b>
+<i>310</i>&nbsp;        }
+<i>311</i>&nbsp;
+<b class="nc"><i>312</i>&nbsp;        CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;</b>
+<i>313</i>&nbsp;        // handle cases where only one score function and no filter was provided. In this case we create a FunctionScoreQuery.
+<b class="nc"><i>314</i>&nbsp;        if (filterFunctions.length == 0) {</b>
+<b class="nc"><i>315</i>&nbsp;            return new FunctionScoreQuery(query, minScore, maxBoost);</b>
+<b class="nc"><i>316</i>&nbsp;        } else if (filterFunctions.length == 1 &amp;&amp; filterFunctions[0] instanceof FunctionScoreQuery.FilterScoreFunction == false) {</b>
+<b class="nc"><i>317</i>&nbsp;            return new FunctionScoreQuery(query, filterFunctions[0], boostMode, minScore, maxBoost);</b>
+<i>318</i>&nbsp;        }
+<i>319</i>&nbsp;        // in all other cases we create a FunctionScoreQuery with filters
+<b class="nc"><i>320</i>&nbsp;        return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);</b>
+<i>321</i>&nbsp;    }
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    /**
+<i>324</i>&nbsp;     * Function to be associated with an optional filter, meaning it will be executed only for the documents
+<i>325</i>&nbsp;     * that match the given filter.
+<i>326</i>&nbsp;     */
+<i>327</i>&nbsp;    public static class FilterFunctionBuilder implements ToXContentObject, Writeable {
+<i>328</i>&nbsp;        private final QueryBuilder filter;
+<i>329</i>&nbsp;        private final ScoreFunctionBuilder&lt;?&gt; scoreFunction;
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;        public FilterFunctionBuilder(ScoreFunctionBuilder&lt;?&gt; scoreFunctionBuilder) {
+<i>332</i>&nbsp;            this(new MatchAllQueryBuilder(), scoreFunctionBuilder);
+<i>333</i>&nbsp;        }
+<i>334</i>&nbsp;
+<i>335</i>&nbsp;        public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder&lt;?&gt; scoreFunction) {
+<i>336</i>&nbsp;            if (filter == null) {
+<i>337</i>&nbsp;                throw new IllegalArgumentException(&quot;function_score: filter must not be null&quot;);
+<i>338</i>&nbsp;            }
+<i>339</i>&nbsp;            if (scoreFunction == null) {
+<i>340</i>&nbsp;                throw new IllegalArgumentException(&quot;function_score: function must not be null&quot;);
+<i>341</i>&nbsp;            }
+<i>342</i>&nbsp;            this.filter = filter;
+<i>343</i>&nbsp;            this.scoreFunction = scoreFunction;
+<i>344</i>&nbsp;        }
+<i>345</i>&nbsp;
+<i>346</i>&nbsp;        /**
+<i>347</i>&nbsp;         * Read from a stream.
+<i>348</i>&nbsp;         */
+<i>349</i>&nbsp;        public FilterFunctionBuilder(StreamInput in) throws IOException {
+<i>350</i>&nbsp;            filter = in.readNamedWriteable(QueryBuilder.class);
+<i>351</i>&nbsp;            scoreFunction = in.readNamedWriteable(ScoreFunctionBuilder.class);
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        @Override
+<i>355</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>356</i>&nbsp;            out.writeNamedWriteable(filter);
+<i>357</i>&nbsp;            out.writeNamedWriteable(scoreFunction);
+<i>358</i>&nbsp;        }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;        public QueryBuilder getFilter() {
+<i>361</i>&nbsp;            return filter;
+<i>362</i>&nbsp;        }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;        public ScoreFunctionBuilder&lt;?&gt; getScoreFunction() {
+<i>365</i>&nbsp;            return scoreFunction;
+<i>366</i>&nbsp;        }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;        @Override
+<i>369</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>370</i>&nbsp;            builder.startObject();
+<i>371</i>&nbsp;            builder.field(FILTER_FIELD.getPreferredName());
+<i>372</i>&nbsp;            filter.toXContent(builder, params);
+<i>373</i>&nbsp;            scoreFunction.toXContent(builder, params);
+<i>374</i>&nbsp;            builder.endObject();
+<i>375</i>&nbsp;            return builder;
+<i>376</i>&nbsp;        }
+<i>377</i>&nbsp;
+<i>378</i>&nbsp;        @Override
+<i>379</i>&nbsp;        public int hashCode() {
+<i>380</i>&nbsp;            return Objects.hash(filter, scoreFunction);
+<i>381</i>&nbsp;        }
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;        @Override
+<i>384</i>&nbsp;        public boolean equals(Object obj) {
+<i>385</i>&nbsp;            if (this == obj) {
+<i>386</i>&nbsp;                return true;
+<i>387</i>&nbsp;            }
+<i>388</i>&nbsp;            if (obj == null || getClass() != obj.getClass()) {
+<i>389</i>&nbsp;                return false;
+<i>390</i>&nbsp;            }
+<i>391</i>&nbsp;            FilterFunctionBuilder that = (FilterFunctionBuilder) obj;
+<i>392</i>&nbsp;            return Objects.equals(this.filter, that.filter) &amp;&amp;
+<i>393</i>&nbsp;                    Objects.equals(this.scoreFunction, that.scoreFunction);
+<i>394</i>&nbsp;        }
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;        public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
+<i>397</i>&nbsp;            QueryBuilder rewrite = filter.rewrite(context);
+<i>398</i>&nbsp;            if (rewrite != filter) {
+<i>399</i>&nbsp;                return new FilterFunctionBuilder(rewrite, scoreFunction);
+<i>400</i>&nbsp;            }
+<i>401</i>&nbsp;            return this;
+<i>402</i>&nbsp;        }
+<i>403</i>&nbsp;    }
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;    @Override
+<i>406</i>&nbsp;    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+<b class="nc"><i>407</i>&nbsp;        QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);</b>
+<b class="nc"><i>408</i>&nbsp;        FilterFunctionBuilder[] rewrittenBuilders = new FilterFunctionBuilder[this.filterFunctionBuilders.length];</b>
+<b class="nc"><i>409</i>&nbsp;        boolean rewritten = false;</b>
+<b class="nc"><i>410</i>&nbsp;        for (int i = 0; i &lt; rewrittenBuilders.length; i++) {</b>
+<b class="nc"><i>411</i>&nbsp;            FilterFunctionBuilder rewrite = filterFunctionBuilders[i].rewrite(queryRewriteContext);</b>
+<b class="nc"><i>412</i>&nbsp;            rewritten |= rewrite != filterFunctionBuilders[i];</b>
+<b class="nc"><i>413</i>&nbsp;            rewrittenBuilders[i] = rewrite;</b>
+<i>414</i>&nbsp;        }
+<b class="nc"><i>415</i>&nbsp;        if (queryBuilder != query || rewritten) {</b>
+<b class="nc"><i>416</i>&nbsp;            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, rewrittenBuilders);</b>
+<b class="nc"><i>417</i>&nbsp;            newQueryBuilder.scoreMode = scoreMode;</b>
+<b class="nc"><i>418</i>&nbsp;            newQueryBuilder.minScore = minScore;</b>
+<b class="nc"><i>419</i>&nbsp;            newQueryBuilder.maxBoost = maxBoost;</b>
+<b class="nc"><i>420</i>&nbsp;            newQueryBuilder.boostMode = boostMode;</b>
+<b class="nc"><i>421</i>&nbsp;            return newQueryBuilder;</b>
+<i>422</i>&nbsp;        }
+<b class="nc"><i>423</i>&nbsp;        return this;</b>
+<i>424</i>&nbsp;    }
+<i>425</i>&nbsp;
+<i>426</i>&nbsp;    @Override
+<i>427</i>&nbsp;    protected void extractInnerHitBuilders(Map&lt;String, InnerHitContextBuilder&gt; innerHits) {
+<b class="nc"><i>428</i>&nbsp;        InnerHitContextBuilder.extractInnerHits(query(), innerHits);</b>
+<b class="nc"><i>429</i>&nbsp;    }</b>
+<i>430</i>&nbsp;
+<i>431</i>&nbsp;    public static FunctionScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>432</i>&nbsp;        QueryBuilder query = null;</b>
+<b class="nc"><i>433</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>434</i>&nbsp;        String queryName = null;</b>
+<i>435</i>&nbsp;
+<b class="nc"><i>436</i>&nbsp;        FunctionScoreQuery.ScoreMode scoreMode = FunctionScoreQueryBuilder.DEFAULT_SCORE_MODE;</b>
+<b class="nc"><i>437</i>&nbsp;        float maxBoost = FunctionScoreQuery.DEFAULT_MAX_BOOST;</b>
+<b class="nc"><i>438</i>&nbsp;        Float minScore = null;</b>
+<i>439</i>&nbsp;
+<b class="nc"><i>440</i>&nbsp;        String currentFieldName = null;</b>
+<i>441</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>442</i>&nbsp;        CombineFunction combineFunction = null;</b>
+<i>443</i>&nbsp;        // Either define array of functions and filters or only one function
+<b class="nc"><i>444</i>&nbsp;        boolean functionArrayFound = false;</b>
+<b class="nc"><i>445</i>&nbsp;        boolean singleFunctionFound = false;</b>
+<b class="nc"><i>446</i>&nbsp;        String singleFunctionName = null;</b>
+<b class="nc"><i>447</i>&nbsp;        List&lt;FunctionScoreQueryBuilder.FilterFunctionBuilder&gt; filterFunctionBuilders = new ArrayList&lt;&gt;();</b>
+<i>448</i>&nbsp;
+<b class="nc"><i>449</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>450</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>451</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>452</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>453</i>&nbsp;                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>454</i>&nbsp;                    if (query != null) {</b>
+<b class="nc"><i>455</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(), &quot;failed to parse [{}] query. [query] is already defined.&quot;,</b>
+<i>456</i>&nbsp;                                NAME);
+<i>457</i>&nbsp;                    }
+<b class="nc"><i>458</i>&nbsp;                    query = parseInnerQueryBuilder(parser);</b>
+<i>459</i>&nbsp;                } else {
+<b class="nc"><i>460</i>&nbsp;                    if (singleFunctionFound) {</b>
+<b class="nc"><i>461</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(),</b>
+<i>462</i>&nbsp;                                &quot;failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] &quot;
+<i>463</i>&nbsp;                                        + &quot;array if you want to define several functions.&quot;,
+<i>464</i>&nbsp;                                NAME, singleFunctionName, currentFieldName);
+<i>465</i>&nbsp;                    }
+<b class="nc"><i>466</i>&nbsp;                    if (functionArrayFound) {</b>
+<b class="nc"><i>467</i>&nbsp;                        String errorString = &quot;already found [functions] array, now encountering [&quot; + currentFieldName + &quot;].&quot;;</b>
+<b class="nc"><i>468</i>&nbsp;                        handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);</b>
+<i>469</i>&nbsp;                    }
+<b class="nc"><i>470</i>&nbsp;                    singleFunctionFound = true;</b>
+<b class="nc"><i>471</i>&nbsp;                    singleFunctionName = currentFieldName;</b>
+<i>472</i>&nbsp;
+<b class="nc"><i>473</i>&nbsp;                        ScoreFunctionBuilder&lt;?&gt; scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName,</b>
+<i>474</i>&nbsp;                                null);
+<b class="nc"><i>475</i>&nbsp;                    filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));</b>
+<b class="nc"><i>476</i>&nbsp;                }</b>
+<b class="nc"><i>477</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>478</i>&nbsp;                if (FUNCTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>479</i>&nbsp;                    if (singleFunctionFound) {</b>
+<b class="nc"><i>480</i>&nbsp;                        String errorString = &quot;already found [&quot; + singleFunctionName + &quot;], now encountering [functions].&quot;;</b>
+<b class="nc"><i>481</i>&nbsp;                        handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);</b>
+<i>482</i>&nbsp;                    }
+<b class="nc"><i>483</i>&nbsp;                    functionArrayFound = true;</b>
+<b class="nc"><i>484</i>&nbsp;                    currentFieldName = parseFiltersAndFunctions(parser, filterFunctionBuilders);</b>
+<i>485</i>&nbsp;                } else {
+<b class="nc"><i>486</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;failed to parse [{}] query. array [{}] is not supported&quot;,</b>
+<i>487</i>&nbsp;                            NAME, currentFieldName);
+<i>488</i>&nbsp;                }
+<i>489</i>&nbsp;
+<b class="nc"><i>490</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="nc"><i>491</i>&nbsp;                if (SCORE_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>492</i>&nbsp;                    scoreMode = FunctionScoreQuery.ScoreMode.fromString(parser.text());</b>
+<b class="nc"><i>493</i>&nbsp;                } else if (BOOST_MODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>494</i>&nbsp;                    combineFunction = CombineFunction.fromString(parser.text());</b>
+<b class="nc"><i>495</i>&nbsp;                } else if (MAX_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>496</i>&nbsp;                    maxBoost = parser.floatValue();</b>
+<b class="nc"><i>497</i>&nbsp;                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>498</i>&nbsp;                    boost = parser.floatValue();</b>
+<b class="nc"><i>499</i>&nbsp;                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>500</i>&nbsp;                    queryName = parser.text();</b>
+<b class="nc"><i>501</i>&nbsp;                } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>502</i>&nbsp;                    minScore = parser.floatValue();</b>
+<i>503</i>&nbsp;                } else {
+<b class="nc"><i>504</i>&nbsp;                    if (singleFunctionFound) {</b>
+<b class="nc"><i>505</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(),</b>
+<i>506</i>&nbsp;                                &quot;failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] array &quot;
+<i>507</i>&nbsp;                                        + &quot;if you want to define several functions.&quot;,
+<i>508</i>&nbsp;                                NAME, singleFunctionName, currentFieldName);
+<i>509</i>&nbsp;                    }
+<b class="nc"><i>510</i>&nbsp;                    if (functionArrayFound) {</b>
+<b class="nc"><i>511</i>&nbsp;                        String errorString = &quot;already found [functions] array, now encountering [&quot; + currentFieldName + &quot;].&quot;;</b>
+<b class="nc"><i>512</i>&nbsp;                        handleMisplacedFunctionsDeclaration(parser.getTokenLocation(), errorString);</b>
+<i>513</i>&nbsp;                    }
+<b class="nc"><i>514</i>&nbsp;                    if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>515</i>&nbsp;                        filterFunctionBuilders.add(</b>
+<b class="nc"><i>516</i>&nbsp;                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(parser.floatValue())));</b>
+<b class="nc"><i>517</i>&nbsp;                        singleFunctionFound = true;</b>
+<b class="nc"><i>518</i>&nbsp;                        singleFunctionName = currentFieldName;</b>
+<i>519</i>&nbsp;                    } else {
+<b class="nc"><i>520</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(), &quot;failed to parse [{}] query. field [{}] is not supported&quot;,</b>
+<i>521</i>&nbsp;                                NAME, currentFieldName);
+<i>522</i>&nbsp;                    }
+<i>523</i>&nbsp;                }
+<i>524</i>&nbsp;            }
+<i>525</i>&nbsp;        }
+<i>526</i>&nbsp;
+<b class="nc"><i>527</i>&nbsp;        if (query == null) {</b>
+<b class="nc"><i>528</i>&nbsp;            query = new MatchAllQueryBuilder();</b>
+<i>529</i>&nbsp;        }
+<i>530</i>&nbsp;
+<b class="nc"><i>531</i>&nbsp;        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(query,</b>
+<b class="nc"><i>532</i>&nbsp;                filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()]));</b>
+<b class="nc"><i>533</i>&nbsp;        if (combineFunction != null) {</b>
+<b class="nc"><i>534</i>&nbsp;            functionScoreQueryBuilder.boostMode(combineFunction);</b>
+<i>535</i>&nbsp;        }
+<b class="nc"><i>536</i>&nbsp;        functionScoreQueryBuilder.scoreMode(scoreMode);</b>
+<b class="nc"><i>537</i>&nbsp;        functionScoreQueryBuilder.maxBoost(maxBoost);</b>
+<b class="nc"><i>538</i>&nbsp;        if (minScore != null) {</b>
+<b class="nc"><i>539</i>&nbsp;            functionScoreQueryBuilder.setMinScore(minScore);</b>
+<i>540</i>&nbsp;        }
+<b class="nc"><i>541</i>&nbsp;        functionScoreQueryBuilder.boost(boost);</b>
+<b class="nc"><i>542</i>&nbsp;        functionScoreQueryBuilder.queryName(queryName);</b>
+<b class="nc"><i>543</i>&nbsp;        return functionScoreQueryBuilder;</b>
+<i>544</i>&nbsp;    }
+<i>545</i>&nbsp;
+<i>546</i>&nbsp;    private static void handleMisplacedFunctionsDeclaration(XContentLocation contentLocation, String errorString) {
+<b class="nc"><i>547</i>&nbsp;        throw new ParsingException(contentLocation, &quot;failed to parse [{}] query. [{}]&quot;, NAME,</b>
+<i>548</i>&nbsp;                MISPLACED_FUNCTION_MESSAGE_PREFIX + errorString);
+<i>549</i>&nbsp;    }
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;    private static String parseFiltersAndFunctions(XContentParser parser,
+<i>552</i>&nbsp;            List&lt;FunctionScoreQueryBuilder.FilterFunctionBuilder&gt; filterFunctionBuilders) throws IOException {
+<b class="nc"><i>553</i>&nbsp;        String currentFieldName = null;</b>
+<i>554</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>555</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>556</i>&nbsp;            QueryBuilder filter = null;</b>
+<b class="nc"><i>557</i>&nbsp;            ScoreFunctionBuilder&lt;?&gt; scoreFunction = null;</b>
+<b class="nc"><i>558</i>&nbsp;            Float functionWeight = null;</b>
+<b class="nc"><i>559</i>&nbsp;            if (token != XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>560</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(),</b>
+<i>561</i>&nbsp;                        &quot;failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead&quot;,
+<i>562</i>&nbsp;                        XContentParser.Token.START_OBJECT, token, NAME);
+<i>563</i>&nbsp;            } else {
+<b class="nc"><i>564</i>&nbsp;                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>565</i>&nbsp;                    if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>566</i>&nbsp;                        currentFieldName = parser.currentName();</b>
+<b class="nc"><i>567</i>&nbsp;                    } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>568</i>&nbsp;                        if (FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>569</i>&nbsp;                            filter = parseInnerQueryBuilder(parser);</b>
+<i>570</i>&nbsp;                        } else {
+<b class="nc"><i>571</i>&nbsp;                            if (scoreFunction != null) {</b>
+<b class="nc"><i>572</i>&nbsp;                                throw new ParsingException(parser.getTokenLocation(),</b>
+<i>573</i>&nbsp;                                        &quot;failed to parse function_score functions. already found [{}], now encountering [{}].&quot;,
+<b class="nc"><i>574</i>&nbsp;                                        scoreFunction.getName(), currentFieldName);</b>
+<i>575</i>&nbsp;                            }
+<b class="nc"><i>576</i>&nbsp;                            scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, null);</b>
+<i>577</i>&nbsp;                        }
+<b class="nc"><i>578</i>&nbsp;                    } else if (token.isValue()) {</b>
+<b class="nc"><i>579</i>&nbsp;                        if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>580</i>&nbsp;                            functionWeight = parser.floatValue();</b>
+<i>581</i>&nbsp;                        } else {
+<b class="nc"><i>582</i>&nbsp;                            throw new ParsingException(parser.getTokenLocation(), &quot;failed to parse [{}] query. field [{}] is not supported&quot;,</b>
+<i>583</i>&nbsp;                                    NAME, currentFieldName);
+<i>584</i>&nbsp;                        }
+<i>585</i>&nbsp;                    }
+<i>586</i>&nbsp;                }
+<b class="nc"><i>587</i>&nbsp;                if (functionWeight != null) {</b>
+<b class="nc"><i>588</i>&nbsp;                    if (scoreFunction == null) {</b>
+<b class="nc"><i>589</i>&nbsp;                        scoreFunction = new WeightBuilder().setWeight(functionWeight);</b>
+<i>590</i>&nbsp;                    } else {
+<b class="nc"><i>591</i>&nbsp;                        scoreFunction.setWeight(functionWeight);</b>
+<i>592</i>&nbsp;                    }
+<i>593</i>&nbsp;                }
+<i>594</i>&nbsp;            }
+<b class="nc"><i>595</i>&nbsp;            if (filter == null) {</b>
+<b class="nc"><i>596</i>&nbsp;                filter = new MatchAllQueryBuilder();</b>
+<i>597</i>&nbsp;            }
+<b class="nc"><i>598</i>&nbsp;            if (scoreFunction == null) {</b>
+<b class="nc"><i>599</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(),</b>
+<i>600</i>&nbsp;                        &quot;failed to parse [{}] query. an entry in functions list is missing a function.&quot;, NAME);
+<i>601</i>&nbsp;            }
+<b class="nc"><i>602</i>&nbsp;            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));</b>
+<b class="nc"><i>603</i>&nbsp;        }</b>
+<b class="nc"><i>604</i>&nbsp;        return currentFieldName;</b>
+<i>605</i>&nbsp;    }
+<i>606</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

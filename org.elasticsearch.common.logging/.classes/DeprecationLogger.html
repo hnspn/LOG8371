@@ -1,0 +1,544 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DeprecationLogger</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.logging</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DeprecationLogger (org.elasticsearch.common.logging)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DeprecationLogger</td>
+<td class="coverageStat">
+  <span class="percent">
+    29.4%
+  </span>
+  <span class="absValue">
+    (5/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.3%
+  </span>
+  <span class="absValue">
+    (37/ 122)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">DeprecationLogger$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">DeprecationLogger$2</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    28.6%
+  </span>
+  <span class="absValue">
+    (6/ 21)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    29.7%
+  </span>
+  <span class="absValue">
+    (38/ 128)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.logging;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.Build;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.common.SuppressLoggerChecks;
+<i>27</i>&nbsp;import org.elasticsearch.common.util.concurrent.ThreadContext;
+<i>28</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.nio.charset.Charset;
+<i>31</i>&nbsp;import java.security.AccessController;
+<i>32</i>&nbsp;import java.security.PrivilegedAction;
+<i>33</i>&nbsp;import java.util.BitSet;
+<i>34</i>&nbsp;import java.util.Collections;
+<i>35</i>&nbsp;import java.util.Iterator;
+<i>36</i>&nbsp;import java.util.LinkedHashMap;
+<i>37</i>&nbsp;import java.util.Locale;
+<i>38</i>&nbsp;import java.util.Map;
+<i>39</i>&nbsp;import java.util.Objects;
+<i>40</i>&nbsp;import java.util.Set;
+<i>41</i>&nbsp;import java.util.concurrent.CopyOnWriteArraySet;
+<i>42</i>&nbsp;import java.util.regex.Matcher;
+<i>43</i>&nbsp;import java.util.regex.Pattern;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;/**
+<i>46</i>&nbsp; * A logger that logs deprecation notices.
+<i>47</i>&nbsp; */
+<b class="fc"><i>48</i>&nbsp;public class DeprecationLogger {</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    private final Logger logger;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    /**
+<i>53</i>&nbsp;     * This is set once by the {@code Node} constructor, but it uses {@link CopyOnWriteArraySet} to ensure that tests can run in parallel.
+<i>54</i>&nbsp;     * &lt;p&gt;
+<i>55</i>&nbsp;     * Integration tests will create separate nodes within the same classloader, thus leading to a shared, {@code static} state.
+<i>56</i>&nbsp;     * In order for all tests to appropriately be handled, this must be able to remember &lt;em&gt;all&lt;/em&gt; {@link ThreadContext}s that it is
+<i>57</i>&nbsp;     * given in a thread safe manner.
+<i>58</i>&nbsp;     * &lt;p&gt;
+<i>59</i>&nbsp;     * For actual usage, multiple nodes do not share the same JVM and therefore this will only be set once in practice.
+<i>60</i>&nbsp;     */
+<b class="fc"><i>61</i>&nbsp;    private static final CopyOnWriteArraySet&lt;ThreadContext&gt; THREAD_CONTEXT = new CopyOnWriteArraySet&lt;&gt;();</b>
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    /**
+<i>64</i>&nbsp;     * Set the {@link ThreadContext} used to add deprecation headers to network responses.
+<i>65</i>&nbsp;     * &lt;p&gt;
+<i>66</i>&nbsp;     * This is expected to &lt;em&gt;only&lt;/em&gt; be invoked by the {@code Node}&#39;s constructor (therefore once outside of tests).
+<i>67</i>&nbsp;     *
+<i>68</i>&nbsp;     * @param threadContext The thread context owned by the {@code ThreadPool} (and implicitly a {@code Node})
+<i>69</i>&nbsp;     * @throws IllegalStateException if this {@code threadContext} has already been set
+<i>70</i>&nbsp;     */
+<i>71</i>&nbsp;    public static void setThreadContext(ThreadContext threadContext) {
+<b class="fc"><i>72</i>&nbsp;        Objects.requireNonNull(threadContext, &quot;Cannot register a null ThreadContext&quot;);</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;        // add returning false means it _did_ have it already
+<b class="fc"><i>75</i>&nbsp;        if (THREAD_CONTEXT.add(threadContext) == false) {</b>
+<b class="nc"><i>76</i>&nbsp;            throw new IllegalStateException(&quot;Double-setting ThreadContext not allowed!&quot;);</b>
+<i>77</i>&nbsp;        }
+<b class="fc"><i>78</i>&nbsp;    }</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    /**
+<i>81</i>&nbsp;     * Remove the {@link ThreadContext} used to add deprecation headers to network responses.
+<i>82</i>&nbsp;     * &lt;p&gt;
+<i>83</i>&nbsp;     * This is expected to &lt;em&gt;only&lt;/em&gt; be invoked by the {@code Node}&#39;s {@code close} method (therefore once outside of tests).
+<i>84</i>&nbsp;     *
+<i>85</i>&nbsp;     * @param threadContext The thread context owned by the {@code ThreadPool} (and implicitly a {@code Node})
+<i>86</i>&nbsp;     * @throws IllegalStateException if this {@code threadContext} is unknown (and presumably already unset before)
+<i>87</i>&nbsp;     */
+<i>88</i>&nbsp;    public static void removeThreadContext(ThreadContext threadContext) {
+<b class="fc"><i>89</i>&nbsp;        assert threadContext != null;</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;        // remove returning false means it did not have it already
+<b class="fc"><i>92</i>&nbsp;        if (THREAD_CONTEXT.remove(threadContext) == false) {</b>
+<b class="nc"><i>93</i>&nbsp;            throw new IllegalStateException(&quot;Removing unknown ThreadContext not allowed!&quot;);</b>
+<i>94</i>&nbsp;        }
+<b class="fc"><i>95</i>&nbsp;    }</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    /**
+<i>98</i>&nbsp;     * Creates a new deprecation logger based on the parent logger. Automatically
+<i>99</i>&nbsp;     * prefixes the logger name with &quot;deprecation&quot;, if it starts with &quot;org.elasticsearch.&quot;,
+<i>100</i>&nbsp;     * it replaces &quot;org.elasticsearch&quot; with &quot;org.elasticsearch.deprecation&quot; to maintain
+<i>101</i>&nbsp;     * the &quot;org.elasticsearch&quot; namespace.
+<i>102</i>&nbsp;     */
+<b class="fc"><i>103</i>&nbsp;    public DeprecationLogger(Logger parentLogger) {</b>
+<b class="fc"><i>104</i>&nbsp;        String name = parentLogger.getName();</b>
+<b class="fc"><i>105</i>&nbsp;        if (name.startsWith(&quot;org.elasticsearch&quot;)) {</b>
+<b class="fc"><i>106</i>&nbsp;            name = name.replace(&quot;org.elasticsearch.&quot;, &quot;org.elasticsearch.deprecation.&quot;);</b>
+<i>107</i>&nbsp;        } else {
+<b class="nc"><i>108</i>&nbsp;            name = &quot;deprecation.&quot; + name;</b>
+<i>109</i>&nbsp;        }
+<b class="fc"><i>110</i>&nbsp;        this.logger = LogManager.getLogger(name);</b>
+<b class="fc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    /**
+<i>114</i>&nbsp;     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
+<i>115</i>&nbsp;     */
+<i>116</i>&nbsp;    public void deprecated(String msg, Object... params) {
+<b class="nc"><i>117</i>&nbsp;        deprecated(THREAD_CONTEXT, msg, params);</b>
+<b class="nc"><i>118</i>&nbsp;    }</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    // LRU set of keys used to determine if a deprecation message should be emitted to the deprecation logs
+<b class="fc"><i>121</i>&nbsp;    private Set&lt;String&gt; keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap&lt;String, Boolean&gt;() {</b>
+<i>122</i>&nbsp;        @Override
+<i>123</i>&nbsp;        protected boolean removeEldestEntry(final Map.Entry&lt;String, Boolean&gt; eldest) {
+<b class="nc"><i>124</i>&nbsp;            return size() &gt; 128;</b>
+<i>125</i>&nbsp;        }
+<i>126</i>&nbsp;    }));
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    /**
+<i>129</i>&nbsp;     * Adds a formatted warning message as a response header on the thread context, and logs a deprecation message if the associated key has
+<i>130</i>&nbsp;     * not recently been seen.
+<i>131</i>&nbsp;     *
+<i>132</i>&nbsp;     * @param key    the key used to determine if this deprecation should be logged
+<i>133</i>&nbsp;     * @param msg    the message to log
+<i>134</i>&nbsp;     * @param params parameters to the message
+<i>135</i>&nbsp;     */
+<i>136</i>&nbsp;    public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
+<b class="nc"><i>137</i>&nbsp;        String xOpaqueId = getXOpaqueId(THREAD_CONTEXT);</b>
+<b class="nc"><i>138</i>&nbsp;        boolean log = keys.add(xOpaqueId + key);</b>
+<b class="nc"><i>139</i>&nbsp;        deprecated(THREAD_CONTEXT, msg, log, params);</b>
+<b class="nc"><i>140</i>&nbsp;    }</b>
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;    /*
+<i>143</i>&nbsp;     * RFC7234 specifies the warning format as warn-code &lt;space&gt; warn-agent &lt;space&gt; &quot;warn-text&quot; [&lt;space&gt; &quot;warn-date&quot;]. Here, warn-code is a
+<i>144</i>&nbsp;     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
+<i>145</i>&nbsp;     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
+<i>146</i>&nbsp;     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
+<i>147</i>&nbsp;     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+<i>148</i>&nbsp;     */
+<b class="fc"><i>149</i>&nbsp;    private static final String WARNING_PREFIX =</b>
+<b class="fc"><i>150</i>&nbsp;            String.format(</b>
+<i>151</i>&nbsp;                    Locale.ROOT,
+<i>152</i>&nbsp;                    &quot;299 Elasticsearch-%s%s-%s&quot;,
+<b class="fc"><i>153</i>&nbsp;                    Version.CURRENT.toString(),</b>
+<b class="fc"><i>154</i>&nbsp;                    Build.CURRENT.isSnapshot() ? &quot;-SNAPSHOT&quot; : &quot;&quot;,</b>
+<b class="fc"><i>155</i>&nbsp;                    Build.CURRENT.hash());</b>
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
+<i>159</i>&nbsp;     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+<i>160</i>&nbsp;     */
+<b class="fc"><i>161</i>&nbsp;    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(</b>
+<i>162</i>&nbsp;            &quot;299 &quot; + // warn code
+<i>163</i>&nbsp;                    &quot;Elasticsearch-&quot; + // warn agent
+<i>164</i>&nbsp;                    &quot;\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-&quot; + // warn agent
+<i>165</i>&nbsp;                    &quot;(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) &quot; + // warn agent
+<i>166</i>&nbsp;                    &quot;\&quot;((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\&quot;)*)\&quot;( &quot; + // quoted warning value, captured
+<i>167</i>&nbsp;                    // quoted RFC 1123 date format
+<i>168</i>&nbsp;                    &quot;\&quot;&quot; + // opening quote
+<i>169</i>&nbsp;                    &quot;(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), &quot; + // weekday
+<i>170</i>&nbsp;                    &quot;\\d{2} &quot; + // 2-digit day
+<i>171</i>&nbsp;                    &quot;(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) &quot; + // month
+<i>172</i>&nbsp;                    &quot;\\d{4} &quot; + // 4-digit year
+<i>173</i>&nbsp;                    &quot;\\d{2}:\\d{2}:\\d{2} &quot; + // (two-digit hour):(two-digit minute):(two-digit second)
+<i>174</i>&nbsp;                    &quot;GMT&quot; + // GMT
+<i>175</i>&nbsp;                    &quot;\&quot;)?&quot;); // closing quote (optional, since an older version can still send a warn-date)
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;    /**
+<i>178</i>&nbsp;     * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
+<i>179</i>&nbsp;     * {@code 299 Elasticsearch-6.0.0 &quot;warning value&quot;}, the return value of this method would be {@code warning value}.
+<i>180</i>&nbsp;     *
+<i>181</i>&nbsp;     * @param s the value of a warning header formatted according to RFC 7234.
+<i>182</i>&nbsp;     * @return the extracted warning value
+<i>183</i>&nbsp;     */
+<i>184</i>&nbsp;    public static String extractWarningValueFromWarningHeader(final String s) {
+<i>185</i>&nbsp;        /*
+<i>186</i>&nbsp;         * We know the exact format of the warning header, so to extract the warning value we can skip forward from the front to the first
+<i>187</i>&nbsp;         * quote and we know the last quote is at the end of the string
+<i>188</i>&nbsp;         *
+<i>189</i>&nbsp;         *   299 Elasticsearch-6.0.0 &quot;warning value&quot;
+<i>190</i>&nbsp;         *                           ^             ^
+<i>191</i>&nbsp;         *                           firstQuote    lastQuote
+<i>192</i>&nbsp;         *
+<i>193</i>&nbsp;         * We parse this manually rather than using the capturing regular expression because the regular expression involves a lot of
+<i>194</i>&nbsp;         * backtracking and carries a performance penalty. However, when assertions are enabled, we still use the regular expression to
+<i>195</i>&nbsp;         * verify that we are maintaining the warning header format.
+<i>196</i>&nbsp;         */
+<b class="nc"><i>197</i>&nbsp;        final int firstQuote = s.indexOf(&#39;\&quot;&#39;);</b>
+<b class="nc"><i>198</i>&nbsp;        final int lastQuote = s.length() - 1;</b>
+<b class="nc"><i>199</i>&nbsp;        final String warningValue = s.substring(firstQuote + 1, lastQuote);</b>
+<b class="nc"><i>200</i>&nbsp;        assert assertWarningValue(s, warningValue);</b>
+<b class="nc"><i>201</i>&nbsp;        return warningValue;</b>
+<i>202</i>&nbsp;    }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;    /**
+<i>205</i>&nbsp;     * Assert that the specified string has the warning value equal to the provided warning value.
+<i>206</i>&nbsp;     *
+<i>207</i>&nbsp;     * @param s            the string representing a full warning header
+<i>208</i>&nbsp;     * @param warningValue the expected warning header
+<i>209</i>&nbsp;     * @return {@code true} if the specified string has the expected warning value
+<i>210</i>&nbsp;     */
+<i>211</i>&nbsp;    private static boolean assertWarningValue(final String s, final String warningValue) {
+<b class="nc"><i>212</i>&nbsp;        final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);</b>
+<b class="nc"><i>213</i>&nbsp;        final boolean matches = matcher.matches();</b>
+<b class="nc"><i>214</i>&nbsp;        assert matches;</b>
+<b class="nc"><i>215</i>&nbsp;        return matcher.group(1).equals(warningValue);</b>
+<i>216</i>&nbsp;    }
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    /**
+<i>219</i>&nbsp;     * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
+<i>220</i>&nbsp;     *
+<i>221</i>&nbsp;     * @param threadContexts The node&#39;s {@link ThreadContext} (outside of concurrent tests, this should only ever have one context).
+<i>222</i>&nbsp;     * @param message The deprecation message.
+<i>223</i>&nbsp;     * @param params The parameters used to fill in the message, if any exist.
+<i>224</i>&nbsp;     */
+<i>225</i>&nbsp;    void deprecated(final Set&lt;ThreadContext&gt; threadContexts, final String message, final Object... params) {
+<b class="nc"><i>226</i>&nbsp;        deprecated(threadContexts, message, true, params);</b>
+<b class="nc"><i>227</i>&nbsp;    }</b>
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    void deprecated(final Set&lt;ThreadContext&gt; threadContexts, final String message, final boolean log, final Object... params) {
+<b class="nc"><i>230</i>&nbsp;        final Iterator&lt;ThreadContext&gt; iterator = threadContexts.iterator();</b>
+<b class="nc"><i>231</i>&nbsp;        if (iterator.hasNext()) {</b>
+<b class="nc"><i>232</i>&nbsp;            final String formattedMessage = LoggerMessageFormat.format(message, params);</b>
+<b class="nc"><i>233</i>&nbsp;            final String warningHeaderValue = formatWarning(formattedMessage);</b>
+<b class="nc"><i>234</i>&nbsp;            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();</b>
+<b class="nc"><i>235</i>&nbsp;            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));</b>
+<b class="nc"><i>236</i>&nbsp;            while (iterator.hasNext()) {</b>
+<i>237</i>&nbsp;                try {
+<b class="nc"><i>238</i>&nbsp;                    final ThreadContext next = iterator.next();</b>
+<b class="nc"><i>239</i>&nbsp;                    next.addResponseHeader(&quot;Warning&quot;, warningHeaderValue);</b>
+<b class="nc"><i>240</i>&nbsp;                } catch (final IllegalStateException e) {</b>
+<i>241</i>&nbsp;                    // ignored; it should be removed shortly
+<b class="nc"><i>242</i>&nbsp;                }</b>
+<i>243</i>&nbsp;            }
+<i>244</i>&nbsp;        }
+<i>245</i>&nbsp;
+<b class="nc"><i>246</i>&nbsp;        if (log) {</b>
+<b class="nc"><i>247</i>&nbsp;            AccessController.doPrivileged(new PrivilegedAction&lt;Void&gt;() {</b>
+<i>248</i>&nbsp;                @SuppressLoggerChecks(reason = &quot;safely delegates to logger&quot;)
+<i>249</i>&nbsp;                @Override
+<i>250</i>&nbsp;                public Void run() {
+<i>251</i>&nbsp;                    /**
+<i>252</i>&nbsp;                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
+<i>253</i>&nbsp;                     */
+<b class="nc"><i>254</i>&nbsp;                    String opaqueId = getXOpaqueId(threadContexts);</b>
+<i>255</i>&nbsp;
+<b class="nc"><i>256</i>&nbsp;                    logger.warn(new DeprecatedMessage(message, opaqueId, params));</b>
+<b class="nc"><i>257</i>&nbsp;                    return null;</b>
+<i>258</i>&nbsp;                }
+<i>259</i>&nbsp;            });
+<i>260</i>&nbsp;        }
+<b class="nc"><i>261</i>&nbsp;    }</b>
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    public String getXOpaqueId(Set&lt;ThreadContext&gt; threadContexts) {
+<b class="nc"><i>264</i>&nbsp;        return threadContexts.stream()</b>
+<b class="nc"><i>265</i>&nbsp;                             .filter(t -&gt; t.isClosed() == false)</b>
+<b class="nc"><i>266</i>&nbsp;                             .filter(t -&gt; t.getHeader(Task.X_OPAQUE_ID) != null)</b>
+<b class="nc"><i>267</i>&nbsp;                             .findFirst()</b>
+<b class="nc"><i>268</i>&nbsp;                             .map(t -&gt; t.getHeader(Task.X_OPAQUE_ID))</b>
+<b class="nc"><i>269</i>&nbsp;                             .orElse(&quot;&quot;);</b>
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    /**
+<i>273</i>&nbsp;     * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
+<i>274</i>&nbsp;     * and appending the RFC 7231 date.
+<i>275</i>&nbsp;     *
+<i>276</i>&nbsp;     * @param s the warning string to format
+<i>277</i>&nbsp;     * @return a warning value formatted according to RFC 7234
+<i>278</i>&nbsp;     */
+<i>279</i>&nbsp;    public static String formatWarning(final String s) {
+<i>280</i>&nbsp;        // Assume that the common scenario won&#39;t have a string to escape and encode.
+<b class="nc"><i>281</i>&nbsp;        int length = WARNING_PREFIX.length() + s.length() + 3;</b>
+<b class="nc"><i>282</i>&nbsp;        final StringBuilder sb = new StringBuilder(length);</b>
+<b class="nc"><i>283</i>&nbsp;        sb.append(WARNING_PREFIX).append(&quot; \&quot;&quot;).append(escapeAndEncode(s)).append(&quot;\&quot;&quot;);</b>
+<b class="nc"><i>284</i>&nbsp;        return sb.toString();</b>
+<i>285</i>&nbsp;    }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;    /**
+<i>288</i>&nbsp;     * Escape and encode a string as a valid RFC 7230 quoted-string.
+<i>289</i>&nbsp;     *
+<i>290</i>&nbsp;     * @param s the string to escape and encode
+<i>291</i>&nbsp;     * @return the escaped and encoded string
+<i>292</i>&nbsp;     */
+<i>293</i>&nbsp;    public static String escapeAndEncode(final String s) {
+<b class="nc"><i>294</i>&nbsp;        return encode(escapeBackslashesAndQuotes(s));</b>
+<i>295</i>&nbsp;    }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    /**
+<i>298</i>&nbsp;     * Escape backslashes and quotes in the specified string.
+<i>299</i>&nbsp;     *
+<i>300</i>&nbsp;     * @param s the string to escape
+<i>301</i>&nbsp;     * @return the escaped string
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    static String escapeBackslashesAndQuotes(final String s) {
+<i>304</i>&nbsp;        /*
+<i>305</i>&nbsp;         * We want a fast path check to avoid creating the string builder and copying characters if needed. So we walk the string looking
+<i>306</i>&nbsp;         * for either of the characters that we need to escape. If we find a character that needs escaping, we start over and
+<i>307</i>&nbsp;         */
+<b class="nc"><i>308</i>&nbsp;        boolean escapingNeeded = false;</b>
+<b class="nc"><i>309</i>&nbsp;        for (int i = 0; i &lt; s.length(); i++) {</b>
+<b class="nc"><i>310</i>&nbsp;            final char c = s.charAt(i);</b>
+<b class="nc"><i>311</i>&nbsp;            if (c == &#39;\\&#39; || c == &#39;&quot;&#39;) {</b>
+<b class="nc"><i>312</i>&nbsp;                escapingNeeded = true;</b>
+<b class="nc"><i>313</i>&nbsp;                break;</b>
+<i>314</i>&nbsp;            }
+<i>315</i>&nbsp;        }
+<i>316</i>&nbsp;
+<b class="nc"><i>317</i>&nbsp;        if (escapingNeeded) {</b>
+<b class="nc"><i>318</i>&nbsp;            final StringBuilder sb = new StringBuilder();</b>
+<b class="nc"><i>319</i>&nbsp;            for (final char c : s.toCharArray()) {</b>
+<b class="nc"><i>320</i>&nbsp;                if (c == &#39;\\&#39; || c == &#39;&quot;&#39;) {</b>
+<b class="nc"><i>321</i>&nbsp;                    sb.append(&quot;\\&quot;);</b>
+<i>322</i>&nbsp;                }
+<b class="nc"><i>323</i>&nbsp;                sb.append(c);</b>
+<i>324</i>&nbsp;            }
+<b class="nc"><i>325</i>&nbsp;            return sb.toString();</b>
+<i>326</i>&nbsp;        } else {
+<b class="nc"><i>327</i>&nbsp;            return s;</b>
+<i>328</i>&nbsp;        }
+<i>329</i>&nbsp;    }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;    private static BitSet doesNotNeedEncoding;
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    static {
+<b class="fc"><i>334</i>&nbsp;        doesNotNeedEncoding = new BitSet(1 + 0xFF);</b>
+<b class="fc"><i>335</i>&nbsp;        doesNotNeedEncoding.set(&#39;\t&#39;);</b>
+<b class="fc"><i>336</i>&nbsp;        doesNotNeedEncoding.set(&#39; &#39;);</b>
+<b class="fc"><i>337</i>&nbsp;        doesNotNeedEncoding.set(&#39;!&#39;);</b>
+<b class="fc"><i>338</i>&nbsp;        doesNotNeedEncoding.set(&#39;\\&#39;);</b>
+<b class="fc"><i>339</i>&nbsp;        doesNotNeedEncoding.set(&#39;&quot;&#39;);</b>
+<i>340</i>&nbsp;        // we have to skip &#39;%&#39; which is 0x25 so that it is percent-encoded too
+<b class="fc"><i>341</i>&nbsp;        for (int i = 0x23; i &lt;= 0x24; i++) {</b>
+<b class="fc"><i>342</i>&nbsp;            doesNotNeedEncoding.set(i);</b>
+<i>343</i>&nbsp;        }
+<b class="fc"><i>344</i>&nbsp;        for (int i = 0x26; i &lt;= 0x5B; i++) {</b>
+<b class="fc"><i>345</i>&nbsp;            doesNotNeedEncoding.set(i);</b>
+<i>346</i>&nbsp;        }
+<b class="fc"><i>347</i>&nbsp;        for (int i = 0x5D; i &lt;= 0x7E; i++) {</b>
+<b class="fc"><i>348</i>&nbsp;            doesNotNeedEncoding.set(i);</b>
+<i>349</i>&nbsp;        }
+<b class="fc"><i>350</i>&nbsp;        for (int i = 0x80; i &lt;= 0xFF; i++) {</b>
+<b class="fc"><i>351</i>&nbsp;            doesNotNeedEncoding.set(i);</b>
+<i>352</i>&nbsp;        }
+<b class="fc"><i>353</i>&nbsp;        assert doesNotNeedEncoding.get(&#39;%&#39;) == false : doesNotNeedEncoding;</b>
+<i>354</i>&nbsp;    }
+<i>355</i>&nbsp;
+<b class="fc"><i>356</i>&nbsp;    private static final Charset UTF_8 = Charset.forName(&quot;UTF-8&quot;);</b>
+<i>357</i>&nbsp;
+<i>358</i>&nbsp;    /**
+<i>359</i>&nbsp;     * Encode a string containing characters outside of the legal characters for an RFC 7230 quoted-string.
+<i>360</i>&nbsp;     *
+<i>361</i>&nbsp;     * @param s the string to encode
+<i>362</i>&nbsp;     * @return the encoded string
+<i>363</i>&nbsp;     */
+<i>364</i>&nbsp;    static String encode(final String s) {
+<i>365</i>&nbsp;        // first check if the string needs any encoding; this is the fast path and we want to avoid creating a string builder and copying
+<b class="nc"><i>366</i>&nbsp;        boolean encodingNeeded = false;</b>
+<b class="nc"><i>367</i>&nbsp;        for (int i = 0; i &lt; s.length(); i++) {</b>
+<b class="nc"><i>368</i>&nbsp;            int current = s.charAt(i);</b>
+<b class="nc"><i>369</i>&nbsp;            if (doesNotNeedEncoding.get(current) == false) {</b>
+<b class="nc"><i>370</i>&nbsp;                encodingNeeded = true;</b>
+<b class="nc"><i>371</i>&nbsp;                break;</b>
+<i>372</i>&nbsp;            }
+<i>373</i>&nbsp;        }
+<i>374</i>&nbsp;
+<b class="nc"><i>375</i>&nbsp;        if (encodingNeeded == false) {</b>
+<b class="nc"><i>376</i>&nbsp;            return s;</b>
+<i>377</i>&nbsp;        }
+<i>378</i>&nbsp;
+<b class="nc"><i>379</i>&nbsp;        final StringBuilder sb = new StringBuilder(s.length());</b>
+<b class="nc"><i>380</i>&nbsp;        for (int i = 0; i &lt; s.length();) {</b>
+<b class="nc"><i>381</i>&nbsp;            int current = s.charAt(i);</b>
+<i>382</i>&nbsp;            /*
+<i>383</i>&nbsp;             * Either the character does not need encoding or it does; when the character does not need encoding we append the character to
+<i>384</i>&nbsp;             * a buffer and move to the next character and when the character does need encoding, we peel off as many characters as possible
+<i>385</i>&nbsp;             * which we encode using UTF-8 until we encounter another character that does not need encoding.
+<i>386</i>&nbsp;             */
+<b class="nc"><i>387</i>&nbsp;            if (doesNotNeedEncoding.get(current)) {</b>
+<i>388</i>&nbsp;                // append directly and move to the next character
+<b class="nc"><i>389</i>&nbsp;                sb.append((char) current);</b>
+<b class="nc"><i>390</i>&nbsp;                i++;</b>
+<i>391</i>&nbsp;            } else {
+<b class="nc"><i>392</i>&nbsp;                int startIndex = i;</b>
+<i>393</i>&nbsp;                do {
+<b class="nc"><i>394</i>&nbsp;                    i++;</b>
+<b class="nc"><i>395</i>&nbsp;                } while (i &lt; s.length() &amp;&amp; doesNotNeedEncoding.get(s.charAt(i)) == false);</b>
+<i>396</i>&nbsp;
+<b class="nc"><i>397</i>&nbsp;                final byte[] bytes = s.substring(startIndex, i).getBytes(UTF_8);</b>
+<i>398</i>&nbsp;                // noinspection ForLoopReplaceableByForEach
+<b class="nc"><i>399</i>&nbsp;                for (int j = 0; j &lt; bytes.length; j++) {</b>
+<b class="nc"><i>400</i>&nbsp;                    sb.append(&#39;%&#39;).append(hex(bytes[j] &gt;&gt; 4)).append(hex(bytes[j]));</b>
+<i>401</i>&nbsp;                }
+<i>402</i>&nbsp;            }
+<b class="nc"><i>403</i>&nbsp;        }</b>
+<b class="nc"><i>404</i>&nbsp;        return sb.toString();</b>
+<i>405</i>&nbsp;    }
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;    private static char hex(int b) {
+<b class="nc"><i>408</i>&nbsp;        final char ch = Character.forDigit(b &amp; 0xF, 16);</b>
+<b class="nc"><i>409</i>&nbsp;        if (Character.isLetter(ch)) {</b>
+<b class="nc"><i>410</i>&nbsp;            return Character.toUpperCase(ch);</b>
+<i>411</i>&nbsp;        } else {
+<b class="nc"><i>412</i>&nbsp;            return ch;</b>
+<i>413</i>&nbsp;        }
+<i>414</i>&nbsp;    }
+<i>415</i>&nbsp;
+<i>416</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,194 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DerivativePipelineAggregator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.pipeline</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DerivativePipelineAggregator (org.elasticsearch.search.aggregations.pipeline)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DerivativePipelineAggregator</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 41)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.pipeline;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>23</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>24</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>25</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation;
+<i>26</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+<i>27</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregations;
+<i>28</i>&nbsp;import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+<i>29</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+<i>30</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
+<i>31</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.util.ArrayList;
+<i>35</i>&nbsp;import java.util.List;
+<i>36</i>&nbsp;import java.util.Map;
+<i>37</i>&nbsp;import java.util.stream.Collectors;
+<i>38</i>&nbsp;import java.util.stream.StreamSupport;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;public class DerivativePipelineAggregator extends PipelineAggregator {
+<i>43</i>&nbsp;    private final DocValueFormat formatter;
+<i>44</i>&nbsp;    private final GapPolicy gapPolicy;
+<i>45</i>&nbsp;    private final Double xAxisUnits;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    DerivativePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, GapPolicy gapPolicy, Long xAxisUnits,
+<i>48</i>&nbsp;                                 Map&lt;String, Object&gt; metadata) {
+<b class="nc"><i>49</i>&nbsp;        super(name, bucketsPaths, metadata);</b>
+<b class="nc"><i>50</i>&nbsp;        this.formatter = formatter;</b>
+<b class="nc"><i>51</i>&nbsp;        this.gapPolicy = gapPolicy;</b>
+<b class="nc"><i>52</i>&nbsp;        this.xAxisUnits = xAxisUnits == null ? null : (double) xAxisUnits;</b>
+<b class="nc"><i>53</i>&nbsp;    }</b>
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    /**
+<i>56</i>&nbsp;     * Read from a stream.
+<i>57</i>&nbsp;     */
+<i>58</i>&nbsp;    public DerivativePipelineAggregator(StreamInput in) throws IOException {
+<b class="nc"><i>59</i>&nbsp;        super(in);</b>
+<b class="nc"><i>60</i>&nbsp;        formatter = in.readNamedWriteable(DocValueFormat.class);</b>
+<b class="nc"><i>61</i>&nbsp;        gapPolicy = GapPolicy.readFrom(in);</b>
+<b class="nc"><i>62</i>&nbsp;        xAxisUnits = in.readOptionalDouble();</b>
+<b class="nc"><i>63</i>&nbsp;    }</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    @Override
+<i>66</i>&nbsp;    public void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>67</i>&nbsp;        out.writeNamedWriteable(formatter);</b>
+<b class="nc"><i>68</i>&nbsp;        gapPolicy.writeTo(out);</b>
+<b class="nc"><i>69</i>&nbsp;        out.writeOptionalDouble(xAxisUnits);</b>
+<b class="nc"><i>70</i>&nbsp;    }</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    @Override
+<i>73</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>74</i>&nbsp;        return DerivativePipelineAggregationBuilder.NAME;</b>
+<i>75</i>&nbsp;    }
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    @Override
+<i>78</i>&nbsp;    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+<i>79</i>&nbsp;        InternalMultiBucketAggregation&lt;? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket&gt;
+<b class="nc"><i>80</i>&nbsp;                histo = (InternalMultiBucketAggregation&lt;? extends InternalMultiBucketAggregation, ? extends</b>
+<i>81</i>&nbsp;                InternalMultiBucketAggregation.InternalBucket&gt;) aggregation;
+<b class="nc"><i>82</i>&nbsp;        List&lt;? extends InternalMultiBucketAggregation.InternalBucket&gt; buckets = histo.getBuckets();</b>
+<b class="nc"><i>83</i>&nbsp;        HistogramFactory factory = (HistogramFactory) histo;</b>
+<i>84</i>&nbsp;
+<b class="nc"><i>85</i>&nbsp;        List&lt;Bucket&gt; newBuckets = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>86</i>&nbsp;        Number lastBucketKey = null;</b>
+<b class="nc"><i>87</i>&nbsp;        Double lastBucketValue = null;</b>
+<b class="nc"><i>88</i>&nbsp;        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {</b>
+<b class="nc"><i>89</i>&nbsp;            Number thisBucketKey = factory.getKey(bucket);</b>
+<b class="nc"><i>90</i>&nbsp;            Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);</b>
+<b class="nc"><i>91</i>&nbsp;            if (lastBucketValue != null &amp;&amp; thisBucketValue != null) {</b>
+<b class="nc"><i>92</i>&nbsp;                double gradient = thisBucketValue - lastBucketValue;</b>
+<b class="nc"><i>93</i>&nbsp;                double xDiff = -1;</b>
+<b class="nc"><i>94</i>&nbsp;                if (xAxisUnits != null) {</b>
+<b class="nc"><i>95</i>&nbsp;                    xDiff = (thisBucketKey.doubleValue() - lastBucketKey.doubleValue()) / xAxisUnits;</b>
+<i>96</i>&nbsp;                }
+<b class="nc"><i>97</i>&nbsp;                final List&lt;InternalAggregation&gt; aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -&gt; {</b>
+<b class="nc"><i>98</i>&nbsp;                    return (InternalAggregation) p;</b>
+<b class="nc"><i>99</i>&nbsp;                }).collect(Collectors.toList());</b>
+<b class="nc"><i>100</i>&nbsp;                aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, new ArrayList&lt;PipelineAggregator&gt;(), metaData()));</b>
+<b class="nc"><i>101</i>&nbsp;                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));</b>
+<b class="nc"><i>102</i>&nbsp;                newBuckets.add(newBucket);</b>
+<b class="nc"><i>103</i>&nbsp;            } else {</b>
+<b class="nc"><i>104</i>&nbsp;                newBuckets.add(bucket);</b>
+<i>105</i>&nbsp;            }
+<b class="nc"><i>106</i>&nbsp;            lastBucketKey = thisBucketKey;</b>
+<b class="nc"><i>107</i>&nbsp;            lastBucketValue = thisBucketValue;</b>
+<b class="nc"><i>108</i>&nbsp;        }</b>
+<b class="nc"><i>109</i>&nbsp;        return factory.createAggregation(newBuckets);</b>
+<i>110</i>&nbsp;    }
+<i>111</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

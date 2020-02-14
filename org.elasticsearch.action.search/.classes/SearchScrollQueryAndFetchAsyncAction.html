@@ -1,0 +1,145 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SearchScrollQueryAndFetchAsyncAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SearchScrollQueryAndFetchAsyncAction (org.elasticsearch.action.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SearchScrollQueryAndFetchAsyncAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>26</i>&nbsp;import org.elasticsearch.common.util.concurrent.AtomicArray;
+<i>27</i>&nbsp;import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+<i>28</i>&nbsp;import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+<i>29</i>&nbsp;import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+<i>30</i>&nbsp;import org.elasticsearch.transport.Transport;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.util.function.BiFunction;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction&lt;ScrollQueryFetchSearchResult&gt; {
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;    private final SearchTask task;
+<i>37</i>&nbsp;    private final AtomicArray&lt;QueryFetchSearchResult&gt; queryFetchResults;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;    SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
+<i>40</i>&nbsp;                                         SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
+<i>41</i>&nbsp;                                         ParsedScrollId scrollId, ActionListener&lt;SearchResponse&gt; listener) {
+<b class="nc"><i>42</i>&nbsp;        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request, searchTransportService);</b>
+<b class="nc"><i>43</i>&nbsp;        this.task = task;</b>
+<b class="nc"><i>44</i>&nbsp;        this.queryFetchResults = new AtomicArray&lt;&gt;(scrollId.getContext().length);</b>
+<b class="nc"><i>45</i>&nbsp;    }</b>
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    @Override
+<i>48</i>&nbsp;    protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
+<i>49</i>&nbsp;                                       SearchActionListener&lt;ScrollQueryFetchSearchResult&gt; searchActionListener) {
+<b class="nc"><i>50</i>&nbsp;        searchTransportService.sendExecuteScrollFetch(connection, internalRequest, task, searchActionListener);</b>
+<b class="nc"><i>51</i>&nbsp;    }</b>
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    @Override
+<i>54</i>&nbsp;    protected SearchPhase moveToNextPhase(BiFunction&lt;String, String, DiscoveryNode&gt; clusterNodeLookup) {
+<b class="nc"><i>55</i>&nbsp;        return sendResponsePhase(searchPhaseController.reducedScrollQueryPhase(queryFetchResults.asList()), queryFetchResults);</b>
+<i>56</i>&nbsp;    }
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    @Override
+<i>59</i>&nbsp;    protected void onFirstPhaseResult(int shardId, ScrollQueryFetchSearchResult result) {
+<b class="nc"><i>60</i>&nbsp;        queryFetchResults.setOnce(shardId, result.result());</b>
+<b class="nc"><i>61</i>&nbsp;    }</b>
+<i>62</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

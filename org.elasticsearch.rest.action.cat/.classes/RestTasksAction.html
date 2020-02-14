@@ -1,0 +1,259 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestTasksAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.cat</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestTasksAction (org.elasticsearch.rest.action.cat)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestTasksAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (3/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.1%
+  </span>
+  <span class="absValue">
+    (11/ 73)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.cat;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+<i>24</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>27</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>28</i>&nbsp;import org.elasticsearch.common.Table;
+<i>29</i>&nbsp;import org.elasticsearch.common.time.DateFormatter;
+<i>30</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>31</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>32</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>33</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>34</i>&nbsp;import org.elasticsearch.rest.action.RestResponseListener;
+<i>35</i>&nbsp;import org.elasticsearch.tasks.TaskInfo;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.time.Instant;
+<i>38</i>&nbsp;import java.time.ZoneOffset;
+<i>39</i>&nbsp;import java.util.ArrayList;
+<i>40</i>&nbsp;import java.util.Collections;
+<i>41</i>&nbsp;import java.util.Comparator;
+<i>42</i>&nbsp;import java.util.HashSet;
+<i>43</i>&nbsp;import java.util.List;
+<i>44</i>&nbsp;import java.util.Set;
+<i>45</i>&nbsp;import java.util.function.Supplier;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>48</i>&nbsp;import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
+<i>49</i>&nbsp;
+<b class="nc"><i>50</i>&nbsp;public class RestTasksAction extends AbstractCatAction {</b>
+<i>51</i>&nbsp;    private final Supplier&lt;DiscoveryNodes&gt; nodesInCluster;
+<i>52</i>&nbsp;
+<b class="fc"><i>53</i>&nbsp;    public RestTasksAction(RestController controller, Supplier&lt;DiscoveryNodes&gt; nodesInCluster) {</b>
+<b class="fc"><i>54</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/tasks&quot;, this);</b>
+<b class="fc"><i>55</i>&nbsp;        this.nodesInCluster = nodesInCluster;</b>
+<b class="fc"><i>56</i>&nbsp;    }</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    @Override
+<i>59</i>&nbsp;    public String getName() {
+<b class="nc"><i>60</i>&nbsp;        return &quot;cat_tasks_action&quot;;</b>
+<i>61</i>&nbsp;    }
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    @Override
+<i>64</i>&nbsp;    protected void documentation(StringBuilder sb) {
+<b class="fc"><i>65</i>&nbsp;        sb.append(&quot;/_cat/tasks\n&quot;);</b>
+<b class="fc"><i>66</i>&nbsp;    }</b>
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    @Override
+<i>69</i>&nbsp;    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+<b class="nc"><i>70</i>&nbsp;        return channel -&gt;</b>
+<b class="nc"><i>71</i>&nbsp;                client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener&lt;ListTasksResponse&gt;(channel) {</b>
+<i>72</i>&nbsp;            @Override
+<i>73</i>&nbsp;            public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {
+<i>74</i>&nbsp;                return RestTable.buildResponse(buildTable(request, listTasksResponse), channel);
+<i>75</i>&nbsp;            }
+<i>76</i>&nbsp;        });
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    private static final Set&lt;String&gt; RESPONSE_PARAMS;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    static {
+<b class="fc"><i>82</i>&nbsp;        final Set&lt;String&gt; responseParams = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>83</i>&nbsp;        responseParams.add(&quot;detailed&quot;);</b>
+<b class="fc"><i>84</i>&nbsp;        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);</b>
+<b class="fc"><i>85</i>&nbsp;        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);</b>
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    @Override
+<i>89</i>&nbsp;    protected Set&lt;String&gt; responseParams() {
+<b class="nc"><i>90</i>&nbsp;        return RESPONSE_PARAMS;</b>
+<i>91</i>&nbsp;    }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    @Override
+<i>94</i>&nbsp;    protected Table getTableWithHeader(final RestRequest request) {
+<b class="nc"><i>95</i>&nbsp;        boolean detailed = request.paramAsBoolean(&quot;detailed&quot;, false);</b>
+<b class="nc"><i>96</i>&nbsp;        Table table = new Table();</b>
+<b class="nc"><i>97</i>&nbsp;        table.startHeaders();</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;        // Task main info
+<b class="nc"><i>100</i>&nbsp;        table.addCell(&quot;id&quot;, &quot;default:false;desc:id of the task with the node&quot;);</b>
+<b class="nc"><i>101</i>&nbsp;        table.addCell(&quot;action&quot;, &quot;alias:ac;desc:task action&quot;);</b>
+<b class="nc"><i>102</i>&nbsp;        table.addCell(&quot;task_id&quot;, &quot;alias:ti;desc:unique task id&quot;);</b>
+<b class="nc"><i>103</i>&nbsp;        table.addCell(&quot;parent_task_id&quot;, &quot;alias:pti;desc:parent task id&quot;);</b>
+<b class="nc"><i>104</i>&nbsp;        table.addCell(&quot;type&quot;, &quot;alias:ty;desc:task type&quot;);</b>
+<b class="nc"><i>105</i>&nbsp;        table.addCell(&quot;start_time&quot;, &quot;alias:start;desc:start time in ms&quot;);</b>
+<b class="nc"><i>106</i>&nbsp;        table.addCell(&quot;timestamp&quot;, &quot;alias:ts,hms,hhmmss;desc:start time in HH:MM:SS&quot;);</b>
+<b class="nc"><i>107</i>&nbsp;        table.addCell(&quot;running_time_ns&quot;, &quot;default:false;alias:time;desc:running time ns&quot;);</b>
+<b class="nc"><i>108</i>&nbsp;        table.addCell(&quot;running_time&quot;, &quot;default:true;alias:time;desc:running time&quot;);</b>
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;        // Node info
+<b class="nc"><i>111</i>&nbsp;        table.addCell(&quot;node_id&quot;, &quot;default:false;alias:ni;desc:unique node id&quot;);</b>
+<b class="nc"><i>112</i>&nbsp;        table.addCell(&quot;ip&quot;, &quot;default:true;alias:i;desc:ip address&quot;);</b>
+<b class="nc"><i>113</i>&nbsp;        table.addCell(&quot;port&quot;, &quot;default:false;alias:po;desc:bound transport port&quot;);</b>
+<b class="nc"><i>114</i>&nbsp;        table.addCell(&quot;node&quot;, &quot;default:true;alias:n;desc:node name&quot;);</b>
+<b class="nc"><i>115</i>&nbsp;        table.addCell(&quot;version&quot;, &quot;default:false;alias:v;desc:es version&quot;);</b>
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;        // Task detailed info
+<b class="nc"><i>118</i>&nbsp;        if (detailed) {</b>
+<b class="nc"><i>119</i>&nbsp;            table.addCell(&quot;description&quot;, &quot;default:true;alias:desc;desc:task action&quot;);</b>
+<i>120</i>&nbsp;        }
+<b class="nc"><i>121</i>&nbsp;        table.endHeaders();</b>
+<b class="nc"><i>122</i>&nbsp;        return table;</b>
+<i>123</i>&nbsp;    }
+<i>124</i>&nbsp;
+<b class="fc"><i>125</i>&nbsp;    private static final DateFormatter FORMATTER = DateFormatter.forPattern(&quot;HH:mm:ss&quot;).withZone(ZoneOffset.UTC);</b>
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
+<b class="nc"><i>128</i>&nbsp;        table.startRow();</b>
+<b class="nc"><i>129</i>&nbsp;        String nodeId = taskInfo.getTaskId().getNodeId();</b>
+<b class="nc"><i>130</i>&nbsp;        DiscoveryNode node = discoveryNodes.get(nodeId);</b>
+<i>131</i>&nbsp;
+<b class="nc"><i>132</i>&nbsp;        table.addCell(taskInfo.getId());</b>
+<b class="nc"><i>133</i>&nbsp;        table.addCell(taskInfo.getAction());</b>
+<b class="nc"><i>134</i>&nbsp;        table.addCell(taskInfo.getTaskId().toString());</b>
+<b class="nc"><i>135</i>&nbsp;        if (taskInfo.getParentTaskId().isSet()) {</b>
+<b class="nc"><i>136</i>&nbsp;            table.addCell(taskInfo.getParentTaskId().toString());</b>
+<i>137</i>&nbsp;        } else {
+<b class="nc"><i>138</i>&nbsp;            table.addCell(&quot;-&quot;);</b>
+<i>139</i>&nbsp;        }
+<b class="nc"><i>140</i>&nbsp;        table.addCell(taskInfo.getType());</b>
+<b class="nc"><i>141</i>&nbsp;        table.addCell(taskInfo.getStartTime());</b>
+<b class="nc"><i>142</i>&nbsp;        table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));</b>
+<b class="nc"><i>143</i>&nbsp;        table.addCell(taskInfo.getRunningTimeNanos());</b>
+<b class="nc"><i>144</i>&nbsp;        table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());</b>
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;        // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
+<b class="nc"><i>147</i>&nbsp;        table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));</b>
+<b class="nc"><i>148</i>&nbsp;        table.addCell(node == null ? &quot;-&quot; : node.getHostAddress());</b>
+<b class="nc"><i>149</i>&nbsp;        table.addCell(node.getAddress().address().getPort());</b>
+<b class="nc"><i>150</i>&nbsp;        table.addCell(node == null ? &quot;-&quot; : node.getName());</b>
+<b class="nc"><i>151</i>&nbsp;        table.addCell(node == null ? &quot;-&quot; : node.getVersion().toString());</b>
+<i>152</i>&nbsp;
+<b class="nc"><i>153</i>&nbsp;        if (detailed) {</b>
+<b class="nc"><i>154</i>&nbsp;            table.addCell(taskInfo.getDescription());</b>
+<i>155</i>&nbsp;        }
+<b class="nc"><i>156</i>&nbsp;        table.endRow();</b>
+<b class="nc"><i>157</i>&nbsp;    }</b>
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    private void buildGroups(Table table, boolean fullId, boolean detailed, List&lt;TaskGroup&gt; taskGroups) {
+<b class="nc"><i>160</i>&nbsp;        DiscoveryNodes discoveryNodes = nodesInCluster.get();</b>
+<b class="nc"><i>161</i>&nbsp;        List&lt;TaskGroup&gt; sortedGroups = new ArrayList&lt;&gt;(taskGroups);</b>
+<b class="nc"><i>162</i>&nbsp;        sortedGroups.sort(Comparator.comparingLong(o -&gt; o.getTaskInfo().getStartTime()));</b>
+<b class="nc"><i>163</i>&nbsp;        for (TaskGroup taskGroup : sortedGroups) {</b>
+<b class="nc"><i>164</i>&nbsp;            buildRow(table, fullId, detailed, discoveryNodes, taskGroup.getTaskInfo());</b>
+<b class="nc"><i>165</i>&nbsp;            buildGroups(table, fullId, detailed, taskGroup.getChildTasks());</b>
+<b class="nc"><i>166</i>&nbsp;        }</b>
+<b class="nc"><i>167</i>&nbsp;    }</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    private Table buildTable(RestRequest request, ListTasksResponse listTasksResponse) {
+<b class="nc"><i>170</i>&nbsp;        boolean fullId = request.paramAsBoolean(&quot;full_id&quot;, false);</b>
+<b class="nc"><i>171</i>&nbsp;        boolean detailed = request.paramAsBoolean(&quot;detailed&quot;, false);</b>
+<b class="nc"><i>172</i>&nbsp;        Table table = getTableWithHeader(request);</b>
+<b class="nc"><i>173</i>&nbsp;        buildGroups(table, fullId, detailed, listTasksResponse.getTaskGroups());</b>
+<b class="nc"><i>174</i>&nbsp;        return table;</b>
+<i>175</i>&nbsp;    }
+<i>176</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

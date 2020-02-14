@@ -1,0 +1,997 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ThreadPool</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.threadpool</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ThreadPool (org.elasticsearch.threadpool)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ThreadPool</td>
+<td class="coverageStat">
+  <span class="percent">
+    72.2%
+  </span>
+  <span class="absValue">
+    (26/ 36)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.4%
+  </span>
+  <span class="absValue">
+    (128/ 205)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ThreadPool$CachedTimeThread</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (3/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    77.3%
+  </span>
+  <span class="absValue">
+    (17/ 22)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ThreadPool$ExecutorHolder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (3/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (7/ 7)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ThreadPool$Info</td>
+<td class="coverageStat">
+  <span class="percent">
+    69.2%
+  </span>
+  <span class="absValue">
+    (9/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    34%
+  </span>
+  <span class="absValue">
+    (18/ 53)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ThreadPool$ThreadedRunnable</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (7/ 14)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ThreadPool$ThreadPoolType</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (4/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    77.8%
+  </span>
+  <span class="absValue">
+    (14/ 18)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    71.2%
+  </span>
+  <span class="absValue">
+    (47/ 66)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.9%
+  </span>
+  <span class="absValue">
+    (191/ 319)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.threadpool;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>32</i>&nbsp;import org.elasticsearch.common.unit.SizeValue;
+<i>33</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>34</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>35</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+<i>36</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+<i>37</i>&nbsp;import org.elasticsearch.common.util.concurrent.ThreadContext;
+<i>38</i>&nbsp;import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
+<i>39</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>40</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>41</i>&nbsp;import org.elasticsearch.node.Node;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.io.Closeable;
+<i>44</i>&nbsp;import java.io.IOException;
+<i>45</i>&nbsp;import java.util.ArrayList;
+<i>46</i>&nbsp;import java.util.Collection;
+<i>47</i>&nbsp;import java.util.Collections;
+<i>48</i>&nbsp;import java.util.HashMap;
+<i>49</i>&nbsp;import java.util.List;
+<i>50</i>&nbsp;import java.util.Map;
+<i>51</i>&nbsp;import java.util.concurrent.Executor;
+<i>52</i>&nbsp;import java.util.concurrent.ExecutorService;
+<i>53</i>&nbsp;import java.util.concurrent.RejectedExecutionException;
+<i>54</i>&nbsp;import java.util.concurrent.RejectedExecutionHandler;
+<i>55</i>&nbsp;import java.util.concurrent.ScheduledExecutorService;
+<i>56</i>&nbsp;import java.util.concurrent.ScheduledThreadPoolExecutor;
+<i>57</i>&nbsp;import java.util.concurrent.ThreadPoolExecutor;
+<i>58</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>59</i>&nbsp;import java.util.stream.Collectors;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;import static java.util.Collections.unmodifiableMap;
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;public class ThreadPool implements Scheduler, Closeable {</b>
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ThreadPool.class);</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    public static class Names {
+<i>68</i>&nbsp;        public static final String SAME = &quot;same&quot;;
+<i>69</i>&nbsp;        public static final String GENERIC = &quot;generic&quot;;
+<i>70</i>&nbsp;        public static final String LISTENER = &quot;listener&quot;;
+<i>71</i>&nbsp;        public static final String GET = &quot;get&quot;;
+<i>72</i>&nbsp;        public static final String ANALYZE = &quot;analyze&quot;;
+<i>73</i>&nbsp;        public static final String WRITE = &quot;write&quot;;
+<i>74</i>&nbsp;        public static final String SEARCH = &quot;search&quot;;
+<i>75</i>&nbsp;        public static final String SEARCH_THROTTLED = &quot;search_throttled&quot;;
+<i>76</i>&nbsp;        public static final String MANAGEMENT = &quot;management&quot;;
+<i>77</i>&nbsp;        public static final String FLUSH = &quot;flush&quot;;
+<i>78</i>&nbsp;        public static final String REFRESH = &quot;refresh&quot;;
+<i>79</i>&nbsp;        public static final String WARMER = &quot;warmer&quot;;
+<i>80</i>&nbsp;        public static final String SNAPSHOT = &quot;snapshot&quot;;
+<i>81</i>&nbsp;        public static final String FORCE_MERGE = &quot;force_merge&quot;;
+<i>82</i>&nbsp;        public static final String FETCH_SHARD_STARTED = &quot;fetch_shard_started&quot;;
+<i>83</i>&nbsp;        public static final String FETCH_SHARD_STORE = &quot;fetch_shard_store&quot;;
+<i>84</i>&nbsp;    }
+<i>85</i>&nbsp;
+<b class="fc"><i>86</i>&nbsp;    public enum ThreadPoolType {</b>
+<b class="fc"><i>87</i>&nbsp;        DIRECT(&quot;direct&quot;),</b>
+<b class="fc"><i>88</i>&nbsp;        FIXED(&quot;fixed&quot;),</b>
+<b class="fc"><i>89</i>&nbsp;        FIXED_AUTO_QUEUE_SIZE(&quot;fixed_auto_queue_size&quot;),</b>
+<b class="fc"><i>90</i>&nbsp;        SCALING(&quot;scaling&quot;);</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;        private final String type;
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;        public String getType() {
+<b class="fc"><i>95</i>&nbsp;            return type;</b>
+<i>96</i>&nbsp;        }
+<i>97</i>&nbsp;
+<b class="fc"><i>98</i>&nbsp;        ThreadPoolType(String type) {</b>
+<b class="fc"><i>99</i>&nbsp;            this.type = type;</b>
+<b class="fc"><i>100</i>&nbsp;        }</b>
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;        private static final Map&lt;String, ThreadPoolType&gt; TYPE_MAP;
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;        static {
+<b class="fc"><i>105</i>&nbsp;            Map&lt;String, ThreadPoolType&gt; typeMap = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>106</i>&nbsp;            for (ThreadPoolType threadPoolType : ThreadPoolType.values()) {</b>
+<b class="fc"><i>107</i>&nbsp;                typeMap.put(threadPoolType.getType(), threadPoolType);</b>
+<i>108</i>&nbsp;            }
+<b class="fc"><i>109</i>&nbsp;            TYPE_MAP = Collections.unmodifiableMap(typeMap);</b>
+<b class="fc"><i>110</i>&nbsp;        }</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;        public static ThreadPoolType fromType(String type) {
+<b class="nc"><i>113</i>&nbsp;            ThreadPoolType threadPoolType = TYPE_MAP.get(type);</b>
+<b class="nc"><i>114</i>&nbsp;            if (threadPoolType == null) {</b>
+<b class="nc"><i>115</i>&nbsp;                throw new IllegalArgumentException(&quot;no ThreadPoolType for &quot; + type);</b>
+<i>116</i>&nbsp;            }
+<b class="nc"><i>117</i>&nbsp;            return threadPoolType;</b>
+<i>118</i>&nbsp;        }
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    public static final Map&lt;String, ThreadPoolType&gt; THREAD_POOL_TYPES;
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    static {
+<b class="fc"><i>124</i>&nbsp;        HashMap&lt;String, ThreadPoolType&gt; map = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>125</i>&nbsp;        map.put(Names.SAME, ThreadPoolType.DIRECT);</b>
+<b class="fc"><i>126</i>&nbsp;        map.put(Names.GENERIC, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>127</i>&nbsp;        map.put(Names.LISTENER, ThreadPoolType.FIXED);</b>
+<b class="fc"><i>128</i>&nbsp;        map.put(Names.GET, ThreadPoolType.FIXED);</b>
+<b class="fc"><i>129</i>&nbsp;        map.put(Names.ANALYZE, ThreadPoolType.FIXED);</b>
+<b class="fc"><i>130</i>&nbsp;        map.put(Names.WRITE, ThreadPoolType.FIXED);</b>
+<b class="fc"><i>131</i>&nbsp;        map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);</b>
+<b class="fc"><i>132</i>&nbsp;        map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>133</i>&nbsp;        map.put(Names.FLUSH, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>134</i>&nbsp;        map.put(Names.REFRESH, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>135</i>&nbsp;        map.put(Names.WARMER, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>136</i>&nbsp;        map.put(Names.SNAPSHOT, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>137</i>&nbsp;        map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);</b>
+<b class="fc"><i>138</i>&nbsp;        map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>139</i>&nbsp;        map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);</b>
+<b class="fc"><i>140</i>&nbsp;        map.put(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);</b>
+<b class="fc"><i>141</i>&nbsp;        THREAD_POOL_TYPES = Collections.unmodifiableMap(map);</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    private final Map&lt;String, ExecutorHolder&gt; executors;
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    private final ThreadPoolInfo threadPoolInfo;
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    private final CachedTimeThread cachedTimeThread;
+<i>149</i>&nbsp;
+<b class="fc"><i>150</i>&nbsp;    static final ExecutorService DIRECT_EXECUTOR = EsExecutors.newDirectExecutorService();</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    private final ThreadContext threadContext;
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    private final Map&lt;String, ExecutorBuilder&gt; builders;
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    private final ScheduledThreadPoolExecutor scheduler;
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    public Collection&lt;ExecutorBuilder&gt; builders() {
+<b class="fc"><i>159</i>&nbsp;        return Collections.unmodifiableCollection(builders.values());</b>
+<i>160</i>&nbsp;    }
+<i>161</i>&nbsp;
+<b class="fc"><i>162</i>&nbsp;    public static Setting&lt;TimeValue&gt; ESTIMATED_TIME_INTERVAL_SETTING =</b>
+<b class="fc"><i>163</i>&nbsp;        Setting.timeSetting(&quot;thread_pool.estimated_time_interval&quot;,</b>
+<b class="fc"><i>164</i>&nbsp;            TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);</b>
+<i>165</i>&nbsp;
+<b class="fc"><i>166</i>&nbsp;    public ThreadPool(final Settings settings, final ExecutorBuilder&lt;?&gt;... customBuilders) {</b>
+<b class="fc"><i>167</i>&nbsp;        assert Node.NODE_NAME_SETTING.exists(settings);</b>
+<i>168</i>&nbsp;
+<b class="fc"><i>169</i>&nbsp;        final Map&lt;String, ExecutorBuilder&gt; builders = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>170</i>&nbsp;        final int availableProcessors = EsExecutors.numberOfProcessors(settings);</b>
+<b class="fc"><i>171</i>&nbsp;        final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);</b>
+<b class="fc"><i>172</i>&nbsp;        final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);</b>
+<b class="fc"><i>173</i>&nbsp;        final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);</b>
+<b class="fc"><i>174</i>&nbsp;        builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));</b>
+<b class="fc"><i>175</i>&nbsp;        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, availableProcessors, 200));</b>
+<b class="fc"><i>176</i>&nbsp;        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000));</b>
+<b class="fc"><i>177</i>&nbsp;        builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));</b>
+<b class="fc"><i>178</i>&nbsp;        builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,</b>
+<b class="fc"><i>179</i>&nbsp;                        Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000, 1000, 1000, 2000));</b>
+<b class="fc"><i>180</i>&nbsp;        builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,</b>
+<i>181</i>&nbsp;            Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
+<b class="fc"><i>182</i>&nbsp;        builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));</b>
+<i>183</i>&nbsp;        // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
+<i>184</i>&nbsp;        // the assumption here is that the listeners should be very lightweight on the listeners side
+<b class="fc"><i>185</i>&nbsp;        builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1));</b>
+<b class="fc"><i>186</i>&nbsp;        builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));</b>
+<b class="fc"><i>187</i>&nbsp;        builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));</b>
+<b class="fc"><i>188</i>&nbsp;        builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));</b>
+<b class="fc"><i>189</i>&nbsp;        builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));</b>
+<b class="fc"><i>190</i>&nbsp;        builders.put(Names.FETCH_SHARD_STARTED,</b>
+<b class="fc"><i>191</i>&nbsp;                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));</b>
+<b class="fc"><i>192</i>&nbsp;        builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));</b>
+<b class="fc"><i>193</i>&nbsp;        builders.put(Names.FETCH_SHARD_STORE,</b>
+<b class="fc"><i>194</i>&nbsp;                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));</b>
+<b class="fc"><i>195</i>&nbsp;        for (final ExecutorBuilder&lt;?&gt; builder : customBuilders) {</b>
+<b class="nc"><i>196</i>&nbsp;            if (builders.containsKey(builder.name())) {</b>
+<b class="nc"><i>197</i>&nbsp;                throw new IllegalArgumentException(&quot;builder with name [&quot; + builder.name() + &quot;] already exists&quot;);</b>
+<i>198</i>&nbsp;            }
+<b class="nc"><i>199</i>&nbsp;            builders.put(builder.name(), builder);</b>
+<i>200</i>&nbsp;        }
+<b class="fc"><i>201</i>&nbsp;        this.builders = Collections.unmodifiableMap(builders);</b>
+<i>202</i>&nbsp;
+<b class="fc"><i>203</i>&nbsp;        threadContext = new ThreadContext(settings);</b>
+<i>204</i>&nbsp;
+<b class="fc"><i>205</i>&nbsp;        final Map&lt;String, ExecutorHolder&gt; executors = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>206</i>&nbsp;        for (final Map.Entry&lt;String, ExecutorBuilder&gt; entry : builders.entrySet()) {</b>
+<b class="fc"><i>207</i>&nbsp;            final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().getSettings(settings);</b>
+<b class="fc"><i>208</i>&nbsp;            final ExecutorHolder executorHolder = entry.getValue().build(executorSettings, threadContext);</b>
+<b class="fc"><i>209</i>&nbsp;            if (executors.containsKey(executorHolder.info.getName())) {</b>
+<b class="nc"><i>210</i>&nbsp;                throw new IllegalStateException(&quot;duplicate executors with name [&quot; + executorHolder.info.getName() + &quot;] registered&quot;);</b>
+<i>211</i>&nbsp;            }
+<b class="fc"><i>212</i>&nbsp;            logger.debug(&quot;created thread pool: {}&quot;, entry.getValue().formatInfo(executorHolder.info));</b>
+<b class="fc"><i>213</i>&nbsp;            executors.put(entry.getKey(), executorHolder);</b>
+<b class="fc"><i>214</i>&nbsp;        }</b>
+<i>215</i>&nbsp;
+<b class="fc"><i>216</i>&nbsp;        executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, ThreadPoolType.DIRECT)));</b>
+<b class="fc"><i>217</i>&nbsp;        this.executors = unmodifiableMap(executors);</b>
+<i>218</i>&nbsp;
+<b class="fc"><i>219</i>&nbsp;        final List&lt;Info&gt; infos =</b>
+<i>220</i>&nbsp;                executors
+<b class="fc"><i>221</i>&nbsp;                        .values()</b>
+<b class="fc"><i>222</i>&nbsp;                        .stream()</b>
+<b class="fc"><i>223</i>&nbsp;                        .filter(holder -&gt; holder.info.getName().equals(&quot;same&quot;) == false)</b>
+<b class="fc"><i>224</i>&nbsp;                        .map(holder -&gt; holder.info)</b>
+<b class="fc"><i>225</i>&nbsp;                        .collect(Collectors.toList());</b>
+<b class="fc"><i>226</i>&nbsp;        this.threadPoolInfo = new ThreadPoolInfo(infos);</b>
+<b class="fc"><i>227</i>&nbsp;        this.scheduler = Scheduler.initScheduler(settings);</b>
+<b class="fc"><i>228</i>&nbsp;        TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);</b>
+<b class="fc"><i>229</i>&nbsp;        this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, &quot;[timer]&quot;), estimatedTimeInterval.millis());</b>
+<b class="fc"><i>230</i>&nbsp;        this.cachedTimeThread.start();</b>
+<b class="fc"><i>231</i>&nbsp;    }</b>
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    /**
+<i>234</i>&nbsp;     * Returns a value of milliseconds that may be used for relative time calculations.
+<i>235</i>&nbsp;     *
+<i>236</i>&nbsp;     * This method should only be used for calculating time deltas. For an epoch based
+<i>237</i>&nbsp;     * timestamp, see {@link #absoluteTimeInMillis()}.
+<i>238</i>&nbsp;     */
+<i>239</i>&nbsp;    public long relativeTimeInMillis() {
+<b class="fc"><i>240</i>&nbsp;        return TimeValue.nsecToMSec(relativeTimeInNanos());</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * Returns a value of nanoseconds that may be used for relative time calculations.
+<i>245</i>&nbsp;     *
+<i>246</i>&nbsp;     * This method should only be used for calculating time deltas. For an epoch based
+<i>247</i>&nbsp;     * timestamp, see {@link #absoluteTimeInMillis()}.
+<i>248</i>&nbsp;     */
+<i>249</i>&nbsp;    public long relativeTimeInNanos() {
+<b class="fc"><i>250</i>&nbsp;        return cachedTimeThread.relativeTimeInNanos();</b>
+<i>251</i>&nbsp;    }
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    /**
+<i>254</i>&nbsp;     * Returns the value of milliseconds since UNIX epoch.
+<i>255</i>&nbsp;     *
+<i>256</i>&nbsp;     * This method should only be used for exact date/time formatting. For calculating
+<i>257</i>&nbsp;     * time deltas that should not suffer from negative deltas, which are possible with
+<i>258</i>&nbsp;     * this method, see {@link #relativeTimeInMillis()}.
+<i>259</i>&nbsp;     */
+<i>260</i>&nbsp;    public long absoluteTimeInMillis() {
+<b class="nc"><i>261</i>&nbsp;        return cachedTimeThread.absoluteTimeInMillis();</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    public ThreadPoolInfo info() {
+<b class="nc"><i>265</i>&nbsp;        return threadPoolInfo;</b>
+<i>266</i>&nbsp;    }
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    public Info info(String name) {
+<b class="nc"><i>269</i>&nbsp;        ExecutorHolder holder = executors.get(name);</b>
+<b class="nc"><i>270</i>&nbsp;        if (holder == null) {</b>
+<b class="nc"><i>271</i>&nbsp;            return null;</b>
+<i>272</i>&nbsp;        }
+<b class="nc"><i>273</i>&nbsp;        return holder.info;</b>
+<i>274</i>&nbsp;    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    public ThreadPoolStats stats() {
+<b class="nc"><i>277</i>&nbsp;        List&lt;ThreadPoolStats.Stats&gt; stats = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>278</i>&nbsp;        for (ExecutorHolder holder : executors.values()) {</b>
+<b class="nc"><i>279</i>&nbsp;            final String name = holder.info.getName();</b>
+<i>280</i>&nbsp;            // no need to have info on &quot;same&quot; thread pool
+<b class="nc"><i>281</i>&nbsp;            if (&quot;same&quot;.equals(name)) {</b>
+<b class="nc"><i>282</i>&nbsp;                continue;</b>
+<i>283</i>&nbsp;            }
+<b class="nc"><i>284</i>&nbsp;            int threads = -1;</b>
+<b class="nc"><i>285</i>&nbsp;            int queue = -1;</b>
+<b class="nc"><i>286</i>&nbsp;            int active = -1;</b>
+<b class="nc"><i>287</i>&nbsp;            long rejected = -1;</b>
+<b class="nc"><i>288</i>&nbsp;            int largest = -1;</b>
+<b class="nc"><i>289</i>&nbsp;            long completed = -1;</b>
+<b class="nc"><i>290</i>&nbsp;            if (holder.executor() instanceof ThreadPoolExecutor) {</b>
+<b class="nc"><i>291</i>&nbsp;                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor();</b>
+<b class="nc"><i>292</i>&nbsp;                threads = threadPoolExecutor.getPoolSize();</b>
+<b class="nc"><i>293</i>&nbsp;                queue = threadPoolExecutor.getQueue().size();</b>
+<b class="nc"><i>294</i>&nbsp;                active = threadPoolExecutor.getActiveCount();</b>
+<b class="nc"><i>295</i>&nbsp;                largest = threadPoolExecutor.getLargestPoolSize();</b>
+<b class="nc"><i>296</i>&nbsp;                completed = threadPoolExecutor.getCompletedTaskCount();</b>
+<b class="nc"><i>297</i>&nbsp;                RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();</b>
+<b class="nc"><i>298</i>&nbsp;                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {</b>
+<b class="nc"><i>299</i>&nbsp;                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();</b>
+<i>300</i>&nbsp;                }
+<i>301</i>&nbsp;            }
+<b class="nc"><i>302</i>&nbsp;            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));</b>
+<b class="nc"><i>303</i>&nbsp;        }</b>
+<b class="nc"><i>304</i>&nbsp;        return new ThreadPoolStats(stats);</b>
+<i>305</i>&nbsp;    }
+<i>306</i>&nbsp;
+<i>307</i>&nbsp;    /**
+<i>308</i>&nbsp;     * Get the generic {@link ExecutorService}. This executor service
+<i>309</i>&nbsp;     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+<i>310</i>&nbsp;     * {@link ThreadContext} of the thread that queues it.
+<i>311</i>&nbsp;     * &lt;p&gt;
+<i>312</i>&nbsp;     * Warning: this {@linkplain ExecutorService} will not throw {@link RejectedExecutionException}
+<i>313</i>&nbsp;     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
+<i>314</i>&nbsp;     */
+<i>315</i>&nbsp;    public ExecutorService generic() {
+<b class="fc"><i>316</i>&nbsp;        return executor(Names.GENERIC);</b>
+<i>317</i>&nbsp;    }
+<i>318</i>&nbsp;
+<i>319</i>&nbsp;    /**
+<i>320</i>&nbsp;     * Get the {@link ExecutorService} with the given name. This executor service&#39;s
+<i>321</i>&nbsp;     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+<i>322</i>&nbsp;     * {@link ThreadContext} of the thread that queues it.
+<i>323</i>&nbsp;     * &lt;p&gt;
+<i>324</i>&nbsp;     * Warning: this {@linkplain ExecutorService} might not throw {@link RejectedExecutionException}
+<i>325</i>&nbsp;     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
+<i>326</i>&nbsp;     *
+<i>327</i>&nbsp;     * @param name the name of the executor service to obtain
+<i>328</i>&nbsp;     * @throws IllegalArgumentException if no executor service with the specified name exists
+<i>329</i>&nbsp;     */
+<i>330</i>&nbsp;    public ExecutorService executor(String name) {
+<b class="fc"><i>331</i>&nbsp;        final ExecutorHolder holder = executors.get(name);</b>
+<b class="fc"><i>332</i>&nbsp;        if (holder == null) {</b>
+<b class="nc"><i>333</i>&nbsp;            throw new IllegalArgumentException(&quot;no executor service found for [&quot; + name + &quot;]&quot;);</b>
+<i>334</i>&nbsp;        }
+<b class="fc"><i>335</i>&nbsp;        return holder.executor();</b>
+<i>336</i>&nbsp;    }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    /**
+<i>339</i>&nbsp;     * Schedules a one-shot command to run after a given delay. The command is not run in the context of the calling thread. To preserve the
+<i>340</i>&nbsp;     * context of the calling thread you may call &lt;code&gt;threadPool.getThreadContext().preserveContext&lt;/code&gt; on the runnable before passing
+<i>341</i>&nbsp;     * it to this method.
+<i>342</i>&nbsp;     *
+<i>343</i>&nbsp;     * @param command the command to run
+<i>344</i>&nbsp;     * @param delay delay before the task executes
+<i>345</i>&nbsp;     * @param executor the name of the thread pool on which to execute this task. SAME means &quot;execute on the scheduler thread&quot; which changes
+<i>346</i>&nbsp;     *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
+<i>347</i>&nbsp;     *        command completes.
+<i>348</i>&nbsp;     * @return a ScheduledFuture who&#39;s get will return when the task is has been added to its target thread pool and throw an exception if
+<i>349</i>&nbsp;     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
+<i>350</i>&nbsp;     *         the ScheduledFuture will cannot interact with it.
+<i>351</i>&nbsp;     * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
+<i>352</i>&nbsp;     */
+<i>353</i>&nbsp;    @Override
+<i>354</i>&nbsp;    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+<b class="fc"><i>355</i>&nbsp;        if (!Names.SAME.equals(executor)) {</b>
+<b class="fc"><i>356</i>&nbsp;            command = new ThreadedRunnable(command, executor(executor));</b>
+<i>357</i>&nbsp;        }
+<b class="fc"><i>358</i>&nbsp;        return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));</b>
+<i>359</i>&nbsp;    }
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+<i>362</i>&nbsp;        try {
+<b class="fc"><i>363</i>&nbsp;            schedule(command, delay, executor);</b>
+<b class="nc"><i>364</i>&nbsp;        } catch (EsRejectedExecutionException e) {</b>
+<b class="nc"><i>365</i>&nbsp;            if (e.isExecutorShutdown()) {</b>
+<b class="nc"><i>366</i>&nbsp;                logger.debug(new ParameterizedMessage(&quot;could not schedule execution of [{}] after [{}] on [{}] as executor is shut down&quot;,</b>
+<i>367</i>&nbsp;                    command, delay, executor), e);
+<i>368</i>&nbsp;            } else {
+<b class="nc"><i>369</i>&nbsp;                throw e;</b>
+<i>370</i>&nbsp;            }
+<b class="fc"><i>371</i>&nbsp;        }</b>
+<b class="fc"><i>372</i>&nbsp;    }</b>
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;    @Override
+<i>375</i>&nbsp;    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
+<b class="fc"><i>376</i>&nbsp;        return new ReschedulingRunnable(command, interval, executor, this,</b>
+<i>377</i>&nbsp;                (e) -&gt; {
+<b class="nc"><i>378</i>&nbsp;                    if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>379</i>&nbsp;                        logger.debug(() -&gt; new ParameterizedMessage(&quot;scheduled task [{}] was rejected on thread pool [{}]&quot;,</b>
+<i>380</i>&nbsp;                                command, executor), e);
+<i>381</i>&nbsp;                    }
+<b class="nc"><i>382</i>&nbsp;                },</b>
+<b class="nc"><i>383</i>&nbsp;                (e) -&gt; logger.warn(() -&gt; new ParameterizedMessage(&quot;failed to run scheduled task [{}] on thread pool [{}]&quot;,</b>
+<i>384</i>&nbsp;                        command, executor), e));
+<i>385</i>&nbsp;    }
+<i>386</i>&nbsp;
+<i>387</i>&nbsp;    @Override
+<i>388</i>&nbsp;    public Runnable preserveContext(Runnable command) {
+<b class="nc"><i>389</i>&nbsp;        return getThreadContext().preserveContext(command);</b>
+<i>390</i>&nbsp;    }
+<i>391</i>&nbsp;
+<i>392</i>&nbsp;    protected final void stopCachedTimeThread() {
+<b class="fc"><i>393</i>&nbsp;        cachedTimeThread.running = false;</b>
+<b class="fc"><i>394</i>&nbsp;        cachedTimeThread.interrupt();</b>
+<b class="fc"><i>395</i>&nbsp;    }</b>
+<i>396</i>&nbsp;
+<i>397</i>&nbsp;    public void shutdown() {
+<b class="fc"><i>398</i>&nbsp;        stopCachedTimeThread();</b>
+<b class="fc"><i>399</i>&nbsp;        scheduler.shutdown();</b>
+<b class="fc"><i>400</i>&nbsp;        for (ExecutorHolder executor : executors.values()) {</b>
+<b class="fc"><i>401</i>&nbsp;            if (executor.executor() instanceof ThreadPoolExecutor) {</b>
+<b class="fc"><i>402</i>&nbsp;                executor.executor().shutdown();</b>
+<i>403</i>&nbsp;            }
+<b class="fc"><i>404</i>&nbsp;        }</b>
+<b class="fc"><i>405</i>&nbsp;    }</b>
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;    public void shutdownNow() {
+<b class="nc"><i>408</i>&nbsp;        stopCachedTimeThread();</b>
+<b class="nc"><i>409</i>&nbsp;        scheduler.shutdownNow();</b>
+<b class="nc"><i>410</i>&nbsp;        for (ExecutorHolder executor : executors.values()) {</b>
+<b class="nc"><i>411</i>&nbsp;            if (executor.executor() instanceof ThreadPoolExecutor) {</b>
+<b class="nc"><i>412</i>&nbsp;                executor.executor().shutdownNow();</b>
+<i>413</i>&nbsp;            }
+<b class="nc"><i>414</i>&nbsp;        }</b>
+<b class="nc"><i>415</i>&nbsp;    }</b>
+<i>416</i>&nbsp;
+<i>417</i>&nbsp;    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+<b class="fc"><i>418</i>&nbsp;        boolean result = scheduler.awaitTermination(timeout, unit);</b>
+<b class="fc"><i>419</i>&nbsp;        for (ExecutorHolder executor : executors.values()) {</b>
+<b class="fc"><i>420</i>&nbsp;            if (executor.executor() instanceof ThreadPoolExecutor) {</b>
+<b class="fc"><i>421</i>&nbsp;                result &amp;= executor.executor().awaitTermination(timeout, unit);</b>
+<i>422</i>&nbsp;            }
+<b class="fc"><i>423</i>&nbsp;        }</b>
+<b class="fc"><i>424</i>&nbsp;        cachedTimeThread.join(unit.toMillis(timeout));</b>
+<b class="fc"><i>425</i>&nbsp;        return result;</b>
+<i>426</i>&nbsp;    }
+<i>427</i>&nbsp;
+<i>428</i>&nbsp;    public ScheduledExecutorService scheduler() {
+<b class="fc"><i>429</i>&nbsp;        return this.scheduler;</b>
+<i>430</i>&nbsp;    }
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;    /**
+<i>433</i>&nbsp;     * Constrains a value between minimum and maximum values
+<i>434</i>&nbsp;     * (inclusive).
+<i>435</i>&nbsp;     *
+<i>436</i>&nbsp;     * @param value the value to constrain
+<i>437</i>&nbsp;     * @param min   the minimum acceptable value
+<i>438</i>&nbsp;     * @param max   the maximum acceptable value
+<i>439</i>&nbsp;     * @return min if value is less than min, max if value is greater
+<i>440</i>&nbsp;     * than value, otherwise value
+<i>441</i>&nbsp;     */
+<i>442</i>&nbsp;    static int boundedBy(int value, int min, int max) {
+<b class="fc"><i>443</i>&nbsp;        return Math.min(max, Math.max(min, value));</b>
+<i>444</i>&nbsp;    }
+<i>445</i>&nbsp;
+<i>446</i>&nbsp;    static int halfNumberOfProcessorsMaxFive(int numberOfProcessors) {
+<b class="fc"><i>447</i>&nbsp;        return boundedBy((numberOfProcessors + 1) / 2, 1, 5);</b>
+<i>448</i>&nbsp;    }
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;    static int halfNumberOfProcessorsMaxTen(int numberOfProcessors) {
+<b class="fc"><i>451</i>&nbsp;        return boundedBy((numberOfProcessors + 1) / 2, 1, 10);</b>
+<i>452</i>&nbsp;    }
+<i>453</i>&nbsp;
+<i>454</i>&nbsp;    static int twiceNumberOfProcessors(int numberOfProcessors) {
+<b class="nc"><i>455</i>&nbsp;        return boundedBy(2 * numberOfProcessors, 2, Integer.MAX_VALUE);</b>
+<i>456</i>&nbsp;    }
+<i>457</i>&nbsp;
+<i>458</i>&nbsp;    public static int searchThreadPoolSize(int availableProcessors) {
+<b class="fc"><i>459</i>&nbsp;        return ((availableProcessors * 3) / 2) + 1;</b>
+<i>460</i>&nbsp;    }
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;    class LoggingRunnable implements Runnable {
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;        private final Runnable runnable;
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;        LoggingRunnable(Runnable runnable) {
+<i>467</i>&nbsp;            this.runnable = runnable;
+<i>468</i>&nbsp;        }
+<i>469</i>&nbsp;
+<i>470</i>&nbsp;        @Override
+<i>471</i>&nbsp;        public void run() {
+<i>472</i>&nbsp;            try {
+<i>473</i>&nbsp;                runnable.run();
+<i>474</i>&nbsp;            } catch (Exception e) {
+<i>475</i>&nbsp;                logger.warn(() -&gt; new ParameterizedMessage(&quot;failed to run {}&quot;, runnable.toString()), e);
+<i>476</i>&nbsp;                throw e;
+<i>477</i>&nbsp;            }
+<i>478</i>&nbsp;        }
+<i>479</i>&nbsp;
+<i>480</i>&nbsp;        @Override
+<i>481</i>&nbsp;        public int hashCode() {
+<i>482</i>&nbsp;            return runnable.hashCode();
+<i>483</i>&nbsp;        }
+<i>484</i>&nbsp;
+<i>485</i>&nbsp;        @Override
+<i>486</i>&nbsp;        public boolean equals(Object obj) {
+<i>487</i>&nbsp;            return runnable.equals(obj);
+<i>488</i>&nbsp;        }
+<i>489</i>&nbsp;
+<i>490</i>&nbsp;        @Override
+<i>491</i>&nbsp;        public String toString() {
+<i>492</i>&nbsp;            return &quot;[threaded] &quot; + runnable.toString();
+<i>493</i>&nbsp;        }
+<i>494</i>&nbsp;    }
+<i>495</i>&nbsp;
+<i>496</i>&nbsp;    class ThreadedRunnable implements Runnable {
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;        private final Runnable runnable;
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;        private final Executor executor;
+<i>501</i>&nbsp;
+<b class="fc"><i>502</i>&nbsp;        ThreadedRunnable(Runnable runnable, Executor executor) {</b>
+<b class="fc"><i>503</i>&nbsp;            this.runnable = runnable;</b>
+<b class="fc"><i>504</i>&nbsp;            this.executor = executor;</b>
+<b class="fc"><i>505</i>&nbsp;        }</b>
+<i>506</i>&nbsp;
+<i>507</i>&nbsp;        @Override
+<i>508</i>&nbsp;        public void run() {
+<i>509</i>&nbsp;            try {
+<b class="fc"><i>510</i>&nbsp;                executor.execute(runnable);</b>
+<b class="nc"><i>511</i>&nbsp;            } catch (EsRejectedExecutionException e) {</b>
+<b class="nc"><i>512</i>&nbsp;                if (e.isExecutorShutdown()) {</b>
+<b class="nc"><i>513</i>&nbsp;                    logger.debug(new ParameterizedMessage(&quot;could not schedule execution of [{}] on [{}] as executor is shut down&quot;,</b>
+<i>514</i>&nbsp;                        runnable, executor), e);
+<i>515</i>&nbsp;                } else {
+<b class="nc"><i>516</i>&nbsp;                    throw e;</b>
+<i>517</i>&nbsp;                }
+<b class="fc"><i>518</i>&nbsp;            }</b>
+<b class="fc"><i>519</i>&nbsp;        }</b>
+<i>520</i>&nbsp;
+<i>521</i>&nbsp;        @Override
+<i>522</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>523</i>&nbsp;            return runnable.hashCode();</b>
+<i>524</i>&nbsp;        }
+<i>525</i>&nbsp;
+<i>526</i>&nbsp;        @Override
+<i>527</i>&nbsp;        public boolean equals(Object obj) {
+<b class="nc"><i>528</i>&nbsp;            return runnable.equals(obj);</b>
+<i>529</i>&nbsp;        }
+<i>530</i>&nbsp;
+<i>531</i>&nbsp;        @Override
+<i>532</i>&nbsp;        public String toString() {
+<b class="nc"><i>533</i>&nbsp;            return &quot;[threaded] &quot; + runnable.toString();</b>
+<i>534</i>&nbsp;        }
+<i>535</i>&nbsp;    }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    /**
+<i>538</i>&nbsp;     * A thread to cache millisecond time values from
+<i>539</i>&nbsp;     * {@link System#nanoTime()} and {@link System#currentTimeMillis()}.
+<i>540</i>&nbsp;     *
+<i>541</i>&nbsp;     * The values are updated at a specified interval.
+<i>542</i>&nbsp;     */
+<i>543</i>&nbsp;    static class CachedTimeThread extends Thread {
+<i>544</i>&nbsp;
+<i>545</i>&nbsp;        final long interval;
+<b class="fc"><i>546</i>&nbsp;        volatile boolean running = true;</b>
+<i>547</i>&nbsp;        volatile long relativeNanos;
+<i>548</i>&nbsp;        volatile long absoluteMillis;
+<i>549</i>&nbsp;
+<i>550</i>&nbsp;        CachedTimeThread(String name, long interval) {
+<b class="fc"><i>551</i>&nbsp;            super(name);</b>
+<b class="fc"><i>552</i>&nbsp;            this.interval = interval;</b>
+<b class="fc"><i>553</i>&nbsp;            this.relativeNanos = System.nanoTime();</b>
+<b class="fc"><i>554</i>&nbsp;            this.absoluteMillis = System.currentTimeMillis();</b>
+<b class="fc"><i>555</i>&nbsp;            setDaemon(true);</b>
+<b class="fc"><i>556</i>&nbsp;        }</b>
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;        /**
+<i>559</i>&nbsp;         * Return the current time used for relative calculations. This is {@link System#nanoTime()}.
+<i>560</i>&nbsp;         * &lt;p&gt;
+<i>561</i>&nbsp;         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+<i>562</i>&nbsp;         * then the cache is disabled and the method calls {@link System#nanoTime()}
+<i>563</i>&nbsp;         * whenever called. Typically used for testing.
+<i>564</i>&nbsp;         */
+<i>565</i>&nbsp;        long relativeTimeInNanos() {
+<b class="fc"><i>566</i>&nbsp;            if (0 &lt; interval) {</b>
+<b class="fc"><i>567</i>&nbsp;                return relativeNanos;</b>
+<i>568</i>&nbsp;            }
+<b class="nc"><i>569</i>&nbsp;            return System.nanoTime();</b>
+<i>570</i>&nbsp;        }
+<i>571</i>&nbsp;
+<i>572</i>&nbsp;        /**
+<i>573</i>&nbsp;         * Return the current epoch time, used to find absolute time. This is
+<i>574</i>&nbsp;         * a cached version of {@link System#currentTimeMillis()}.
+<i>575</i>&nbsp;         * &lt;p&gt;
+<i>576</i>&nbsp;         * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
+<i>577</i>&nbsp;         * then the cache is disabled and the method calls {@link System#currentTimeMillis()}
+<i>578</i>&nbsp;         * whenever called. Typically used for testing.
+<i>579</i>&nbsp;         */
+<i>580</i>&nbsp;        long absoluteTimeInMillis() {
+<b class="nc"><i>581</i>&nbsp;            if (0 &lt; interval) {</b>
+<b class="nc"><i>582</i>&nbsp;                return absoluteMillis;</b>
+<i>583</i>&nbsp;            }
+<b class="nc"><i>584</i>&nbsp;            return System.currentTimeMillis();</b>
+<i>585</i>&nbsp;        }
+<i>586</i>&nbsp;
+<i>587</i>&nbsp;        @Override
+<i>588</i>&nbsp;        public void run() {
+<b class="fc"><i>589</i>&nbsp;            while (running &amp;&amp; 0 &lt; interval) {</b>
+<b class="fc"><i>590</i>&nbsp;                relativeNanos = System.nanoTime();</b>
+<b class="fc"><i>591</i>&nbsp;                absoluteMillis = System.currentTimeMillis();</b>
+<i>592</i>&nbsp;                try {
+<b class="fc"><i>593</i>&nbsp;                    Thread.sleep(interval);</b>
+<b class="fc"><i>594</i>&nbsp;                } catch (InterruptedException e) {</b>
+<b class="fc"><i>595</i>&nbsp;                    running = false;</b>
+<b class="fc"><i>596</i>&nbsp;                    return;</b>
+<b class="fc"><i>597</i>&nbsp;                }</b>
+<i>598</i>&nbsp;            }
+<b class="nc"><i>599</i>&nbsp;        }</b>
+<i>600</i>&nbsp;    }
+<i>601</i>&nbsp;
+<b class="fc"><i>602</i>&nbsp;    static class ExecutorHolder {</b>
+<i>603</i>&nbsp;        private final ExecutorService executor;
+<i>604</i>&nbsp;        public final Info info;
+<i>605</i>&nbsp;
+<b class="fc"><i>606</i>&nbsp;        ExecutorHolder(ExecutorService executor, Info info) {</b>
+<b class="fc"><i>607</i>&nbsp;            assert executor instanceof EsThreadPoolExecutor || executor == DIRECT_EXECUTOR;</b>
+<b class="fc"><i>608</i>&nbsp;            this.executor = executor;</b>
+<b class="fc"><i>609</i>&nbsp;            this.info = info;</b>
+<b class="fc"><i>610</i>&nbsp;        }</b>
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;        ExecutorService executor() {
+<b class="fc"><i>613</i>&nbsp;            return executor;</b>
+<i>614</i>&nbsp;        }
+<i>615</i>&nbsp;    }
+<i>616</i>&nbsp;
+<b class="fc"><i>617</i>&nbsp;    public static class Info implements Writeable, ToXContentFragment {</b>
+<i>618</i>&nbsp;
+<i>619</i>&nbsp;        private final String name;
+<i>620</i>&nbsp;        private final ThreadPoolType type;
+<i>621</i>&nbsp;        private final int min;
+<i>622</i>&nbsp;        private final int max;
+<i>623</i>&nbsp;        private final TimeValue keepAlive;
+<i>624</i>&nbsp;        private final SizeValue queueSize;
+<i>625</i>&nbsp;
+<i>626</i>&nbsp;        public Info(String name, ThreadPoolType type) {
+<b class="fc"><i>627</i>&nbsp;            this(name, type, -1);</b>
+<b class="fc"><i>628</i>&nbsp;        }</b>
+<i>629</i>&nbsp;
+<i>630</i>&nbsp;        public Info(String name, ThreadPoolType type, int size) {
+<b class="fc"><i>631</i>&nbsp;            this(name, type, size, size, null, null);</b>
+<b class="fc"><i>632</i>&nbsp;        }</b>
+<i>633</i>&nbsp;
+<b class="fc"><i>634</i>&nbsp;        public Info(String name, ThreadPoolType type, int min, int max, @Nullable TimeValue keepAlive, @Nullable SizeValue queueSize) {</b>
+<b class="fc"><i>635</i>&nbsp;            this.name = name;</b>
+<b class="fc"><i>636</i>&nbsp;            this.type = type;</b>
+<b class="fc"><i>637</i>&nbsp;            this.min = min;</b>
+<b class="fc"><i>638</i>&nbsp;            this.max = max;</b>
+<b class="fc"><i>639</i>&nbsp;            this.keepAlive = keepAlive;</b>
+<b class="fc"><i>640</i>&nbsp;            this.queueSize = queueSize;</b>
+<b class="fc"><i>641</i>&nbsp;        }</b>
+<i>642</i>&nbsp;
+<b class="nc"><i>643</i>&nbsp;        public Info(StreamInput in) throws IOException {</b>
+<b class="nc"><i>644</i>&nbsp;            name = in.readString();</b>
+<b class="nc"><i>645</i>&nbsp;            type = ThreadPoolType.fromType(in.readString());</b>
+<b class="nc"><i>646</i>&nbsp;            min = in.readInt();</b>
+<b class="nc"><i>647</i>&nbsp;            max = in.readInt();</b>
+<b class="nc"><i>648</i>&nbsp;            keepAlive = in.readOptionalTimeValue();</b>
+<b class="nc"><i>649</i>&nbsp;            queueSize = in.readOptionalWriteable(SizeValue::new);</b>
+<b class="nc"><i>650</i>&nbsp;        }</b>
+<i>651</i>&nbsp;
+<i>652</i>&nbsp;        @Override
+<i>653</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>654</i>&nbsp;            out.writeString(name);</b>
+<b class="nc"><i>655</i>&nbsp;            if (type == ThreadPoolType.FIXED_AUTO_QUEUE_SIZE &amp;&amp;</b>
+<b class="nc"><i>656</i>&nbsp;                    out.getVersion().before(Version.V_6_0_0_alpha1)) {</b>
+<i>657</i>&nbsp;                // 5.x doesn&#39;t know about the &quot;fixed_auto_queue_size&quot; thread pool type, just write fixed.
+<b class="nc"><i>658</i>&nbsp;                out.writeString(ThreadPoolType.FIXED.getType());</b>
+<i>659</i>&nbsp;            } else {
+<b class="nc"><i>660</i>&nbsp;                out.writeString(type.getType());</b>
+<i>661</i>&nbsp;            }
+<b class="nc"><i>662</i>&nbsp;            out.writeInt(min);</b>
+<b class="nc"><i>663</i>&nbsp;            out.writeInt(max);</b>
+<b class="nc"><i>664</i>&nbsp;            out.writeOptionalTimeValue(keepAlive);</b>
+<b class="nc"><i>665</i>&nbsp;            out.writeOptionalWriteable(queueSize);</b>
+<b class="nc"><i>666</i>&nbsp;        }</b>
+<i>667</i>&nbsp;
+<i>668</i>&nbsp;        public String getName() {
+<b class="fc"><i>669</i>&nbsp;            return this.name;</b>
+<i>670</i>&nbsp;        }
+<i>671</i>&nbsp;
+<i>672</i>&nbsp;        public ThreadPoolType getThreadPoolType() {
+<b class="nc"><i>673</i>&nbsp;            return this.type;</b>
+<i>674</i>&nbsp;        }
+<i>675</i>&nbsp;
+<i>676</i>&nbsp;        public int getMin() {
+<b class="fc"><i>677</i>&nbsp;            return this.min;</b>
+<i>678</i>&nbsp;        }
+<i>679</i>&nbsp;
+<i>680</i>&nbsp;        public int getMax() {
+<b class="fc"><i>681</i>&nbsp;            return this.max;</b>
+<i>682</i>&nbsp;        }
+<i>683</i>&nbsp;
+<i>684</i>&nbsp;        @Nullable
+<i>685</i>&nbsp;        public TimeValue getKeepAlive() {
+<b class="fc"><i>686</i>&nbsp;            return this.keepAlive;</b>
+<i>687</i>&nbsp;        }
+<i>688</i>&nbsp;
+<i>689</i>&nbsp;        @Nullable
+<i>690</i>&nbsp;        public SizeValue getQueueSize() {
+<b class="fc"><i>691</i>&nbsp;            return this.queueSize;</b>
+<i>692</i>&nbsp;        }
+<i>693</i>&nbsp;
+<i>694</i>&nbsp;        @Override
+<i>695</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>696</i>&nbsp;            builder.startObject(name);</b>
+<b class="nc"><i>697</i>&nbsp;            builder.field(&quot;type&quot;, type.getType());</b>
+<i>698</i>&nbsp;
+<b class="nc"><i>699</i>&nbsp;            if (type == ThreadPoolType.SCALING) {</b>
+<b class="nc"><i>700</i>&nbsp;                assert min != -1;</b>
+<b class="nc"><i>701</i>&nbsp;                builder.field(&quot;core&quot;, min);</b>
+<b class="nc"><i>702</i>&nbsp;                assert max != -1;</b>
+<b class="nc"><i>703</i>&nbsp;                builder.field(&quot;max&quot;, max);</b>
+<i>704</i>&nbsp;            } else {
+<b class="nc"><i>705</i>&nbsp;                assert max != -1;</b>
+<b class="nc"><i>706</i>&nbsp;                builder.field(&quot;size&quot;, max);</b>
+<i>707</i>&nbsp;            }
+<b class="nc"><i>708</i>&nbsp;            if (keepAlive != null) {</b>
+<b class="nc"><i>709</i>&nbsp;                builder.field(&quot;keep_alive&quot;, keepAlive.toString());</b>
+<i>710</i>&nbsp;            }
+<b class="nc"><i>711</i>&nbsp;            if (queueSize == null) {</b>
+<b class="nc"><i>712</i>&nbsp;                builder.field(&quot;queue_size&quot;, -1);</b>
+<i>713</i>&nbsp;            } else {
+<b class="nc"><i>714</i>&nbsp;                builder.field(&quot;queue_size&quot;, queueSize.singles());</b>
+<i>715</i>&nbsp;            }
+<b class="nc"><i>716</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>717</i>&nbsp;            return builder;</b>
+<i>718</i>&nbsp;        }
+<i>719</i>&nbsp;
+<i>720</i>&nbsp;    }
+<i>721</i>&nbsp;
+<i>722</i>&nbsp;    /**
+<i>723</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if the given service was terminated successfully. If the termination timed out,
+<i>724</i>&nbsp;     * the service is &lt;code&gt;null&lt;/code&gt; this method will return &lt;code&gt;false&lt;/code&gt;.
+<i>725</i>&nbsp;     */
+<i>726</i>&nbsp;    public static boolean terminate(ExecutorService service, long timeout, TimeUnit timeUnit) {
+<b class="fc"><i>727</i>&nbsp;        if (service != null) {</b>
+<b class="fc"><i>728</i>&nbsp;            service.shutdown();</b>
+<b class="fc"><i>729</i>&nbsp;            if (awaitTermination(service, timeout, timeUnit)) return true;</b>
+<b class="nc"><i>730</i>&nbsp;            service.shutdownNow();</b>
+<b class="nc"><i>731</i>&nbsp;            return awaitTermination(service, timeout, timeUnit);</b>
+<i>732</i>&nbsp;        }
+<b class="nc"><i>733</i>&nbsp;        return false;</b>
+<i>734</i>&nbsp;    }
+<i>735</i>&nbsp;
+<i>736</i>&nbsp;    private static boolean awaitTermination(
+<i>737</i>&nbsp;            final ExecutorService service,
+<i>738</i>&nbsp;            final long timeout,
+<i>739</i>&nbsp;            final TimeUnit timeUnit) {
+<i>740</i>&nbsp;        try {
+<b class="fc"><i>741</i>&nbsp;            if (service.awaitTermination(timeout, timeUnit)) {</b>
+<b class="fc"><i>742</i>&nbsp;                return true;</b>
+<i>743</i>&nbsp;            }
+<b class="nc"><i>744</i>&nbsp;        } catch (final InterruptedException e) {</b>
+<b class="nc"><i>745</i>&nbsp;            Thread.currentThread().interrupt();</b>
+<b class="nc"><i>746</i>&nbsp;        }</b>
+<b class="nc"><i>747</i>&nbsp;        return false;</b>
+<i>748</i>&nbsp;    }
+<i>749</i>&nbsp;
+<i>750</i>&nbsp;    /**
+<i>751</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if the given pool was terminated successfully. If the termination timed out,
+<i>752</i>&nbsp;     * the service is &lt;code&gt;null&lt;/code&gt; this method will return &lt;code&gt;false&lt;/code&gt;.
+<i>753</i>&nbsp;     */
+<i>754</i>&nbsp;    public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
+<b class="fc"><i>755</i>&nbsp;        if (pool != null) {</b>
+<i>756</i>&nbsp;            // Leverage try-with-resources to close the threadpool
+<b class="fc"><i>757</i>&nbsp;            try (ThreadPool c = pool) {</b>
+<b class="fc"><i>758</i>&nbsp;                pool.shutdown();</b>
+<b class="fc"><i>759</i>&nbsp;                if (awaitTermination(pool, timeout, timeUnit)) {</b>
+<b class="fc"><i>760</i>&nbsp;                    return true;</b>
+<i>761</i>&nbsp;                }
+<i>762</i>&nbsp;                // last resort
+<b class="nc"><i>763</i>&nbsp;                pool.shutdownNow();</b>
+<b class="nc"><i>764</i>&nbsp;                return awaitTermination(pool, timeout, timeUnit);</b>
+<b class="fc"><i>765</i>&nbsp;            }</b>
+<i>766</i>&nbsp;        }
+<b class="nc"><i>767</i>&nbsp;        return false;</b>
+<i>768</i>&nbsp;    }
+<i>769</i>&nbsp;
+<i>770</i>&nbsp;    private static boolean awaitTermination(
+<i>771</i>&nbsp;            final ThreadPool threadPool,
+<i>772</i>&nbsp;            final long timeout,
+<i>773</i>&nbsp;            final TimeUnit timeUnit) {
+<i>774</i>&nbsp;        try {
+<b class="fc"><i>775</i>&nbsp;            if (threadPool.awaitTermination(timeout, timeUnit)) {</b>
+<b class="fc"><i>776</i>&nbsp;                return true;</b>
+<i>777</i>&nbsp;            }
+<b class="nc"><i>778</i>&nbsp;        } catch (InterruptedException e) {</b>
+<b class="nc"><i>779</i>&nbsp;            Thread.currentThread().interrupt();</b>
+<b class="nc"><i>780</i>&nbsp;        }</b>
+<b class="nc"><i>781</i>&nbsp;        return false;</b>
+<i>782</i>&nbsp;    }
+<i>783</i>&nbsp;
+<i>784</i>&nbsp;    @Override
+<i>785</i>&nbsp;    public void close() {
+<b class="fc"><i>786</i>&nbsp;        threadContext.close();</b>
+<b class="fc"><i>787</i>&nbsp;    }</b>
+<i>788</i>&nbsp;
+<i>789</i>&nbsp;    public ThreadContext getThreadContext() {
+<b class="fc"><i>790</i>&nbsp;        return threadContext;</b>
+<i>791</i>&nbsp;    }
+<i>792</i>&nbsp;
+<i>793</i>&nbsp;    public static boolean assertNotScheduleThread(String reason) {
+<b class="fc"><i>794</i>&nbsp;        assert Thread.currentThread().getName().contains(&quot;scheduler&quot;) == false :</b>
+<b class="nc"><i>795</i>&nbsp;            &quot;Expected current thread [&quot; + Thread.currentThread() + &quot;] to not be the scheduler thread. Reason: [&quot; + reason + &quot;]&quot;;</b>
+<b class="fc"><i>796</i>&nbsp;        return true;</b>
+<i>797</i>&nbsp;    }
+<i>798</i>&nbsp;
+<i>799</i>&nbsp;    public static boolean assertCurrentMethodIsNotCalledRecursively() {
+<b class="nc"><i>800</i>&nbsp;        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();</b>
+<b class="nc"><i>801</i>&nbsp;        assert stackTraceElements.length &gt;= 3 : stackTraceElements.length;</b>
+<b class="nc"><i>802</i>&nbsp;        assert stackTraceElements[0].getMethodName().equals(&quot;getStackTrace&quot;) : stackTraceElements[0];</b>
+<b class="nc"><i>803</i>&nbsp;        assert stackTraceElements[1].getMethodName().equals(&quot;assertCurrentMethodIsNotCalledRecursively&quot;) : stackTraceElements[1];</b>
+<b class="nc"><i>804</i>&nbsp;        final StackTraceElement testingMethod = stackTraceElements[2];</b>
+<b class="nc"><i>805</i>&nbsp;        for (int i = 3; i &lt; stackTraceElements.length; i++) {</b>
+<b class="nc"><i>806</i>&nbsp;            assert stackTraceElements[i].getClassName().equals(testingMethod.getClassName()) == false</b>
+<b class="nc"><i>807</i>&nbsp;                || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false :</b>
+<b class="nc"><i>808</i>&nbsp;                testingMethod.getClassName() + &quot;#&quot; + testingMethod.getMethodName() + &quot; is called recursively&quot;;</b>
+<i>809</i>&nbsp;        }
+<b class="nc"><i>810</i>&nbsp;        return true;</b>
+<i>811</i>&nbsp;    }
+<i>812</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

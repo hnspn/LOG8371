@@ -1,0 +1,657 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: UnassignedInfo</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing</a> ]
+</div>
+
+<h1>Coverage Summary for Class: UnassignedInfo (org.elasticsearch.cluster.routing)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">UnassignedInfo</td>
+<td class="coverageStat">
+  <span class="percent">
+    47.8%
+  </span>
+  <span class="absValue">
+    (11/ 23)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    47.1%
+  </span>
+  <span class="absValue">
+    (65/ 138)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">UnassignedInfo$AllocationStatus</td>
+<td class="coverageStat">
+  <span class="percent">
+    71.4%
+  </span>
+  <span class="absValue">
+    (5/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    55.6%
+  </span>
+  <span class="absValue">
+    (15/ 27)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">UnassignedInfo$Reason</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (17/ 17)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    56.2%
+  </span>
+  <span class="absValue">
+    (18/ 32)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.3%
+  </span>
+  <span class="absValue">
+    (97/ 182)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>23</i>&nbsp;import org.elasticsearch.Version;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+<i>28</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>33</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>34</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>35</i>&nbsp;import org.elasticsearch.common.time.DateFormatter;
+<i>36</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>38</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import java.io.IOException;
+<i>41</i>&nbsp;import java.time.Instant;
+<i>42</i>&nbsp;import java.time.ZoneOffset;
+<i>43</i>&nbsp;import java.util.Collections;
+<i>44</i>&nbsp;import java.util.List;
+<i>45</i>&nbsp;import java.util.Locale;
+<i>46</i>&nbsp;import java.util.Objects;
+<i>47</i>&nbsp;import java.util.Set;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * Holds additional information as to why the shard is in unassigned state.
+<i>51</i>&nbsp; */
+<b class="fc"><i>52</i>&nbsp;public final class UnassignedInfo implements ToXContentFragment, Writeable {</b>
+<i>53</i>&nbsp;
+<b class="fc"><i>54</i>&nbsp;    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern(&quot;dateOptionalTime&quot;).withZone(ZoneOffset.UTC);</b>
+<i>55</i>&nbsp;
+<b class="fc"><i>56</i>&nbsp;    public static final Setting&lt;TimeValue&gt; INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =</b>
+<b class="fc"><i>57</i>&nbsp;        Setting.positiveTimeSetting(&quot;index.unassigned.node_left.delayed_timeout&quot;, TimeValue.timeValueMinutes(1), Property.Dynamic,</b>
+<i>58</i>&nbsp;            Property.IndexScope);
+<i>59</i>&nbsp;    /**
+<i>60</i>&nbsp;     * Reason why the shard is in unassigned state.
+<i>61</i>&nbsp;     * &lt;p&gt;
+<i>62</i>&nbsp;     * Note, ordering of the enum is important, make sure to add new values
+<i>63</i>&nbsp;     * at the end and handle version serialization properly.
+<i>64</i>&nbsp;     */
+<b class="fc"><i>65</i>&nbsp;    public enum Reason {</b>
+<i>66</i>&nbsp;        /**
+<i>67</i>&nbsp;         * Unassigned as a result of an API creation of an index.
+<i>68</i>&nbsp;         */
+<b class="fc"><i>69</i>&nbsp;        INDEX_CREATED,</b>
+<i>70</i>&nbsp;        /**
+<i>71</i>&nbsp;         * Unassigned as a result of a full cluster recovery.
+<i>72</i>&nbsp;         */
+<b class="fc"><i>73</i>&nbsp;        CLUSTER_RECOVERED,</b>
+<i>74</i>&nbsp;        /**
+<i>75</i>&nbsp;         * Unassigned as a result of opening a closed index.
+<i>76</i>&nbsp;         */
+<b class="fc"><i>77</i>&nbsp;        INDEX_REOPENED,</b>
+<i>78</i>&nbsp;        /**
+<i>79</i>&nbsp;         * Unassigned as a result of importing a dangling index.
+<i>80</i>&nbsp;         */
+<b class="fc"><i>81</i>&nbsp;        DANGLING_INDEX_IMPORTED,</b>
+<i>82</i>&nbsp;        /**
+<i>83</i>&nbsp;         * Unassigned as a result of restoring into a new index.
+<i>84</i>&nbsp;         */
+<b class="fc"><i>85</i>&nbsp;        NEW_INDEX_RESTORED,</b>
+<i>86</i>&nbsp;        /**
+<i>87</i>&nbsp;         * Unassigned as a result of restoring into a closed index.
+<i>88</i>&nbsp;         */
+<b class="fc"><i>89</i>&nbsp;        EXISTING_INDEX_RESTORED,</b>
+<i>90</i>&nbsp;        /**
+<i>91</i>&nbsp;         * Unassigned as a result of explicit addition of a replica.
+<i>92</i>&nbsp;         */
+<b class="fc"><i>93</i>&nbsp;        REPLICA_ADDED,</b>
+<i>94</i>&nbsp;        /**
+<i>95</i>&nbsp;         * Unassigned as a result of a failed allocation of the shard.
+<i>96</i>&nbsp;         */
+<b class="fc"><i>97</i>&nbsp;        ALLOCATION_FAILED,</b>
+<i>98</i>&nbsp;        /**
+<i>99</i>&nbsp;         * Unassigned as a result of the node hosting it leaving the cluster.
+<i>100</i>&nbsp;         */
+<b class="fc"><i>101</i>&nbsp;        NODE_LEFT,</b>
+<i>102</i>&nbsp;        /**
+<i>103</i>&nbsp;         * Unassigned as a result of explicit cancel reroute command.
+<i>104</i>&nbsp;         */
+<b class="fc"><i>105</i>&nbsp;        REROUTE_CANCELLED,</b>
+<i>106</i>&nbsp;        /**
+<i>107</i>&nbsp;         * When a shard moves from started back to initializing.
+<i>108</i>&nbsp;         */
+<b class="fc"><i>109</i>&nbsp;        REINITIALIZED,</b>
+<i>110</i>&nbsp;        /**
+<i>111</i>&nbsp;         * A better replica location is identified and causes the existing replica allocation to be cancelled.
+<i>112</i>&nbsp;         */
+<b class="fc"><i>113</i>&nbsp;        REALLOCATED_REPLICA,</b>
+<i>114</i>&nbsp;        /**
+<i>115</i>&nbsp;         * Unassigned as a result of a failed primary while the replica was initializing.
+<i>116</i>&nbsp;         */
+<b class="fc"><i>117</i>&nbsp;        PRIMARY_FAILED,</b>
+<i>118</i>&nbsp;        /**
+<i>119</i>&nbsp;         * Unassigned after forcing an empty primary
+<i>120</i>&nbsp;         */
+<b class="fc"><i>121</i>&nbsp;        FORCED_EMPTY_PRIMARY,</b>
+<i>122</i>&nbsp;        /**
+<i>123</i>&nbsp;         * Forced manually to allocate
+<i>124</i>&nbsp;         */
+<b class="fc"><i>125</i>&nbsp;        MANUAL_ALLOCATION,</b>
+<i>126</i>&nbsp;        /**
+<i>127</i>&nbsp;         * Unassigned as a result of closing an index.
+<i>128</i>&nbsp;         */
+<b class="fc"><i>129</i>&nbsp;        INDEX_CLOSED</b>
+<i>130</i>&nbsp;    }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    /**
+<i>133</i>&nbsp;     * Captures the status of an unsuccessful allocation attempt for the shard,
+<i>134</i>&nbsp;     * causing it to remain in the unassigned state.
+<i>135</i>&nbsp;     *
+<i>136</i>&nbsp;     * Note, ordering of the enum is important, make sure to add new values
+<i>137</i>&nbsp;     * at the end and handle version serialization properly.
+<i>138</i>&nbsp;     */
+<b class="fc"><i>139</i>&nbsp;    public enum AllocationStatus implements Writeable {</b>
+<i>140</i>&nbsp;        /**
+<i>141</i>&nbsp;         * The shard was denied allocation to a node because the allocation deciders all returned a NO decision
+<i>142</i>&nbsp;         */
+<b class="fc"><i>143</i>&nbsp;        DECIDERS_NO((byte) 0),</b>
+<i>144</i>&nbsp;        /**
+<i>145</i>&nbsp;         * The shard was denied allocation to a node because there were no valid shard copies found for it;
+<i>146</i>&nbsp;         * this can happen on node restart with gateway allocation
+<i>147</i>&nbsp;         */
+<b class="fc"><i>148</i>&nbsp;        NO_VALID_SHARD_COPY((byte) 1),</b>
+<i>149</i>&nbsp;        /**
+<i>150</i>&nbsp;         * The allocation attempt was throttled on the shard by the allocation deciders
+<i>151</i>&nbsp;         */
+<b class="fc"><i>152</i>&nbsp;        DECIDERS_THROTTLED((byte) 2),</b>
+<i>153</i>&nbsp;        /**
+<i>154</i>&nbsp;         * Waiting on getting shard data from all nodes before making a decision about where to allocate the shard
+<i>155</i>&nbsp;         */
+<b class="fc"><i>156</i>&nbsp;        FETCHING_SHARD_DATA((byte) 3),</b>
+<i>157</i>&nbsp;        /**
+<i>158</i>&nbsp;         * Allocation decision has been delayed
+<i>159</i>&nbsp;         */
+<b class="fc"><i>160</i>&nbsp;        DELAYED_ALLOCATION((byte) 4),</b>
+<i>161</i>&nbsp;        /**
+<i>162</i>&nbsp;         * No allocation attempt has been made yet
+<i>163</i>&nbsp;         */
+<b class="fc"><i>164</i>&nbsp;        NO_ATTEMPT((byte) 5);</b>
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;        private final byte id;
+<i>167</i>&nbsp;
+<b class="fc"><i>168</i>&nbsp;        AllocationStatus(byte id) {</b>
+<b class="fc"><i>169</i>&nbsp;            this.id = id;</b>
+<b class="fc"><i>170</i>&nbsp;        }</b>
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;        @Override
+<i>173</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>174</i>&nbsp;            out.writeByte(id);</b>
+<b class="fc"><i>175</i>&nbsp;        }</b>
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;        public static AllocationStatus readFrom(StreamInput in) throws IOException {
+<b class="fc"><i>178</i>&nbsp;            byte id = in.readByte();</b>
+<b class="fc"><i>179</i>&nbsp;            switch (id) {</b>
+<i>180</i>&nbsp;                case 0:
+<b class="nc"><i>181</i>&nbsp;                    return DECIDERS_NO;</b>
+<i>182</i>&nbsp;                case 1:
+<b class="nc"><i>183</i>&nbsp;                    return NO_VALID_SHARD_COPY;</b>
+<i>184</i>&nbsp;                case 2:
+<b class="nc"><i>185</i>&nbsp;                    return DECIDERS_THROTTLED;</b>
+<i>186</i>&nbsp;                case 3:
+<b class="nc"><i>187</i>&nbsp;                    return FETCHING_SHARD_DATA;</b>
+<i>188</i>&nbsp;                case 4:
+<b class="nc"><i>189</i>&nbsp;                    return DELAYED_ALLOCATION;</b>
+<i>190</i>&nbsp;                case 5:
+<b class="fc"><i>191</i>&nbsp;                    return NO_ATTEMPT;</b>
+<i>192</i>&nbsp;                default:
+<b class="nc"><i>193</i>&nbsp;                    throw new IllegalArgumentException(&quot;Unknown AllocationStatus value [&quot; + id + &quot;]&quot;);</b>
+<i>194</i>&nbsp;            }
+<i>195</i>&nbsp;        }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;        public static AllocationStatus fromDecision(Decision.Type decision) {
+<b class="nc"><i>198</i>&nbsp;            Objects.requireNonNull(decision);</b>
+<b class="nc"><i>199</i>&nbsp;            switch (decision) {</b>
+<i>200</i>&nbsp;                case NO:
+<b class="nc"><i>201</i>&nbsp;                    return DECIDERS_NO;</b>
+<i>202</i>&nbsp;                case THROTTLE:
+<b class="nc"><i>203</i>&nbsp;                    return DECIDERS_THROTTLED;</b>
+<i>204</i>&nbsp;                default:
+<b class="nc"><i>205</i>&nbsp;                    throw new IllegalArgumentException(&quot;no allocation attempt from decision[&quot; + decision + &quot;]&quot;);</b>
+<i>206</i>&nbsp;            }
+<i>207</i>&nbsp;        }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;        public String value() {
+<b class="nc"><i>210</i>&nbsp;            return toString().toLowerCase(Locale.ROOT);</b>
+<i>211</i>&nbsp;        }
+<i>212</i>&nbsp;    }
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;    private final Reason reason;
+<i>215</i>&nbsp;    private final long unassignedTimeMillis; // used for display and log messages, in milliseconds
+<i>216</i>&nbsp;    private final long unassignedTimeNanos; // in nanoseconds, used to calculate delay for delayed shard allocation
+<i>217</i>&nbsp;    private final boolean delayed; // if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING
+<i>218</i>&nbsp;    private final String message;
+<i>219</i>&nbsp;    private final Exception failure;
+<i>220</i>&nbsp;    private final int failedAllocations;
+<i>221</i>&nbsp;    private final Set&lt;String&gt; failedNodeIds;
+<i>222</i>&nbsp;    private final AllocationStatus lastAllocationStatus; // result of the last allocation attempt for this shard
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    /**
+<i>225</i>&nbsp;     * creates an UnassignedInfo object based on **current** time
+<i>226</i>&nbsp;     *
+<i>227</i>&nbsp;     * @param reason  the cause for making this shard unassigned. See {@link Reason} for more information.
+<i>228</i>&nbsp;     * @param message more information about cause.
+<i>229</i>&nbsp;     **/
+<i>230</i>&nbsp;    public UnassignedInfo(Reason reason, String message) {
+<b class="fc"><i>231</i>&nbsp;        this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false,</b>
+<b class="fc"><i>232</i>&nbsp;             AllocationStatus.NO_ATTEMPT, Collections.emptySet());</b>
+<b class="fc"><i>233</i>&nbsp;    }</b>
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;    /**
+<i>236</i>&nbsp;     * @param reason               the cause for making this shard unassigned. See {@link Reason} for more information.
+<i>237</i>&nbsp;     * @param message              more information about cause.
+<i>238</i>&nbsp;     * @param failure              the shard level failure that caused this shard to be unassigned, if exists.
+<i>239</i>&nbsp;     * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
+<i>240</i>&nbsp;     * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
+<i>241</i>&nbsp;     * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
+<i>242</i>&nbsp;     * @param lastAllocationStatus the result of the last allocation attempt for this shard
+<i>243</i>&nbsp;     * @param failedNodeIds        a set of nodeIds that failed to complete allocations for this shard
+<i>244</i>&nbsp;     */
+<i>245</i>&nbsp;    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
+<i>246</i>&nbsp;                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus,
+<b class="fc"><i>247</i>&nbsp;                          Set&lt;String&gt; failedNodeIds) {</b>
+<b class="fc"><i>248</i>&nbsp;        this.reason = Objects.requireNonNull(reason);</b>
+<b class="fc"><i>249</i>&nbsp;        this.unassignedTimeMillis = unassignedTimeMillis;</b>
+<b class="fc"><i>250</i>&nbsp;        this.unassignedTimeNanos = unassignedTimeNanos;</b>
+<b class="fc"><i>251</i>&nbsp;        this.delayed = delayed;</b>
+<b class="fc"><i>252</i>&nbsp;        this.message = message;</b>
+<b class="fc"><i>253</i>&nbsp;        this.failure = failure;</b>
+<b class="fc"><i>254</i>&nbsp;        this.failedAllocations = failedAllocations;</b>
+<b class="fc"><i>255</i>&nbsp;        this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);</b>
+<b class="fc"><i>256</i>&nbsp;        this.failedNodeIds = Collections.unmodifiableSet(failedNodeIds);</b>
+<b class="fc"><i>257</i>&nbsp;        assert (failedAllocations &gt; 0) == (reason == Reason.ALLOCATION_FAILED) :</b>
+<i>258</i>&nbsp;            &quot;failedAllocations: &quot; + failedAllocations + &quot; for reason &quot; + reason;
+<b class="fc"><i>259</i>&nbsp;        assert !(message == null &amp;&amp; failure != null) : &quot;provide a message if a failure exception is provided&quot;;</b>
+<b class="fc"><i>260</i>&nbsp;        assert !(delayed &amp;&amp; reason != Reason.NODE_LEFT) : &quot;shard can only be delayed if it is unassigned due to a node leaving&quot;;</b>
+<b class="fc"><i>261</i>&nbsp;    }</b>
+<i>262</i>&nbsp;
+<b class="fc"><i>263</i>&nbsp;    public UnassignedInfo(StreamInput in) throws IOException {</b>
+<b class="fc"><i>264</i>&nbsp;        this.reason = Reason.values()[(int) in.readByte()];</b>
+<b class="fc"><i>265</i>&nbsp;        this.unassignedTimeMillis = in.readLong();</b>
+<i>266</i>&nbsp;        // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
+<i>267</i>&nbsp;        // This means that in master fail-over situations, elapsed delay time is forgotten.
+<b class="fc"><i>268</i>&nbsp;        this.unassignedTimeNanos = System.nanoTime();</b>
+<b class="fc"><i>269</i>&nbsp;        this.delayed = in.readBoolean();</b>
+<b class="fc"><i>270</i>&nbsp;        this.message = in.readOptionalString();</b>
+<b class="fc"><i>271</i>&nbsp;        this.failure = in.readException();</b>
+<b class="fc"><i>272</i>&nbsp;        this.failedAllocations = in.readVInt();</b>
+<b class="fc"><i>273</i>&nbsp;        this.lastAllocationStatus = AllocationStatus.readFrom(in);</b>
+<b class="fc"><i>274</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {</b>
+<b class="fc"><i>275</i>&nbsp;            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));</b>
+<i>276</i>&nbsp;        } else {
+<b class="nc"><i>277</i>&nbsp;            this.failedNodeIds = Collections.emptySet();</b>
+<i>278</i>&nbsp;        }
+<b class="fc"><i>279</i>&nbsp;    }</b>
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>282</i>&nbsp;        if (out.getVersion().before(Version.V_6_0_0_beta2) &amp;&amp; reason == Reason.MANUAL_ALLOCATION) {</b>
+<b class="nc"><i>283</i>&nbsp;            out.writeByte((byte) Reason.ALLOCATION_FAILED.ordinal());</b>
+<b class="fc"><i>284</i>&nbsp;        } else if (out.getVersion().before(Version.V_7_0_0) &amp;&amp; reason == Reason.INDEX_CLOSED) {</b>
+<b class="nc"><i>285</i>&nbsp;            out.writeByte((byte) Reason.REINITIALIZED.ordinal());</b>
+<i>286</i>&nbsp;        } else {
+<b class="fc"><i>287</i>&nbsp;            out.writeByte((byte) reason.ordinal());</b>
+<i>288</i>&nbsp;        }
+<b class="fc"><i>289</i>&nbsp;        out.writeLong(unassignedTimeMillis);</b>
+<i>290</i>&nbsp;        // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
+<b class="fc"><i>291</i>&nbsp;        out.writeBoolean(delayed);</b>
+<b class="fc"><i>292</i>&nbsp;        out.writeOptionalString(message);</b>
+<b class="fc"><i>293</i>&nbsp;        out.writeException(failure);</b>
+<b class="fc"><i>294</i>&nbsp;        out.writeVInt(failedAllocations);</b>
+<b class="fc"><i>295</i>&nbsp;        lastAllocationStatus.writeTo(out);</b>
+<b class="fc"><i>296</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {</b>
+<b class="fc"><i>297</i>&nbsp;            out.writeCollection(failedNodeIds, StreamOutput::writeString);</b>
+<i>298</i>&nbsp;        }
+<b class="fc"><i>299</i>&nbsp;    }</b>
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;    /**
+<i>302</i>&nbsp;     * Returns the number of previously failed allocations of this shard.
+<i>303</i>&nbsp;     */
+<i>304</i>&nbsp;    public int getNumFailedAllocations() {
+<b class="fc"><i>305</i>&nbsp;        return failedAllocations;</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    /**
+<i>309</i>&nbsp;     * Returns true if allocation of this shard is delayed due to {@link #INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}
+<i>310</i>&nbsp;     */
+<i>311</i>&nbsp;    public boolean isDelayed() {
+<b class="fc"><i>312</i>&nbsp;        return delayed;</b>
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    /**
+<i>316</i>&nbsp;     * The reason why the shard is unassigned.
+<i>317</i>&nbsp;     */
+<i>318</i>&nbsp;    public Reason getReason() {
+<b class="nc"><i>319</i>&nbsp;        return this.reason;</b>
+<i>320</i>&nbsp;    }
+<i>321</i>&nbsp;
+<i>322</i>&nbsp;    /**
+<i>323</i>&nbsp;     * The timestamp in milliseconds when the shard became unassigned, based on System.currentTimeMillis().
+<i>324</i>&nbsp;     * Note, we use timestamp here since we want to make sure its preserved across node serializations.
+<i>325</i>&nbsp;     */
+<i>326</i>&nbsp;    public long getUnassignedTimeInMillis() {
+<b class="nc"><i>327</i>&nbsp;        return this.unassignedTimeMillis;</b>
+<i>328</i>&nbsp;    }
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;    /**
+<i>331</i>&nbsp;     * The timestamp in nanoseconds when the shard became unassigned, based on System.nanoTime().
+<i>332</i>&nbsp;     * Used to calculate the delay for delayed shard allocation.
+<i>333</i>&nbsp;     * ONLY EXPOSED FOR TESTS!
+<i>334</i>&nbsp;     */
+<i>335</i>&nbsp;    public long getUnassignedTimeInNanos() {
+<b class="nc"><i>336</i>&nbsp;        return this.unassignedTimeNanos;</b>
+<i>337</i>&nbsp;    }
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;    /**
+<i>340</i>&nbsp;     * Returns optional details explaining the reasons.
+<i>341</i>&nbsp;     */
+<i>342</i>&nbsp;    @Nullable
+<i>343</i>&nbsp;    public String getMessage() {
+<b class="nc"><i>344</i>&nbsp;        return this.message;</b>
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    /**
+<i>348</i>&nbsp;     * Returns additional failure exception details if exists.
+<i>349</i>&nbsp;     */
+<i>350</i>&nbsp;    @Nullable
+<i>351</i>&nbsp;    public Exception getFailure() {
+<b class="nc"><i>352</i>&nbsp;        return failure;</b>
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    /**
+<i>356</i>&nbsp;     * Builds a string representation of the message and the failure if exists.
+<i>357</i>&nbsp;     */
+<i>358</i>&nbsp;    @Nullable
+<i>359</i>&nbsp;    public String getDetails() {
+<b class="nc"><i>360</i>&nbsp;        if (message == null) {</b>
+<b class="nc"><i>361</i>&nbsp;            return null;</b>
+<i>362</i>&nbsp;        }
+<b class="nc"><i>363</i>&nbsp;        return message + (failure == null ? &quot;&quot; : &quot;, failure &quot; + ExceptionsHelper.detailedMessage(failure));</b>
+<i>364</i>&nbsp;    }
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;    /**
+<i>367</i>&nbsp;     * Get the status for the last allocation attempt for this shard.
+<i>368</i>&nbsp;     */
+<i>369</i>&nbsp;    public AllocationStatus getLastAllocationStatus() {
+<b class="fc"><i>370</i>&nbsp;        return lastAllocationStatus;</b>
+<i>371</i>&nbsp;    }
+<i>372</i>&nbsp;
+<i>373</i>&nbsp;    /**
+<i>374</i>&nbsp;     * A set of nodeIds that failed to complete allocations for this shard. {@link org.elasticsearch.gateway.ReplicaShardAllocator}
+<i>375</i>&nbsp;     * uses this set to avoid repeatedly canceling ongoing recoveries for copies on those nodes although they can perform noop recoveries.
+<i>376</i>&nbsp;     * This set will be discarded when a shard moves to started. And if a shard is failed while started (i.e., from started to unassigned),
+<i>377</i>&nbsp;     * the currently assigned node won&#39;t be added to this set.
+<i>378</i>&nbsp;     *
+<i>379</i>&nbsp;     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
+<i>380</i>&nbsp;     * @see org.elasticsearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
+<i>381</i>&nbsp;     */
+<i>382</i>&nbsp;    public Set&lt;String&gt; getFailedNodeIds() {
+<b class="nc"><i>383</i>&nbsp;        return failedNodeIds;</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    /**
+<i>387</i>&nbsp;     * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings.
+<i>388</i>&nbsp;     * Only relevant if shard is effectively delayed (see {@link #isDelayed()})
+<i>389</i>&nbsp;     * Returns 0 if delay is negative
+<i>390</i>&nbsp;     *
+<i>391</i>&nbsp;     * @return calculated delay in nanoseconds
+<i>392</i>&nbsp;     */
+<i>393</i>&nbsp;    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings) {
+<b class="nc"><i>394</i>&nbsp;        long delayTimeoutNanos = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();</b>
+<b class="nc"><i>395</i>&nbsp;        assert nanoTimeNow &gt;= unassignedTimeNanos;</b>
+<b class="nc"><i>396</i>&nbsp;        return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));</b>
+<i>397</i>&nbsp;    }
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    /**
+<i>400</i>&nbsp;     * Returns the number of shards that are unassigned and currently being delayed.
+<i>401</i>&nbsp;     */
+<i>402</i>&nbsp;    public static int getNumberOfDelayedUnassigned(ClusterState state) {
+<b class="fc"><i>403</i>&nbsp;        int count = 0;</b>
+<b class="fc"><i>404</i>&nbsp;        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {</b>
+<b class="nc"><i>405</i>&nbsp;            if (shard.unassignedInfo().isDelayed()) {</b>
+<b class="nc"><i>406</i>&nbsp;                count++;</b>
+<i>407</i>&nbsp;            }
+<b class="nc"><i>408</i>&nbsp;        }</b>
+<b class="fc"><i>409</i>&nbsp;        return count;</b>
+<i>410</i>&nbsp;    }
+<i>411</i>&nbsp;
+<i>412</i>&nbsp;    /**
+<i>413</i>&nbsp;     * Finds the next (closest) delay expiration of an delayed shard in nanoseconds based on current time.
+<i>414</i>&nbsp;     * Returns 0 if delay is negative.
+<i>415</i>&nbsp;     * Returns -1 if no delayed shard is found.
+<i>416</i>&nbsp;     */
+<i>417</i>&nbsp;    public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
+<b class="fc"><i>418</i>&nbsp;        MetaData metaData = state.metaData();</b>
+<b class="fc"><i>419</i>&nbsp;        RoutingTable routingTable = state.routingTable();</b>
+<b class="fc"><i>420</i>&nbsp;        long nextDelayNanos = Long.MAX_VALUE;</b>
+<b class="fc"><i>421</i>&nbsp;        for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {</b>
+<b class="nc"><i>422</i>&nbsp;            UnassignedInfo unassignedInfo = shard.unassignedInfo();</b>
+<b class="nc"><i>423</i>&nbsp;            if (unassignedInfo.isDelayed()) {</b>
+<b class="nc"><i>424</i>&nbsp;                Settings indexSettings = metaData.index(shard.index()).getSettings();</b>
+<i>425</i>&nbsp;                // calculate next time to schedule
+<b class="nc"><i>426</i>&nbsp;                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);</b>
+<b class="nc"><i>427</i>&nbsp;                if (newComputedLeftDelayNanos &lt; nextDelayNanos) {</b>
+<b class="nc"><i>428</i>&nbsp;                    nextDelayNanos = newComputedLeftDelayNanos;</b>
+<i>429</i>&nbsp;                }
+<i>430</i>&nbsp;            }
+<b class="nc"><i>431</i>&nbsp;        }</b>
+<b class="fc"><i>432</i>&nbsp;        return nextDelayNanos == Long.MAX_VALUE ? -1L : nextDelayNanos;</b>
+<i>433</i>&nbsp;    }
+<i>434</i>&nbsp;
+<i>435</i>&nbsp;    public String shortSummary() {
+<b class="nc"><i>436</i>&nbsp;        StringBuilder sb = new StringBuilder();</b>
+<b class="nc"><i>437</i>&nbsp;        sb.append(&quot;[reason=&quot;).append(reason).append(&quot;]&quot;);</b>
+<b class="nc"><i>438</i>&nbsp;        sb.append(&quot;, at[&quot;).append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append(&quot;]&quot;);</b>
+<b class="nc"><i>439</i>&nbsp;        if (failedAllocations &gt;  0) {</b>
+<b class="nc"><i>440</i>&nbsp;            sb.append(&quot;, failed_attempts[&quot;).append(failedAllocations).append(&quot;]&quot;);</b>
+<i>441</i>&nbsp;        }
+<b class="nc"><i>442</i>&nbsp;        if (failedNodeIds.isEmpty() == false) {</b>
+<b class="nc"><i>443</i>&nbsp;            sb.append(&quot;, failed_nodes[&quot;).append(failedNodeIds).append(&quot;]&quot;);</b>
+<i>444</i>&nbsp;        }
+<b class="nc"><i>445</i>&nbsp;        sb.append(&quot;, delayed=&quot;).append(delayed);</b>
+<b class="nc"><i>446</i>&nbsp;        String details = getDetails();</b>
+<i>447</i>&nbsp;
+<b class="nc"><i>448</i>&nbsp;        if (details != null) {</b>
+<b class="nc"><i>449</i>&nbsp;            sb.append(&quot;, details[&quot;).append(details).append(&quot;]&quot;);</b>
+<i>450</i>&nbsp;        }
+<b class="nc"><i>451</i>&nbsp;        sb.append(&quot;, allocation_status[&quot;).append(lastAllocationStatus.value()).append(&quot;]&quot;);</b>
+<b class="nc"><i>452</i>&nbsp;        return sb.toString();</b>
+<i>453</i>&nbsp;    }
+<i>454</i>&nbsp;
+<i>455</i>&nbsp;    @Override
+<i>456</i>&nbsp;    public String toString() {
+<b class="nc"><i>457</i>&nbsp;        return &quot;unassigned_info[&quot; + shortSummary() + &quot;]&quot;;</b>
+<i>458</i>&nbsp;    }
+<i>459</i>&nbsp;
+<i>460</i>&nbsp;    @Override
+<i>461</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>462</i>&nbsp;        builder.startObject(&quot;unassigned_info&quot;);</b>
+<b class="nc"><i>463</i>&nbsp;        builder.field(&quot;reason&quot;, reason);</b>
+<b class="nc"><i>464</i>&nbsp;        builder.field(&quot;at&quot;, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));</b>
+<b class="nc"><i>465</i>&nbsp;        if (failedAllocations &gt;  0) {</b>
+<b class="nc"><i>466</i>&nbsp;            builder.field(&quot;failed_attempts&quot;, failedAllocations);</b>
+<i>467</i>&nbsp;        }
+<b class="nc"><i>468</i>&nbsp;        if (failedNodeIds.isEmpty() == false) {</b>
+<b class="nc"><i>469</i>&nbsp;            builder.field(&quot;failed_nodes&quot;, failedNodeIds);</b>
+<i>470</i>&nbsp;        }
+<b class="nc"><i>471</i>&nbsp;        builder.field(&quot;delayed&quot;, delayed);</b>
+<b class="nc"><i>472</i>&nbsp;        String details = getDetails();</b>
+<b class="nc"><i>473</i>&nbsp;        if (details != null) {</b>
+<b class="nc"><i>474</i>&nbsp;            builder.field(&quot;details&quot;, details);</b>
+<i>475</i>&nbsp;        }
+<b class="nc"><i>476</i>&nbsp;        builder.field(&quot;allocation_status&quot;, lastAllocationStatus.value());</b>
+<b class="nc"><i>477</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>478</i>&nbsp;        return builder;</b>
+<i>479</i>&nbsp;    }
+<i>480</i>&nbsp;
+<i>481</i>&nbsp;    @Override
+<i>482</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>483</i>&nbsp;        if (this == o) {</b>
+<b class="nc"><i>484</i>&nbsp;            return true;</b>
+<i>485</i>&nbsp;        }
+<b class="nc"><i>486</i>&nbsp;        if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>487</i>&nbsp;            return false;</b>
+<i>488</i>&nbsp;        }
+<i>489</i>&nbsp;
+<b class="nc"><i>490</i>&nbsp;        UnassignedInfo that = (UnassignedInfo) o;</b>
+<i>491</i>&nbsp;
+<b class="nc"><i>492</i>&nbsp;        if (unassignedTimeMillis != that.unassignedTimeMillis) {</b>
+<b class="nc"><i>493</i>&nbsp;            return false;</b>
+<i>494</i>&nbsp;        }
+<b class="nc"><i>495</i>&nbsp;        if (delayed != that.delayed) {</b>
+<b class="nc"><i>496</i>&nbsp;            return false;</b>
+<i>497</i>&nbsp;        }
+<b class="nc"><i>498</i>&nbsp;        if (failedAllocations != that.failedAllocations) {</b>
+<b class="nc"><i>499</i>&nbsp;            return false;</b>
+<i>500</i>&nbsp;        }
+<b class="nc"><i>501</i>&nbsp;        if (reason != that.reason) {</b>
+<b class="nc"><i>502</i>&nbsp;            return false;</b>
+<i>503</i>&nbsp;        }
+<b class="nc"><i>504</i>&nbsp;        if (Objects.equals(message, that.message) == false) {</b>
+<b class="nc"><i>505</i>&nbsp;            return false;</b>
+<i>506</i>&nbsp;        }
+<b class="nc"><i>507</i>&nbsp;        if (lastAllocationStatus != that.lastAllocationStatus) {</b>
+<b class="nc"><i>508</i>&nbsp;            return false;</b>
+<i>509</i>&nbsp;        }
+<b class="nc"><i>510</i>&nbsp;        if (Objects.equals(failure, that.failure) == false) {</b>
+<b class="nc"><i>511</i>&nbsp;            return false;</b>
+<i>512</i>&nbsp;        }
+<b class="nc"><i>513</i>&nbsp;        return failedNodeIds.equals(that.failedNodeIds);</b>
+<i>514</i>&nbsp;    }
+<i>515</i>&nbsp;
+<i>516</i>&nbsp;    @Override
+<i>517</i>&nbsp;    public int hashCode() {
+<b class="fc"><i>518</i>&nbsp;        int result = reason.hashCode();</b>
+<b class="fc"><i>519</i>&nbsp;        result = 31 * result + Boolean.hashCode(delayed);</b>
+<b class="fc"><i>520</i>&nbsp;        result = 31 * result + Integer.hashCode(failedAllocations);</b>
+<b class="fc"><i>521</i>&nbsp;        result = 31 * result + Long.hashCode(unassignedTimeMillis);</b>
+<b class="fc"><i>522</i>&nbsp;        result = 31 * result + (message != null ? message.hashCode() : 0);</b>
+<b class="fc"><i>523</i>&nbsp;        result = 31 * result + (failure != null ? failure.hashCode() : 0);</b>
+<b class="fc"><i>524</i>&nbsp;        result = 31 * result + lastAllocationStatus.hashCode();</b>
+<b class="fc"><i>525</i>&nbsp;        result = 31 * result + failedNodeIds.hashCode();</b>
+<b class="fc"><i>526</i>&nbsp;        return result;</b>
+<i>527</i>&nbsp;    }
+<i>528</i>&nbsp;
+<i>529</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

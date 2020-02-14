@@ -1,0 +1,860 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexRequest</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.index</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexRequest (org.elasticsearch.action.index)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    1.9%
+  </span>
+  <span class="absValue">
+    (1/ 53)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0.8%
+  </span>
+  <span class="absValue">
+    (2/ 236)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.index;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchGenerationException;
+<i>23</i>&nbsp;import org.elasticsearch.Version;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>25</i>&nbsp;import org.elasticsearch.action.CompositeIndicesRequest;
+<i>26</i>&nbsp;import org.elasticsearch.action.DocWriteRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.RoutingMissingException;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.replication.ReplicationRequest;
+<i>30</i>&nbsp;import org.elasticsearch.client.Requests;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.metadata.MappingMetaData;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>33</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>34</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>35</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>36</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>37</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>38</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>39</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>40</i>&nbsp;import org.elasticsearch.common.lucene.uid.Versions;
+<i>41</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>42</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>43</i>&nbsp;import org.elasticsearch.common.xcontent.XContentFactory;
+<i>44</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>45</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>46</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>47</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>48</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;import java.io.IOException;
+<i>51</i>&nbsp;import java.nio.charset.StandardCharsets;
+<i>52</i>&nbsp;import java.util.Locale;
+<i>53</i>&nbsp;import java.util.Map;
+<i>54</i>&nbsp;import java.util.Objects;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;import static org.elasticsearch.action.ValidateActions.addValidationError;
+<i>57</i>&nbsp;import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+<i>58</i>&nbsp;import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;/**
+<i>61</i>&nbsp; * Index request to index a typed JSON document into a specific index and make it searchable. Best
+<i>62</i>&nbsp; * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
+<i>63</i>&nbsp; *
+<i>64</i>&nbsp; * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
+<i>65</i>&nbsp; * {@link #source(byte[], XContentType)} to be set.
+<i>66</i>&nbsp; *
+<i>67</i>&nbsp; * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
+<i>68</i>&nbsp; * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
+<i>69</i>&nbsp; * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
+<i>70</i>&nbsp; *
+<i>71</i>&nbsp; * If the {@link #id(String)} is not set, it will be automatically generated.
+<i>72</i>&nbsp; *
+<i>73</i>&nbsp; * @see IndexResponse
+<i>74</i>&nbsp; * @see org.elasticsearch.client.Requests#indexRequest(String)
+<i>75</i>&nbsp; * @see org.elasticsearch.client.Client#index(IndexRequest)
+<i>76</i>&nbsp; */
+<b class="fc"><i>77</i>&nbsp;public class IndexRequest extends ReplicatedWriteRequest&lt;IndexRequest&gt; implements DocWriteRequest&lt;IndexRequest&gt;, CompositeIndicesRequest {</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    /**
+<i>80</i>&nbsp;     * Max length of the source document to include into string()
+<i>81</i>&nbsp;     *
+<i>82</i>&nbsp;     * @see ReplicationRequest#createTask
+<i>83</i>&nbsp;     */
+<i>84</i>&nbsp;    static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
+<i>85</i>&nbsp;
+<b class="fc"><i>86</i>&nbsp;    private static final ShardId NO_SHARD_ID = null;</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    // Set to null initially so we can know to override in bulk requests that have a default type.
+<i>89</i>&nbsp;    private String type;
+<i>90</i>&nbsp;    private String id;
+<i>91</i>&nbsp;    @Nullable
+<i>92</i>&nbsp;    private String routing;
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    private BytesReference source;
+<i>95</i>&nbsp;
+<b class="nc"><i>96</i>&nbsp;    private OpType opType = OpType.INDEX;</b>
+<i>97</i>&nbsp;
+<b class="nc"><i>98</i>&nbsp;    private long version = Versions.MATCH_ANY;</b>
+<b class="nc"><i>99</i>&nbsp;    private VersionType versionType = VersionType.INTERNAL;</b>
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    private XContentType contentType;
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    private String pipeline;
+<i>104</i>&nbsp;    private String finalPipeline;
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    private boolean isPipelineResolved;
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    /**
+<i>109</i>&nbsp;     * Value for {@link #getAutoGeneratedTimestamp()} if the document has an external
+<i>110</i>&nbsp;     * provided ID.
+<i>111</i>&nbsp;     */
+<i>112</i>&nbsp;    public static final long UNSET_AUTO_GENERATED_TIMESTAMP = -1L;
+<i>113</i>&nbsp;
+<b class="nc"><i>114</i>&nbsp;    private long autoGeneratedTimestamp = UNSET_AUTO_GENERATED_TIMESTAMP;</b>
+<i>115</i>&nbsp;
+<b class="nc"><i>116</i>&nbsp;    private boolean isRetry = false;</b>
+<b class="nc"><i>117</i>&nbsp;    private long ifSeqNo = UNASSIGNED_SEQ_NO;</b>
+<b class="nc"><i>118</i>&nbsp;    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    public IndexRequest(StreamInput in) throws IOException {
+<b class="nc"><i>121</i>&nbsp;        super(in);</b>
+<b class="nc"><i>122</i>&nbsp;        type = in.readOptionalString();</b>
+<b class="nc"><i>123</i>&nbsp;        id = in.readOptionalString();</b>
+<b class="nc"><i>124</i>&nbsp;        routing = in.readOptionalString();</b>
+<b class="nc"><i>125</i>&nbsp;        if (in.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>126</i>&nbsp;            in.readOptionalString(); // _parent</b>
+<i>127</i>&nbsp;        }
+<b class="nc"><i>128</i>&nbsp;        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {</b>
+<b class="nc"><i>129</i>&nbsp;            in.readOptionalString(); // timestamp</b>
+<b class="nc"><i>130</i>&nbsp;            in.readOptionalTimeValue(); // ttl</b>
+<i>131</i>&nbsp;        }
+<b class="nc"><i>132</i>&nbsp;        source = in.readBytesReference();</b>
+<b class="nc"><i>133</i>&nbsp;        opType = OpType.fromId(in.readByte());</b>
+<b class="nc"><i>134</i>&nbsp;        version = in.readLong();</b>
+<b class="nc"><i>135</i>&nbsp;        versionType = VersionType.fromValue(in.readByte());</b>
+<b class="nc"><i>136</i>&nbsp;        pipeline = in.readOptionalString();</b>
+<b class="nc"><i>137</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {</b>
+<b class="nc"><i>138</i>&nbsp;            finalPipeline = in.readOptionalString();</b>
+<i>139</i>&nbsp;        }
+<b class="nc"><i>140</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {</b>
+<b class="nc"><i>141</i>&nbsp;            isPipelineResolved = in.readBoolean();</b>
+<i>142</i>&nbsp;        }
+<b class="nc"><i>143</i>&nbsp;        isRetry = in.readBoolean();</b>
+<b class="nc"><i>144</i>&nbsp;        autoGeneratedTimestamp = in.readLong();</b>
+<b class="nc"><i>145</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>146</i>&nbsp;            contentType = in.readEnum(XContentType.class);</b>
+<i>147</i>&nbsp;        } else {
+<b class="nc"><i>148</i>&nbsp;            contentType = null;</b>
+<i>149</i>&nbsp;        }
+<b class="nc"><i>150</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {</b>
+<b class="nc"><i>151</i>&nbsp;            ifSeqNo = in.readZLong();</b>
+<b class="nc"><i>152</i>&nbsp;            ifPrimaryTerm = in.readVLong();</b>
+<i>153</i>&nbsp;        } else {
+<b class="nc"><i>154</i>&nbsp;            ifSeqNo = UNASSIGNED_SEQ_NO;</b>
+<b class="nc"><i>155</i>&nbsp;            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;</b>
+<i>156</i>&nbsp;        }
+<b class="nc"><i>157</i>&nbsp;    }</b>
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    public IndexRequest() {
+<b class="nc"><i>160</i>&nbsp;        super(NO_SHARD_ID);</b>
+<b class="nc"><i>161</i>&nbsp;    }</b>
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    /**
+<i>164</i>&nbsp;     * Constructs a new index request against the specific index. The {@link #type(String)}
+<i>165</i>&nbsp;     * {@link #source(byte[], XContentType)} must be set.
+<i>166</i>&nbsp;     */
+<i>167</i>&nbsp;    public IndexRequest(String index) {
+<b class="nc"><i>168</i>&nbsp;        super(NO_SHARD_ID);</b>
+<b class="nc"><i>169</i>&nbsp;        this.index = index;</b>
+<b class="nc"><i>170</i>&nbsp;    }</b>
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    /**
+<i>173</i>&nbsp;     * Constructs a new index request against the specific index and type. The
+<i>174</i>&nbsp;     * {@link #source(byte[], XContentType)} must be set.
+<i>175</i>&nbsp;     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} instead.
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    @Deprecated
+<i>178</i>&nbsp;    public IndexRequest(String index, String type) {
+<b class="nc"><i>179</i>&nbsp;        super(NO_SHARD_ID);</b>
+<b class="nc"><i>180</i>&nbsp;        this.index = index;</b>
+<b class="nc"><i>181</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>182</i>&nbsp;    }</b>
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    /**
+<i>185</i>&nbsp;     * Constructs a new index request against the index, type, id and using the source.
+<i>186</i>&nbsp;     *
+<i>187</i>&nbsp;     * @param index The index to index into
+<i>188</i>&nbsp;     * @param type  The type to index into
+<i>189</i>&nbsp;     * @param id    The id of document
+<i>190</i>&nbsp;     *
+<i>191</i>&nbsp;     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} with {@link #id(String)} instead.
+<i>192</i>&nbsp;     */
+<i>193</i>&nbsp;    @Deprecated
+<i>194</i>&nbsp;    public IndexRequest(String index, String type, String id) {
+<b class="nc"><i>195</i>&nbsp;        super(NO_SHARD_ID);</b>
+<b class="nc"><i>196</i>&nbsp;        this.index = index;</b>
+<b class="nc"><i>197</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>198</i>&nbsp;        this.id = id;</b>
+<b class="nc"><i>199</i>&nbsp;    }</b>
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    @Override
+<i>202</i>&nbsp;    public ActionRequestValidationException validate() {
+<b class="nc"><i>203</i>&nbsp;        ActionRequestValidationException validationException = super.validate();</b>
+<b class="nc"><i>204</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>205</i>&nbsp;            validationException = addValidationError(&quot;source is missing&quot;, validationException);</b>
+<i>206</i>&nbsp;        }
+<b class="nc"><i>207</i>&nbsp;        if (Strings.isEmpty(type())) {</b>
+<b class="nc"><i>208</i>&nbsp;            validationException = addValidationError(&quot;type is missing&quot;, validationException);</b>
+<i>209</i>&nbsp;        }
+<b class="nc"><i>210</i>&nbsp;        if (contentType == null) {</b>
+<b class="nc"><i>211</i>&nbsp;            validationException = addValidationError(&quot;content type is missing&quot;, validationException);</b>
+<i>212</i>&nbsp;        }
+<b class="nc"><i>213</i>&nbsp;        assert opType == OpType.INDEX || opType == OpType.CREATE : &quot;unexpected op-type: &quot; + opType;</b>
+<b class="nc"><i>214</i>&nbsp;        final long resolvedVersion = resolveVersionDefaults();</b>
+<b class="nc"><i>215</i>&nbsp;        if (opType == OpType.CREATE) {</b>
+<b class="nc"><i>216</i>&nbsp;            if (versionType != VersionType.INTERNAL) {</b>
+<b class="nc"><i>217</i>&nbsp;                validationException = addValidationError(&quot;create operations only support internal versioning. use index instead&quot;,</b>
+<i>218</i>&nbsp;                    validationException);
+<b class="nc"><i>219</i>&nbsp;                return validationException;</b>
+<i>220</i>&nbsp;            }
+<i>221</i>&nbsp;
+<b class="nc"><i>222</i>&nbsp;            if (resolvedVersion != Versions.MATCH_DELETED) {</b>
+<b class="nc"><i>223</i>&nbsp;                validationException = addValidationError(&quot;create operations do not support explicit versions. use index instead&quot;,</b>
+<i>224</i>&nbsp;                    validationException);
+<b class="nc"><i>225</i>&nbsp;                return validationException;</b>
+<i>226</i>&nbsp;            }
+<i>227</i>&nbsp;
+<b class="nc"><i>228</i>&nbsp;            if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {</b>
+<b class="nc"><i>229</i>&nbsp;                validationException = addValidationError(&quot;create operations do not support compare and set. use index instead&quot;,</b>
+<i>230</i>&nbsp;                    validationException);
+<b class="nc"><i>231</i>&nbsp;                return validationException;</b>
+<i>232</i>&nbsp;            }
+<i>233</i>&nbsp;        }
+<i>234</i>&nbsp;
+<b class="nc"><i>235</i>&nbsp;        if (id == null) {</b>
+<b class="nc"><i>236</i>&nbsp;            if (versionType != VersionType.INTERNAL ||</b>
+<i>237</i>&nbsp;                (resolvedVersion != Versions.MATCH_DELETED &amp;&amp; resolvedVersion != Versions.MATCH_ANY)) {
+<b class="nc"><i>238</i>&nbsp;                validationException = addValidationError(&quot;an id must be provided if version type or value are set&quot;, validationException);</b>
+<i>239</i>&nbsp;            }
+<i>240</i>&nbsp;        }
+<i>241</i>&nbsp;
+<b class="nc"><i>242</i>&nbsp;        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);</b>
+<i>243</i>&nbsp;
+<b class="nc"><i>244</i>&nbsp;        if (id != null &amp;&amp; id.getBytes(StandardCharsets.UTF_8).length &gt; 512) {</b>
+<b class="nc"><i>245</i>&nbsp;            validationException = addValidationError(&quot;id is too long, must be no longer than 512 bytes but was: &quot; +</b>
+<b class="nc"><i>246</i>&nbsp;                            id.getBytes(StandardCharsets.UTF_8).length, validationException);</b>
+<i>247</i>&nbsp;        }
+<i>248</i>&nbsp;
+<b class="nc"><i>249</i>&nbsp;        if (pipeline != null &amp;&amp; pipeline.isEmpty()) {</b>
+<b class="nc"><i>250</i>&nbsp;            validationException = addValidationError(&quot;pipeline cannot be an empty string&quot;, validationException);</b>
+<i>251</i>&nbsp;        }
+<i>252</i>&nbsp;
+<b class="nc"><i>253</i>&nbsp;        if (finalPipeline != null &amp;&amp; finalPipeline.isEmpty()) {</b>
+<b class="nc"><i>254</i>&nbsp;            validationException = addValidationError(&quot;final pipeline cannot be an empty string&quot;, validationException);</b>
+<i>255</i>&nbsp;        }
+<i>256</i>&nbsp;
+<b class="nc"><i>257</i>&nbsp;        return validationException;</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    /**
+<i>261</i>&nbsp;     * The content type. This will be used when generating a document from user provided objects like Maps and when parsing the
+<i>262</i>&nbsp;     * source at index time
+<i>263</i>&nbsp;     */
+<i>264</i>&nbsp;    public XContentType getContentType() {
+<b class="nc"><i>265</i>&nbsp;        return contentType;</b>
+<i>266</i>&nbsp;    }
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    /**
+<i>269</i>&nbsp;     * The type of the indexed document.
+<i>270</i>&nbsp;     * @deprecated Types are in the process of being removed.
+<i>271</i>&nbsp;     */
+<i>272</i>&nbsp;    @Deprecated
+<i>273</i>&nbsp;    @Override
+<i>274</i>&nbsp;    public String type() {
+<b class="nc"><i>275</i>&nbsp;        if (type == null) {</b>
+<b class="nc"><i>276</i>&nbsp;            return MapperService.SINGLE_MAPPING_NAME;</b>
+<i>277</i>&nbsp;        }
+<b class="nc"><i>278</i>&nbsp;        return type;</b>
+<i>279</i>&nbsp;    }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;    /**
+<i>282</i>&nbsp;     * Sets the type of the indexed document.
+<i>283</i>&nbsp;     * @deprecated Types are in the process of being removed.
+<i>284</i>&nbsp;     */
+<i>285</i>&nbsp;    @Deprecated
+<i>286</i>&nbsp;    @Override
+<i>287</i>&nbsp;    public IndexRequest type(String type) {
+<b class="nc"><i>288</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>289</i>&nbsp;        return this;</b>
+<i>290</i>&nbsp;    }
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;    /**
+<i>293</i>&nbsp;     * Set the default type supplied to a bulk
+<i>294</i>&nbsp;     * request if this individual request&#39;s type is null
+<i>295</i>&nbsp;     * or empty
+<i>296</i>&nbsp;     * @deprecated Types are in the process of being removed.
+<i>297</i>&nbsp;     */
+<i>298</i>&nbsp;    @Deprecated
+<i>299</i>&nbsp;    @Override
+<i>300</i>&nbsp;    public IndexRequest defaultTypeIfNull(String defaultType) {
+<b class="nc"><i>301</i>&nbsp;        if (Strings.isNullOrEmpty(type)) {</b>
+<b class="nc"><i>302</i>&nbsp;            type = defaultType;</b>
+<i>303</i>&nbsp;        }
+<b class="nc"><i>304</i>&nbsp;        return this;</b>
+<i>305</i>&nbsp;    }
+<i>306</i>&nbsp;    /**
+<i>307</i>&nbsp;     * The id of the indexed document. If not set, will be automatically generated.
+<i>308</i>&nbsp;     */
+<i>309</i>&nbsp;    @Override
+<i>310</i>&nbsp;    public String id() {
+<b class="nc"><i>311</i>&nbsp;        return id;</b>
+<i>312</i>&nbsp;    }
+<i>313</i>&nbsp;
+<i>314</i>&nbsp;    /**
+<i>315</i>&nbsp;     * Sets the id of the indexed document. If not set, will be automatically generated.
+<i>316</i>&nbsp;     */
+<i>317</i>&nbsp;    public IndexRequest id(String id) {
+<b class="nc"><i>318</i>&nbsp;        this.id = id;</b>
+<b class="nc"><i>319</i>&nbsp;        return this;</b>
+<i>320</i>&nbsp;    }
+<i>321</i>&nbsp;
+<i>322</i>&nbsp;    /**
+<i>323</i>&nbsp;     * Controls the shard routing of the request. Using this value to hash the shard
+<i>324</i>&nbsp;     * and not the id.
+<i>325</i>&nbsp;     */
+<i>326</i>&nbsp;    @Override
+<i>327</i>&nbsp;    public IndexRequest routing(String routing) {
+<b class="nc"><i>328</i>&nbsp;        if (routing != null &amp;&amp; routing.length() == 0) {</b>
+<b class="nc"><i>329</i>&nbsp;            this.routing = null;</b>
+<i>330</i>&nbsp;        } else {
+<b class="nc"><i>331</i>&nbsp;            this.routing = routing;</b>
+<i>332</i>&nbsp;        }
+<b class="nc"><i>333</i>&nbsp;        return this;</b>
+<i>334</i>&nbsp;    }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    /**
+<i>337</i>&nbsp;     * Controls the shard routing of the request. Using this value to hash the shard
+<i>338</i>&nbsp;     * and not the id.
+<i>339</i>&nbsp;     */
+<i>340</i>&nbsp;    @Override
+<i>341</i>&nbsp;    public String routing() {
+<b class="nc"><i>342</i>&nbsp;        return this.routing;</b>
+<i>343</i>&nbsp;    }
+<i>344</i>&nbsp;
+<i>345</i>&nbsp;    /**
+<i>346</i>&nbsp;     * Sets the ingest pipeline to be executed before indexing the document
+<i>347</i>&nbsp;     */
+<i>348</i>&nbsp;    public IndexRequest setPipeline(String pipeline) {
+<b class="nc"><i>349</i>&nbsp;        this.pipeline = pipeline;</b>
+<b class="nc"><i>350</i>&nbsp;        return this;</b>
+<i>351</i>&nbsp;    }
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    /**
+<i>354</i>&nbsp;     * Returns the ingest pipeline to be executed before indexing the document
+<i>355</i>&nbsp;     */
+<i>356</i>&nbsp;    public String getPipeline() {
+<b class="nc"><i>357</i>&nbsp;        return this.pipeline;</b>
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    /**
+<i>361</i>&nbsp;     * Sets the final ingest pipeline to be executed before indexing the document.
+<i>362</i>&nbsp;     *
+<i>363</i>&nbsp;     * @param finalPipeline the name of the final pipeline
+<i>364</i>&nbsp;     * @return this index request
+<i>365</i>&nbsp;     */
+<i>366</i>&nbsp;    public IndexRequest setFinalPipeline(final String finalPipeline) {
+<b class="nc"><i>367</i>&nbsp;        this.finalPipeline = finalPipeline;</b>
+<b class="nc"><i>368</i>&nbsp;        return this;</b>
+<i>369</i>&nbsp;    }
+<i>370</i>&nbsp;
+<i>371</i>&nbsp;    /**
+<i>372</i>&nbsp;     * Returns the final ingest pipeline to be executed before indexing the document.
+<i>373</i>&nbsp;     *
+<i>374</i>&nbsp;     * @return the name of the final pipeline
+<i>375</i>&nbsp;     */
+<i>376</i>&nbsp;    public String getFinalPipeline() {
+<b class="nc"><i>377</i>&nbsp;        return this.finalPipeline;</b>
+<i>378</i>&nbsp;    }
+<i>379</i>&nbsp;
+<i>380</i>&nbsp;    /**
+<i>381</i>&nbsp;     * Sets if the pipeline for this request has been resolved by the coordinating node.
+<i>382</i>&nbsp;     *
+<i>383</i>&nbsp;     * @param isPipelineResolved true if the pipeline has been resolved
+<i>384</i>&nbsp;     * @return the request
+<i>385</i>&nbsp;     */
+<i>386</i>&nbsp;    public IndexRequest isPipelineResolved(final boolean isPipelineResolved) {
+<b class="nc"><i>387</i>&nbsp;        this.isPipelineResolved = isPipelineResolved;</b>
+<b class="nc"><i>388</i>&nbsp;        return this;</b>
+<i>389</i>&nbsp;    }
+<i>390</i>&nbsp;
+<i>391</i>&nbsp;    /**
+<i>392</i>&nbsp;     * Returns whether or not the pipeline for this request has been resolved by the coordinating node.
+<i>393</i>&nbsp;     *
+<i>394</i>&nbsp;     * @return true if the pipeline has been resolved
+<i>395</i>&nbsp;     */
+<i>396</i>&nbsp;    public boolean isPipelineResolved() {
+<b class="nc"><i>397</i>&nbsp;        return this.isPipelineResolved;</b>
+<i>398</i>&nbsp;    }
+<i>399</i>&nbsp;
+<i>400</i>&nbsp;    /**
+<i>401</i>&nbsp;     * The source of the document to index, recopied to a new array if it is unsafe.
+<i>402</i>&nbsp;     */
+<i>403</i>&nbsp;    public BytesReference source() {
+<b class="nc"><i>404</i>&nbsp;        return source;</b>
+<i>405</i>&nbsp;    }
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;    public Map&lt;String, Object&gt; sourceAsMap() {
+<b class="nc"><i>408</i>&nbsp;        return XContentHelper.convertToMap(source, false, contentType).v2();</b>
+<i>409</i>&nbsp;    }
+<i>410</i>&nbsp;
+<i>411</i>&nbsp;    /**
+<i>412</i>&nbsp;     * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
+<i>413</i>&nbsp;     *
+<i>414</i>&nbsp;     * @param source The map to index
+<i>415</i>&nbsp;     */
+<i>416</i>&nbsp;    public IndexRequest source(Map&lt;String, ?&gt; source) throws ElasticsearchGenerationException {
+<b class="nc"><i>417</i>&nbsp;        return source(source, Requests.INDEX_CONTENT_TYPE);</b>
+<i>418</i>&nbsp;    }
+<i>419</i>&nbsp;
+<i>420</i>&nbsp;    /**
+<i>421</i>&nbsp;     * Index the Map as the provided content type.
+<i>422</i>&nbsp;     *
+<i>423</i>&nbsp;     * @param source The map to index
+<i>424</i>&nbsp;     */
+<i>425</i>&nbsp;    public IndexRequest source(Map&lt;String, ?&gt; source, XContentType contentType) throws ElasticsearchGenerationException {
+<i>426</i>&nbsp;        try {
+<b class="nc"><i>427</i>&nbsp;            XContentBuilder builder = XContentFactory.contentBuilder(contentType);</b>
+<b class="nc"><i>428</i>&nbsp;            builder.map(source);</b>
+<b class="nc"><i>429</i>&nbsp;            return source(builder);</b>
+<b class="nc"><i>430</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>431</i>&nbsp;            throw new ElasticsearchGenerationException(&quot;Failed to generate [&quot; + source + &quot;]&quot;, e);</b>
+<i>432</i>&nbsp;        }
+<i>433</i>&nbsp;    }
+<i>434</i>&nbsp;
+<i>435</i>&nbsp;    /**
+<i>436</i>&nbsp;     * Sets the document source to index.
+<i>437</i>&nbsp;     *
+<i>438</i>&nbsp;     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+<i>439</i>&nbsp;     * or using the {@link #source(byte[], XContentType)}.
+<i>440</i>&nbsp;     */
+<i>441</i>&nbsp;    public IndexRequest source(String source, XContentType xContentType) {
+<b class="nc"><i>442</i>&nbsp;        return source(new BytesArray(source), xContentType);</b>
+<i>443</i>&nbsp;    }
+<i>444</i>&nbsp;
+<i>445</i>&nbsp;    /**
+<i>446</i>&nbsp;     * Sets the content source to index.
+<i>447</i>&nbsp;     */
+<i>448</i>&nbsp;    public IndexRequest source(XContentBuilder sourceBuilder) {
+<b class="nc"><i>449</i>&nbsp;        return source(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType());</b>
+<i>450</i>&nbsp;    }
+<i>451</i>&nbsp;
+<i>452</i>&nbsp;    /**
+<i>453</i>&nbsp;     * Sets the content source to index using the default content type ({@link Requests#INDEX_CONTENT_TYPE})
+<i>454</i>&nbsp;     * &lt;p&gt;
+<i>455</i>&nbsp;     * &lt;b&gt;Note: the number of objects passed to this method must be an even
+<i>456</i>&nbsp;     * number. Also the first argument in each pair (the field name) must have a
+<i>457</i>&nbsp;     * valid String representation.&lt;/b&gt;
+<i>458</i>&nbsp;     * &lt;/p&gt;
+<i>459</i>&nbsp;     */
+<i>460</i>&nbsp;    public IndexRequest source(Object... source) {
+<b class="nc"><i>461</i>&nbsp;        return source(Requests.INDEX_CONTENT_TYPE, source);</b>
+<i>462</i>&nbsp;    }
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;    /**
+<i>465</i>&nbsp;     * Sets the content source to index.
+<i>466</i>&nbsp;     * &lt;p&gt;
+<i>467</i>&nbsp;     * &lt;b&gt;Note: the number of objects passed to this method as varargs must be an even
+<i>468</i>&nbsp;     * number. Also the first argument in each pair (the field name) must have a
+<i>469</i>&nbsp;     * valid String representation.&lt;/b&gt;
+<i>470</i>&nbsp;     * &lt;/p&gt;
+<i>471</i>&nbsp;     */
+<i>472</i>&nbsp;    public IndexRequest source(XContentType xContentType, Object... source) {
+<b class="nc"><i>473</i>&nbsp;        if (source.length % 2 != 0) {</b>
+<b class="nc"><i>474</i>&nbsp;            throw new IllegalArgumentException(&quot;The number of object passed must be even but was [&quot; + source.length + &quot;]&quot;);</b>
+<i>475</i>&nbsp;        }
+<b class="nc"><i>476</i>&nbsp;        if (source.length == 2 &amp;&amp; source[0] instanceof BytesReference &amp;&amp; source[1] instanceof Boolean) {</b>
+<b class="nc"><i>477</i>&nbsp;            throw new IllegalArgumentException(&quot;you are using the removed method for source with bytes and unsafe flag, the unsafe flag&quot;</b>
+<i>478</i>&nbsp;                + &quot; was removed, please just use source(BytesReference)&quot;);
+<i>479</i>&nbsp;        }
+<i>480</i>&nbsp;        try {
+<b class="nc"><i>481</i>&nbsp;            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);</b>
+<b class="nc"><i>482</i>&nbsp;            builder.startObject();</b>
+<b class="nc"><i>483</i>&nbsp;            for (int i = 0; i &lt; source.length; i++) {</b>
+<b class="nc"><i>484</i>&nbsp;                builder.field(source[i++].toString(), source[i]);</b>
+<i>485</i>&nbsp;            }
+<b class="nc"><i>486</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>487</i>&nbsp;            return source(builder);</b>
+<b class="nc"><i>488</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>489</i>&nbsp;            throw new ElasticsearchGenerationException(&quot;Failed to generate&quot;, e);</b>
+<i>490</i>&nbsp;        }
+<i>491</i>&nbsp;    }
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;    /**
+<i>494</i>&nbsp;     * Sets the document to index in bytes form.
+<i>495</i>&nbsp;     */
+<i>496</i>&nbsp;    public IndexRequest source(BytesReference source, XContentType xContentType) {
+<b class="nc"><i>497</i>&nbsp;        this.source = Objects.requireNonNull(source);</b>
+<b class="nc"><i>498</i>&nbsp;        this.contentType = Objects.requireNonNull(xContentType);</b>
+<b class="nc"><i>499</i>&nbsp;        return this;</b>
+<i>500</i>&nbsp;    }
+<i>501</i>&nbsp;
+<i>502</i>&nbsp;    /**
+<i>503</i>&nbsp;     * Sets the document to index in bytes form.
+<i>504</i>&nbsp;     */
+<i>505</i>&nbsp;    public IndexRequest source(byte[] source, XContentType xContentType) {
+<b class="nc"><i>506</i>&nbsp;        return source(source, 0, source.length, xContentType);</b>
+<i>507</i>&nbsp;    }
+<i>508</i>&nbsp;
+<i>509</i>&nbsp;    /**
+<i>510</i>&nbsp;     * Sets the document to index in bytes form (assumed to be safe to be used from different
+<i>511</i>&nbsp;     * threads).
+<i>512</i>&nbsp;     *
+<i>513</i>&nbsp;     * @param source The source to index
+<i>514</i>&nbsp;     * @param offset The offset in the byte array
+<i>515</i>&nbsp;     * @param length The length of the data
+<i>516</i>&nbsp;     */
+<i>517</i>&nbsp;    public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+<b class="nc"><i>518</i>&nbsp;        return source(new BytesArray(source, offset, length), xContentType);</b>
+<i>519</i>&nbsp;    }
+<i>520</i>&nbsp;
+<i>521</i>&nbsp;    /**
+<i>522</i>&nbsp;     * Sets the type of operation to perform.
+<i>523</i>&nbsp;     */
+<i>524</i>&nbsp;    public IndexRequest opType(OpType opType) {
+<b class="nc"><i>525</i>&nbsp;        if (opType != OpType.CREATE &amp;&amp; opType != OpType.INDEX) {</b>
+<b class="nc"><i>526</i>&nbsp;            throw new IllegalArgumentException(&quot;opType must be &#39;create&#39; or &#39;index&#39;, found: [&quot; + opType + &quot;]&quot;);</b>
+<i>527</i>&nbsp;        }
+<b class="nc"><i>528</i>&nbsp;        this.opType = opType;</b>
+<b class="nc"><i>529</i>&nbsp;        return this;</b>
+<i>530</i>&nbsp;    }
+<i>531</i>&nbsp;
+<i>532</i>&nbsp;    /**
+<i>533</i>&nbsp;     * Sets a string representation of the {@link #opType(OpType)}. Can
+<i>534</i>&nbsp;     * be either &quot;index&quot; or &quot;create&quot;.
+<i>535</i>&nbsp;     */
+<i>536</i>&nbsp;    public IndexRequest opType(String opType) {
+<b class="nc"><i>537</i>&nbsp;        String op = opType.toLowerCase(Locale.ROOT);</b>
+<b class="nc"><i>538</i>&nbsp;        if (op.equals(&quot;create&quot;)) {</b>
+<b class="nc"><i>539</i>&nbsp;            opType(OpType.CREATE);</b>
+<b class="nc"><i>540</i>&nbsp;        } else if (op.equals(&quot;index&quot;)) {</b>
+<b class="nc"><i>541</i>&nbsp;            opType(OpType.INDEX);</b>
+<i>542</i>&nbsp;        } else {
+<b class="nc"><i>543</i>&nbsp;            throw new IllegalArgumentException(&quot;opType must be &#39;create&#39; or &#39;index&#39;, found: [&quot; + opType + &quot;]&quot;);</b>
+<i>544</i>&nbsp;        }
+<b class="nc"><i>545</i>&nbsp;        return this;</b>
+<i>546</i>&nbsp;    }
+<i>547</i>&nbsp;
+<i>548</i>&nbsp;
+<i>549</i>&nbsp;    /**
+<i>550</i>&nbsp;     * Set to {@code true} to force this index to use {@link OpType#CREATE}.
+<i>551</i>&nbsp;     */
+<i>552</i>&nbsp;    public IndexRequest create(boolean create) {
+<b class="nc"><i>553</i>&nbsp;        if (create) {</b>
+<b class="nc"><i>554</i>&nbsp;            return opType(OpType.CREATE);</b>
+<i>555</i>&nbsp;        } else {
+<b class="nc"><i>556</i>&nbsp;            return opType(OpType.INDEX);</b>
+<i>557</i>&nbsp;        }
+<i>558</i>&nbsp;    }
+<i>559</i>&nbsp;
+<i>560</i>&nbsp;    @Override
+<i>561</i>&nbsp;    public OpType opType() {
+<b class="nc"><i>562</i>&nbsp;        return this.opType;</b>
+<i>563</i>&nbsp;    }
+<i>564</i>&nbsp;
+<i>565</i>&nbsp;    @Override
+<i>566</i>&nbsp;    public IndexRequest version(long version) {
+<b class="nc"><i>567</i>&nbsp;        this.version = version;</b>
+<b class="nc"><i>568</i>&nbsp;        return this;</b>
+<i>569</i>&nbsp;    }
+<i>570</i>&nbsp;
+<i>571</i>&nbsp;    /**
+<i>572</i>&nbsp;     * Returns stored version. If currently stored version is {@link Versions#MATCH_ANY} and
+<i>573</i>&nbsp;     * opType is {@link OpType#CREATE}, returns {@link Versions#MATCH_DELETED}.
+<i>574</i>&nbsp;     */
+<i>575</i>&nbsp;    @Override
+<i>576</i>&nbsp;    public long version() {
+<b class="nc"><i>577</i>&nbsp;        return resolveVersionDefaults();</b>
+<i>578</i>&nbsp;    }
+<i>579</i>&nbsp;
+<i>580</i>&nbsp;    /**
+<i>581</i>&nbsp;     * Resolves the version based on operation type {@link #opType()}.
+<i>582</i>&nbsp;     */
+<i>583</i>&nbsp;    private long resolveVersionDefaults() {
+<b class="nc"><i>584</i>&nbsp;        if (opType == OpType.CREATE &amp;&amp; version == Versions.MATCH_ANY) {</b>
+<b class="nc"><i>585</i>&nbsp;            return Versions.MATCH_DELETED;</b>
+<i>586</i>&nbsp;        } else {
+<b class="nc"><i>587</i>&nbsp;            return version;</b>
+<i>588</i>&nbsp;        }
+<i>589</i>&nbsp;    }
+<i>590</i>&nbsp;
+<i>591</i>&nbsp;    @Override
+<i>592</i>&nbsp;    public IndexRequest versionType(VersionType versionType) {
+<b class="nc"><i>593</i>&nbsp;        this.versionType = versionType;</b>
+<b class="nc"><i>594</i>&nbsp;        return this;</b>
+<i>595</i>&nbsp;    }
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;    /**
+<i>598</i>&nbsp;     * only perform this indexing request if the document was last modification was assigned the given
+<i>599</i>&nbsp;     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+<i>600</i>&nbsp;     *
+<i>601</i>&nbsp;     * If the document last modification was assigned a different sequence number a
+<i>602</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>603</i>&nbsp;     */
+<i>604</i>&nbsp;    public IndexRequest setIfSeqNo(long seqNo) {
+<b class="nc"><i>605</i>&nbsp;        if (seqNo &lt; 0 &amp;&amp; seqNo != UNASSIGNED_SEQ_NO) {</b>
+<b class="nc"><i>606</i>&nbsp;            throw new IllegalArgumentException(&quot;sequence numbers must be non negative. got [&quot; +  seqNo + &quot;].&quot;);</b>
+<i>607</i>&nbsp;        }
+<b class="nc"><i>608</i>&nbsp;        ifSeqNo = seqNo;</b>
+<b class="nc"><i>609</i>&nbsp;        return this;</b>
+<i>610</i>&nbsp;    }
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;    /**
+<i>613</i>&nbsp;     * only performs this indexing request if the document was last modification was assigned the given
+<i>614</i>&nbsp;     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+<i>615</i>&nbsp;     *
+<i>616</i>&nbsp;     * If the document last modification was assigned a different term a
+<i>617</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>618</i>&nbsp;     */
+<i>619</i>&nbsp;    public IndexRequest setIfPrimaryTerm(long term) {
+<b class="nc"><i>620</i>&nbsp;        if (term &lt; 0) {</b>
+<b class="nc"><i>621</i>&nbsp;            throw new IllegalArgumentException(&quot;primary term must be non negative. got [&quot; + term + &quot;]&quot;);</b>
+<i>622</i>&nbsp;        }
+<b class="nc"><i>623</i>&nbsp;        ifPrimaryTerm = term;</b>
+<b class="nc"><i>624</i>&nbsp;        return this;</b>
+<i>625</i>&nbsp;    }
+<i>626</i>&nbsp;
+<i>627</i>&nbsp;    /**
+<i>628</i>&nbsp;     * If set, only perform this indexing request if the document was last modification was assigned this sequence number.
+<i>629</i>&nbsp;     * If the document last modification was assigned a different sequence number a
+<i>630</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>631</i>&nbsp;     */
+<i>632</i>&nbsp;    public long ifSeqNo() {
+<b class="nc"><i>633</i>&nbsp;        return ifSeqNo;</b>
+<i>634</i>&nbsp;    }
+<i>635</i>&nbsp;
+<i>636</i>&nbsp;    /**
+<i>637</i>&nbsp;     * If set, only perform this indexing request if the document was last modification was assigned this primary term.
+<i>638</i>&nbsp;     *
+<i>639</i>&nbsp;     * If the document last modification was assigned a different term a
+<i>640</i>&nbsp;     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+<i>641</i>&nbsp;     */
+<i>642</i>&nbsp;    public long ifPrimaryTerm() {
+<b class="nc"><i>643</i>&nbsp;        return ifPrimaryTerm;</b>
+<i>644</i>&nbsp;    }
+<i>645</i>&nbsp;
+<i>646</i>&nbsp;    @Override
+<i>647</i>&nbsp;    public VersionType versionType() {
+<b class="nc"><i>648</i>&nbsp;        return this.versionType;</b>
+<i>649</i>&nbsp;    }
+<i>650</i>&nbsp;
+<i>651</i>&nbsp;
+<i>652</i>&nbsp;    public void process(Version indexCreatedVersion, @Nullable MappingMetaData mappingMd, String concreteIndex) {
+<b class="nc"><i>653</i>&nbsp;        if (mappingMd != null) {</b>
+<i>654</i>&nbsp;            // might as well check for routing here
+<b class="nc"><i>655</i>&nbsp;            if (mappingMd.routing().required() &amp;&amp; routing == null) {</b>
+<b class="nc"><i>656</i>&nbsp;                throw new RoutingMissingException(concreteIndex, type(), id);</b>
+<i>657</i>&nbsp;            }
+<i>658</i>&nbsp;        }
+<i>659</i>&nbsp;
+<b class="nc"><i>660</i>&nbsp;        if (&quot;&quot;.equals(id)) {</b>
+<b class="nc"><i>661</i>&nbsp;            throw new IllegalArgumentException(&quot;if _id is specified it must not be empty&quot;);</b>
+<i>662</i>&nbsp;        }
+<i>663</i>&nbsp;
+<i>664</i>&nbsp;        // generate id if not already provided
+<b class="nc"><i>665</i>&nbsp;        if (id == null) {</b>
+<b class="nc"><i>666</i>&nbsp;            assert autoGeneratedTimestamp == UNSET_AUTO_GENERATED_TIMESTAMP : &quot;timestamp has already been generated!&quot;;</b>
+<b class="nc"><i>667</i>&nbsp;            assert ifSeqNo == UNASSIGNED_SEQ_NO;</b>
+<b class="nc"><i>668</i>&nbsp;            assert ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM;</b>
+<b class="nc"><i>669</i>&nbsp;            autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia</b>
+<i>670</i>&nbsp;            String uid;
+<b class="nc"><i>671</i>&nbsp;            if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {</b>
+<b class="nc"><i>672</i>&nbsp;                uid = UUIDs.base64UUID();</b>
+<i>673</i>&nbsp;            } else {
+<b class="nc"><i>674</i>&nbsp;                uid = UUIDs.legacyBase64UUID();</b>
+<i>675</i>&nbsp;            }
+<b class="nc"><i>676</i>&nbsp;            id(uid);</b>
+<i>677</i>&nbsp;        }
+<b class="nc"><i>678</i>&nbsp;    }</b>
+<i>679</i>&nbsp;
+<i>680</i>&nbsp;    /* resolve the routing if needed */
+<i>681</i>&nbsp;    public void resolveRouting(MetaData metaData) {
+<b class="nc"><i>682</i>&nbsp;        routing(metaData.resolveWriteIndexRouting(routing, index));</b>
+<b class="nc"><i>683</i>&nbsp;    }</b>
+<i>684</i>&nbsp;
+<i>685</i>&nbsp;    public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
+<b class="nc"><i>686</i>&nbsp;        if (id == null &amp;&amp; opType == OpType.CREATE &amp;&amp; version.before(Version.V_7_5_0)) {</b>
+<b class="nc"><i>687</i>&nbsp;            throw new IllegalArgumentException(&quot;optype create not supported for indexing requests without explicit id until all nodes &quot; +</b>
+<i>688</i>&nbsp;                &quot;are on version 7.5.0 or higher&quot;);
+<i>689</i>&nbsp;        }
+<b class="nc"><i>690</i>&nbsp;    }</b>
+<i>691</i>&nbsp;
+<i>692</i>&nbsp;    @Override
+<i>693</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>694</i>&nbsp;        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());</b>
+<b class="nc"><i>695</i>&nbsp;        super.writeTo(out);</b>
+<i>696</i>&nbsp;        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
+<i>697</i>&nbsp;        // So we use the type accessor method here to make the type non-null (will default it to &quot;_doc&quot;).
+<b class="nc"><i>698</i>&nbsp;        out.writeOptionalString(type());</b>
+<b class="nc"><i>699</i>&nbsp;        out.writeOptionalString(id);</b>
+<b class="nc"><i>700</i>&nbsp;        out.writeOptionalString(routing);</b>
+<b class="nc"><i>701</i>&nbsp;        if (out.getVersion().before(Version.V_7_0_0)) {</b>
+<b class="nc"><i>702</i>&nbsp;            out.writeOptionalString(null); // _parent</b>
+<i>703</i>&nbsp;        }
+<b class="nc"><i>704</i>&nbsp;        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {</b>
+<i>705</i>&nbsp;            // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can&#39;t use null.
+<i>706</i>&nbsp;            // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for
+<i>707</i>&nbsp;            // the transport layer OK as it will be ignored.
+<b class="nc"><i>708</i>&nbsp;            out.writeOptionalString(&quot;0&quot;);</b>
+<b class="nc"><i>709</i>&nbsp;            out.writeOptionalWriteable(null);</b>
+<i>710</i>&nbsp;        }
+<b class="nc"><i>711</i>&nbsp;        out.writeBytesReference(source);</b>
+<b class="nc"><i>712</i>&nbsp;        out.writeByte(opType.getId());</b>
+<b class="nc"><i>713</i>&nbsp;        out.writeLong(version);</b>
+<b class="nc"><i>714</i>&nbsp;        out.writeByte(versionType.getValue());</b>
+<b class="nc"><i>715</i>&nbsp;        out.writeOptionalString(pipeline);</b>
+<b class="nc"><i>716</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {</b>
+<b class="nc"><i>717</i>&nbsp;            out.writeOptionalString(finalPipeline);</b>
+<i>718</i>&nbsp;        }
+<b class="nc"><i>719</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {</b>
+<b class="nc"><i>720</i>&nbsp;            out.writeBoolean(isPipelineResolved);</b>
+<i>721</i>&nbsp;        }
+<b class="nc"><i>722</i>&nbsp;        out.writeBoolean(isRetry);</b>
+<b class="nc"><i>723</i>&nbsp;        out.writeLong(autoGeneratedTimestamp);</b>
+<b class="nc"><i>724</i>&nbsp;        if (contentType != null) {</b>
+<b class="nc"><i>725</i>&nbsp;            out.writeBoolean(true);</b>
+<b class="nc"><i>726</i>&nbsp;            out.writeEnum(contentType);</b>
+<i>727</i>&nbsp;        } else {
+<b class="nc"><i>728</i>&nbsp;            out.writeBoolean(false);</b>
+<i>729</i>&nbsp;        }
+<b class="nc"><i>730</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {</b>
+<b class="nc"><i>731</i>&nbsp;            out.writeZLong(ifSeqNo);</b>
+<b class="nc"><i>732</i>&nbsp;            out.writeVLong(ifPrimaryTerm);</b>
+<b class="nc"><i>733</i>&nbsp;        } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {</b>
+<b class="nc"><i>734</i>&nbsp;            assert false : &quot;setIfMatch [&quot; + ifSeqNo + &quot;], currentDocTem [&quot; + ifPrimaryTerm + &quot;]&quot;;</b>
+<b class="nc"><i>735</i>&nbsp;            throw new IllegalStateException(</b>
+<i>736</i>&nbsp;                &quot;sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. &quot; +
+<b class="nc"><i>737</i>&nbsp;                    &quot;Stream version [&quot; + out.getVersion() + &quot;]&quot;);</b>
+<i>738</i>&nbsp;        }
+<b class="nc"><i>739</i>&nbsp;    }</b>
+<i>740</i>&nbsp;
+<i>741</i>&nbsp;    @Override
+<i>742</i>&nbsp;    public String toString() {
+<b class="nc"><i>743</i>&nbsp;        String sSource = &quot;_na_&quot;;</b>
+<i>744</i>&nbsp;        try {
+<b class="nc"><i>745</i>&nbsp;            if (source.length() &gt; MAX_SOURCE_LENGTH_IN_TOSTRING) {</b>
+<b class="nc"><i>746</i>&nbsp;                sSource = &quot;n/a, actual length: [&quot; + new ByteSizeValue(source.length()).toString() + &quot;], max length: &quot; +</b>
+<b class="nc"><i>747</i>&nbsp;                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();</b>
+<i>748</i>&nbsp;            } else {
+<b class="nc"><i>749</i>&nbsp;                sSource = XContentHelper.convertToJson(source, false);</b>
+<i>750</i>&nbsp;            }
+<b class="nc"><i>751</i>&nbsp;        } catch (Exception e) {</b>
+<i>752</i>&nbsp;            // ignore
+<b class="nc"><i>753</i>&nbsp;        }</b>
+<b class="nc"><i>754</i>&nbsp;        return &quot;index {[&quot; + index + &quot;][&quot; + type() + &quot;][&quot; + id + &quot;], source[&quot; + sSource + &quot;]}&quot;;</b>
+<i>755</i>&nbsp;    }
+<i>756</i>&nbsp;
+<i>757</i>&nbsp;
+<i>758</i>&nbsp;    /**
+<i>759</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if this request has been sent to a shard copy more than once.
+<i>760</i>&nbsp;     */
+<i>761</i>&nbsp;    public boolean isRetry() {
+<b class="nc"><i>762</i>&nbsp;        return isRetry;</b>
+<i>763</i>&nbsp;    }
+<i>764</i>&nbsp;
+<i>765</i>&nbsp;    @Override
+<i>766</i>&nbsp;    public void onRetry() {
+<b class="nc"><i>767</i>&nbsp;        isRetry = true;</b>
+<b class="nc"><i>768</i>&nbsp;    }</b>
+<i>769</i>&nbsp;
+<i>770</i>&nbsp;    /**
+<i>771</i>&nbsp;     * Returns the timestamp the auto generated ID was created or {@value #UNSET_AUTO_GENERATED_TIMESTAMP} if the
+<i>772</i>&nbsp;     * document has no auto generated timestamp. This method will return a positive value iff the id was auto generated.
+<i>773</i>&nbsp;     */
+<i>774</i>&nbsp;    public long getAutoGeneratedTimestamp() {
+<b class="nc"><i>775</i>&nbsp;        return autoGeneratedTimestamp;</b>
+<i>776</i>&nbsp;    }
+<i>777</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

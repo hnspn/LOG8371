@@ -1,0 +1,359 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AutoQueueAdjustingExecutorBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.threadpool</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AutoQueueAdjustingExecutorBuilder (org.elasticsearch.threadpool)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AutoQueueAdjustingExecutorBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (9/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (50/ 50)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">AutoQueueAdjustingExecutorBuilder$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (6/ 8)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">AutoQueueAdjustingExecutorBuilder$2</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (6/ 8)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">AutoQueueAdjustingExecutorBuilder$AutoExecutorSettings</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (8/ 8)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (18/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    94.6%
+  </span>
+  <span class="absValue">
+    (70/ 74)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.threadpool;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>23</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>24</i>&nbsp;import org.elasticsearch.common.unit.SizeValue;
+<i>25</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>26</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>27</i>&nbsp;import org.elasticsearch.common.util.concurrent.ThreadContext;
+<i>28</i>&nbsp;import org.elasticsearch.node.Node;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.util.Arrays;
+<i>31</i>&nbsp;import java.util.Collections;
+<i>32</i>&nbsp;import java.util.Iterator;
+<i>33</i>&nbsp;import java.util.List;
+<i>34</i>&nbsp;import java.util.Locale;
+<i>35</i>&nbsp;import java.util.Map;
+<i>36</i>&nbsp;import java.util.concurrent.ExecutorService;
+<i>37</i>&nbsp;import java.util.concurrent.ThreadFactory;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;/**
+<i>40</i>&nbsp; * A builder for executors that automatically adjust the queue length as needed, depending on
+<i>41</i>&nbsp; * Little&#39;s Law. See https://en.wikipedia.org/wiki/Little&#39;s_law for more information.
+<i>42</i>&nbsp; */
+<i>43</i>&nbsp;public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder&lt;AutoQueueAdjustingExecutorBuilder.AutoExecutorSettings&gt; {
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;    private final Setting&lt;Integer&gt; sizeSetting;
+<i>46</i>&nbsp;    private final Setting&lt;Integer&gt; queueSizeSetting;
+<i>47</i>&nbsp;    private final Setting&lt;Integer&gt; minQueueSizeSetting;
+<i>48</i>&nbsp;    private final Setting&lt;Integer&gt; maxQueueSizeSetting;
+<i>49</i>&nbsp;    private final Setting&lt;TimeValue&gt; targetedResponseTimeSetting;
+<i>50</i>&nbsp;    private final Setting&lt;Integer&gt; frameSizeSetting;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    AutoQueueAdjustingExecutorBuilder(final Settings settings, final String name, final int size,
+<i>53</i>&nbsp;                                      final int initialQueueSize, final int minQueueSize,
+<i>54</i>&nbsp;                                      final int maxQueueSize, final int frameSize) {
+<b class="fc"><i>55</i>&nbsp;        super(name);</b>
+<b class="fc"><i>56</i>&nbsp;        final String prefix = &quot;thread_pool.&quot; + name;</b>
+<b class="fc"><i>57</i>&nbsp;        final String sizeKey = settingsKey(prefix, &quot;size&quot;);</b>
+<b class="fc"><i>58</i>&nbsp;        this.sizeSetting =</b>
+<i>59</i>&nbsp;                new Setting&lt;&gt;(
+<i>60</i>&nbsp;                        sizeKey,
+<b class="fc"><i>61</i>&nbsp;                        s -&gt; Integer.toString(size),</b>
+<b class="fc"><i>62</i>&nbsp;                        s -&gt; Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),</b>
+<i>63</i>&nbsp;                        Setting.Property.NodeScope);
+<b class="fc"><i>64</i>&nbsp;        final String queueSizeKey = settingsKey(prefix, &quot;queue_size&quot;);</b>
+<b class="fc"><i>65</i>&nbsp;        final String minSizeKey = settingsKey(prefix, &quot;min_queue_size&quot;);</b>
+<b class="fc"><i>66</i>&nbsp;        final String maxSizeKey = settingsKey(prefix, &quot;max_queue_size&quot;);</b>
+<b class="fc"><i>67</i>&nbsp;        final String frameSizeKey = settingsKey(prefix, &quot;auto_queue_frame_size&quot;);</b>
+<b class="fc"><i>68</i>&nbsp;        final String targetedResponseTimeKey = settingsKey(prefix, &quot;target_response_time&quot;);</b>
+<b class="fc"><i>69</i>&nbsp;        this.targetedResponseTimeSetting = Setting.timeSetting(targetedResponseTimeKey, TimeValue.timeValueSeconds(1),</b>
+<b class="fc"><i>70</i>&nbsp;                TimeValue.timeValueMillis(10), Setting.Property.NodeScope);</b>
+<b class="fc"><i>71</i>&nbsp;        this.queueSizeSetting = Setting.intSetting(queueSizeKey, initialQueueSize, Setting.Property.NodeScope);</b>
+<i>72</i>&nbsp;        // These temp settings are used to validate the min and max settings below
+<b class="fc"><i>73</i>&nbsp;        Setting&lt;Integer&gt; tempMaxQueueSizeSetting = Setting.intSetting(maxSizeKey, maxQueueSize, Setting.Property.NodeScope);</b>
+<b class="fc"><i>74</i>&nbsp;        Setting&lt;Integer&gt; tempMinQueueSizeSetting = Setting.intSetting(minSizeKey, minQueueSize, Setting.Property.NodeScope);</b>
+<i>75</i>&nbsp;
+<b class="fc"><i>76</i>&nbsp;        this.minQueueSizeSetting = new Setting&lt;&gt;(</b>
+<i>77</i>&nbsp;            minSizeKey,
+<b class="fc"><i>78</i>&nbsp;            Integer.toString(minQueueSize),</b>
+<b class="fc"><i>79</i>&nbsp;            s -&gt; Setting.parseInt(s, 0, minSizeKey),</b>
+<b class="fc"><i>80</i>&nbsp;            new Setting.Validator&lt;Integer&gt;() {</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;                @Override
+<i>83</i>&nbsp;                public void validate(final Integer value) {
+<i>84</i>&nbsp;
+<b class="fc"><i>85</i>&nbsp;                }</b>
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;                @Override
+<i>88</i>&nbsp;                public void validate(final Integer value, final Map&lt;Setting&lt;?&gt;, Object&gt; settings) {
+<b class="fc"><i>89</i>&nbsp;                    if (value &gt; (int) settings.get(tempMaxQueueSizeSetting)) {</b>
+<b class="nc"><i>90</i>&nbsp;                        throw new IllegalArgumentException(&quot;Failed to parse value [&quot; + value + &quot;] for setting [&quot; + minSizeKey</b>
+<b class="nc"><i>91</i>&nbsp;                            + &quot;] must be &lt;= &quot; + settings.get(tempMaxQueueSizeSetting));</b>
+<i>92</i>&nbsp;                    }
+<b class="fc"><i>93</i>&nbsp;                }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;                @Override
+<i>96</i>&nbsp;                public Iterator&lt;Setting&lt;?&gt;&gt; settings() {
+<b class="fc"><i>97</i>&nbsp;                    final List&lt;Setting&lt;?&gt;&gt; settings = Collections.singletonList(tempMaxQueueSizeSetting);</b>
+<b class="fc"><i>98</i>&nbsp;                    return settings.iterator();</b>
+<i>99</i>&nbsp;                }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;            },
+<i>102</i>&nbsp;            Setting.Property.NodeScope);
+<b class="fc"><i>103</i>&nbsp;        this.maxQueueSizeSetting = new Setting&lt;&gt;(</b>
+<i>104</i>&nbsp;                maxSizeKey,
+<b class="fc"><i>105</i>&nbsp;                Integer.toString(maxQueueSize),</b>
+<b class="fc"><i>106</i>&nbsp;                s -&gt; Setting.parseInt(s, 0, maxSizeKey),</b>
+<b class="fc"><i>107</i>&nbsp;                new Setting.Validator&lt;Integer&gt;() {</b>
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;                    @Override
+<i>110</i>&nbsp;                    public void validate(Integer value) {
+<i>111</i>&nbsp;
+<b class="fc"><i>112</i>&nbsp;                    }</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;                    @Override
+<i>115</i>&nbsp;                    public void validate(final Integer value, final Map&lt;Setting&lt;?&gt;, Object&gt; settings) {
+<b class="fc"><i>116</i>&nbsp;                        if (value &lt; (int) settings.get(tempMinQueueSizeSetting)) {</b>
+<b class="nc"><i>117</i>&nbsp;                            throw new IllegalArgumentException(&quot;Failed to parse value [&quot; + value + &quot;] for setting [&quot; + minSizeKey</b>
+<b class="nc"><i>118</i>&nbsp;                                + &quot;] must be &gt;= &quot; + settings.get(tempMinQueueSizeSetting));</b>
+<i>119</i>&nbsp;                        }
+<b class="fc"><i>120</i>&nbsp;                    }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;                    @Override
+<i>123</i>&nbsp;                    public Iterator&lt;Setting&lt;?&gt;&gt; settings() {
+<b class="fc"><i>124</i>&nbsp;                        final List&lt;Setting&lt;?&gt;&gt; settings = Collections.singletonList(tempMinQueueSizeSetting);</b>
+<b class="fc"><i>125</i>&nbsp;                        return settings.iterator();</b>
+<i>126</i>&nbsp;                    }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;                },
+<i>129</i>&nbsp;                Setting.Property.NodeScope);
+<b class="fc"><i>130</i>&nbsp;        this.frameSizeSetting = Setting.intSetting(frameSizeKey, frameSize, 100, Setting.Property.NodeScope);</b>
+<b class="fc"><i>131</i>&nbsp;    }</b>
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    @Override
+<i>134</i>&nbsp;    public List&lt;Setting&lt;?&gt;&gt; getRegisteredSettings() {
+<b class="fc"><i>135</i>&nbsp;        return Arrays.asList(sizeSetting, queueSizeSetting, minQueueSizeSetting,</b>
+<i>136</i>&nbsp;                maxQueueSizeSetting, frameSizeSetting, targetedResponseTimeSetting);
+<i>137</i>&nbsp;    }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    @Override
+<i>140</i>&nbsp;    AutoExecutorSettings getSettings(Settings settings) {
+<b class="fc"><i>141</i>&nbsp;        final String nodeName = Node.NODE_NAME_SETTING.get(settings);</b>
+<b class="fc"><i>142</i>&nbsp;        final int size = sizeSetting.get(settings);</b>
+<b class="fc"><i>143</i>&nbsp;        final int initialQueueSize = queueSizeSetting.get(settings);</b>
+<b class="fc"><i>144</i>&nbsp;        final int minQueueSize = minQueueSizeSetting.get(settings);</b>
+<b class="fc"><i>145</i>&nbsp;        final int maxQueueSize = maxQueueSizeSetting.get(settings);</b>
+<b class="fc"><i>146</i>&nbsp;        final int frameSize = frameSizeSetting.get(settings);</b>
+<b class="fc"><i>147</i>&nbsp;        final TimeValue targetedResponseTime = targetedResponseTimeSetting.get(settings);</b>
+<b class="fc"><i>148</i>&nbsp;        return new AutoExecutorSettings(nodeName, size, initialQueueSize, minQueueSize, maxQueueSize, frameSize, targetedResponseTime);</b>
+<i>149</i>&nbsp;    }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;    @Override
+<i>152</i>&nbsp;    ThreadPool.ExecutorHolder build(final AutoExecutorSettings settings,
+<i>153</i>&nbsp;                                    final ThreadContext threadContext) {
+<b class="fc"><i>154</i>&nbsp;        int size = settings.size;</b>
+<b class="fc"><i>155</i>&nbsp;        int initialQueueSize = settings.initialQueueSize;</b>
+<b class="fc"><i>156</i>&nbsp;        int minQueueSize = settings.minQueueSize;</b>
+<b class="fc"><i>157</i>&nbsp;        int maxQueueSize = settings.maxQueueSize;</b>
+<b class="fc"><i>158</i>&nbsp;        int frameSize = settings.frameSize;</b>
+<b class="fc"><i>159</i>&nbsp;        TimeValue targetedResponseTime = settings.targetedResponseTime;</b>
+<b class="fc"><i>160</i>&nbsp;        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));</b>
+<b class="fc"><i>161</i>&nbsp;        final ExecutorService executor =</b>
+<b class="fc"><i>162</i>&nbsp;                EsExecutors.newAutoQueueFixed(</b>
+<b class="fc"><i>163</i>&nbsp;                        settings.nodeName + &quot;/&quot; + name(),</b>
+<i>164</i>&nbsp;                        size,
+<i>165</i>&nbsp;                        initialQueueSize,
+<i>166</i>&nbsp;                        minQueueSize,
+<i>167</i>&nbsp;                        maxQueueSize,
+<i>168</i>&nbsp;                        frameSize,
+<i>169</i>&nbsp;                        targetedResponseTime,
+<i>170</i>&nbsp;                        threadFactory,
+<i>171</i>&nbsp;                        threadContext);
+<i>172</i>&nbsp;        // TODO: in a subsequent change we hope to extend ThreadPool.Info to be more specific for the thread pool type
+<b class="fc"><i>173</i>&nbsp;        final ThreadPool.Info info =</b>
+<b class="fc"><i>174</i>&nbsp;            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE,</b>
+<i>175</i>&nbsp;                    size, size, null, new SizeValue(initialQueueSize));
+<b class="fc"><i>176</i>&nbsp;        return new ThreadPool.ExecutorHolder(executor, info);</b>
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    @Override
+<i>180</i>&nbsp;    String formatInfo(ThreadPool.Info info) {
+<b class="fc"><i>181</i>&nbsp;        return String.format(</b>
+<i>182</i>&nbsp;            Locale.ROOT,
+<i>183</i>&nbsp;            &quot;name [%s], size [%d], queue size [%s]&quot;,
+<b class="fc"><i>184</i>&nbsp;            info.getName(),</b>
+<b class="fc"><i>185</i>&nbsp;            info.getMax(),</b>
+<b class="fc"><i>186</i>&nbsp;            info.getQueueSize() == null ? &quot;unbounded&quot; : info.getQueueSize());</b>
+<i>187</i>&nbsp;    }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    static final class AutoExecutorSettings extends ExecutorBuilder.ExecutorSettings {
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;        final int size;
+<i>192</i>&nbsp;        final int initialQueueSize;
+<i>193</i>&nbsp;        final int minQueueSize;
+<i>194</i>&nbsp;        final int maxQueueSize;
+<i>195</i>&nbsp;        final int frameSize;
+<i>196</i>&nbsp;        final TimeValue targetedResponseTime;
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;        AutoExecutorSettings(final String nodeName, final int size, final int initialQueueSize,
+<i>199</i>&nbsp;                             final int minQueueSize, final int maxQueueSize, final int frameSize,
+<i>200</i>&nbsp;                             final TimeValue targetedResponseTime) {
+<b class="fc"><i>201</i>&nbsp;            super(nodeName);</b>
+<b class="fc"><i>202</i>&nbsp;            this.size = size;</b>
+<b class="fc"><i>203</i>&nbsp;            this.initialQueueSize = initialQueueSize;</b>
+<b class="fc"><i>204</i>&nbsp;            this.minQueueSize = minQueueSize;</b>
+<b class="fc"><i>205</i>&nbsp;            this.maxQueueSize = maxQueueSize;</b>
+<b class="fc"><i>206</i>&nbsp;            this.frameSize = frameSize;</b>
+<b class="fc"><i>207</i>&nbsp;            this.targetedResponseTime = targetedResponseTime;</b>
+<b class="fc"><i>208</i>&nbsp;        }</b>
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

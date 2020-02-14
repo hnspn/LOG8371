@@ -1,0 +1,875 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Suggest</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.suggest</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Suggest (org.elasticsearch.search.suggest)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">Suggest$Suggestion</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 89)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">Suggest$Suggestion$Entry</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 91)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 38)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 180)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.search.suggest;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.util.CollectionUtil;
+<i>22</i>&nbsp;import org.apache.lucene.util.SetOnce;
+<i>23</i>&nbsp;import org.elasticsearch.Version;
+<i>24</i>&nbsp;import org.elasticsearch.common.CheckedFunction;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>26</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>27</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.NamedWriteable;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>32</i>&nbsp;import org.elasticsearch.common.text.Text;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParserUtils;
+<i>38</i>&nbsp;import org.elasticsearch.rest.action.search.RestSearchAction;
+<i>39</i>&nbsp;import org.elasticsearch.search.aggregations.Aggregation;
+<i>40</i>&nbsp;import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
+<i>41</i>&nbsp;import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+<i>42</i>&nbsp;import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+<i>43</i>&nbsp;import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
+<i>44</i>&nbsp;import org.elasticsearch.search.suggest.term.TermSuggestion;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.io.IOException;
+<i>47</i>&nbsp;import java.util.ArrayList;
+<i>48</i>&nbsp;import java.util.Comparator;
+<i>49</i>&nbsp;import java.util.HashMap;
+<i>50</i>&nbsp;import java.util.Iterator;
+<i>51</i>&nbsp;import java.util.List;
+<i>52</i>&nbsp;import java.util.Locale;
+<i>53</i>&nbsp;import java.util.Map;
+<i>54</i>&nbsp;import java.util.Objects;
+<i>55</i>&nbsp;import java.util.stream.Collectors;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;/**
+<i>60</i>&nbsp; * Top level suggest result, containing the result for each suggestion.
+<i>61</i>&nbsp; */
+<i>62</i>&nbsp;public class Suggest implements Iterable&lt;Suggest.Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt;, Writeable, ToXContentFragment {
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    public static final String NAME = &quot;suggest&quot;;
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    public static final Comparator&lt;Option&gt; COMPARATOR = (first, second) -&gt; {
+<i>67</i>&nbsp;        int cmp = Float.compare(second.getScore(), first.getScore());
+<i>68</i>&nbsp;        if (cmp != 0) {
+<i>69</i>&nbsp;            return cmp;
+<i>70</i>&nbsp;        }
+<i>71</i>&nbsp;        return first.getText().compareTo(second.getText());
+<i>72</i>&nbsp;     };
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    private List&lt;Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; suggestions;
+<i>75</i>&nbsp;    private boolean hasScoreDocs;
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    private Map&lt;String, Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; suggestMap;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    public Suggest(List&lt;Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; suggestions) {
+<i>80</i>&nbsp;        // we sort suggestions by their names to ensure iteration over suggestions are consistent
+<i>81</i>&nbsp;        // this is needed as we need to fill in suggestion docs in SearchPhaseController#sortDocs
+<i>82</i>&nbsp;        // in the same order as we enrich the suggestions with fetch results in SearchPhaseController#merge
+<i>83</i>&nbsp;        suggestions.sort((o1, o2) -&gt; o1.getName().compareTo(o2.getName()));
+<i>84</i>&nbsp;        this.suggestions = suggestions;
+<i>85</i>&nbsp;        this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    public Suggest(StreamInput in) throws IOException {
+<i>89</i>&nbsp;        // in older versions, Suggestion types were serialized as Streamable
+<i>90</i>&nbsp;        if (in.getVersion().before(Version.V_7_0_0)) {
+<i>91</i>&nbsp;            final int size = in.readVInt();
+<i>92</i>&nbsp;            suggestions = new ArrayList&lt;&gt;(size);
+<i>93</i>&nbsp;            for (int i = 0; i &lt; size; i++) {
+<i>94</i>&nbsp;                Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt; suggestion;
+<i>95</i>&nbsp;                final int type = in.readVInt();
+<i>96</i>&nbsp;                switch (type) {
+<i>97</i>&nbsp;                    case TermSuggestion.TYPE:
+<i>98</i>&nbsp;                        suggestion = new TermSuggestion(in);
+<i>99</i>&nbsp;                        break;
+<i>100</i>&nbsp;                    case CompletionSuggestion.TYPE:
+<i>101</i>&nbsp;                        suggestion = new CompletionSuggestion(in);
+<i>102</i>&nbsp;                        break;
+<i>103</i>&nbsp;                    case PhraseSuggestion.TYPE:
+<i>104</i>&nbsp;                        suggestion = new PhraseSuggestion(in);
+<i>105</i>&nbsp;                        break;
+<i>106</i>&nbsp;                    default:
+<i>107</i>&nbsp;                        throw new IllegalArgumentException(&quot;Unknown suggestion type with ordinal &quot; + type);
+<i>108</i>&nbsp;                }
+<i>109</i>&nbsp;                suggestions.add(suggestion);
+<i>110</i>&nbsp;            }
+<i>111</i>&nbsp;        } else {
+<i>112</i>&nbsp;            int suggestionCount = in.readVInt();
+<i>113</i>&nbsp;            suggestions = new ArrayList&lt;&gt;(suggestionCount);
+<i>114</i>&nbsp;            for (int i = 0; i &lt; suggestionCount; i++) {
+<i>115</i>&nbsp;                suggestions.add(in.readNamedWriteable(Suggestion.class));
+<i>116</i>&nbsp;            }
+<i>117</i>&nbsp;        }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;        hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
+<i>120</i>&nbsp;    }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    @Override
+<i>123</i>&nbsp;    public Iterator&lt;Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; iterator() {
+<i>124</i>&nbsp;        return suggestions.iterator();
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * The number of suggestions in this {@link Suggest} result
+<i>129</i>&nbsp;     */
+<i>130</i>&nbsp;    public int size() {
+<i>131</i>&nbsp;        return suggestions.size();
+<i>132</i>&nbsp;    }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;    public &lt;T extends Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; T getSuggestion(String name) {
+<i>135</i>&nbsp;        if (suggestions.isEmpty() || name == null) {
+<i>136</i>&nbsp;            return null;
+<i>137</i>&nbsp;        } else if (suggestions.size() == 1) {
+<i>138</i>&nbsp;          return (T) (name.equals(suggestions.get(0).name) ? suggestions.get(0) : null);
+<i>139</i>&nbsp;        } else if (this.suggestMap == null) {
+<i>140</i>&nbsp;            suggestMap = new HashMap&lt;&gt;();
+<i>141</i>&nbsp;            for (Suggest.Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt; item : suggestions) {
+<i>142</i>&nbsp;                suggestMap.put(item.getName(), item);
+<i>143</i>&nbsp;            }
+<i>144</i>&nbsp;        }
+<i>145</i>&nbsp;        return (T) suggestMap.get(name);
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /**
+<i>149</i>&nbsp;     * Whether any suggestions had query hits
+<i>150</i>&nbsp;     */
+<i>151</i>&nbsp;    public boolean hasScoreDocs() {
+<i>152</i>&nbsp;        return hasScoreDocs;
+<i>153</i>&nbsp;    }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    @Override
+<i>156</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<i>157</i>&nbsp;        // in older versions, Suggestion types were serialized as Streamable
+<i>158</i>&nbsp;        if (out.getVersion().before(Version.V_7_0_0)) {
+<i>159</i>&nbsp;            out.writeVInt(suggestions.size());
+<i>160</i>&nbsp;            for (Suggestion&lt;?&gt; command : suggestions) {
+<i>161</i>&nbsp;                out.writeVInt(command.getWriteableType());
+<i>162</i>&nbsp;                command.writeTo(out);
+<i>163</i>&nbsp;            }
+<i>164</i>&nbsp;        } else {
+<i>165</i>&nbsp;            out.writeVInt(suggestions.size());
+<i>166</i>&nbsp;            for (Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt; suggestion : suggestions) {
+<i>167</i>&nbsp;                out.writeNamedWriteable(suggestion);
+<i>168</i>&nbsp;            }
+<i>169</i>&nbsp;        }
+<i>170</i>&nbsp;    }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    @Override
+<i>173</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>174</i>&nbsp;        builder.startObject(NAME);
+<i>175</i>&nbsp;        for (Suggestion&lt;?&gt; suggestion : suggestions) {
+<i>176</i>&nbsp;            suggestion.toXContent(builder, params);
+<i>177</i>&nbsp;        }
+<i>178</i>&nbsp;        builder.endObject();
+<i>179</i>&nbsp;        return builder;
+<i>180</i>&nbsp;    }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;    /**
+<i>183</i>&nbsp;     * this parsing method assumes that the leading &quot;suggest&quot; field name has already been parsed by the caller
+<i>184</i>&nbsp;     */
+<i>185</i>&nbsp;    public static Suggest fromXContent(XContentParser parser) throws IOException {
+<i>186</i>&nbsp;        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+<i>187</i>&nbsp;        List&lt;Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; suggestions = new ArrayList&lt;&gt;();
+<i>188</i>&nbsp;        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+<i>189</i>&nbsp;            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+<i>190</i>&nbsp;            String currentField = parser.currentName();
+<i>191</i>&nbsp;            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+<i>192</i>&nbsp;            Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt; suggestion = Suggestion.fromXContent(parser);
+<i>193</i>&nbsp;            if (suggestion != null) {
+<i>194</i>&nbsp;                suggestions.add(suggestion);
+<i>195</i>&nbsp;            } else {
+<i>196</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(),
+<i>197</i>&nbsp;                        String.format(Locale.ROOT, &quot;Could not parse suggestion keyed as [%s]&quot;, currentField));
+<i>198</i>&nbsp;            }
+<i>199</i>&nbsp;        }
+<i>200</i>&nbsp;        return new Suggest(suggestions);
+<i>201</i>&nbsp;    }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    public static List&lt;Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; reduce(Map&lt;String, List&lt;Suggest.Suggestion&gt;&gt; groupedSuggestions) {
+<i>204</i>&nbsp;        List&lt;Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt;&gt; reduced = new ArrayList&lt;&gt;(groupedSuggestions.size());
+<i>205</i>&nbsp;        for (Map.Entry&lt;String, List&lt;Suggestion&gt;&gt; unmergedResults : groupedSuggestions.entrySet()) {
+<i>206</i>&nbsp;            List&lt;Suggestion&gt; value = unmergedResults.getValue();
+<i>207</i>&nbsp;            Class&lt;? extends Suggestion&gt; suggestionClass = null;
+<i>208</i>&nbsp;            for (Suggestion suggestion : value) {
+<i>209</i>&nbsp;                if (suggestionClass == null) {
+<i>210</i>&nbsp;                    suggestionClass = suggestion.getClass();
+<i>211</i>&nbsp;                } else if (suggestionClass != suggestion.getClass()) {
+<i>212</i>&nbsp;                    throw new IllegalArgumentException(
+<i>213</i>&nbsp;                        &quot;detected mixed suggestion results, due to querying on old and new completion suggester,&quot; +
+<i>214</i>&nbsp;                        &quot; query on a single completion suggester version&quot;);
+<i>215</i>&nbsp;                }
+<i>216</i>&nbsp;            }
+<i>217</i>&nbsp;            Suggestion reduce = value.get(0).reduce(value);
+<i>218</i>&nbsp;            reduce.trim();
+<i>219</i>&nbsp;            reduced.add(reduce);
+<i>220</i>&nbsp;        }
+<i>221</i>&nbsp;        return reduced;
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    /**
+<i>225</i>&nbsp;     * @return only suggestions of type &lt;code&gt;suggestionType&lt;/code&gt; contained in this {@link Suggest} instance
+<i>226</i>&nbsp;     */
+<i>227</i>&nbsp;    public &lt;T extends Suggestion&gt; List&lt;T&gt; filter(Class&lt;T&gt; suggestionType) {
+<i>228</i>&nbsp;         return suggestions.stream()
+<i>229</i>&nbsp;            .filter(suggestion -&gt; suggestion.getClass() == suggestionType)
+<i>230</i>&nbsp;            .map(suggestion -&gt; (T) suggestion)
+<i>231</i>&nbsp;            .collect(Collectors.toList());
+<i>232</i>&nbsp;    }
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    @Override
+<i>235</i>&nbsp;    public boolean equals(Object other) {
+<i>236</i>&nbsp;        if (this == other) {
+<i>237</i>&nbsp;            return true;
+<i>238</i>&nbsp;        }
+<i>239</i>&nbsp;        if (other == null || getClass() != other.getClass()) {
+<i>240</i>&nbsp;            return false;
+<i>241</i>&nbsp;        }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;        return Objects.equals(suggestions, ((Suggest) other).suggestions);
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    @Override
+<i>247</i>&nbsp;    public int hashCode() {
+<i>248</i>&nbsp;        return Objects.hash(suggestions);
+<i>249</i>&nbsp;    }
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    /**
+<i>252</i>&nbsp;     * The suggestion responses corresponding with the suggestions in the request.
+<i>253</i>&nbsp;     */
+<b class="nc"><i>254</i>&nbsp;    public abstract static class Suggestion&lt;T extends Suggestion.Entry&gt; implements Iterable&lt;T&gt;, NamedWriteable, ToXContentFragment {</b>
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;        public static final int TYPE = 0;
+<i>257</i>&nbsp;        protected final String name;
+<i>258</i>&nbsp;        protected final int size;
+<b class="nc"><i>259</i>&nbsp;        protected final List&lt;T&gt; entries = new ArrayList&lt;&gt;(5);</b>
+<i>260</i>&nbsp;
+<b class="nc"><i>261</i>&nbsp;        public Suggestion(String name, int size) {</b>
+<b class="nc"><i>262</i>&nbsp;            this.name = name;</b>
+<b class="nc"><i>263</i>&nbsp;            this.size = size; // The suggested term size specified in request, only used for merging shard responses</b>
+<b class="nc"><i>264</i>&nbsp;        }</b>
+<i>265</i>&nbsp;
+<b class="nc"><i>266</i>&nbsp;        public Suggestion(StreamInput in) throws IOException {</b>
+<b class="nc"><i>267</i>&nbsp;            name = in.readString();</b>
+<b class="nc"><i>268</i>&nbsp;            size = in.readVInt();</b>
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;            // this is a hack to work around slightly different serialization order of earlier versions of TermSuggestion
+<b class="nc"><i>271</i>&nbsp;            if (in.getVersion().before(Version.V_7_0_0) &amp;&amp; this instanceof TermSuggestion) {</b>
+<b class="nc"><i>272</i>&nbsp;                TermSuggestion t = (TermSuggestion) this;</b>
+<b class="nc"><i>273</i>&nbsp;                t.setSort(SortBy.readFromStream(in));</b>
+<i>274</i>&nbsp;            }
+<i>275</i>&nbsp;
+<b class="nc"><i>276</i>&nbsp;            int entriesCount = in.readVInt();</b>
+<b class="nc"><i>277</i>&nbsp;            entries.clear();</b>
+<b class="nc"><i>278</i>&nbsp;            for (int i = 0; i &lt; entriesCount; i++) {</b>
+<b class="nc"><i>279</i>&nbsp;                T newEntry = newEntry(in);</b>
+<b class="nc"><i>280</i>&nbsp;                entries.add(newEntry);</b>
+<i>281</i>&nbsp;            }
+<b class="nc"><i>282</i>&nbsp;        }</b>
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;        public void addTerm(T entry) {
+<b class="nc"><i>285</i>&nbsp;            entries.add(entry);</b>
+<b class="nc"><i>286</i>&nbsp;        }</b>
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;        /**
+<i>289</i>&nbsp;         * Returns a integer representing the type of the suggestion. This is used for
+<i>290</i>&nbsp;         * internal serialization over the network.
+<i>291</i>&nbsp;         *
+<i>292</i>&nbsp;         * This class is now serialized as a NamedWriteable and this method only remains for backwards compatibility
+<i>293</i>&nbsp;         */
+<i>294</i>&nbsp;        @Deprecated
+<i>295</i>&nbsp;        public int getWriteableType() {
+<b class="nc"><i>296</i>&nbsp;            return TYPE;</b>
+<i>297</i>&nbsp;        }
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;        @Override
+<i>300</i>&nbsp;        public Iterator&lt;T&gt; iterator() {
+<b class="nc"><i>301</i>&nbsp;            return entries.iterator();</b>
+<i>302</i>&nbsp;        }
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;        /**
+<i>305</i>&nbsp;         * @return The entries for this suggestion.
+<i>306</i>&nbsp;         */
+<i>307</i>&nbsp;        public List&lt;T&gt; getEntries() {
+<b class="nc"><i>308</i>&nbsp;            return entries;</b>
+<i>309</i>&nbsp;        }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;        /**
+<i>312</i>&nbsp;         * @return The name of the suggestion as is defined in the request.
+<i>313</i>&nbsp;         */
+<i>314</i>&nbsp;        public String getName() {
+<b class="nc"><i>315</i>&nbsp;            return name;</b>
+<i>316</i>&nbsp;        }
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;        /**
+<i>319</i>&nbsp;         * @return The number of requested suggestion option size
+<i>320</i>&nbsp;         */
+<i>321</i>&nbsp;        public int getSize() {
+<b class="nc"><i>322</i>&nbsp;            return size;</b>
+<i>323</i>&nbsp;        }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;        /**
+<i>326</i>&nbsp;         * Merges the result of another suggestion into this suggestion.
+<i>327</i>&nbsp;         * For internal usage.
+<i>328</i>&nbsp;         */
+<i>329</i>&nbsp;        public Suggestion&lt;T&gt; reduce(List&lt;Suggestion&lt;T&gt;&gt; toReduce) {
+<b class="nc"><i>330</i>&nbsp;            if (toReduce.size() == 1) {</b>
+<b class="nc"><i>331</i>&nbsp;                return toReduce.get(0);</b>
+<b class="nc"><i>332</i>&nbsp;            } else if (toReduce.isEmpty()) {</b>
+<b class="nc"><i>333</i>&nbsp;                return null;</b>
+<i>334</i>&nbsp;            }
+<b class="nc"><i>335</i>&nbsp;            Suggestion&lt;T&gt; leader = toReduce.get(0);</b>
+<b class="nc"><i>336</i>&nbsp;            List&lt;T&gt; entries = leader.entries;</b>
+<b class="nc"><i>337</i>&nbsp;            final int size = entries.size();</b>
+<b class="nc"><i>338</i>&nbsp;            Comparator&lt;Option&gt; sortComparator = sortComparator();</b>
+<b class="nc"><i>339</i>&nbsp;            List&lt;T&gt; currentEntries = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>340</i>&nbsp;            for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>341</i>&nbsp;                for (Suggestion&lt;T&gt; suggestion : toReduce) {</b>
+<b class="nc"><i>342</i>&nbsp;                    if(suggestion.entries.size() != size) {</b>
+<b class="nc"><i>343</i>&nbsp;                        throw new IllegalStateException(&quot;Can&#39;t merge suggest result, this might be caused by suggest calls &quot; +</b>
+<i>344</i>&nbsp;                                &quot;across multiple indices with different analysis chains. Suggest entries have different sizes actual [&quot; +
+<b class="nc"><i>345</i>&nbsp;                                suggestion.entries.size() + &quot;] expected [&quot; + size +&quot;]&quot;);</b>
+<i>346</i>&nbsp;                    }
+<b class="nc"><i>347</i>&nbsp;                    assert suggestion.name.equals(leader.name);</b>
+<b class="nc"><i>348</i>&nbsp;                    currentEntries.add(suggestion.entries.get(i));</b>
+<b class="nc"><i>349</i>&nbsp;                }</b>
+<b class="nc"><i>350</i>&nbsp;                T entry = (T) entries.get(i).reduce(currentEntries);</b>
+<b class="nc"><i>351</i>&nbsp;                entry.sort(sortComparator);</b>
+<b class="nc"><i>352</i>&nbsp;                entries.set(i, entry);</b>
+<b class="nc"><i>353</i>&nbsp;                currentEntries.clear();</b>
+<i>354</i>&nbsp;            }
+<b class="nc"><i>355</i>&nbsp;            return leader;</b>
+<i>356</i>&nbsp;        }
+<i>357</i>&nbsp;
+<i>358</i>&nbsp;        protected Comparator&lt;Option&gt; sortComparator() {
+<b class="nc"><i>359</i>&nbsp;            return COMPARATOR;</b>
+<i>360</i>&nbsp;        }
+<i>361</i>&nbsp;
+<i>362</i>&nbsp;        /**
+<i>363</i>&nbsp;         * Trims the number of options per suggest text term to the requested size.
+<i>364</i>&nbsp;         * For internal usage.
+<i>365</i>&nbsp;         */
+<i>366</i>&nbsp;        public void trim() {
+<b class="nc"><i>367</i>&nbsp;            for (Entry&lt;?&gt; entry : entries) {</b>
+<b class="nc"><i>368</i>&nbsp;                entry.trim(size);</b>
+<b class="nc"><i>369</i>&nbsp;            }</b>
+<b class="nc"><i>370</i>&nbsp;        }</b>
+<i>371</i>&nbsp;
+<i>372</i>&nbsp;        protected abstract T newEntry(StreamInput in) throws IOException;
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;        @Override
+<i>375</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>376</i>&nbsp;            out.writeString(name);</b>
+<b class="nc"><i>377</i>&nbsp;            out.writeVInt(size);</b>
+<i>378</i>&nbsp;
+<i>379</i>&nbsp;            // this is a hack to work around slightly different serialization order in older versions of TermSuggestion
+<b class="nc"><i>380</i>&nbsp;            if (out.getVersion().before(Version.V_7_0_0) &amp;&amp; this instanceof TermSuggestion) {</b>
+<b class="nc"><i>381</i>&nbsp;                TermSuggestion termSuggestion = (TermSuggestion) this;</b>
+<b class="nc"><i>382</i>&nbsp;                termSuggestion.getSort().writeTo(out);</b>
+<i>383</i>&nbsp;            }
+<i>384</i>&nbsp;
+<b class="nc"><i>385</i>&nbsp;            out.writeVInt(entries.size());</b>
+<b class="nc"><i>386</i>&nbsp;            for (Entry&lt;?&gt; entry : entries) {</b>
+<b class="nc"><i>387</i>&nbsp;                entry.writeTo(out);</b>
+<b class="nc"><i>388</i>&nbsp;            }</b>
+<b class="nc"><i>389</i>&nbsp;        }</b>
+<i>390</i>&nbsp;
+<i>391</i>&nbsp;        @Override
+<i>392</i>&nbsp;        public abstract String getWriteableName();
+<i>393</i>&nbsp;
+<i>394</i>&nbsp;        @Override
+<i>395</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>396</i>&nbsp;            if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {</b>
+<i>397</i>&nbsp;                // Concatenates the type and the name of the suggestion (ex: completion#foo)
+<b class="nc"><i>398</i>&nbsp;                builder.startArray(String.join(Aggregation.TYPED_KEYS_DELIMITER, getWriteableName(), getName()));</b>
+<i>399</i>&nbsp;            } else {
+<b class="nc"><i>400</i>&nbsp;                builder.startArray(getName());</b>
+<i>401</i>&nbsp;            }
+<b class="nc"><i>402</i>&nbsp;            for (Entry&lt;?&gt; entry : entries) {</b>
+<b class="nc"><i>403</i>&nbsp;                builder.startObject();</b>
+<b class="nc"><i>404</i>&nbsp;                entry.toXContent(builder, params);</b>
+<b class="nc"><i>405</i>&nbsp;                builder.endObject();</b>
+<b class="nc"><i>406</i>&nbsp;            }</b>
+<b class="nc"><i>407</i>&nbsp;            builder.endArray();</b>
+<b class="nc"><i>408</i>&nbsp;            return builder;</b>
+<i>409</i>&nbsp;        }
+<i>410</i>&nbsp;
+<i>411</i>&nbsp;        @Override
+<i>412</i>&nbsp;        public boolean equals(Object other) {
+<b class="nc"><i>413</i>&nbsp;            if (this == other) {</b>
+<b class="nc"><i>414</i>&nbsp;                return true;</b>
+<i>415</i>&nbsp;            }
+<i>416</i>&nbsp;
+<b class="nc"><i>417</i>&nbsp;            if (other == null || getClass() != other.getClass()) {</b>
+<b class="nc"><i>418</i>&nbsp;                return false;</b>
+<i>419</i>&nbsp;            }
+<i>420</i>&nbsp;
+<b class="nc"><i>421</i>&nbsp;            Suggestion otherSuggestion = (Suggestion) other;</b>
+<b class="nc"><i>422</i>&nbsp;            return Objects.equals(name, otherSuggestion.name)</b>
+<b class="nc"><i>423</i>&nbsp;                &amp;&amp; Objects.equals(size, otherSuggestion.size)</b>
+<b class="nc"><i>424</i>&nbsp;                &amp;&amp; Objects.equals(entries, otherSuggestion.entries);</b>
+<i>425</i>&nbsp;        }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;        @Override
+<i>428</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>429</i>&nbsp;            return Objects.hash(name, size, entries);</b>
+<i>430</i>&nbsp;        }
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<i>433</i>&nbsp;        public static Suggestion&lt;? extends Entry&lt;? extends Option&gt;&gt; fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>434</i>&nbsp;            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);</b>
+<b class="nc"><i>435</i>&nbsp;            SetOnce&lt;Suggestion&gt; suggestion = new SetOnce&lt;&gt;();</b>
+<b class="nc"><i>436</i>&nbsp;            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);</b>
+<b class="nc"><i>437</i>&nbsp;            return suggestion.get();</b>
+<i>438</i>&nbsp;        }
+<i>439</i>&nbsp;
+<i>440</i>&nbsp;        protected static &lt;E extends Suggestion.Entry&lt;?&gt;&gt; void parseEntries(XContentParser parser, Suggestion&lt;E&gt; suggestion,
+<i>441</i>&nbsp;                                                                           CheckedFunction&lt;XContentParser, E, IOException&gt; entryParser)
+<i>442</i>&nbsp;                throws IOException {
+<b class="nc"><i>443</i>&nbsp;            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);</b>
+<b class="nc"><i>444</i>&nbsp;            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>445</i>&nbsp;                suggestion.addTerm(entryParser.apply(parser));</b>
+<i>446</i>&nbsp;            }
+<b class="nc"><i>447</i>&nbsp;        }</b>
+<i>448</i>&nbsp;
+<i>449</i>&nbsp;        /**
+<i>450</i>&nbsp;         * Represents a part from the suggest text with suggested options.
+<i>451</i>&nbsp;         */
+<b class="nc"><i>452</i>&nbsp;        public abstract static class Entry&lt;O extends Option&gt; implements Iterable&lt;O&gt;, Writeable, ToXContentFragment {</b>
+<i>453</i>&nbsp;
+<i>454</i>&nbsp;            private static final String TEXT = &quot;text&quot;;
+<i>455</i>&nbsp;            private static final String OFFSET = &quot;offset&quot;;
+<i>456</i>&nbsp;            private static final String LENGTH = &quot;length&quot;;
+<i>457</i>&nbsp;            protected static final String OPTIONS = &quot;options&quot;;
+<i>458</i>&nbsp;
+<i>459</i>&nbsp;            protected Text text;
+<i>460</i>&nbsp;            protected int offset;
+<i>461</i>&nbsp;            protected int length;
+<i>462</i>&nbsp;
+<b class="nc"><i>463</i>&nbsp;            protected List&lt;O&gt; options = new ArrayList&lt;&gt;(5);</b>
+<i>464</i>&nbsp;
+<b class="nc"><i>465</i>&nbsp;            public Entry(Text text, int offset, int length) {</b>
+<b class="nc"><i>466</i>&nbsp;                this.text = text;</b>
+<b class="nc"><i>467</i>&nbsp;                this.offset = offset;</b>
+<b class="nc"><i>468</i>&nbsp;                this.length = length;</b>
+<b class="nc"><i>469</i>&nbsp;            }</b>
+<i>470</i>&nbsp;
+<b class="nc"><i>471</i>&nbsp;            protected Entry() {}</b>
+<i>472</i>&nbsp;
+<b class="nc"><i>473</i>&nbsp;            public Entry(StreamInput in) throws IOException {</b>
+<b class="nc"><i>474</i>&nbsp;                text = in.readText();</b>
+<b class="nc"><i>475</i>&nbsp;                offset = in.readVInt();</b>
+<b class="nc"><i>476</i>&nbsp;                length = in.readVInt();</b>
+<b class="nc"><i>477</i>&nbsp;                int suggestedWords = in.readVInt();</b>
+<b class="nc"><i>478</i>&nbsp;                options = new ArrayList&lt;&gt;(suggestedWords);</b>
+<b class="nc"><i>479</i>&nbsp;                for (int j = 0; j &lt; suggestedWords; j++) {</b>
+<b class="nc"><i>480</i>&nbsp;                    O newOption = newOption(in);</b>
+<b class="nc"><i>481</i>&nbsp;                    options.add(newOption);</b>
+<i>482</i>&nbsp;                }
+<b class="nc"><i>483</i>&nbsp;            }</b>
+<i>484</i>&nbsp;
+<i>485</i>&nbsp;            public void addOption(O option) {
+<b class="nc"><i>486</i>&nbsp;                options.add(option);</b>
+<b class="nc"><i>487</i>&nbsp;            }</b>
+<i>488</i>&nbsp;
+<i>489</i>&nbsp;            protected void addOptions(List&lt;O&gt; options) {
+<b class="nc"><i>490</i>&nbsp;                for (O option : options) {</b>
+<b class="nc"><i>491</i>&nbsp;                    addOption(option);</b>
+<b class="nc"><i>492</i>&nbsp;                }</b>
+<b class="nc"><i>493</i>&nbsp;            }</b>
+<i>494</i>&nbsp;
+<i>495</i>&nbsp;            protected void sort(Comparator&lt;O&gt; comparator) {
+<b class="nc"><i>496</i>&nbsp;                CollectionUtil.timSort(options, comparator);</b>
+<b class="nc"><i>497</i>&nbsp;            }</b>
+<i>498</i>&nbsp;
+<i>499</i>&nbsp;            protected &lt;T extends Entry&lt;O&gt;&gt; Entry&lt;O&gt; reduce(List&lt;T&gt; toReduce) {
+<b class="nc"><i>500</i>&nbsp;                if (toReduce.size() == 1) {</b>
+<b class="nc"><i>501</i>&nbsp;                    return toReduce.get(0);</b>
+<i>502</i>&nbsp;                }
+<b class="nc"><i>503</i>&nbsp;                final Map&lt;O, O&gt; entries = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>504</i>&nbsp;                Entry&lt;O&gt; leader = toReduce.get(0);</b>
+<b class="nc"><i>505</i>&nbsp;                for (Entry&lt;O&gt; entry : toReduce) {</b>
+<b class="nc"><i>506</i>&nbsp;                    if (!leader.text.equals(entry.text)) {</b>
+<b class="nc"><i>507</i>&nbsp;                        throw new IllegalStateException(&quot;Can&#39;t merge suggest entries, this might be caused by suggest calls &quot; +</b>
+<i>508</i>&nbsp;                                &quot;across multiple indices with different analysis chains. Suggest entries have different text actual [&quot; +
+<i>509</i>&nbsp;                                entry.text + &quot;] expected [&quot; + leader.text +&quot;]&quot;);
+<i>510</i>&nbsp;                    }
+<b class="nc"><i>511</i>&nbsp;                    assert leader.offset == entry.offset;</b>
+<b class="nc"><i>512</i>&nbsp;                    assert leader.length == entry.length;</b>
+<b class="nc"><i>513</i>&nbsp;                    leader.merge(entry);</b>
+<b class="nc"><i>514</i>&nbsp;                    for (O option : entry) {</b>
+<b class="nc"><i>515</i>&nbsp;                        O merger = entries.get(option);</b>
+<b class="nc"><i>516</i>&nbsp;                        if (merger == null) {</b>
+<b class="nc"><i>517</i>&nbsp;                            entries.put(option, option);</b>
+<i>518</i>&nbsp;                        } else {
+<b class="nc"><i>519</i>&nbsp;                            merger.mergeInto(option);</b>
+<i>520</i>&nbsp;                        }
+<b class="nc"><i>521</i>&nbsp;                    }</b>
+<b class="nc"><i>522</i>&nbsp;                }</b>
+<b class="nc"><i>523</i>&nbsp;                leader.options.clear();</b>
+<b class="nc"><i>524</i>&nbsp;                for (O option: entries.keySet()) {</b>
+<b class="nc"><i>525</i>&nbsp;                    leader.addOption(option);</b>
+<b class="nc"><i>526</i>&nbsp;                }</b>
+<b class="nc"><i>527</i>&nbsp;                return leader;</b>
+<i>528</i>&nbsp;            }
+<i>529</i>&nbsp;
+<i>530</i>&nbsp;            /**
+<i>531</i>&nbsp;             * Merge any extra fields for this subtype.
+<i>532</i>&nbsp;             */
+<i>533</i>&nbsp;            protected void merge(Entry&lt;O&gt; other) {
+<b class="nc"><i>534</i>&nbsp;            }</b>
+<i>535</i>&nbsp;
+<i>536</i>&nbsp;            /**
+<i>537</i>&nbsp;             * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
+<i>538</i>&nbsp;             *         single term.
+<i>539</i>&nbsp;             */
+<i>540</i>&nbsp;            public Text getText() {
+<b class="nc"><i>541</i>&nbsp;                return text;</b>
+<i>542</i>&nbsp;            }
+<i>543</i>&nbsp;
+<i>544</i>&nbsp;            /**
+<i>545</i>&nbsp;             * @return the start offset (not analyzed) for this entry in the suggest text.
+<i>546</i>&nbsp;             */
+<i>547</i>&nbsp;            public int getOffset() {
+<b class="nc"><i>548</i>&nbsp;                return offset;</b>
+<i>549</i>&nbsp;            }
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;            /**
+<i>552</i>&nbsp;             * @return the length (not analyzed) for this entry in the suggest text.
+<i>553</i>&nbsp;             */
+<i>554</i>&nbsp;            public int getLength() {
+<b class="nc"><i>555</i>&nbsp;                return length;</b>
+<i>556</i>&nbsp;            }
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;            @Override
+<i>559</i>&nbsp;            public Iterator&lt;O&gt; iterator() {
+<b class="nc"><i>560</i>&nbsp;                return options.iterator();</b>
+<i>561</i>&nbsp;            }
+<i>562</i>&nbsp;
+<i>563</i>&nbsp;            /**
+<i>564</i>&nbsp;             * @return The suggested options for this particular suggest entry. If there are no suggested terms then
+<i>565</i>&nbsp;             *         an empty list is returned.
+<i>566</i>&nbsp;             */
+<i>567</i>&nbsp;            public List&lt;O&gt; getOptions() {
+<b class="nc"><i>568</i>&nbsp;                return options;</b>
+<i>569</i>&nbsp;            }
+<i>570</i>&nbsp;
+<i>571</i>&nbsp;            void trim(int size) {
+<b class="nc"><i>572</i>&nbsp;                int optionsToRemove = Math.max(0, options.size() - size);</b>
+<b class="nc"><i>573</i>&nbsp;                for (int i = 0; i &lt; optionsToRemove; i++) {</b>
+<b class="nc"><i>574</i>&nbsp;                    options.remove(options.size() - 1);</b>
+<i>575</i>&nbsp;                }
+<b class="nc"><i>576</i>&nbsp;            }</b>
+<i>577</i>&nbsp;
+<i>578</i>&nbsp;            @Override
+<i>579</i>&nbsp;            public boolean equals(Object o) {
+<b class="nc"><i>580</i>&nbsp;                if (this == o) {</b>
+<b class="nc"><i>581</i>&nbsp;                    return true;</b>
+<i>582</i>&nbsp;                }
+<b class="nc"><i>583</i>&nbsp;                if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>584</i>&nbsp;                    return false;</b>
+<i>585</i>&nbsp;                }
+<i>586</i>&nbsp;
+<b class="nc"><i>587</i>&nbsp;                Entry&lt;?&gt; entry = (Entry&lt;?&gt;) o;</b>
+<b class="nc"><i>588</i>&nbsp;                return Objects.equals(length, entry.length)</b>
+<b class="nc"><i>589</i>&nbsp;                    &amp;&amp; Objects.equals(offset, entry.offset)</b>
+<b class="nc"><i>590</i>&nbsp;                    &amp;&amp; Objects.equals(text, entry.text)</b>
+<b class="nc"><i>591</i>&nbsp;                    &amp;&amp; Objects.equals(options, entry.options);</b>
+<i>592</i>&nbsp;            }
+<i>593</i>&nbsp;
+<i>594</i>&nbsp;            @Override
+<i>595</i>&nbsp;            public int hashCode() {
+<b class="nc"><i>596</i>&nbsp;                return Objects.hash(text, offset, length, options);</b>
+<i>597</i>&nbsp;            }
+<i>598</i>&nbsp;
+<i>599</i>&nbsp;            protected abstract O newOption(StreamInput in) throws IOException;
+<i>600</i>&nbsp;
+<i>601</i>&nbsp;            @Override
+<i>602</i>&nbsp;            public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>603</i>&nbsp;                out.writeText(text);</b>
+<b class="nc"><i>604</i>&nbsp;                out.writeVInt(offset);</b>
+<b class="nc"><i>605</i>&nbsp;                out.writeVInt(length);</b>
+<b class="nc"><i>606</i>&nbsp;                out.writeVInt(options.size());</b>
+<b class="nc"><i>607</i>&nbsp;                for (Option option : options) {</b>
+<b class="nc"><i>608</i>&nbsp;                    option.writeTo(out);</b>
+<b class="nc"><i>609</i>&nbsp;                }</b>
+<b class="nc"><i>610</i>&nbsp;            }</b>
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;            @Override
+<i>613</i>&nbsp;            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>614</i>&nbsp;                builder.field(TEXT, text);</b>
+<b class="nc"><i>615</i>&nbsp;                builder.field(OFFSET, offset);</b>
+<b class="nc"><i>616</i>&nbsp;                builder.field(LENGTH, length);</b>
+<b class="nc"><i>617</i>&nbsp;                builder.startArray(OPTIONS);</b>
+<b class="nc"><i>618</i>&nbsp;                for (Option option : options) {</b>
+<b class="nc"><i>619</i>&nbsp;                    builder.startObject();</b>
+<b class="nc"><i>620</i>&nbsp;                    option.toXContent(builder, params);</b>
+<b class="nc"><i>621</i>&nbsp;                    builder.endObject();</b>
+<b class="nc"><i>622</i>&nbsp;                }</b>
+<b class="nc"><i>623</i>&nbsp;                builder.endArray();</b>
+<b class="nc"><i>624</i>&nbsp;                return builder;</b>
+<i>625</i>&nbsp;            }
+<i>626</i>&nbsp;
+<i>627</i>&nbsp;            protected static void declareCommonFields(ObjectParser&lt;? extends Entry&lt;? extends Option&gt;, Void&gt; parser) {
+<b class="nc"><i>628</i>&nbsp;                parser.declareString((entry, text) -&gt; entry.text = new Text(text), new ParseField(TEXT));</b>
+<b class="nc"><i>629</i>&nbsp;                parser.declareInt((entry, offset) -&gt; entry.offset = offset, new ParseField(OFFSET));</b>
+<b class="nc"><i>630</i>&nbsp;                parser.declareInt((entry, length) -&gt; entry.length = length, new ParseField(LENGTH));</b>
+<b class="nc"><i>631</i>&nbsp;            }</b>
+<i>632</i>&nbsp;
+<i>633</i>&nbsp;            /**
+<i>634</i>&nbsp;             * Contains the suggested text with its document frequency and score.
+<i>635</i>&nbsp;             */
+<i>636</i>&nbsp;            public abstract static class Option implements Writeable, ToXContentFragment {
+<i>637</i>&nbsp;
+<i>638</i>&nbsp;                public static final ParseField TEXT = new ParseField(&quot;text&quot;);
+<i>639</i>&nbsp;                public static final ParseField HIGHLIGHTED = new ParseField(&quot;highlighted&quot;);
+<i>640</i>&nbsp;                public static final ParseField SCORE = new ParseField(&quot;score&quot;);
+<i>641</i>&nbsp;                public static final ParseField COLLATE_MATCH = new ParseField(&quot;collate_match&quot;);
+<i>642</i>&nbsp;
+<i>643</i>&nbsp;                private final Text text;
+<i>644</i>&nbsp;                private final Text highlighted;
+<i>645</i>&nbsp;                private float score;
+<i>646</i>&nbsp;                private Boolean collateMatch;
+<i>647</i>&nbsp;
+<i>648</i>&nbsp;                public Option(Text text, Text highlighted, float score, Boolean collateMatch) {
+<i>649</i>&nbsp;                    this.text = text;
+<i>650</i>&nbsp;                    this.highlighted = highlighted;
+<i>651</i>&nbsp;                    this.score = score;
+<i>652</i>&nbsp;                    this.collateMatch = collateMatch;
+<i>653</i>&nbsp;                }
+<i>654</i>&nbsp;
+<i>655</i>&nbsp;                public Option(Text text, Text highlighted, float score) {
+<i>656</i>&nbsp;                    this(text, highlighted, score, null);
+<i>657</i>&nbsp;                }
+<i>658</i>&nbsp;
+<i>659</i>&nbsp;                public Option(Text text, float score) {
+<i>660</i>&nbsp;                    this(text, null, score);
+<i>661</i>&nbsp;                }
+<i>662</i>&nbsp;
+<i>663</i>&nbsp;                public Option(StreamInput in) throws IOException {
+<i>664</i>&nbsp;                    text = in.readText();
+<i>665</i>&nbsp;                    score = in.readFloat();
+<i>666</i>&nbsp;                    highlighted = in.readOptionalText();
+<i>667</i>&nbsp;                    collateMatch = in.readOptionalBoolean();
+<i>668</i>&nbsp;                }
+<i>669</i>&nbsp;
+<i>670</i>&nbsp;                /**
+<i>671</i>&nbsp;                 * @return The actual suggested text.
+<i>672</i>&nbsp;                 */
+<i>673</i>&nbsp;                public Text getText() {
+<i>674</i>&nbsp;                    return text;
+<i>675</i>&nbsp;                }
+<i>676</i>&nbsp;
+<i>677</i>&nbsp;                /**
+<i>678</i>&nbsp;                 * @return Copy of suggested text with changes from user supplied text highlighted.
+<i>679</i>&nbsp;                 */
+<i>680</i>&nbsp;                public Text getHighlighted() {
+<i>681</i>&nbsp;                    return highlighted;
+<i>682</i>&nbsp;                }
+<i>683</i>&nbsp;
+<i>684</i>&nbsp;                /**
+<i>685</i>&nbsp;                 * @return The score based on the edit distance difference between the suggested term and the
+<i>686</i>&nbsp;                 *         term in the suggest text.
+<i>687</i>&nbsp;                 */
+<i>688</i>&nbsp;                public float getScore() {
+<i>689</i>&nbsp;                    return score;
+<i>690</i>&nbsp;                }
+<i>691</i>&nbsp;
+<i>692</i>&nbsp;                /**
+<i>693</i>&nbsp;                 * @return true if collation has found a match for the entry.
+<i>694</i>&nbsp;                 * if collate was not set, the value defaults to &lt;code&gt;true&lt;/code&gt;
+<i>695</i>&nbsp;                 */
+<i>696</i>&nbsp;                public boolean collateMatch() {
+<i>697</i>&nbsp;                    return (collateMatch != null) ? collateMatch : true;
+<i>698</i>&nbsp;                }
+<i>699</i>&nbsp;
+<i>700</i>&nbsp;                protected void setScore(float score) {
+<i>701</i>&nbsp;                    this.score = score;
+<i>702</i>&nbsp;                }
+<i>703</i>&nbsp;
+<i>704</i>&nbsp;                @Override
+<i>705</i>&nbsp;                public void writeTo(StreamOutput out) throws IOException {
+<i>706</i>&nbsp;                    out.writeText(text);
+<i>707</i>&nbsp;                    out.writeFloat(score);
+<i>708</i>&nbsp;                    out.writeOptionalText(highlighted);
+<i>709</i>&nbsp;                    out.writeOptionalBoolean(collateMatch);
+<i>710</i>&nbsp;                }
+<i>711</i>&nbsp;
+<i>712</i>&nbsp;                @Override
+<i>713</i>&nbsp;                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>714</i>&nbsp;                    builder.field(TEXT.getPreferredName(), text);
+<i>715</i>&nbsp;                    if (highlighted != null) {
+<i>716</i>&nbsp;                        builder.field(HIGHLIGHTED.getPreferredName(), highlighted);
+<i>717</i>&nbsp;                    }
+<i>718</i>&nbsp;
+<i>719</i>&nbsp;                    builder.field(SCORE.getPreferredName(), score);
+<i>720</i>&nbsp;                    if (collateMatch != null) {
+<i>721</i>&nbsp;                        builder.field(COLLATE_MATCH.getPreferredName(), collateMatch.booleanValue());
+<i>722</i>&nbsp;                    }
+<i>723</i>&nbsp;
+<i>724</i>&nbsp;                    return builder;
+<i>725</i>&nbsp;                }
+<i>726</i>&nbsp;
+<i>727</i>&nbsp;                protected void mergeInto(Option otherOption) {
+<i>728</i>&nbsp;                    score = Math.max(score, otherOption.score);
+<i>729</i>&nbsp;                    if (otherOption.collateMatch != null) {
+<i>730</i>&nbsp;                        if (collateMatch == null) {
+<i>731</i>&nbsp;                            collateMatch = otherOption.collateMatch;
+<i>732</i>&nbsp;                        } else {
+<i>733</i>&nbsp;                            collateMatch |= otherOption.collateMatch;
+<i>734</i>&nbsp;                        }
+<i>735</i>&nbsp;                    }
+<i>736</i>&nbsp;                }
+<i>737</i>&nbsp;
+<i>738</i>&nbsp;                /*
+<i>739</i>&nbsp;                 * We consider options equal if they have the same text, even if their other fields may differ
+<i>740</i>&nbsp;                 */
+<i>741</i>&nbsp;                @Override
+<i>742</i>&nbsp;                public boolean equals(Object o) {
+<i>743</i>&nbsp;                    if (this == o) {
+<i>744</i>&nbsp;                        return true;
+<i>745</i>&nbsp;                    }
+<i>746</i>&nbsp;                    if (o == null || getClass() != o.getClass()) {
+<i>747</i>&nbsp;                        return false;
+<i>748</i>&nbsp;                    }
+<i>749</i>&nbsp;
+<i>750</i>&nbsp;                    Option that = (Option) o;
+<i>751</i>&nbsp;                    return Objects.equals(text, that.text);
+<i>752</i>&nbsp;                }
+<i>753</i>&nbsp;
+<i>754</i>&nbsp;                @Override
+<i>755</i>&nbsp;                public int hashCode() {
+<i>756</i>&nbsp;                    return Objects.hash(text);
+<i>757</i>&nbsp;                }
+<i>758</i>&nbsp;            }
+<i>759</i>&nbsp;        }
+<i>760</i>&nbsp;    }
+<i>761</i>&nbsp;
+<i>762</i>&nbsp;    @Override
+<i>763</i>&nbsp;    public String toString() {
+<i>764</i>&nbsp;        return Strings.toString(this, true, true);
+<i>765</i>&nbsp;    }
+<i>766</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

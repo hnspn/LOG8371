@@ -1,0 +1,313 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ScriptedSimilarity</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.similarity</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ScriptedSimilarity (org.elasticsearch.index.similarity)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ScriptedSimilarity</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 32)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.similarity;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.FieldInvertState;
+<i>23</i>&nbsp;import org.apache.lucene.search.CollectionStatistics;
+<i>24</i>&nbsp;import org.apache.lucene.search.Explanation;
+<i>25</i>&nbsp;import org.apache.lucene.search.TermStatistics;
+<i>26</i>&nbsp;import org.apache.lucene.search.similarities.Similarity;
+<i>27</i>&nbsp;import org.apache.lucene.util.SmallFloat;
+<i>28</i>&nbsp;import org.elasticsearch.script.SimilarityScript;
+<i>29</i>&nbsp;import org.elasticsearch.script.SimilarityWeightScript;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;/**
+<i>32</i>&nbsp; * A {@link Similarity} implementation that allows scores to be scripted.
+<i>33</i>&nbsp; */
+<i>34</i>&nbsp;public final class ScriptedSimilarity extends Similarity {
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;    final String weightScriptSource;
+<i>37</i>&nbsp;    final String scriptSource;
+<i>38</i>&nbsp;    final SimilarityWeightScript.Factory weightScriptFactory;
+<i>39</i>&nbsp;    final SimilarityScript.Factory scriptFactory;
+<i>40</i>&nbsp;    final boolean discountOverlaps;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    /** Sole constructor. */
+<i>43</i>&nbsp;    public ScriptedSimilarity(String weightScriptString, SimilarityWeightScript.Factory weightScriptFactory,
+<b class="nc"><i>44</i>&nbsp;            String scriptString, SimilarityScript.Factory scriptFactory, boolean discountOverlaps) {</b>
+<b class="nc"><i>45</i>&nbsp;        this.weightScriptSource = weightScriptString;</b>
+<b class="nc"><i>46</i>&nbsp;        this.weightScriptFactory = weightScriptFactory;</b>
+<b class="nc"><i>47</i>&nbsp;        this.scriptSource = scriptString;</b>
+<b class="nc"><i>48</i>&nbsp;        this.scriptFactory = scriptFactory;</b>
+<b class="nc"><i>49</i>&nbsp;        this.discountOverlaps = discountOverlaps;</b>
+<b class="nc"><i>50</i>&nbsp;    }</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    @Override
+<i>53</i>&nbsp;    public String toString() {
+<b class="nc"><i>54</i>&nbsp;        return getClass().getSimpleName() + &quot;(weightScript=[&quot; + weightScriptSource + &quot;], script=[&quot; + scriptSource + &quot;])&quot;;</b>
+<i>55</i>&nbsp;    }
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    @Override
+<i>58</i>&nbsp;    public long computeNorm(FieldInvertState state) {
+<b class="nc"><i>59</i>&nbsp;        final int numTerms = discountOverlaps ? state.getLength() - state.getNumOverlap() : state.getLength();</b>
+<b class="nc"><i>60</i>&nbsp;        return SmallFloat.intToByte4(numTerms);</b>
+<i>61</i>&nbsp;    }
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    /** Compute the part of the score that does not depend on the current document using the init_script. */
+<i>64</i>&nbsp;    private double computeWeight(Query query, Field field, Term term) {
+<b class="nc"><i>65</i>&nbsp;        if (weightScriptFactory == null) {</b>
+<b class="nc"><i>66</i>&nbsp;            return 1d;</b>
+<i>67</i>&nbsp;        }
+<b class="nc"><i>68</i>&nbsp;        SimilarityWeightScript weightScript = weightScriptFactory.newInstance();</b>
+<b class="nc"><i>69</i>&nbsp;        return weightScript.execute(query, field, term);</b>
+<i>70</i>&nbsp;    }
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    @Override
+<i>73</i>&nbsp;    public SimScorer scorer(float boost,
+<i>74</i>&nbsp;            CollectionStatistics collectionStats, TermStatistics... termStats) {
+<b class="nc"><i>75</i>&nbsp;        Query query = new Query(boost);</b>
+<b class="nc"><i>76</i>&nbsp;        long docCount = collectionStats.docCount();</b>
+<b class="nc"><i>77</i>&nbsp;        if (docCount == -1) {</b>
+<b class="nc"><i>78</i>&nbsp;            docCount = collectionStats.maxDoc();</b>
+<i>79</i>&nbsp;        }
+<b class="nc"><i>80</i>&nbsp;        Field field = new Field(docCount, collectionStats.sumDocFreq(), collectionStats.sumTotalTermFreq());</b>
+<b class="nc"><i>81</i>&nbsp;        Term[] terms = new Term[termStats.length];</b>
+<b class="nc"><i>82</i>&nbsp;        for (int i = 0; i &lt; termStats.length; ++i) {</b>
+<b class="nc"><i>83</i>&nbsp;            terms[i] = new Term(termStats[i].docFreq(), termStats[i].totalTermFreq());</b>
+<i>84</i>&nbsp;        }
+<i>85</i>&nbsp;
+<b class="nc"><i>86</i>&nbsp;        SimScorer[] scorers = new SimScorer[terms.length];</b>
+<b class="nc"><i>87</i>&nbsp;        for (int i = 0; i &lt; terms.length; ++i) {</b>
+<b class="nc"><i>88</i>&nbsp;            final Term term = terms[i];</b>
+<b class="nc"><i>89</i>&nbsp;            final SimilarityScript script = scriptFactory.newInstance();</b>
+<b class="nc"><i>90</i>&nbsp;            final Doc doc = new Doc();</b>
+<b class="nc"><i>91</i>&nbsp;            final double scoreWeight = computeWeight(query, field, term);</b>
+<b class="nc"><i>92</i>&nbsp;            scorers[i] = new SimScorer() {</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;                @Override
+<i>95</i>&nbsp;                public float score(float freq, long norm) {
+<i>96</i>&nbsp;                    doc.freq = freq;
+<i>97</i>&nbsp;                    doc.norm = norm;
+<i>98</i>&nbsp;                    return (float) script.execute(scoreWeight, query, field, term, doc);
+<i>99</i>&nbsp;                }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;                @Override
+<i>102</i>&nbsp;                public Explanation explain(Explanation freq, long norm) {
+<i>103</i>&nbsp;                    float score = score(freq.getValue().floatValue(), norm);
+<i>104</i>&nbsp;                    return Explanation.match(score, &quot;score from &quot; + ScriptedSimilarity.this.toString() +
+<i>105</i>&nbsp;                            &quot; computed from:&quot;,
+<i>106</i>&nbsp;                            Explanation.match((float) scoreWeight, &quot;weight&quot;),
+<i>107</i>&nbsp;                            Explanation.match(query.boost, &quot;query.boost&quot;),
+<i>108</i>&nbsp;                            Explanation.match(field.docCount, &quot;field.docCount&quot;),
+<i>109</i>&nbsp;                            Explanation.match(field.sumDocFreq, &quot;field.sumDocFreq&quot;),
+<i>110</i>&nbsp;                            Explanation.match(field.sumTotalTermFreq, &quot;field.sumTotalTermFreq&quot;),
+<i>111</i>&nbsp;                            Explanation.match(term.docFreq, &quot;term.docFreq&quot;),
+<i>112</i>&nbsp;                            Explanation.match(term.totalTermFreq, &quot;term.totalTermFreq&quot;),
+<i>113</i>&nbsp;                            Explanation.match(freq.getValue(), &quot;doc.freq&quot;, freq.getDetails()),
+<i>114</i>&nbsp;                            Explanation.match(doc.getLength(), &quot;doc.length&quot;));
+<i>115</i>&nbsp;                }
+<i>116</i>&nbsp;            };
+<i>117</i>&nbsp;        }
+<b class="nc"><i>118</i>&nbsp;        if (scorers.length == 1) {</b>
+<b class="nc"><i>119</i>&nbsp;            return scorers[0];</b>
+<i>120</i>&nbsp;        } else {
+<i>121</i>&nbsp;            // Sum scores across terms like a BooleanQuery would do
+<b class="nc"><i>122</i>&nbsp;            return new SimScorer() {</b>
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;                @Override
+<i>125</i>&nbsp;                public float score(float freq, long norm) {
+<i>126</i>&nbsp;                    double sum = 0;
+<i>127</i>&nbsp;                    for (SimScorer scorer : scorers) {
+<i>128</i>&nbsp;                        sum += scorer.score(freq, norm);
+<i>129</i>&nbsp;                    }
+<i>130</i>&nbsp;                    return (float) sum;
+<i>131</i>&nbsp;                }
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;                @Override
+<i>134</i>&nbsp;                public Explanation explain(Explanation freq, long norm) {
+<i>135</i>&nbsp;                    Explanation[] subs = new Explanation[scorers.length];
+<i>136</i>&nbsp;                    for (int i = 0; i &lt; subs.length; ++i) {
+<i>137</i>&nbsp;                        subs[i] = scorers[i].explain(freq, norm);
+<i>138</i>&nbsp;                    }
+<i>139</i>&nbsp;                    return Explanation.match(score(freq.getValue().floatValue(), norm), &quot;Sum of:&quot;, subs);
+<i>140</i>&nbsp;                }
+<i>141</i>&nbsp;            };
+<i>142</i>&nbsp;        }
+<i>143</i>&nbsp;    }
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;    /** Scoring factors that come from the query. */
+<i>146</i>&nbsp;    public static class Query {
+<i>147</i>&nbsp;        private final float boost;
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;        private Query(float boost) {
+<i>150</i>&nbsp;            this.boost = boost;
+<i>151</i>&nbsp;        }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;        /** The boost of the query. It should typically be incorporated into the score as a multiplicative factor. */
+<i>154</i>&nbsp;        public float getBoost() {
+<i>155</i>&nbsp;            return boost;
+<i>156</i>&nbsp;        }
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    /** Statistics that are specific to a given field. */
+<i>160</i>&nbsp;    public static class Field {
+<i>161</i>&nbsp;        private final long docCount;
+<i>162</i>&nbsp;        private final long sumDocFreq;
+<i>163</i>&nbsp;        private final long sumTotalTermFreq;
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;        private Field(long docCount, long sumDocFreq, long sumTotalTermFreq) {
+<i>166</i>&nbsp;            this.docCount = docCount;
+<i>167</i>&nbsp;            this.sumDocFreq = sumDocFreq;
+<i>168</i>&nbsp;            this.sumTotalTermFreq = sumTotalTermFreq;
+<i>169</i>&nbsp;        }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        /** Return the number of documents that have a value for this field. */
+<i>172</i>&nbsp;        public long getDocCount() {
+<i>173</i>&nbsp;            return docCount;
+<i>174</i>&nbsp;        }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;        /** Return the sum of {@link Term#getDocFreq()} for all terms that exist in this field,
+<i>177</i>&nbsp;         *  or {@code -1} if this statistic is not available. */
+<i>178</i>&nbsp;        public long getSumDocFreq() {
+<i>179</i>&nbsp;            return sumDocFreq;
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        /** Return the sum of {@link Term#getTotalTermFreq()} for all terms that exist in this field,
+<i>183</i>&nbsp;         *  or {@code -1} if this statistic is not available. */
+<i>184</i>&nbsp;        public long getSumTotalTermFreq() {
+<i>185</i>&nbsp;            return sumTotalTermFreq;
+<i>186</i>&nbsp;        }
+<i>187</i>&nbsp;    }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    /** Statistics that are specific to a given term. */
+<i>190</i>&nbsp;    public static class Term {
+<i>191</i>&nbsp;        private final long docFreq;
+<i>192</i>&nbsp;        private final long totalTermFreq;
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        private Term(long docFreq, long totalTermFreq) {
+<i>195</i>&nbsp;            this.docFreq = docFreq;
+<i>196</i>&nbsp;            this.totalTermFreq = totalTermFreq;
+<i>197</i>&nbsp;        }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;        /** Return the number of documents that contain this term in the index. */
+<i>200</i>&nbsp;        public long getDocFreq() {
+<i>201</i>&nbsp;            return docFreq;
+<i>202</i>&nbsp;        }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;        /** Return the total number of occurrences of this term in the index, or {@code -1} if this statistic is not available. */
+<i>205</i>&nbsp;        public long getTotalTermFreq() {
+<i>206</i>&nbsp;            return totalTermFreq;
+<i>207</i>&nbsp;        }
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /** Statistics that are specific to a document. */
+<i>211</i>&nbsp;    public static class Doc {
+<i>212</i>&nbsp;        private float freq;
+<i>213</i>&nbsp;        private long norm;
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;        private Doc() {}
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;        /** Return the number of tokens that the current document has in the considered field. */
+<i>218</i>&nbsp;        public int getLength() {
+<i>219</i>&nbsp;            // the length is computed lazily so that similarities that do not use the length are
+<i>220</i>&nbsp;            // not penalized
+<i>221</i>&nbsp;            return SmallFloat.byte4ToInt((byte) norm);
+<i>222</i>&nbsp;        }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;        /** Return the number of occurrences of the term in the current document for the considered field. */
+<i>225</i>&nbsp;        public float getFreq() {
+<i>226</i>&nbsp;            return freq;
+<i>227</i>&nbsp;        }
+<i>228</i>&nbsp;    }
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

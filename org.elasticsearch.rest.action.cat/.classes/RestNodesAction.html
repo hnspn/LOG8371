@@ -1,0 +1,514 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestNodesAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.cat</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestNodesAction (org.elasticsearch.rest.action.cat)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestNodesAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.6%
+  </span>
+  <span class="absValue">
+    (2/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    2%
+  </span>
+  <span class="absValue">
+    (5/ 246)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.cat;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+<i>25</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+<i>29</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+<i>30</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>34</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>35</i>&nbsp;import org.elasticsearch.common.Table;
+<i>36</i>&nbsp;import org.elasticsearch.common.network.NetworkAddress;
+<i>37</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>38</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>39</i>&nbsp;import org.elasticsearch.http.HttpInfo;
+<i>40</i>&nbsp;import org.elasticsearch.index.cache.query.QueryCacheStats;
+<i>41</i>&nbsp;import org.elasticsearch.index.cache.request.RequestCacheStats;
+<i>42</i>&nbsp;import org.elasticsearch.index.engine.SegmentsStats;
+<i>43</i>&nbsp;import org.elasticsearch.index.fielddata.FieldDataStats;
+<i>44</i>&nbsp;import org.elasticsearch.index.flush.FlushStats;
+<i>45</i>&nbsp;import org.elasticsearch.index.get.GetStats;
+<i>46</i>&nbsp;import org.elasticsearch.index.merge.MergeStats;
+<i>47</i>&nbsp;import org.elasticsearch.index.refresh.RefreshStats;
+<i>48</i>&nbsp;import org.elasticsearch.index.search.stats.SearchStats;
+<i>49</i>&nbsp;import org.elasticsearch.index.shard.IndexingStats;
+<i>50</i>&nbsp;import org.elasticsearch.indices.NodeIndicesStats;
+<i>51</i>&nbsp;import org.elasticsearch.monitor.fs.FsInfo;
+<i>52</i>&nbsp;import org.elasticsearch.monitor.jvm.JvmInfo;
+<i>53</i>&nbsp;import org.elasticsearch.monitor.jvm.JvmStats;
+<i>54</i>&nbsp;import org.elasticsearch.monitor.os.OsStats;
+<i>55</i>&nbsp;import org.elasticsearch.monitor.process.ProcessStats;
+<i>56</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>57</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>58</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>59</i>&nbsp;import org.elasticsearch.rest.action.RestActionListener;
+<i>60</i>&nbsp;import org.elasticsearch.rest.action.RestResponseListener;
+<i>61</i>&nbsp;import org.elasticsearch.script.ScriptStats;
+<i>62</i>&nbsp;import org.elasticsearch.search.suggest.completion.CompletionStats;
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;import java.util.Locale;
+<i>65</i>&nbsp;import java.util.stream.Collectors;
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;public class RestNodesAction extends AbstractCatAction {
+<i>70</i>&nbsp;
+<b class="fc"><i>71</i>&nbsp;    public RestNodesAction(RestController controller) {</b>
+<b class="fc"><i>72</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/nodes&quot;, this);</b>
+<b class="fc"><i>73</i>&nbsp;    }</b>
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    @Override
+<i>76</i>&nbsp;    public String getName() {
+<b class="nc"><i>77</i>&nbsp;        return &quot;cat_nodes_action&quot;;</b>
+<i>78</i>&nbsp;    }
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    @Override
+<i>81</i>&nbsp;    protected void documentation(StringBuilder sb) {
+<b class="fc"><i>82</i>&nbsp;        sb.append(&quot;/_cat/nodes\n&quot;);</b>
+<b class="fc"><i>83</i>&nbsp;    }</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    @Override
+<i>86</i>&nbsp;    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+<b class="nc"><i>87</i>&nbsp;        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();</b>
+<b class="nc"><i>88</i>&nbsp;        clusterStateRequest.clear().nodes(true);</b>
+<b class="nc"><i>89</i>&nbsp;        clusterStateRequest.local(request.paramAsBoolean(&quot;local&quot;, clusterStateRequest.local()));</b>
+<b class="nc"><i>90</i>&nbsp;        clusterStateRequest.masterNodeTimeout(request.paramAsTime(&quot;master_timeout&quot;, clusterStateRequest.masterNodeTimeout()));</b>
+<b class="nc"><i>91</i>&nbsp;        final boolean fullId = request.paramAsBoolean(&quot;full_id&quot;, false);</b>
+<b class="nc"><i>92</i>&nbsp;        return channel -&gt; client.admin().cluster().state(clusterStateRequest, new RestActionListener&lt;ClusterStateResponse&gt;(channel) {</b>
+<i>93</i>&nbsp;            @Override
+<i>94</i>&nbsp;            public void processResponse(final ClusterStateResponse clusterStateResponse) {
+<i>95</i>&nbsp;                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+<i>96</i>&nbsp;                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
+<i>97</i>&nbsp;                client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener&lt;NodesInfoResponse&gt;(channel) {
+<i>98</i>&nbsp;                    @Override
+<i>99</i>&nbsp;                    public void processResponse(final NodesInfoResponse nodesInfoResponse) {
+<i>100</i>&nbsp;                        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+<i>101</i>&nbsp;                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true).process(true).script(true);
+<i>102</i>&nbsp;                        client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener&lt;NodesStatsResponse&gt;(channel) {
+<i>103</i>&nbsp;                            @Override
+<i>104</i>&nbsp;                            public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
+<i>105</i>&nbsp;                                return RestTable.buildResponse(buildTable(fullId, request, clusterStateResponse, nodesInfoResponse,
+<i>106</i>&nbsp;                                    nodesStatsResponse), channel);
+<i>107</i>&nbsp;                            }
+<i>108</i>&nbsp;                        });
+<i>109</i>&nbsp;                    }
+<i>110</i>&nbsp;                });
+<i>111</i>&nbsp;            }
+<i>112</i>&nbsp;        });
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    @Override
+<i>116</i>&nbsp;    protected Table getTableWithHeader(final RestRequest request) {
+<b class="nc"><i>117</i>&nbsp;        Table table = new Table();</b>
+<b class="nc"><i>118</i>&nbsp;        table.startHeaders();</b>
+<b class="nc"><i>119</i>&nbsp;        table.addCell(&quot;id&quot;, &quot;default:false;alias:id,nodeId;desc:unique node id&quot;);</b>
+<b class="nc"><i>120</i>&nbsp;        table.addCell(&quot;pid&quot;, &quot;default:false;alias:p;desc:process id&quot;);</b>
+<b class="nc"><i>121</i>&nbsp;        table.addCell(&quot;ip&quot;, &quot;alias:i;desc:ip address&quot;);</b>
+<b class="nc"><i>122</i>&nbsp;        table.addCell(&quot;port&quot;, &quot;default:false;alias:po;desc:bound transport port&quot;);</b>
+<b class="nc"><i>123</i>&nbsp;        table.addCell(&quot;http_address&quot;, &quot;default:false;alias:http;desc:bound http address&quot;);</b>
+<i>124</i>&nbsp;
+<b class="nc"><i>125</i>&nbsp;        table.addCell(&quot;version&quot;, &quot;default:false;alias:v;desc:es version&quot;);</b>
+<b class="nc"><i>126</i>&nbsp;        table.addCell(&quot;flavor&quot;, &quot;default:false;alias:f;desc:es distribution flavor&quot;);</b>
+<b class="nc"><i>127</i>&nbsp;        table.addCell(&quot;type&quot;, &quot;default:false;alias:t;desc:es distribution type&quot;);</b>
+<b class="nc"><i>128</i>&nbsp;        table.addCell(&quot;build&quot;, &quot;default:false;alias:b;desc:es build hash&quot;);</b>
+<b class="nc"><i>129</i>&nbsp;        table.addCell(&quot;jdk&quot;, &quot;default:false;alias:j;desc:jdk version&quot;);</b>
+<b class="nc"><i>130</i>&nbsp;        table.addCell(&quot;disk.total&quot;, &quot;default:false;alias:dt,diskTotal;text-align:right;desc:total disk space&quot;);</b>
+<b class="nc"><i>131</i>&nbsp;        table.addCell(&quot;disk.used&quot;, &quot;default:false;alias:du,diskUsed;text-align:right;desc:used disk space&quot;);</b>
+<b class="nc"><i>132</i>&nbsp;        table.addCell(&quot;disk.avail&quot;, &quot;default:false;alias:d,da,disk,diskAvail;text-align:right;desc:available disk space&quot;);</b>
+<b class="nc"><i>133</i>&nbsp;        table.addCell(&quot;disk.used_percent&quot;, &quot;default:false;alias:dup,diskUsedPercent;text-align:right;desc:used disk space percentage&quot;);</b>
+<b class="nc"><i>134</i>&nbsp;        table.addCell(&quot;heap.current&quot;, &quot;default:false;alias:hc,heapCurrent;text-align:right;desc:used heap&quot;);</b>
+<b class="nc"><i>135</i>&nbsp;        table.addCell(&quot;heap.percent&quot;, &quot;alias:hp,heapPercent;text-align:right;desc:used heap ratio&quot;);</b>
+<b class="nc"><i>136</i>&nbsp;        table.addCell(&quot;heap.max&quot;, &quot;default:false;alias:hm,heapMax;text-align:right;desc:max configured heap&quot;);</b>
+<b class="nc"><i>137</i>&nbsp;        table.addCell(&quot;ram.current&quot;, &quot;default:false;alias:rc,ramCurrent;text-align:right;desc:used machine memory&quot;);</b>
+<b class="nc"><i>138</i>&nbsp;        table.addCell(&quot;ram.percent&quot;, &quot;alias:rp,ramPercent;text-align:right;desc:used machine memory ratio&quot;);</b>
+<b class="nc"><i>139</i>&nbsp;        table.addCell(&quot;ram.max&quot;, &quot;default:false;alias:rm,ramMax;text-align:right;desc:total machine memory&quot;);</b>
+<b class="nc"><i>140</i>&nbsp;        table.addCell(&quot;file_desc.current&quot;, &quot;default:false;alias:fdc,fileDescriptorCurrent;text-align:right;desc:used file descriptors&quot;);</b>
+<b class="nc"><i>141</i>&nbsp;        table.addCell(&quot;file_desc.percent&quot;,</b>
+<i>142</i>&nbsp;            &quot;default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio&quot;);
+<b class="nc"><i>143</i>&nbsp;        table.addCell(&quot;file_desc.max&quot;, &quot;default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors&quot;);</b>
+<i>144</i>&nbsp;
+<b class="nc"><i>145</i>&nbsp;        table.addCell(&quot;cpu&quot;, &quot;alias:cpu;text-align:right;desc:recent cpu usage&quot;);</b>
+<b class="nc"><i>146</i>&nbsp;        table.addCell(&quot;load_1m&quot;, &quot;alias:l;text-align:right;desc:1m load avg&quot;);</b>
+<b class="nc"><i>147</i>&nbsp;        table.addCell(&quot;load_5m&quot;, &quot;alias:l;text-align:right;desc:5m load avg&quot;);</b>
+<b class="nc"><i>148</i>&nbsp;        table.addCell(&quot;load_15m&quot;, &quot;alias:l;text-align:right;desc:15m load avg&quot;);</b>
+<b class="nc"><i>149</i>&nbsp;        table.addCell(&quot;uptime&quot;, &quot;default:false;alias:u;text-align:right;desc:node uptime&quot;);</b>
+<b class="nc"><i>150</i>&nbsp;        table.addCell(&quot;node.role&quot;,</b>
+<i>151</i>&nbsp;            &quot;alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only&quot;);
+<b class="nc"><i>152</i>&nbsp;        table.addCell(&quot;master&quot;, &quot;alias:m;desc:*:current master&quot;);</b>
+<b class="nc"><i>153</i>&nbsp;        table.addCell(&quot;name&quot;, &quot;alias:n;desc:node name&quot;);</b>
+<i>154</i>&nbsp;
+<b class="nc"><i>155</i>&nbsp;        table.addCell(&quot;completion.size&quot;, &quot;alias:cs,completionSize;default:false;text-align:right;desc:size of completion&quot;);</b>
+<i>156</i>&nbsp;
+<b class="nc"><i>157</i>&nbsp;        table.addCell(&quot;fielddata.memory_size&quot;, &quot;alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache&quot;);</b>
+<b class="nc"><i>158</i>&nbsp;        table.addCell(&quot;fielddata.evictions&quot;, &quot;alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions&quot;);</b>
+<i>159</i>&nbsp;
+<b class="nc"><i>160</i>&nbsp;        table.addCell(&quot;query_cache.memory_size&quot;, &quot;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache&quot;);</b>
+<b class="nc"><i>161</i>&nbsp;        table.addCell(&quot;query_cache.evictions&quot;, &quot;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions&quot;);</b>
+<i>162</i>&nbsp;
+<b class="nc"><i>163</i>&nbsp;        table.addCell(&quot;request_cache.memory_size&quot;, &quot;alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache&quot;);</b>
+<b class="nc"><i>164</i>&nbsp;        table.addCell(&quot;request_cache.evictions&quot;,</b>
+<i>165</i>&nbsp;            &quot;alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions&quot;);
+<b class="nc"><i>166</i>&nbsp;        table.addCell(&quot;request_cache.hit_count&quot;,</b>
+<i>167</i>&nbsp;            &quot;alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit counts&quot;);
+<b class="nc"><i>168</i>&nbsp;        table.addCell(&quot;request_cache.miss_count&quot;,</b>
+<i>169</i>&nbsp;            &quot;alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss counts&quot;);
+<i>170</i>&nbsp;
+<b class="nc"><i>171</i>&nbsp;        table.addCell(&quot;flush.total&quot;, &quot;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes&quot;);</b>
+<b class="nc"><i>172</i>&nbsp;        table.addCell(&quot;flush.total_time&quot;, &quot;alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush&quot;);</b>
+<i>173</i>&nbsp;
+<b class="nc"><i>174</i>&nbsp;        table.addCell(&quot;get.current&quot;, &quot;alias:gc,getCurrent;default:false;text-align:right;desc:number of current get ops&quot;);</b>
+<b class="nc"><i>175</i>&nbsp;        table.addCell(&quot;get.time&quot;, &quot;alias:gti,getTime;default:false;text-align:right;desc:time spent in get&quot;);</b>
+<b class="nc"><i>176</i>&nbsp;        table.addCell(&quot;get.total&quot;, &quot;alias:gto,getTotal;default:false;text-align:right;desc:number of get ops&quot;);</b>
+<b class="nc"><i>177</i>&nbsp;        table.addCell(&quot;get.exists_time&quot;, &quot;alias:geti,getExistsTime;default:false;text-align:right;desc:time spent in successful gets&quot;);</b>
+<b class="nc"><i>178</i>&nbsp;        table.addCell(&quot;get.exists_total&quot;, &quot;alias:geto,getExistsTotal;default:false;text-align:right;desc:number of successful gets&quot;);</b>
+<b class="nc"><i>179</i>&nbsp;        table.addCell(&quot;get.missing_time&quot;, &quot;alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets&quot;);</b>
+<b class="nc"><i>180</i>&nbsp;        table.addCell(&quot;get.missing_total&quot;, &quot;alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets&quot;);</b>
+<i>181</i>&nbsp;
+<b class="nc"><i>182</i>&nbsp;        table.addCell(&quot;indexing.delete_current&quot;,</b>
+<i>183</i>&nbsp;            &quot;alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions&quot;);
+<b class="nc"><i>184</i>&nbsp;        table.addCell(&quot;indexing.delete_time&quot;, &quot;alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions&quot;);</b>
+<b class="nc"><i>185</i>&nbsp;        table.addCell(&quot;indexing.delete_total&quot;, &quot;alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops&quot;);</b>
+<b class="nc"><i>186</i>&nbsp;        table.addCell(&quot;indexing.index_current&quot;,</b>
+<i>187</i>&nbsp;            &quot;alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops&quot;);
+<b class="nc"><i>188</i>&nbsp;        table.addCell(&quot;indexing.index_time&quot;, &quot;alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing&quot;);</b>
+<b class="nc"><i>189</i>&nbsp;        table.addCell(&quot;indexing.index_total&quot;, &quot;alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops&quot;);</b>
+<b class="nc"><i>190</i>&nbsp;        table.addCell(&quot;indexing.index_failed&quot;,</b>
+<i>191</i>&nbsp;            &quot;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops&quot;);
+<i>192</i>&nbsp;
+<b class="nc"><i>193</i>&nbsp;        table.addCell(&quot;merges.current&quot;, &quot;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges&quot;);</b>
+<b class="nc"><i>194</i>&nbsp;        table.addCell(&quot;merges.current_docs&quot;,</b>
+<i>195</i>&nbsp;            &quot;alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs&quot;);
+<b class="nc"><i>196</i>&nbsp;        table.addCell(&quot;merges.current_size&quot;, &quot;alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges&quot;);</b>
+<b class="nc"><i>197</i>&nbsp;        table.addCell(&quot;merges.total&quot;, &quot;alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops&quot;);</b>
+<b class="nc"><i>198</i>&nbsp;        table.addCell(&quot;merges.total_docs&quot;, &quot;alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged&quot;);</b>
+<b class="nc"><i>199</i>&nbsp;        table.addCell(&quot;merges.total_size&quot;, &quot;alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged&quot;);</b>
+<b class="nc"><i>200</i>&nbsp;        table.addCell(&quot;merges.total_time&quot;, &quot;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges&quot;);</b>
+<i>201</i>&nbsp;
+<b class="nc"><i>202</i>&nbsp;        table.addCell(&quot;refresh.total&quot;, &quot;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes&quot;);</b>
+<b class="nc"><i>203</i>&nbsp;        table.addCell(&quot;refresh.time&quot;, &quot;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes&quot;);</b>
+<b class="nc"><i>204</i>&nbsp;        table.addCell(&quot;refresh.external_total&quot;, &quot;alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes&quot;);</b>
+<b class="nc"><i>205</i>&nbsp;        table.addCell(&quot;refresh.external_time&quot;,</b>
+<i>206</i>&nbsp;            &quot;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes&quot;);
+<b class="nc"><i>207</i>&nbsp;        table.addCell(&quot;refresh.listeners&quot;, &quot;alias:rli,refreshListeners;default:false;text-align:right;&quot;</b>
+<i>208</i>&nbsp;                + &quot;desc:number of pending refresh listeners&quot;);
+<i>209</i>&nbsp;
+<b class="nc"><i>210</i>&nbsp;        table.addCell(&quot;script.compilations&quot;, &quot;alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations&quot;);</b>
+<b class="nc"><i>211</i>&nbsp;        table.addCell(&quot;script.cache_evictions&quot;,</b>
+<i>212</i>&nbsp;            &quot;alias:scrce,scriptCacheEvictions;default:false;text-align:right;desc:script cache evictions&quot;);
+<b class="nc"><i>213</i>&nbsp;        table.addCell(&quot;script.compilation_limit_triggered&quot;, &quot;alias:scrclt,scriptCacheCompilationLimitTriggered;default:false;&quot; +</b>
+<i>214</i>&nbsp;                &quot;text-align:right;desc:script cache compilation limit triggered&quot;);
+<i>215</i>&nbsp;
+<b class="nc"><i>216</i>&nbsp;        table.addCell(&quot;search.fetch_current&quot;, &quot;alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops&quot;);</b>
+<b class="nc"><i>217</i>&nbsp;        table.addCell(&quot;search.fetch_time&quot;, &quot;alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase&quot;);</b>
+<b class="nc"><i>218</i>&nbsp;        table.addCell(&quot;search.fetch_total&quot;, &quot;alias:sfto,searchFetchTotal;default:false;text-align:right;desc:total fetch ops&quot;);</b>
+<b class="nc"><i>219</i>&nbsp;        table.addCell(&quot;search.open_contexts&quot;, &quot;alias:so,searchOpenContexts;default:false;text-align:right;desc:open search contexts&quot;);</b>
+<b class="nc"><i>220</i>&nbsp;        table.addCell(&quot;search.query_current&quot;, &quot;alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops&quot;);</b>
+<b class="nc"><i>221</i>&nbsp;        table.addCell(&quot;search.query_time&quot;, &quot;alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase&quot;);</b>
+<b class="nc"><i>222</i>&nbsp;        table.addCell(&quot;search.query_total&quot;, &quot;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops&quot;);</b>
+<b class="nc"><i>223</i>&nbsp;        table.addCell(&quot;search.scroll_current&quot;, &quot;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts&quot;);</b>
+<b class="nc"><i>224</i>&nbsp;        table.addCell(&quot;search.scroll_time&quot;,</b>
+<i>225</i>&nbsp;            &quot;alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open&quot;);
+<b class="nc"><i>226</i>&nbsp;        table.addCell(&quot;search.scroll_total&quot;, &quot;alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts&quot;);</b>
+<i>227</i>&nbsp;
+<b class="nc"><i>228</i>&nbsp;        table.addCell(&quot;segments.count&quot;, &quot;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments&quot;);</b>
+<b class="nc"><i>229</i>&nbsp;        table.addCell(&quot;segments.memory&quot;, &quot;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments&quot;);</b>
+<b class="nc"><i>230</i>&nbsp;        table.addCell(&quot;segments.index_writer_memory&quot;,</b>
+<i>231</i>&nbsp;            &quot;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer&quot;);
+<b class="nc"><i>232</i>&nbsp;        table.addCell(&quot;segments.version_map_memory&quot;,</b>
+<i>233</i>&nbsp;            &quot;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map&quot;);
+<b class="nc"><i>234</i>&nbsp;        table.addCell(&quot;segments.fixed_bitset_memory&quot;,</b>
+<i>235</i>&nbsp;            &quot;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types&quot; +
+<i>236</i>&nbsp;                &quot; and type filters for types referred in _parent fields&quot;);
+<i>237</i>&nbsp;
+<b class="nc"><i>238</i>&nbsp;        table.addCell(&quot;suggest.current&quot;, &quot;alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops&quot;);</b>
+<b class="nc"><i>239</i>&nbsp;        table.addCell(&quot;suggest.time&quot;, &quot;alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest&quot;);</b>
+<b class="nc"><i>240</i>&nbsp;        table.addCell(&quot;suggest.total&quot;, &quot;alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops&quot;);</b>
+<i>241</i>&nbsp;
+<b class="nc"><i>242</i>&nbsp;        table.endHeaders();</b>
+<b class="nc"><i>243</i>&nbsp;        return table;</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    Table buildTable(boolean fullId, RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo,
+<i>247</i>&nbsp;                             NodesStatsResponse nodesStats) {
+<i>248</i>&nbsp;
+<b class="nc"><i>249</i>&nbsp;        DiscoveryNodes nodes = state.getState().nodes();</b>
+<b class="nc"><i>250</i>&nbsp;        String masterId = nodes.getMasterNodeId();</b>
+<b class="nc"><i>251</i>&nbsp;        Table table = getTableWithHeader(req);</b>
+<i>252</i>&nbsp;
+<b class="nc"><i>253</i>&nbsp;        for (DiscoveryNode node : nodes) {</b>
+<b class="nc"><i>254</i>&nbsp;            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());</b>
+<b class="nc"><i>255</i>&nbsp;            NodeStats stats = nodesStats.getNodesMap().get(node.getId());</b>
+<i>256</i>&nbsp;
+<b class="nc"><i>257</i>&nbsp;            JvmInfo jvmInfo = info == null ? null : info.getJvm();</b>
+<b class="nc"><i>258</i>&nbsp;            JvmStats jvmStats = stats == null ? null : stats.getJvm();</b>
+<b class="nc"><i>259</i>&nbsp;            FsInfo fsInfo = stats == null ? null : stats.getFs();</b>
+<b class="nc"><i>260</i>&nbsp;            OsStats osStats = stats == null ? null : stats.getOs();</b>
+<b class="nc"><i>261</i>&nbsp;            ProcessStats processStats = stats == null ? null : stats.getProcess();</b>
+<b class="nc"><i>262</i>&nbsp;            NodeIndicesStats indicesStats = stats == null ? null : stats.getIndices();</b>
+<i>263</i>&nbsp;
+<b class="nc"><i>264</i>&nbsp;            table.startRow();</b>
+<i>265</i>&nbsp;
+<b class="nc"><i>266</i>&nbsp;            table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));</b>
+<b class="nc"><i>267</i>&nbsp;            table.addCell(info == null ? null : info.getProcess().getId());</b>
+<b class="nc"><i>268</i>&nbsp;            table.addCell(node.getHostAddress());</b>
+<b class="nc"><i>269</i>&nbsp;            table.addCell(node.getAddress().address().getPort());</b>
+<b class="nc"><i>270</i>&nbsp;            final HttpInfo httpInfo = info == null ? null : info.getHttp();</b>
+<b class="nc"><i>271</i>&nbsp;            if (httpInfo != null) {</b>
+<b class="nc"><i>272</i>&nbsp;                TransportAddress transportAddress = httpInfo.getAddress().publishAddress();</b>
+<b class="nc"><i>273</i>&nbsp;                table.addCell(NetworkAddress.format(transportAddress.address()));</b>
+<b class="nc"><i>274</i>&nbsp;            } else {</b>
+<b class="nc"><i>275</i>&nbsp;                table.addCell(&quot;-&quot;);</b>
+<i>276</i>&nbsp;            }
+<i>277</i>&nbsp;
+<b class="nc"><i>278</i>&nbsp;            table.addCell(node.getVersion().toString());</b>
+<b class="nc"><i>279</i>&nbsp;            table.addCell(info == null ? null : info.getBuild().flavor().displayName());</b>
+<b class="nc"><i>280</i>&nbsp;            table.addCell(info == null ? null : info.getBuild().type().displayName());</b>
+<b class="nc"><i>281</i>&nbsp;            table.addCell(info == null ? null : info.getBuild().hash());</b>
+<b class="nc"><i>282</i>&nbsp;            table.addCell(jvmInfo == null ? null : jvmInfo.version());</b>
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;
+<b class="nc"><i>285</i>&nbsp;            ByteSizeValue diskTotal = null;</b>
+<b class="nc"><i>286</i>&nbsp;            ByteSizeValue diskUsed = null;</b>
+<b class="nc"><i>287</i>&nbsp;            ByteSizeValue diskAvailable = null;</b>
+<b class="nc"><i>288</i>&nbsp;            String diskUsedPercent = null;</b>
+<b class="nc"><i>289</i>&nbsp;            if (fsInfo != null) {</b>
+<b class="nc"><i>290</i>&nbsp;                diskTotal = fsInfo.getTotal().getTotal();</b>
+<b class="nc"><i>291</i>&nbsp;                diskAvailable = fsInfo.getTotal().getAvailable();</b>
+<b class="nc"><i>292</i>&nbsp;                diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());</b>
+<i>293</i>&nbsp;
+<b class="nc"><i>294</i>&nbsp;                double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();</b>
+<b class="nc"><i>295</i>&nbsp;                diskUsedPercent = String.format(Locale.ROOT, &quot;%.2f&quot;, 100.0 * diskUsedRatio);</b>
+<i>296</i>&nbsp;            }
+<b class="nc"><i>297</i>&nbsp;            table.addCell(diskTotal);</b>
+<b class="nc"><i>298</i>&nbsp;            table.addCell(diskUsed);</b>
+<b class="nc"><i>299</i>&nbsp;            table.addCell(diskAvailable);</b>
+<b class="nc"><i>300</i>&nbsp;            table.addCell(diskUsedPercent);</b>
+<i>301</i>&nbsp;
+<b class="nc"><i>302</i>&nbsp;            table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());</b>
+<b class="nc"><i>303</i>&nbsp;            table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());</b>
+<b class="nc"><i>304</i>&nbsp;            table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());</b>
+<b class="nc"><i>305</i>&nbsp;            table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().getUsed());</b>
+<b class="nc"><i>306</i>&nbsp;            table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().getUsedPercent());</b>
+<b class="nc"><i>307</i>&nbsp;            table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().getTotal());</b>
+<b class="nc"><i>308</i>&nbsp;            table.addCell(processStats == null ? null : processStats.getOpenFileDescriptors());</b>
+<b class="nc"><i>309</i>&nbsp;            table.addCell(processStats == null ? null : calculatePercentage(processStats.getOpenFileDescriptors(),</b>
+<b class="nc"><i>310</i>&nbsp;                processStats.getMaxFileDescriptors()));</b>
+<b class="nc"><i>311</i>&nbsp;            table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());</b>
+<i>312</i>&nbsp;
+<b class="nc"><i>313</i>&nbsp;            table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));</b>
+<b class="nc"><i>314</i>&nbsp;            boolean hasLoadAverage = osStats != null &amp;&amp; osStats.getCpu().getLoadAverage() != null;</b>
+<b class="nc"><i>315</i>&nbsp;            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null :</b>
+<b class="nc"><i>316</i>&nbsp;                String.format(Locale.ROOT, &quot;%.2f&quot;, osStats.getCpu().getLoadAverage()[0]));</b>
+<b class="nc"><i>317</i>&nbsp;            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null :</b>
+<b class="nc"><i>318</i>&nbsp;                String.format(Locale.ROOT, &quot;%.2f&quot;, osStats.getCpu().getLoadAverage()[1]));</b>
+<b class="nc"><i>319</i>&nbsp;            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null :</b>
+<b class="nc"><i>320</i>&nbsp;                String.format(Locale.ROOT, &quot;%.2f&quot;, osStats.getCpu().getLoadAverage()[2]));</b>
+<b class="nc"><i>321</i>&nbsp;            table.addCell(jvmStats == null ? null : jvmStats.getUptime());</b>
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;            final String roles;
+<b class="nc"><i>324</i>&nbsp;            if (node.getRoles().isEmpty()) {</b>
+<b class="nc"><i>325</i>&nbsp;                roles = &quot;-&quot;;</b>
+<i>326</i>&nbsp;            } else {
+<b class="nc"><i>327</i>&nbsp;                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());</b>
+<i>328</i>&nbsp;            }
+<b class="nc"><i>329</i>&nbsp;            table.addCell(roles);</b>
+<b class="nc"><i>330</i>&nbsp;            table.addCell(masterId == null ? &quot;x&quot; : masterId.equals(node.getId()) ? &quot;*&quot; : &quot;-&quot;);</b>
+<b class="nc"><i>331</i>&nbsp;            table.addCell(node.getName());</b>
+<i>332</i>&nbsp;
+<b class="nc"><i>333</i>&nbsp;            CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();</b>
+<b class="nc"><i>334</i>&nbsp;            table.addCell(completionStats == null ? null : completionStats.getSize());</b>
+<i>335</i>&nbsp;
+<b class="nc"><i>336</i>&nbsp;            FieldDataStats fdStats = indicesStats == null ? null : stats.getIndices().getFieldData();</b>
+<b class="nc"><i>337</i>&nbsp;            table.addCell(fdStats == null ? null : fdStats.getMemorySize());</b>
+<b class="nc"><i>338</i>&nbsp;            table.addCell(fdStats == null ? null : fdStats.getEvictions());</b>
+<i>339</i>&nbsp;
+<b class="nc"><i>340</i>&nbsp;            QueryCacheStats fcStats = indicesStats == null ? null : indicesStats.getQueryCache();</b>
+<b class="nc"><i>341</i>&nbsp;            table.addCell(fcStats == null ? null : fcStats.getMemorySize());</b>
+<b class="nc"><i>342</i>&nbsp;            table.addCell(fcStats == null ? null : fcStats.getEvictions());</b>
+<i>343</i>&nbsp;
+<b class="nc"><i>344</i>&nbsp;            RequestCacheStats qcStats = indicesStats == null ? null : indicesStats.getRequestCache();</b>
+<b class="nc"><i>345</i>&nbsp;            table.addCell(qcStats == null ? null : qcStats.getMemorySize());</b>
+<b class="nc"><i>346</i>&nbsp;            table.addCell(qcStats == null ? null : qcStats.getEvictions());</b>
+<b class="nc"><i>347</i>&nbsp;            table.addCell(qcStats == null ? null : qcStats.getHitCount());</b>
+<b class="nc"><i>348</i>&nbsp;            table.addCell(qcStats == null ? null : qcStats.getMissCount());</b>
+<i>349</i>&nbsp;
+<b class="nc"><i>350</i>&nbsp;            FlushStats flushStats = indicesStats == null ? null : indicesStats.getFlush();</b>
+<b class="nc"><i>351</i>&nbsp;            table.addCell(flushStats == null ? null : flushStats.getTotal());</b>
+<b class="nc"><i>352</i>&nbsp;            table.addCell(flushStats == null ? null : flushStats.getTotalTime());</b>
+<i>353</i>&nbsp;
+<b class="nc"><i>354</i>&nbsp;            GetStats getStats = indicesStats == null ? null : indicesStats.getGet();</b>
+<b class="nc"><i>355</i>&nbsp;            table.addCell(getStats == null ? null : getStats.current());</b>
+<b class="nc"><i>356</i>&nbsp;            table.addCell(getStats == null ? null : getStats.getTime());</b>
+<b class="nc"><i>357</i>&nbsp;            table.addCell(getStats == null ? null : getStats.getCount());</b>
+<b class="nc"><i>358</i>&nbsp;            table.addCell(getStats == null ? null : getStats.getExistsTime());</b>
+<b class="nc"><i>359</i>&nbsp;            table.addCell(getStats == null ? null : getStats.getExistsCount());</b>
+<b class="nc"><i>360</i>&nbsp;            table.addCell(getStats == null ? null : getStats.getMissingTime());</b>
+<b class="nc"><i>361</i>&nbsp;            table.addCell(getStats == null ? null : getStats.getMissingCount());</b>
+<i>362</i>&nbsp;
+<b class="nc"><i>363</i>&nbsp;            IndexingStats indexingStats = indicesStats == null ? null : indicesStats.getIndexing();</b>
+<b class="nc"><i>364</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteCurrent());</b>
+<b class="nc"><i>365</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteTime());</b>
+<b class="nc"><i>366</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteCount());</b>
+<b class="nc"><i>367</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCurrent());</b>
+<b class="nc"><i>368</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());</b>
+<b class="nc"><i>369</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());</b>
+<b class="nc"><i>370</i>&nbsp;            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());</b>
+<i>371</i>&nbsp;
+<b class="nc"><i>372</i>&nbsp;            MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();</b>
+<b class="nc"><i>373</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getCurrent());</b>
+<b class="nc"><i>374</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getCurrentNumDocs());</b>
+<b class="nc"><i>375</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getCurrentSize());</b>
+<b class="nc"><i>376</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getTotal());</b>
+<b class="nc"><i>377</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getTotalNumDocs());</b>
+<b class="nc"><i>378</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getTotalSize());</b>
+<b class="nc"><i>379</i>&nbsp;            table.addCell(mergeStats == null ? null : mergeStats.getTotalTime());</b>
+<i>380</i>&nbsp;
+<b class="nc"><i>381</i>&nbsp;            RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();</b>
+<b class="nc"><i>382</i>&nbsp;            table.addCell(refreshStats == null ? null : refreshStats.getTotal());</b>
+<b class="nc"><i>383</i>&nbsp;            table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());</b>
+<b class="nc"><i>384</i>&nbsp;            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotal());</b>
+<b class="nc"><i>385</i>&nbsp;            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotalTime());</b>
+<b class="nc"><i>386</i>&nbsp;            table.addCell(refreshStats == null ? null : refreshStats.getListeners());</b>
+<i>387</i>&nbsp;
+<b class="nc"><i>388</i>&nbsp;            ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();</b>
+<b class="nc"><i>389</i>&nbsp;            table.addCell(scriptStats == null ? null : scriptStats.getCompilations());</b>
+<b class="nc"><i>390</i>&nbsp;            table.addCell(scriptStats == null ? null : scriptStats.getCacheEvictions());</b>
+<b class="nc"><i>391</i>&nbsp;            table.addCell(scriptStats == null ? null : scriptStats.getCompilationLimitTriggered());</b>
+<i>392</i>&nbsp;
+<b class="nc"><i>393</i>&nbsp;            SearchStats searchStats = indicesStats == null ? null : indicesStats.getSearch();</b>
+<b class="nc"><i>394</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCurrent());</b>
+<b class="nc"><i>395</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchTime());</b>
+<b class="nc"><i>396</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCount());</b>
+<b class="nc"><i>397</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getOpenContexts());</b>
+<b class="nc"><i>398</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());</b>
+<b class="nc"><i>399</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());</b>
+<b class="nc"><i>400</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());</b>
+<b class="nc"><i>401</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCurrent());</b>
+<b class="nc"><i>402</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollTime());</b>
+<b class="nc"><i>403</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCount());</b>
+<i>404</i>&nbsp;
+<b class="nc"><i>405</i>&nbsp;            SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();</b>
+<b class="nc"><i>406</i>&nbsp;            table.addCell(segmentsStats == null ? null : segmentsStats.getCount());</b>
+<b class="nc"><i>407</i>&nbsp;            table.addCell(segmentsStats == null ? null : segmentsStats.getMemory());</b>
+<b class="nc"><i>408</i>&nbsp;            table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());</b>
+<b class="nc"><i>409</i>&nbsp;            table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());</b>
+<b class="nc"><i>410</i>&nbsp;            table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());</b>
+<i>411</i>&nbsp;
+<b class="nc"><i>412</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());</b>
+<b class="nc"><i>413</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());</b>
+<b class="nc"><i>414</i>&nbsp;            table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());</b>
+<i>415</i>&nbsp;
+<b class="nc"><i>416</i>&nbsp;            table.endRow();</b>
+<b class="nc"><i>417</i>&nbsp;        }</b>
+<i>418</i>&nbsp;
+<b class="nc"><i>419</i>&nbsp;        return table;</b>
+<i>420</i>&nbsp;    }
+<i>421</i>&nbsp;
+<i>422</i>&nbsp;    /**
+<i>423</i>&nbsp;     * Calculate the percentage of {@code used} from the {@code max} number.
+<i>424</i>&nbsp;     * @param used The currently used number.
+<i>425</i>&nbsp;     * @param max The maximum number.
+<i>426</i>&nbsp;     * @return 0 if {@code max} is &amp;lt;= 0. Otherwise 100 * {@code used} / {@code max}.
+<i>427</i>&nbsp;     */
+<i>428</i>&nbsp;    private short calculatePercentage(long used, long max) {
+<b class="nc"><i>429</i>&nbsp;        return max &lt;= 0 ? 0 : (short)((100d * used) / max);</b>
+<i>430</i>&nbsp;    }
+<i>431</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

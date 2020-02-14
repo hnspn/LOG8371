@@ -1,0 +1,156 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ResizableBlockingQueue</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util.concurrent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ResizableBlockingQueue (org.elasticsearch.common.util.concurrent)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ResizableBlockingQueue</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    19%
+  </span>
+  <span class="absValue">
+    (4/ 21)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.util.concurrent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.util.concurrent.BlockingQueue;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;/**
+<i>25</i>&nbsp; * Extends the {@code SizeBlockingQueue} to add the {@code adjustCapacity} method, which will adjust
+<i>26</i>&nbsp; * the capacity by a certain amount towards a maximum or minimum.
+<i>27</i>&nbsp; */
+<b class="fc"><i>28</i>&nbsp;final class ResizableBlockingQueue&lt;E&gt; extends SizeBlockingQueue&lt;E&gt; {</b>
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;    private volatile int capacity;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;    ResizableBlockingQueue(BlockingQueue&lt;E&gt; queue, int initialCapacity) {
+<b class="fc"><i>33</i>&nbsp;        super(queue, initialCapacity);</b>
+<b class="fc"><i>34</i>&nbsp;        this.capacity = initialCapacity;</b>
+<b class="fc"><i>35</i>&nbsp;    }</b>
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;    @Override
+<i>38</i>&nbsp;    public int capacity() {
+<b class="nc"><i>39</i>&nbsp;        return this.capacity;</b>
+<i>40</i>&nbsp;    }
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    @Override
+<i>43</i>&nbsp;    public int remainingCapacity() {
+<b class="nc"><i>44</i>&nbsp;        return Math.max(0, this.capacity());</b>
+<i>45</i>&nbsp;    }
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    /** Resize the limit for the queue, returning the new size limit */
+<i>48</i>&nbsp;    public synchronized int adjustCapacity(int optimalCapacity, int adjustmentAmount, int minCapacity, int maxCapacity) {
+<b class="nc"><i>49</i>&nbsp;        assert adjustmentAmount &gt; 0 : &quot;adjustment amount should be a positive value&quot;;</b>
+<b class="nc"><i>50</i>&nbsp;        assert optimalCapacity &gt;= 0 : &quot;desired capacity cannot be negative&quot;;</b>
+<b class="nc"><i>51</i>&nbsp;        assert minCapacity &gt;= 0 : &quot;cannot have min capacity smaller than 0&quot;;</b>
+<b class="nc"><i>52</i>&nbsp;        assert maxCapacity &gt;= minCapacity : &quot;cannot have max capacity smaller than min capacity&quot;;</b>
+<i>53</i>&nbsp;
+<b class="nc"><i>54</i>&nbsp;        if (optimalCapacity == capacity) {</b>
+<i>55</i>&nbsp;            // Yahtzee!
+<b class="nc"><i>56</i>&nbsp;            return this.capacity;</b>
+<i>57</i>&nbsp;        }
+<i>58</i>&nbsp;
+<b class="nc"><i>59</i>&nbsp;        if (optimalCapacity &gt; capacity + adjustmentAmount) {</b>
+<i>60</i>&nbsp;            // adjust up
+<b class="nc"><i>61</i>&nbsp;            final int newCapacity = Math.min(maxCapacity, capacity + adjustmentAmount);</b>
+<b class="nc"><i>62</i>&nbsp;            this.capacity = newCapacity;</b>
+<b class="nc"><i>63</i>&nbsp;            return newCapacity;</b>
+<b class="nc"><i>64</i>&nbsp;        } else if (optimalCapacity &lt; capacity - adjustmentAmount) {</b>
+<i>65</i>&nbsp;            // adjust down
+<b class="nc"><i>66</i>&nbsp;            final int newCapacity = Math.max(minCapacity, capacity - adjustmentAmount);</b>
+<b class="nc"><i>67</i>&nbsp;            this.capacity = newCapacity;</b>
+<b class="nc"><i>68</i>&nbsp;            return newCapacity;</b>
+<i>69</i>&nbsp;        } else {
+<b class="nc"><i>70</i>&nbsp;            return this.capacity;</b>
+<i>71</i>&nbsp;        }
+<i>72</i>&nbsp;    }
+<i>73</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

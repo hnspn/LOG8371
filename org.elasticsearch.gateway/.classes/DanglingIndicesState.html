@@ -1,0 +1,287 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DanglingIndicesState</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DanglingIndicesState (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DanglingIndicesState</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    72.7%
+  </span>
+  <span class="absValue">
+    (8/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    49.2%
+  </span>
+  <span class="absValue">
+    (32/ 65)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectCursor;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterStateListener;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexGraveyard;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>32</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>33</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>34</i>&nbsp;import org.elasticsearch.env.NodeEnvironment;
+<i>35</i>&nbsp;import org.elasticsearch.index.Index;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.io.IOException;
+<i>38</i>&nbsp;import java.util.ArrayList;
+<i>39</i>&nbsp;import java.util.Collections;
+<i>40</i>&nbsp;import java.util.HashMap;
+<i>41</i>&nbsp;import java.util.HashSet;
+<i>42</i>&nbsp;import java.util.List;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Set;
+<i>45</i>&nbsp;import java.util.stream.Collectors;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>48</i>&nbsp;import static java.util.Collections.unmodifiableMap;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;/**
+<i>51</i>&nbsp; * The dangling indices state is responsible for finding new dangling indices (indices that have
+<i>52</i>&nbsp; * their state written on disk, but don&#39;t exists in the metadata of the cluster), and importing
+<i>53</i>&nbsp; * them into the cluster.
+<i>54</i>&nbsp; */
+<b class="nc"><i>55</i>&nbsp;public class DanglingIndicesState implements ClusterStateListener {</b>
+<i>56</i>&nbsp;
+<b class="fc"><i>57</i>&nbsp;    private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);</b>
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    private final NodeEnvironment nodeEnv;
+<i>60</i>&nbsp;    private final MetaStateService metaStateService;
+<i>61</i>&nbsp;    private final LocalAllocateDangledIndices allocateDangledIndices;
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;    private final Map&lt;Index, IndexMetaData&gt; danglingIndices = ConcurrentCollections.newConcurrentMap();</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    @Inject
+<i>66</i>&nbsp;    public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
+<b class="fc"><i>67</i>&nbsp;                                LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {</b>
+<b class="fc"><i>68</i>&nbsp;        this.nodeEnv = nodeEnv;</b>
+<b class="fc"><i>69</i>&nbsp;        this.metaStateService = metaStateService;</b>
+<b class="fc"><i>70</i>&nbsp;        this.allocateDangledIndices = allocateDangledIndices;</b>
+<b class="fc"><i>71</i>&nbsp;        clusterService.addListener(this);</b>
+<b class="fc"><i>72</i>&nbsp;    }</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    /**
+<i>75</i>&nbsp;     * Process dangling indices based on the provided meta data, handling cleanup, finding
+<i>76</i>&nbsp;     * new dangling indices, and allocating outstanding ones.
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    public void processDanglingIndices(final MetaData metaData) {
+<b class="fc"><i>79</i>&nbsp;        if (nodeEnv.hasNodeFile() == false) {</b>
+<b class="nc"><i>80</i>&nbsp;            return;</b>
+<i>81</i>&nbsp;        }
+<b class="fc"><i>82</i>&nbsp;        cleanupAllocatedDangledIndices(metaData);</b>
+<b class="fc"><i>83</i>&nbsp;        findNewAndAddDanglingIndices(metaData);</b>
+<b class="fc"><i>84</i>&nbsp;        allocateDanglingIndices();</b>
+<b class="fc"><i>85</i>&nbsp;    }</b>
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    /**
+<i>88</i>&nbsp;     * The current set of dangling indices.
+<i>89</i>&nbsp;     */
+<i>90</i>&nbsp;    Map&lt;Index, IndexMetaData&gt; getDanglingIndices() {
+<i>91</i>&nbsp;        // This might be a good use case for CopyOnWriteHashMap
+<b class="nc"><i>92</i>&nbsp;        return unmodifiableMap(new HashMap&lt;&gt;(danglingIndices));</b>
+<i>93</i>&nbsp;    }
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    /**
+<i>96</i>&nbsp;     * Cleans dangling indices if they are already allocated on the provided meta data.
+<i>97</i>&nbsp;     */
+<i>98</i>&nbsp;    void cleanupAllocatedDangledIndices(MetaData metaData) {
+<b class="fc"><i>99</i>&nbsp;        for (Index index : danglingIndices.keySet()) {</b>
+<b class="nc"><i>100</i>&nbsp;            final IndexMetaData indexMetaData = metaData.index(index);</b>
+<b class="nc"><i>101</i>&nbsp;            if (indexMetaData != null &amp;&amp; indexMetaData.getIndex().getName().equals(index.getName())) {</b>
+<b class="nc"><i>102</i>&nbsp;                if (indexMetaData.getIndex().getUUID().equals(index.getUUID()) == false) {</b>
+<b class="nc"><i>103</i>&nbsp;                    logger.warn(&quot;[{}] can not be imported as a dangling index, as there is already another index &quot; +</b>
+<i>104</i>&nbsp;                        &quot;with the same name but a different uuid. local index will be ignored (but not deleted)&quot;, index);
+<i>105</i>&nbsp;                } else {
+<b class="nc"><i>106</i>&nbsp;                    logger.debug(&quot;[{}] no longer dangling (created), removing from dangling list&quot;, index);</b>
+<i>107</i>&nbsp;                }
+<b class="nc"><i>108</i>&nbsp;                danglingIndices.remove(index);</b>
+<i>109</i>&nbsp;            }
+<b class="nc"><i>110</i>&nbsp;        }</b>
+<b class="fc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    /**
+<i>114</i>&nbsp;     * Finds (@{link #findNewAndAddDanglingIndices}) and adds the new dangling indices
+<i>115</i>&nbsp;     * to the currently tracked dangling indices.
+<i>116</i>&nbsp;     */
+<i>117</i>&nbsp;    void findNewAndAddDanglingIndices(final MetaData metaData) {
+<b class="fc"><i>118</i>&nbsp;        danglingIndices.putAll(findNewDanglingIndices(metaData));</b>
+<b class="fc"><i>119</i>&nbsp;    }</b>
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    /**
+<i>122</i>&nbsp;     * Finds new dangling indices by iterating over the indices and trying to find indices
+<i>123</i>&nbsp;     * that have state on disk, but are not part of the provided meta data, or not detected
+<i>124</i>&nbsp;     * as dangled already.
+<i>125</i>&nbsp;     */
+<i>126</i>&nbsp;    Map&lt;Index, IndexMetaData&gt; findNewDanglingIndices(final MetaData metaData) {
+<b class="fc"><i>127</i>&nbsp;        final Set&lt;String&gt; excludeIndexPathIds = new HashSet&lt;&gt;(metaData.indices().size() + danglingIndices.size());</b>
+<b class="fc"><i>128</i>&nbsp;        for (ObjectCursor&lt;IndexMetaData&gt; cursor : metaData.indices().values()) {</b>
+<b class="fc"><i>129</i>&nbsp;            excludeIndexPathIds.add(cursor.value.getIndex().getUUID());</b>
+<b class="fc"><i>130</i>&nbsp;        }</b>
+<b class="fc"><i>131</i>&nbsp;        excludeIndexPathIds.addAll(danglingIndices.keySet().stream().map(Index::getUUID).collect(Collectors.toList()));</b>
+<i>132</i>&nbsp;        try {
+<b class="fc"><i>133</i>&nbsp;            final List&lt;IndexMetaData&gt; indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);</b>
+<b class="fc"><i>134</i>&nbsp;            Map&lt;Index, IndexMetaData&gt; newIndices = new HashMap&lt;&gt;(indexMetaDataList.size());</b>
+<b class="fc"><i>135</i>&nbsp;            final IndexGraveyard graveyard = metaData.indexGraveyard();</b>
+<b class="fc"><i>136</i>&nbsp;            for (IndexMetaData indexMetaData : indexMetaDataList) {</b>
+<b class="nc"><i>137</i>&nbsp;                if (metaData.hasIndex(indexMetaData.getIndex().getName())) {</b>
+<b class="nc"><i>138</i>&nbsp;                    logger.warn(&quot;[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata&quot;,</b>
+<b class="nc"><i>139</i>&nbsp;                        indexMetaData.getIndex());</b>
+<b class="nc"><i>140</i>&nbsp;                } else if (graveyard.containsIndex(indexMetaData.getIndex())) {</b>
+<b class="nc"><i>141</i>&nbsp;                    logger.warn(&quot;[{}] can not be imported as a dangling index, as an index with the same name and UUID exist in the &quot; +</b>
+<i>142</i>&nbsp;                                &quot;index tombstones.  This situation is likely caused by copying over the data directory for an index &quot; +
+<b class="nc"><i>143</i>&nbsp;                                &quot;that was previously deleted.&quot;, indexMetaData.getIndex());</b>
+<i>144</i>&nbsp;                } else {
+<b class="nc"><i>145</i>&nbsp;                    logger.info(&quot;[{}] dangling index exists on local file system, but not in cluster metadata, &quot; +</b>
+<b class="nc"><i>146</i>&nbsp;                                &quot;auto import to cluster state&quot;, indexMetaData.getIndex());</b>
+<b class="nc"><i>147</i>&nbsp;                    newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));</b>
+<i>148</i>&nbsp;                }
+<b class="nc"><i>149</i>&nbsp;            }</b>
+<b class="fc"><i>150</i>&nbsp;            return newIndices;</b>
+<b class="nc"><i>151</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>152</i>&nbsp;            logger.warn(&quot;failed to list dangling indices&quot;, e);</b>
+<b class="nc"><i>153</i>&nbsp;            return emptyMap();</b>
+<i>154</i>&nbsp;        }
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
+<i>159</i>&nbsp;     * previously had only one index with any is_write_index indication.
+<i>160</i>&nbsp;     */
+<i>161</i>&nbsp;    private IndexMetaData stripAliases(IndexMetaData indexMetaData) {
+<b class="nc"><i>162</i>&nbsp;        if (indexMetaData.getAliases().isEmpty()) {</b>
+<b class="nc"><i>163</i>&nbsp;            return indexMetaData;</b>
+<i>164</i>&nbsp;        } else {
+<b class="nc"><i>165</i>&nbsp;            logger.info(&quot;[{}] stripping aliases: {} from index before importing&quot;,</b>
+<b class="nc"><i>166</i>&nbsp;                indexMetaData.getIndex(), indexMetaData.getAliases().keys());</b>
+<b class="nc"><i>167</i>&nbsp;            return IndexMetaData.builder(indexMetaData).removeAllAliases().build();</b>
+<i>168</i>&nbsp;        }
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    /**
+<i>172</i>&nbsp;     * Allocates the provided list of the dangled indices by sending them to the master node
+<i>173</i>&nbsp;     * for allocation.
+<i>174</i>&nbsp;     */
+<i>175</i>&nbsp;    private void allocateDanglingIndices() {
+<b class="fc"><i>176</i>&nbsp;        if (danglingIndices.isEmpty()) {</b>
+<b class="fc"><i>177</i>&nbsp;            return;</b>
+<i>178</i>&nbsp;        }
+<i>179</i>&nbsp;        try {
+<b class="nc"><i>180</i>&nbsp;            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList&lt;&gt;(danglingIndices.values())),</b>
+<i>181</i>&nbsp;                new ActionListener&lt;LocalAllocateDangledIndices.AllocateDangledResponse&gt;() {
+<i>182</i>&nbsp;                    @Override
+<i>183</i>&nbsp;                    public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
+<i>184</i>&nbsp;                        logger.trace(&quot;allocated dangled&quot;);
+<i>185</i>&nbsp;                    }
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;                    @Override
+<i>188</i>&nbsp;                    public void onFailure(Exception e) {
+<i>189</i>&nbsp;                        logger.info(&quot;failed to send allocated dangled&quot;, e);
+<i>190</i>&nbsp;                    }
+<i>191</i>&nbsp;                }
+<i>192</i>&nbsp;            );
+<b class="nc"><i>193</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>194</i>&nbsp;            logger.warn(&quot;failed to send allocate dangled&quot;, e);</b>
+<b class="nc"><i>195</i>&nbsp;        }</b>
+<b class="nc"><i>196</i>&nbsp;    }</b>
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;    @Override
+<i>199</i>&nbsp;    public void clusterChanged(ClusterChangedEvent event) {
+<b class="fc"><i>200</i>&nbsp;        if (event.state().blocks().disableStatePersistence() == false) {</b>
+<b class="fc"><i>201</i>&nbsp;            processDanglingIndices(event.state().metaData());</b>
+<i>202</i>&nbsp;        }
+<b class="fc"><i>203</i>&nbsp;    }</b>
+<i>204</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

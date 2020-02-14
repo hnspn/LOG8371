@@ -1,0 +1,576 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MappedFieldType</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.mapper</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MappedFieldType (org.elasticsearch.index.mapper)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MappedFieldType</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.3%
+  </span>
+  <span class="absValue">
+    (25/ 46)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    51.2%
+  </span>
+  <span class="absValue">
+    (86/ 168)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.mapper;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.analysis.TokenStream;
+<i>23</i>&nbsp;import org.apache.lucene.document.FieldType;
+<i>24</i>&nbsp;import org.apache.lucene.index.IndexOptions;
+<i>25</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>26</i>&nbsp;import org.apache.lucene.index.PrefixCodedTerms;
+<i>27</i>&nbsp;import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
+<i>28</i>&nbsp;import org.apache.lucene.index.Term;
+<i>29</i>&nbsp;import org.apache.lucene.search.BooleanClause.Occur;
+<i>30</i>&nbsp;import org.apache.lucene.search.BooleanQuery;
+<i>31</i>&nbsp;import org.apache.lucene.search.BoostQuery;
+<i>32</i>&nbsp;import org.apache.lucene.search.ConstantScoreQuery;
+<i>33</i>&nbsp;import org.apache.lucene.search.MultiTermQuery;
+<i>34</i>&nbsp;import org.apache.lucene.search.Query;
+<i>35</i>&nbsp;import org.apache.lucene.search.TermInSetQuery;
+<i>36</i>&nbsp;import org.apache.lucene.search.TermQuery;
+<i>37</i>&nbsp;import org.apache.lucene.queries.intervals.IntervalsSource;
+<i>38</i>&nbsp;import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+<i>39</i>&nbsp;import org.apache.lucene.search.spans.SpanQuery;
+<i>40</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>41</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>42</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>43</i>&nbsp;import org.elasticsearch.common.geo.ShapeRelation;
+<i>44</i>&nbsp;import org.elasticsearch.common.time.DateMathParser;
+<i>45</i>&nbsp;import org.elasticsearch.common.unit.Fuzziness;
+<i>46</i>&nbsp;import org.elasticsearch.index.analysis.NamedAnalyzer;
+<i>47</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>48</i>&nbsp;import org.elasticsearch.index.query.QueryRewriteContext;
+<i>49</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>50</i>&nbsp;import org.elasticsearch.index.query.QueryShardException;
+<i>51</i>&nbsp;import org.elasticsearch.index.similarity.SimilarityProvider;
+<i>52</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;import java.io.IOException;
+<i>55</i>&nbsp;import java.time.ZoneId;
+<i>56</i>&nbsp;import java.util.List;
+<i>57</i>&nbsp;import java.util.Objects;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;/**
+<i>60</i>&nbsp; * This defines the core properties and functions to operate on a field.
+<i>61</i>&nbsp; */
+<b class="fc"><i>62</i>&nbsp;public abstract class MappedFieldType extends FieldType {</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    private String name;
+<i>65</i>&nbsp;    private float boost;
+<i>66</i>&nbsp;    // TODO: remove this docvalues flag and use docValuesType
+<i>67</i>&nbsp;    private boolean docValues;
+<i>68</i>&nbsp;    private NamedAnalyzer indexAnalyzer;
+<i>69</i>&nbsp;    private NamedAnalyzer searchAnalyzer;
+<i>70</i>&nbsp;    private NamedAnalyzer searchQuoteAnalyzer;
+<i>71</i>&nbsp;    private SimilarityProvider similarity;
+<i>72</i>&nbsp;    private Object nullValue;
+<i>73</i>&nbsp;    private String nullValueAsString; // for sending null value to _all field
+<i>74</i>&nbsp;    private boolean eagerGlobalOrdinals;
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    protected MappedFieldType(MappedFieldType ref) {
+<b class="fc"><i>77</i>&nbsp;        super(ref);</b>
+<b class="fc"><i>78</i>&nbsp;        this.name = ref.name();</b>
+<b class="fc"><i>79</i>&nbsp;        this.boost = ref.boost();</b>
+<b class="fc"><i>80</i>&nbsp;        this.docValues = ref.hasDocValues();</b>
+<b class="fc"><i>81</i>&nbsp;        this.indexAnalyzer = ref.indexAnalyzer();</b>
+<b class="fc"><i>82</i>&nbsp;        this.searchAnalyzer = ref.searchAnalyzer();</b>
+<b class="fc"><i>83</i>&nbsp;        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();</b>
+<b class="fc"><i>84</i>&nbsp;        this.similarity = ref.similarity();</b>
+<b class="fc"><i>85</i>&nbsp;        this.nullValue = ref.nullValue();</b>
+<b class="fc"><i>86</i>&nbsp;        this.nullValueAsString = ref.nullValueAsString();</b>
+<b class="fc"><i>87</i>&nbsp;        this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;</b>
+<b class="fc"><i>88</i>&nbsp;    }</b>
+<i>89</i>&nbsp;
+<b class="fc"><i>90</i>&nbsp;    public MappedFieldType() {</b>
+<b class="fc"><i>91</i>&nbsp;        setTokenized(true);</b>
+<b class="fc"><i>92</i>&nbsp;        setStored(false);</b>
+<b class="fc"><i>93</i>&nbsp;        setStoreTermVectors(false);</b>
+<b class="fc"><i>94</i>&nbsp;        setOmitNorms(false);</b>
+<b class="fc"><i>95</i>&nbsp;        setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);</b>
+<b class="fc"><i>96</i>&nbsp;        setBoost(1.0f);</b>
+<b class="fc"><i>97</i>&nbsp;    }</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    @Override
+<i>100</i>&nbsp;    public abstract MappedFieldType clone();
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    /**
+<i>103</i>&nbsp;     * Return a fielddata builder for this field
+<i>104</i>&nbsp;     *
+<i>105</i>&nbsp;     * @param fullyQualifiedIndexName the name of the index this field-data is build for
+<i>106</i>&nbsp;     *
+<i>107</i>&nbsp;     * @throws IllegalArgumentException if the fielddata is not supported on this type.
+<i>108</i>&nbsp;     * An IllegalArgumentException is needed in order to return an http error 400
+<i>109</i>&nbsp;     * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+<i>110</i>&nbsp;     */
+<i>111</i>&nbsp;    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+<b class="nc"><i>112</i>&nbsp;        throw new IllegalArgumentException(&quot;Fielddata is not supported on field [&quot; + name() + &quot;] of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    @Override
+<i>116</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>117</i>&nbsp;        if (!super.equals(o)) return false;</b>
+<b class="fc"><i>118</i>&nbsp;        MappedFieldType fieldType = (MappedFieldType) o;</b>
+<i>119</i>&nbsp;
+<b class="fc"><i>120</i>&nbsp;        return boost == fieldType.boost &amp;&amp;</b>
+<i>121</i>&nbsp;            docValues == fieldType.docValues &amp;&amp;
+<b class="fc"><i>122</i>&nbsp;            Objects.equals(name, fieldType.name) &amp;&amp;</b>
+<b class="fc"><i>123</i>&nbsp;            Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &amp;&amp;</b>
+<b class="fc"><i>124</i>&nbsp;            Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &amp;&amp;</b>
+<b class="fc"><i>125</i>&nbsp;            Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &amp;&amp;</b>
+<b class="fc"><i>126</i>&nbsp;            Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &amp;&amp;</b>
+<b class="fc"><i>127</i>&nbsp;            Objects.equals(nullValue, fieldType.nullValue) &amp;&amp;</b>
+<b class="fc"><i>128</i>&nbsp;            Objects.equals(nullValueAsString, fieldType.nullValueAsString) &amp;&amp;</b>
+<b class="fc"><i>129</i>&nbsp;            Objects.equals(similarity, fieldType.similarity);</b>
+<i>130</i>&nbsp;    }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    @Override
+<i>133</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>134</i>&nbsp;        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,</b>
+<b class="nc"><i>135</i>&nbsp;            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);</b>
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    // TODO: we need to override freeze() and add safety checks that all settings are actually set
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /** Returns the name of this type, as would be specified in mapping properties */
+<i>141</i>&nbsp;    public abstract String typeName();
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    /** Checks this type is the same type as other. Adds a conflict if they are different. */
+<i>144</i>&nbsp;    private void checkTypeName(MappedFieldType other) {
+<b class="fc"><i>145</i>&nbsp;        if (typeName().equals(other.typeName()) == false) {</b>
+<b class="nc"><i>146</i>&nbsp;            throw new IllegalArgumentException(&quot;mapper [&quot; + name + &quot;] cannot be changed from type [&quot; + typeName()</b>
+<b class="nc"><i>147</i>&nbsp;                + &quot;] to [&quot; + other.typeName() + &quot;]&quot;);</b>
+<b class="fc"><i>148</i>&nbsp;        } else if (getClass() != other.getClass()) {</b>
+<b class="nc"><i>149</i>&nbsp;            throw new IllegalStateException(&quot;Type names equal for class &quot; + getClass().getSimpleName() + &quot; and &quot;</b>
+<b class="nc"><i>150</i>&nbsp;                + other.getClass().getSimpleName());</b>
+<i>151</i>&nbsp;        }
+<b class="fc"><i>152</i>&nbsp;    }</b>
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    /**
+<i>155</i>&nbsp;     * Checks for any conflicts between this field type and other.
+<i>156</i>&nbsp;     * If strict is true, all properties must be equal.
+<i>157</i>&nbsp;     * Otherwise, only properties which must never change in an index are checked.
+<i>158</i>&nbsp;     */
+<i>159</i>&nbsp;    public void checkCompatibility(MappedFieldType other, List&lt;String&gt; conflicts) {
+<b class="fc"><i>160</i>&nbsp;        checkTypeName(other);</b>
+<i>161</i>&nbsp;
+<b class="fc"><i>162</i>&nbsp;        boolean indexed =  indexOptions() != IndexOptions.NONE;</b>
+<b class="fc"><i>163</i>&nbsp;        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;</b>
+<i>164</i>&nbsp;        // TODO: should be validating if index options go &quot;up&quot; (but &quot;down&quot; is ok)
+<b class="fc"><i>165</i>&nbsp;        if (indexed != mergeWithIndexed) {</b>
+<b class="nc"><i>166</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [index] values&quot;);</b>
+<i>167</i>&nbsp;        }
+<b class="fc"><i>168</i>&nbsp;        if (stored() != other.stored()) {</b>
+<b class="nc"><i>169</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [store] values&quot;);</b>
+<i>170</i>&nbsp;        }
+<b class="fc"><i>171</i>&nbsp;        if (hasDocValues() != other.hasDocValues()) {</b>
+<b class="nc"><i>172</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [doc_values] values&quot;);</b>
+<i>173</i>&nbsp;        }
+<b class="fc"><i>174</i>&nbsp;        if (omitNorms() &amp;&amp; !other.omitNorms()) {</b>
+<b class="nc"><i>175</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [norms] values, cannot change from disable to enabled&quot;);</b>
+<i>176</i>&nbsp;        }
+<b class="fc"><i>177</i>&nbsp;        if (storeTermVectors() != other.storeTermVectors()) {</b>
+<b class="nc"><i>178</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [store_term_vector] values&quot;);</b>
+<i>179</i>&nbsp;        }
+<b class="fc"><i>180</i>&nbsp;        if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {</b>
+<b class="nc"><i>181</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [store_term_vector_offsets] values&quot;);</b>
+<i>182</i>&nbsp;        }
+<b class="fc"><i>183</i>&nbsp;        if (storeTermVectorPositions() != other.storeTermVectorPositions()) {</b>
+<b class="nc"><i>184</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [store_term_vector_positions] values&quot;);</b>
+<i>185</i>&nbsp;        }
+<b class="fc"><i>186</i>&nbsp;        if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {</b>
+<b class="nc"><i>187</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [store_term_vector_payloads] values&quot;);</b>
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;        // null and &quot;default&quot;-named index analyzers both mean the default is used
+<b class="fc"><i>191</i>&nbsp;        if (indexAnalyzer() == null || &quot;default&quot;.equals(indexAnalyzer().name())) {</b>
+<b class="nc"><i>192</i>&nbsp;            if (other.indexAnalyzer() != null &amp;&amp; &quot;default&quot;.equals(other.indexAnalyzer().name()) == false) {</b>
+<b class="nc"><i>193</i>&nbsp;                conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [analyzer]&quot;);</b>
+<i>194</i>&nbsp;            }
+<b class="fc"><i>195</i>&nbsp;        } else if (other.indexAnalyzer() == null || &quot;default&quot;.equals(other.indexAnalyzer().name())) {</b>
+<b class="nc"><i>196</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [analyzer]&quot;);</b>
+<b class="fc"><i>197</i>&nbsp;        } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {</b>
+<b class="nc"><i>198</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [analyzer]&quot;);</b>
+<i>199</i>&nbsp;        }
+<i>200</i>&nbsp;
+<b class="fc"><i>201</i>&nbsp;        if (Objects.equals(similarity(), other.similarity()) == false) {</b>
+<b class="nc"><i>202</i>&nbsp;            conflicts.add(&quot;mapper [&quot; + name() + &quot;] has different [similarity]&quot;);</b>
+<i>203</i>&nbsp;        }
+<b class="fc"><i>204</i>&nbsp;    }</b>
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    public String name() {
+<b class="fc"><i>207</i>&nbsp;        return name;</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    public void setName(String name) {
+<b class="fc"><i>211</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>212</i>&nbsp;        this.name = name;</b>
+<b class="fc"><i>213</i>&nbsp;    }</b>
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    public float boost() {
+<b class="fc"><i>216</i>&nbsp;        return boost;</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    public void setBoost(float boost) {
+<b class="fc"><i>220</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>221</i>&nbsp;        this.boost = boost;</b>
+<b class="fc"><i>222</i>&nbsp;    }</b>
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    public boolean hasDocValues() {
+<b class="fc"><i>225</i>&nbsp;        return docValues;</b>
+<i>226</i>&nbsp;    }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    public void setHasDocValues(boolean hasDocValues) {
+<b class="fc"><i>229</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>230</i>&nbsp;        this.docValues = hasDocValues;</b>
+<b class="fc"><i>231</i>&nbsp;    }</b>
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    public NamedAnalyzer indexAnalyzer() {
+<b class="fc"><i>234</i>&nbsp;        return indexAnalyzer;</b>
+<i>235</i>&nbsp;    }
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;    public void setIndexAnalyzer(NamedAnalyzer analyzer) {
+<b class="fc"><i>238</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>239</i>&nbsp;        this.indexAnalyzer = analyzer;</b>
+<b class="fc"><i>240</i>&nbsp;    }</b>
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    public NamedAnalyzer searchAnalyzer() {
+<b class="fc"><i>243</i>&nbsp;        return searchAnalyzer;</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    public void setSearchAnalyzer(NamedAnalyzer analyzer) {
+<b class="fc"><i>247</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>248</i>&nbsp;        this.searchAnalyzer = analyzer;</b>
+<b class="fc"><i>249</i>&nbsp;    }</b>
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    public NamedAnalyzer searchQuoteAnalyzer() {
+<b class="fc"><i>252</i>&nbsp;        return searchQuoteAnalyzer == null ? searchAnalyzer : searchQuoteAnalyzer;</b>
+<i>253</i>&nbsp;    }
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    public void setSearchQuoteAnalyzer(NamedAnalyzer analyzer) {
+<b class="fc"><i>256</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>257</i>&nbsp;        this.searchQuoteAnalyzer = analyzer;</b>
+<b class="fc"><i>258</i>&nbsp;    }</b>
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    public SimilarityProvider similarity() {
+<b class="fc"><i>261</i>&nbsp;        return similarity;</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    public void setSimilarity(SimilarityProvider similarity) {
+<b class="nc"><i>265</i>&nbsp;        checkIfFrozen();</b>
+<b class="nc"><i>266</i>&nbsp;        this.similarity = similarity;</b>
+<b class="nc"><i>267</i>&nbsp;    }</b>
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    /** Returns the value that should be added when JSON null is found, or null if no value should be added */
+<i>270</i>&nbsp;    public Object nullValue() {
+<b class="fc"><i>271</i>&nbsp;        return nullValue;</b>
+<i>272</i>&nbsp;    }
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;    /** Returns the null value stringified or null if there is no null value */
+<i>275</i>&nbsp;    public String nullValueAsString() {
+<b class="fc"><i>276</i>&nbsp;        return nullValueAsString;</b>
+<i>277</i>&nbsp;    }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;    /** Sets the null value and initializes the string version */
+<i>280</i>&nbsp;    public void setNullValue(Object nullValue) {
+<b class="nc"><i>281</i>&nbsp;        checkIfFrozen();</b>
+<b class="nc"><i>282</i>&nbsp;        this.nullValue = nullValue;</b>
+<b class="nc"><i>283</i>&nbsp;        this.nullValueAsString = nullValue == null ? null : nullValue.toString();</b>
+<b class="nc"><i>284</i>&nbsp;    }</b>
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;    /** Given a value that comes from the stored fields API, convert it to the
+<i>287</i>&nbsp;     *  expected type. For instance a date field would store dates as longs and
+<i>288</i>&nbsp;     *  format it back to a string in this method. */
+<i>289</i>&nbsp;    public Object valueForDisplay(Object value) {
+<b class="nc"><i>290</i>&nbsp;        return value;</b>
+<i>291</i>&nbsp;    }
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;    /** Returns true if the field is searchable.
+<i>294</i>&nbsp;     *
+<i>295</i>&nbsp;     */
+<i>296</i>&nbsp;    public boolean isSearchable() {
+<b class="nc"><i>297</i>&nbsp;        return indexOptions() != IndexOptions.NONE;</b>
+<i>298</i>&nbsp;    }
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    /** Returns true if the field is aggregatable.
+<i>301</i>&nbsp;     *
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    public boolean isAggregatable() {
+<i>304</i>&nbsp;        try {
+<b class="nc"><i>305</i>&nbsp;            fielddataBuilder(&quot;&quot;);</b>
+<b class="nc"><i>306</i>&nbsp;            return true;</b>
+<b class="nc"><i>307</i>&nbsp;        } catch (IllegalArgumentException e) {</b>
+<b class="nc"><i>308</i>&nbsp;            return false;</b>
+<i>309</i>&nbsp;        }
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    /** Generates a query that will only match documents that contain the given value.
+<i>313</i>&nbsp;     *  The default implementation returns a {@link TermQuery} over the value bytes,
+<i>314</i>&nbsp;     *  boosted by {@link #boost()}.
+<i>315</i>&nbsp;     *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
+<i>316</i>&nbsp;     *      due to the way it is configured (eg. not indexed)
+<i>317</i>&nbsp;     *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
+<i>318</i>&nbsp;     *  @throws UnsupportedOperationException if the field is not searchable regardless of options
+<i>319</i>&nbsp;     *  @throws QueryShardException if the field is not searchable regardless of options
+<i>320</i>&nbsp;     */
+<i>321</i>&nbsp;    // TODO: Standardize exception types
+<i>322</i>&nbsp;    public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    /** Build a constant-scoring query that matches all values. The default implementation uses a
+<i>325</i>&nbsp;     * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
+<i>326</i>&nbsp;     * are generated with {@link #termQuery}. */
+<i>327</i>&nbsp;    public Query termsQuery(List&lt;?&gt; values, @Nullable QueryShardContext context) {
+<b class="nc"><i>328</i>&nbsp;        BooleanQuery.Builder builder = new BooleanQuery.Builder();</b>
+<b class="nc"><i>329</i>&nbsp;        for (Object value : values) {</b>
+<b class="nc"><i>330</i>&nbsp;            builder.add(termQuery(value, context), Occur.SHOULD);</b>
+<b class="nc"><i>331</i>&nbsp;        }</b>
+<b class="nc"><i>332</i>&nbsp;        return new ConstantScoreQuery(builder.build());</b>
+<i>333</i>&nbsp;    }
+<i>334</i>&nbsp;
+<i>335</i>&nbsp;    /**
+<i>336</i>&nbsp;     * Factory method for range queries.
+<i>337</i>&nbsp;     * @param relation the relation, nulls should be interpreted like INTERSECTS
+<i>338</i>&nbsp;     */
+<i>339</i>&nbsp;    public Query rangeQuery(
+<i>340</i>&nbsp;        Object lowerTerm, Object upperTerm,
+<i>341</i>&nbsp;        boolean includeLower, boolean includeUpper,
+<i>342</i>&nbsp;        ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
+<i>343</i>&nbsp;        QueryShardContext context) {
+<b class="nc"><i>344</i>&nbsp;        throw new IllegalArgumentException(&quot;Field [&quot; + name + &quot;] of type [&quot; + typeName() + &quot;] does not support range queries&quot;);</b>
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+<b class="nc"><i>348</i>&nbsp;        throw new IllegalArgumentException(&quot;Can only use fuzzy queries on keyword and text fields - not on [&quot; + name</b>
+<b class="nc"><i>349</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>350</i>&nbsp;    }
+<i>351</i>&nbsp;
+<i>352</i>&nbsp;    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+<b class="nc"><i>353</i>&nbsp;        throw new QueryShardException(context, &quot;Can only use prefix queries on keyword and text fields - not on [&quot; + name</b>
+<b class="nc"><i>354</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>355</i>&nbsp;    }
+<i>356</i>&nbsp;
+<i>357</i>&nbsp;    public Query wildcardQuery(String value,
+<i>358</i>&nbsp;                               @Nullable MultiTermQuery.RewriteMethod method,
+<i>359</i>&nbsp;                               QueryShardContext context) {
+<b class="nc"><i>360</i>&nbsp;        throw new QueryShardException(context, &quot;Can only use wildcard queries on keyword and text fields - not on [&quot; + name</b>
+<b class="nc"><i>361</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>362</i>&nbsp;    }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method,
+<i>365</i>&nbsp;                             QueryShardContext context) {
+<b class="nc"><i>366</i>&nbsp;        throw new QueryShardException(context, &quot;Can only use regexp queries on keyword and text fields - not on [&quot; + name</b>
+<b class="nc"><i>367</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>368</i>&nbsp;    }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;    public abstract Query existsQuery(QueryShardContext context);
+<i>371</i>&nbsp;
+<i>372</i>&nbsp;    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+<b class="nc"><i>373</i>&nbsp;        throw new IllegalArgumentException(&quot;Can only use phrase queries on text fields - not on [&quot; + name</b>
+<b class="nc"><i>374</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>375</i>&nbsp;    }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+<b class="nc"><i>378</i>&nbsp;        throw new IllegalArgumentException(&quot;Can only use phrase queries on text fields - not on [&quot; + name</b>
+<b class="nc"><i>379</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>380</i>&nbsp;    }
+<i>381</i>&nbsp;
+<i>382</i>&nbsp;    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+<b class="nc"><i>383</i>&nbsp;        throw new IllegalArgumentException(&quot;Can only use phrase prefix queries on text fields - not on [&quot; + name</b>
+<b class="nc"><i>384</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>385</i>&nbsp;    }
+<i>386</i>&nbsp;
+<i>387</i>&nbsp;    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+<b class="nc"><i>388</i>&nbsp;        throw new IllegalArgumentException(&quot;Can only use span prefix queries on text fields - not on [&quot; + name</b>
+<b class="nc"><i>389</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>390</i>&nbsp;    }
+<i>391</i>&nbsp;
+<i>392</i>&nbsp;    /**
+<i>393</i>&nbsp;     * Create an {@link IntervalsSource} to be used for proximity queries
+<i>394</i>&nbsp;     */
+<i>395</i>&nbsp;    public IntervalsSource intervals(String query, int max_gaps, boolean ordered,
+<i>396</i>&nbsp;                                     NamedAnalyzer analyzer, boolean prefix) throws IOException {
+<b class="nc"><i>397</i>&nbsp;        throw new IllegalArgumentException(&quot;Can only use interval queries on text fields - not on [&quot; + name</b>
+<b class="nc"><i>398</i>&nbsp;            + &quot;] which is of type [&quot; + typeName() + &quot;]&quot;);</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;    /**
+<i>402</i>&nbsp;     * An enum used to describe the relation between the range of terms in a
+<i>403</i>&nbsp;     * shard when compared with a query range
+<i>404</i>&nbsp;     */
+<i>405</i>&nbsp;    public enum Relation {
+<i>406</i>&nbsp;        WITHIN,
+<i>407</i>&nbsp;        INTERSECTS,
+<i>408</i>&nbsp;        DISJOINT;
+<i>409</i>&nbsp;    }
+<i>410</i>&nbsp;
+<i>411</i>&nbsp;    /** Return whether all values of the given {@link IndexReader} are within the range,
+<i>412</i>&nbsp;     *  outside the range or cross the range. The default implementation returns
+<i>413</i>&nbsp;     *  {@link Relation#INTERSECTS}, which is always fine to return when there is
+<i>414</i>&nbsp;     *  no way to check whether values are actually within bounds. */
+<i>415</i>&nbsp;    public Relation isFieldWithinQuery(
+<i>416</i>&nbsp;        IndexReader reader,
+<i>417</i>&nbsp;        Object from, Object to,
+<i>418</i>&nbsp;        boolean includeLower, boolean includeUpper,
+<i>419</i>&nbsp;        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+<b class="nc"><i>420</i>&nbsp;        return Relation.INTERSECTS;</b>
+<i>421</i>&nbsp;    }
+<i>422</i>&nbsp;
+<i>423</i>&nbsp;    /** @throws IllegalArgumentException if the fielddata is not supported on this type.
+<i>424</i>&nbsp;     *  An IllegalArgumentException is needed in order to return an http error 400
+<i>425</i>&nbsp;     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+<i>426</i>&nbsp;     **/
+<i>427</i>&nbsp;    protected final void failIfNoDocValues() {
+<b class="fc"><i>428</i>&nbsp;        if (hasDocValues() == false) {</b>
+<b class="nc"><i>429</i>&nbsp;            throw new IllegalArgumentException(&quot;Can&#39;t load fielddata on [&quot; + name()</b>
+<i>430</i>&nbsp;                + &quot;] because fielddata is unsupported on fields of type [&quot;
+<b class="nc"><i>431</i>&nbsp;                + typeName() + &quot;]. Use doc values instead.&quot;);</b>
+<i>432</i>&nbsp;        }
+<b class="fc"><i>433</i>&nbsp;    }</b>
+<i>434</i>&nbsp;
+<i>435</i>&nbsp;    protected final void failIfNotIndexed() {
+<b class="fc"><i>436</i>&nbsp;        if (indexOptions() == IndexOptions.NONE &amp;&amp; pointDataDimensionCount() == 0) {</b>
+<i>437</i>&nbsp;            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+<b class="nc"><i>438</i>&nbsp;            throw new IllegalArgumentException(&quot;Cannot search on field [&quot; + name() + &quot;] since it is not indexed.&quot;);</b>
+<i>439</i>&nbsp;        }
+<b class="fc"><i>440</i>&nbsp;    }</b>
+<i>441</i>&nbsp;
+<i>442</i>&nbsp;    public boolean eagerGlobalOrdinals() {
+<b class="fc"><i>443</i>&nbsp;        return eagerGlobalOrdinals;</b>
+<i>444</i>&nbsp;    }
+<i>445</i>&nbsp;
+<i>446</i>&nbsp;    public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+<b class="fc"><i>447</i>&nbsp;        checkIfFrozen();</b>
+<b class="fc"><i>448</i>&nbsp;        this.eagerGlobalOrdinals = eagerGlobalOrdinals;</b>
+<b class="fc"><i>449</i>&nbsp;    }</b>
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;    /** Return a {@link DocValueFormat} that can be used to display and parse
+<i>452</i>&nbsp;     *  values as returned by the fielddata API.
+<i>453</i>&nbsp;     *  The default implementation returns a {@link DocValueFormat#RAW}. */
+<i>454</i>&nbsp;    public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+<b class="nc"><i>455</i>&nbsp;        if (format != null) {</b>
+<b class="nc"><i>456</i>&nbsp;            throw new IllegalArgumentException(&quot;Field [&quot; + name() + &quot;] of type [&quot; + typeName() + &quot;] does not support custom formats&quot;);</b>
+<i>457</i>&nbsp;        }
+<b class="nc"><i>458</i>&nbsp;        if (timeZone != null) {</b>
+<b class="nc"><i>459</i>&nbsp;            throw new IllegalArgumentException(&quot;Field [&quot; + name() + &quot;] of type [&quot; + typeName() + &quot;] does not support custom time zones&quot;);</b>
+<i>460</i>&nbsp;        }
+<b class="nc"><i>461</i>&nbsp;        return DocValueFormat.RAW;</b>
+<i>462</i>&nbsp;    }
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;    /**
+<i>465</i>&nbsp;     * Extract a {@link Term} from a query created with {@link #termQuery} by
+<i>466</i>&nbsp;     * recursively removing {@link BoostQuery} wrappers.
+<i>467</i>&nbsp;     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
+<i>468</i>&nbsp;     */
+<i>469</i>&nbsp;    public static Term extractTerm(Query termQuery) {
+<b class="nc"><i>470</i>&nbsp;        while (termQuery instanceof BoostQuery) {</b>
+<b class="nc"><i>471</i>&nbsp;            termQuery = ((BoostQuery) termQuery).getQuery();</b>
+<i>472</i>&nbsp;        }
+<b class="nc"><i>473</i>&nbsp;        if (termQuery instanceof TypeFieldMapper.TypesQuery) {</b>
+<b class="nc"><i>474</i>&nbsp;            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;</b>
+<b class="nc"><i>475</i>&nbsp;            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);</b>
+<i>476</i>&nbsp;        }
+<b class="nc"><i>477</i>&nbsp;        if (termQuery instanceof TermInSetQuery) {</b>
+<b class="nc"><i>478</i>&nbsp;            TermInSetQuery tisQuery = (TermInSetQuery) termQuery;</b>
+<b class="nc"><i>479</i>&nbsp;            PrefixCodedTerms terms = tisQuery.getTermData();</b>
+<b class="nc"><i>480</i>&nbsp;            if (terms.size() == 1) {</b>
+<b class="nc"><i>481</i>&nbsp;                TermIterator it = terms.iterator();</b>
+<b class="nc"><i>482</i>&nbsp;                BytesRef term = it.next();</b>
+<b class="nc"><i>483</i>&nbsp;                return new Term(it.field(), term);</b>
+<i>484</i>&nbsp;            }
+<i>485</i>&nbsp;        }
+<b class="nc"><i>486</i>&nbsp;        if (termQuery instanceof TermQuery == false) {</b>
+<b class="nc"><i>487</i>&nbsp;            throw new IllegalArgumentException(&quot;Cannot extract a term from a query of type &quot;</b>
+<b class="nc"><i>488</i>&nbsp;                    + termQuery.getClass() + &quot;: &quot; + termQuery);</b>
+<i>489</i>&nbsp;        }
+<b class="nc"><i>490</i>&nbsp;        return ((TermQuery) termQuery).getTerm();</b>
+<i>491</i>&nbsp;    }
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

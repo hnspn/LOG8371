@@ -1,0 +1,376 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SecureSM</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.secure_sm</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SecureSM (org.elasticsearch.secure_sm)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SecureSM</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.8%
+  </span>
+  <span class="absValue">
+    (7/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.3%
+  </span>
+  <span class="absValue">
+    (32/ 60)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">SecureSM$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (3/ 5)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (9/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.8%
+  </span>
+  <span class="absValue">
+    (35/ 65)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.secure_sm;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.security.AccessController;
+<i>23</i>&nbsp;import java.security.Permission;
+<i>24</i>&nbsp;import java.security.PrivilegedAction;
+<i>25</i>&nbsp;import java.util.Objects;
+<i>26</i>&nbsp;
+<i>27</i>&nbsp;/**
+<i>28</i>&nbsp; * Extension of SecurityManager that works around a few design flaws in Java Security.
+<i>29</i>&nbsp; * &lt;p&gt;
+<i>30</i>&nbsp; * There are a few major problems that require custom {@code SecurityManager} logic to fix:
+<i>31</i>&nbsp; * &lt;ul&gt;
+<i>32</i>&nbsp; *   &lt;li&gt;{@code exitVM} permission is implicitly granted to all code by the default
+<i>33</i>&nbsp; *       Policy implementation. For a server app, this is not wanted. &lt;/li&gt;
+<i>34</i>&nbsp; *   &lt;li&gt;ThreadGroups are not enforced by default, instead only system threads are
+<i>35</i>&nbsp; *       protected out of box by {@code modifyThread/modifyThreadGroup}. Applications
+<i>36</i>&nbsp; *       are encouraged to override the logic here to implement a stricter policy.
+<i>37</i>&nbsp; *   &lt;li&gt;System threads are not even really protected, because if the system uses
+<i>38</i>&nbsp; *       ThreadPools, {@code modifyThread} is abused by its {@code shutdown} checks. This means
+<i>39</i>&nbsp; *       a thread must have {@code modifyThread} to even terminate its own pool, leaving
+<i>40</i>&nbsp; *       system threads unprotected.
+<i>41</i>&nbsp; * &lt;/ul&gt;
+<i>42</i>&nbsp; * This class throws exception on {@code exitVM} calls, and provides a whitelist where calls
+<i>43</i>&nbsp; * from exit are allowed.
+<i>44</i>&nbsp; * &lt;p&gt;
+<i>45</i>&nbsp; * Additionally it enforces threadgroup security with the following rules:
+<i>46</i>&nbsp; * &lt;ul&gt;
+<i>47</i>&nbsp; *   &lt;li&gt;{@code modifyThread} and {@code modifyThreadGroup} are required for any thread access
+<i>48</i>&nbsp; *       checks: with these permissions, access is granted as long as the thread group is
+<i>49</i>&nbsp; *       the same or an ancestor ({@code sourceGroup.parentOf(targetGroup) == true}).
+<i>50</i>&nbsp; *   &lt;li&gt;code without these permissions can do very little, except to interrupt itself. It may
+<i>51</i>&nbsp; *       not even create new threads.
+<i>52</i>&nbsp; *   &lt;li&gt;very special cases (like test runners) that have {@link ThreadPermission} can violate
+<i>53</i>&nbsp; *       threadgroup security rules.
+<i>54</i>&nbsp; * &lt;/ul&gt;
+<i>55</i>&nbsp; * &lt;p&gt;
+<i>56</i>&nbsp; * If java security debugging ({@code java.security.debug}) is enabled, and this SecurityManager
+<i>57</i>&nbsp; * is installed, it will emit additional debugging information when threadgroup access checks fail.
+<i>58</i>&nbsp; *
+<i>59</i>&nbsp; * @see SecurityManager#checkAccess(Thread)
+<i>60</i>&nbsp; * @see SecurityManager#checkAccess(ThreadGroup)
+<i>61</i>&nbsp; * @see &lt;a href=&quot;http://cs.oswego.edu/pipermail/concurrency-interest/2009-August/006508.html&quot;&gt;
+<i>62</i>&nbsp; *         http://cs.oswego.edu/pipermail/concurrency-interest/2009-August/006508.html&lt;/a&gt;
+<i>63</i>&nbsp; */
+<b class="nc"><i>64</i>&nbsp;public class SecureSM extends SecurityManager {</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    private final String[] classesThatCanExit;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    /**
+<i>69</i>&nbsp;     * Creates a new security manager where no packages can exit nor halt the virtual machine.
+<i>70</i>&nbsp;     */
+<i>71</i>&nbsp;    public SecureSM() {
+<b class="nc"><i>72</i>&nbsp;        this(new String[0]);</b>
+<b class="nc"><i>73</i>&nbsp;    }</b>
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * Creates a new security manager with the specified list of regular expressions as the those that class names will be tested against to
+<i>77</i>&nbsp;     * check whether or not a class can exit or halt the virtual machine.
+<i>78</i>&nbsp;     *
+<i>79</i>&nbsp;     * @param classesThatCanExit the list of classes that can exit or halt the virtual machine
+<i>80</i>&nbsp;     */
+<b class="fc"><i>81</i>&nbsp;    public SecureSM(final String[] classesThatCanExit) {</b>
+<b class="fc"><i>82</i>&nbsp;        this.classesThatCanExit = classesThatCanExit;</b>
+<b class="fc"><i>83</i>&nbsp;    }</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    /**
+<i>86</i>&nbsp;     * Creates a new security manager with a standard set of test packages being the only packages that can exit or halt the virtual
+<i>87</i>&nbsp;     * machine. The packages that can exit are:
+<i>88</i>&nbsp;     * &lt;ul&gt;
+<i>89</i>&nbsp;     *    &lt;li&gt;&lt;code&gt;org.apache.maven.surefire.booter.&lt;/code&gt;&lt;/li&gt;
+<i>90</i>&nbsp;     *    &lt;li&gt;&lt;code&gt;com.carrotsearch.ant.tasks.junit4.&lt;/code&gt;&lt;/li&gt;
+<i>91</i>&nbsp;     *    &lt;li&gt;&lt;code&gt;org.eclipse.internal.junit.runner.&lt;/code&gt;&lt;/li&gt;
+<i>92</i>&nbsp;     *    &lt;li&gt;&lt;code&gt;com.intellij.rt.execution.junit.&lt;/code&gt;&lt;/li&gt;
+<i>93</i>&nbsp;     * &lt;/ul&gt;
+<i>94</i>&nbsp;     *
+<i>95</i>&nbsp;     * @return an instance of SecureSM where test packages can halt or exit the virtual machine
+<i>96</i>&nbsp;     */
+<i>97</i>&nbsp;    public static SecureSM createTestSecureSM() {
+<b class="fc"><i>98</i>&nbsp;        return new SecureSM(TEST_RUNNER_PACKAGES);</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<b class="fc"><i>101</i>&nbsp;    static final String[] TEST_RUNNER_PACKAGES = new String[] {</b>
+<i>102</i>&nbsp;        // surefire test runner
+<i>103</i>&nbsp;        &quot;org\\.apache\\.maven\\.surefire\\.booter\\..*&quot;,
+<i>104</i>&nbsp;        // junit4 test runner
+<i>105</i>&nbsp;        &quot;com\\.carrotsearch\\.ant\\.tasks\\.junit4\\.slave\\..*&quot;,
+<i>106</i>&nbsp;        // eclipse test runner
+<i>107</i>&nbsp;        &quot;org\\.eclipse.jdt\\.internal\\.junit\\.runner\\..*&quot;,
+<i>108</i>&nbsp;        // intellij test runner (before IDEA version 2019.3)
+<i>109</i>&nbsp;        &quot;com\\.intellij\\.rt\\.execution\\.junit\\..*&quot;,
+<i>110</i>&nbsp;        // intellij test runner (since IDEA version 2019.3)
+<i>111</i>&nbsp;        &quot;com\\.intellij\\.rt\\.junit\\..*&quot;
+<i>112</i>&nbsp;    };
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    // java.security.debug support
+<b class="fc"><i>115</i>&nbsp;    private static final boolean DEBUG = AccessController.doPrivileged(new PrivilegedAction&lt;Boolean&gt;() {</b>
+<i>116</i>&nbsp;        @Override
+<i>117</i>&nbsp;        public Boolean run() {
+<i>118</i>&nbsp;            try {
+<b class="fc"><i>119</i>&nbsp;                String v = System.getProperty(&quot;java.security.debug&quot;);</b>
+<i>120</i>&nbsp;                // simple check that they are trying to debug
+<b class="fc"><i>121</i>&nbsp;                return v != null &amp;&amp; v.length() &gt; 0;</b>
+<b class="nc"><i>122</i>&nbsp;            } catch (SecurityException e) {</b>
+<b class="nc"><i>123</i>&nbsp;                return false;</b>
+<i>124</i>&nbsp;            }
+<i>125</i>&nbsp;        }
+<i>126</i>&nbsp;    });
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    @Override
+<i>129</i>&nbsp;    @SuppressForbidden(reason = &quot;java.security.debug messages go to standard error&quot;)
+<i>130</i>&nbsp;    public void checkAccess(Thread t) {
+<i>131</i>&nbsp;        try {
+<b class="fc"><i>132</i>&nbsp;            checkThreadAccess(t);</b>
+<b class="nc"><i>133</i>&nbsp;        } catch (SecurityException e) {</b>
+<b class="nc"><i>134</i>&nbsp;            if (DEBUG) {</b>
+<b class="nc"><i>135</i>&nbsp;                System.err.println(&quot;access: caller thread=&quot; + Thread.currentThread());</b>
+<b class="nc"><i>136</i>&nbsp;                System.err.println(&quot;access: target thread=&quot; + t);</b>
+<b class="nc"><i>137</i>&nbsp;                debugThreadGroups(Thread.currentThread().getThreadGroup(), t.getThreadGroup());</b>
+<i>138</i>&nbsp;            }
+<b class="nc"><i>139</i>&nbsp;            throw e;</b>
+<b class="fc"><i>140</i>&nbsp;        }</b>
+<b class="fc"><i>141</i>&nbsp;    }</b>
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    @Override
+<i>144</i>&nbsp;    @SuppressForbidden(reason = &quot;java.security.debug messages go to standard error&quot;)
+<i>145</i>&nbsp;    public void checkAccess(ThreadGroup g) {
+<i>146</i>&nbsp;        try {
+<b class="fc"><i>147</i>&nbsp;            checkThreadGroupAccess(g);</b>
+<b class="nc"><i>148</i>&nbsp;        } catch (SecurityException e) {</b>
+<b class="nc"><i>149</i>&nbsp;            if (DEBUG) {</b>
+<b class="nc"><i>150</i>&nbsp;                System.err.println(&quot;access: caller thread=&quot; + Thread.currentThread());</b>
+<b class="nc"><i>151</i>&nbsp;                debugThreadGroups(Thread.currentThread().getThreadGroup(), g);</b>
+<i>152</i>&nbsp;            }
+<b class="nc"><i>153</i>&nbsp;            throw e;</b>
+<b class="fc"><i>154</i>&nbsp;        }</b>
+<b class="fc"><i>155</i>&nbsp;    }</b>
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    @SuppressForbidden(reason = &quot;java.security.debug messages go to standard error&quot;)
+<i>158</i>&nbsp;    private void debugThreadGroups(final ThreadGroup caller, final ThreadGroup target) {
+<b class="nc"><i>159</i>&nbsp;        System.err.println(&quot;access: caller group=&quot; + caller);</b>
+<b class="nc"><i>160</i>&nbsp;        System.err.println(&quot;access: target group=&quot; + target);</b>
+<b class="nc"><i>161</i>&nbsp;    }</b>
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    // thread permission logic
+<i>164</i>&nbsp;
+<b class="fc"><i>165</i>&nbsp;    private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission(&quot;modifyThread&quot;);</b>
+<b class="fc"><i>166</i>&nbsp;    private static final Permission MODIFY_ARBITRARY_THREAD_PERMISSION = new ThreadPermission(&quot;modifyArbitraryThread&quot;);</b>
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;    protected void checkThreadAccess(Thread t) {
+<b class="fc"><i>169</i>&nbsp;        Objects.requireNonNull(t);</b>
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        // first, check if we can modify threads at all.
+<b class="fc"><i>172</i>&nbsp;        checkPermission(MODIFY_THREAD_PERMISSION);</b>
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        // check the threadgroup, if its our thread group or an ancestor, its fine.
+<b class="fc"><i>175</i>&nbsp;        final ThreadGroup source = Thread.currentThread().getThreadGroup();</b>
+<b class="fc"><i>176</i>&nbsp;        final ThreadGroup target = t.getThreadGroup();</b>
+<i>177</i>&nbsp;
+<b class="fc"><i>178</i>&nbsp;        if (target == null) {</b>
+<b class="fc"><i>179</i>&nbsp;            return;    // its a dead thread, do nothing.</b>
+<b class="fc"><i>180</i>&nbsp;        } else if (source.parentOf(target) == false) {</b>
+<b class="nc"><i>181</i>&nbsp;            checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);</b>
+<i>182</i>&nbsp;        }
+<b class="fc"><i>183</i>&nbsp;    }</b>
+<i>184</i>&nbsp;
+<b class="fc"><i>185</i>&nbsp;    private static final Permission MODIFY_THREADGROUP_PERMISSION = new RuntimePermission(&quot;modifyThreadGroup&quot;);</b>
+<b class="fc"><i>186</i>&nbsp;    private static final Permission MODIFY_ARBITRARY_THREADGROUP_PERMISSION = new ThreadPermission(&quot;modifyArbitraryThreadGroup&quot;);</b>
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    protected void checkThreadGroupAccess(ThreadGroup g) {
+<b class="fc"><i>189</i>&nbsp;        Objects.requireNonNull(g);</b>
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;        // first, check if we can modify thread groups at all.
+<b class="fc"><i>192</i>&nbsp;        checkPermission(MODIFY_THREADGROUP_PERMISSION);</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        // check the threadgroup, if its our thread group or an ancestor, its fine.
+<b class="fc"><i>195</i>&nbsp;        final ThreadGroup source = Thread.currentThread().getThreadGroup();</b>
+<b class="fc"><i>196</i>&nbsp;        final ThreadGroup target = g;</b>
+<i>197</i>&nbsp;
+<b class="fc"><i>198</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>199</i>&nbsp;            return; // we are a dead thread, do nothing</b>
+<b class="fc"><i>200</i>&nbsp;        } else if (source.parentOf(target) == false) {</b>
+<b class="fc"><i>201</i>&nbsp;            checkPermission(MODIFY_ARBITRARY_THREADGROUP_PERMISSION);</b>
+<i>202</i>&nbsp;        }
+<b class="fc"><i>203</i>&nbsp;    }</b>
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    // exit permission logic
+<i>206</i>&nbsp;    @Override
+<i>207</i>&nbsp;    public void checkExit(int status) {
+<b class="nc"><i>208</i>&nbsp;        innerCheckExit(status);</b>
+<b class="nc"><i>209</i>&nbsp;    }</b>
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    /**
+<i>212</i>&nbsp;     * The &quot;Uwe Schindler&quot; algorithm.
+<i>213</i>&nbsp;     *
+<i>214</i>&nbsp;     * @param status the exit status
+<i>215</i>&nbsp;     */
+<i>216</i>&nbsp;    protected void innerCheckExit(final int status) {
+<b class="nc"><i>217</i>&nbsp;        AccessController.doPrivileged(new PrivilegedAction&lt;Void&gt;() {</b>
+<i>218</i>&nbsp;            @Override
+<i>219</i>&nbsp;            public Void run() {
+<i>220</i>&nbsp;                final String systemClassName = System.class.getName(),
+<i>221</i>&nbsp;                        runtimeClassName = Runtime.class.getName();
+<i>222</i>&nbsp;                String exitMethodHit = null;
+<i>223</i>&nbsp;                for (final StackTraceElement se : Thread.currentThread().getStackTrace()) {
+<i>224</i>&nbsp;                    final String className = se.getClassName(), methodName = se.getMethodName();
+<i>225</i>&nbsp;                    if (
+<i>226</i>&nbsp;                        (&quot;exit&quot;.equals(methodName) || &quot;halt&quot;.equals(methodName)) &amp;&amp;
+<i>227</i>&nbsp;                        (systemClassName.equals(className) || runtimeClassName.equals(className))
+<i>228</i>&nbsp;                    ) {
+<i>229</i>&nbsp;                        exitMethodHit = className + &#39;#&#39; + methodName + &#39;(&#39; + status + &#39;)&#39;;
+<i>230</i>&nbsp;                        continue;
+<i>231</i>&nbsp;                    }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;                    if (exitMethodHit != null) {
+<i>234</i>&nbsp;                        if (classesThatCanExit == null) {
+<i>235</i>&nbsp;                            break;
+<i>236</i>&nbsp;                        }
+<i>237</i>&nbsp;                        if (classCanExit(className, classesThatCanExit)) {
+<i>238</i>&nbsp;                            // this exit point is allowed, we return normally from closure:
+<i>239</i>&nbsp;                            return null;
+<i>240</i>&nbsp;                        }
+<i>241</i>&nbsp;                        // anything else in stack trace is not allowed, break and throw SecurityException below:
+<i>242</i>&nbsp;                        break;
+<i>243</i>&nbsp;                    }
+<i>244</i>&nbsp;                }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;                if (exitMethodHit == null) {
+<i>247</i>&nbsp;                    // should never happen, only if JVM hides stack trace - replace by generic:
+<i>248</i>&nbsp;                    exitMethodHit = &quot;JVM exit method&quot;;
+<i>249</i>&nbsp;                }
+<i>250</i>&nbsp;                throw new SecurityException(exitMethodHit + &quot; calls are not allowed&quot;);
+<i>251</i>&nbsp;            }
+<i>252</i>&nbsp;        });
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;        // we passed the stack check, delegate to super, so default policy can still deny permission:
+<b class="nc"><i>255</i>&nbsp;        super.checkExit(status);</b>
+<b class="nc"><i>256</i>&nbsp;    }</b>
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    static boolean classCanExit(final String className, final String[] classesThatCanExit) {
+<b class="nc"><i>259</i>&nbsp;        for (final String classThatCanExit : classesThatCanExit) {</b>
+<b class="nc"><i>260</i>&nbsp;            if (className.matches(classThatCanExit)) {</b>
+<b class="nc"><i>261</i>&nbsp;                return true;</b>
+<i>262</i>&nbsp;            }
+<i>263</i>&nbsp;        }
+<b class="nc"><i>264</i>&nbsp;        return false;</b>
+<i>265</i>&nbsp;    }
+<i>266</i>&nbsp;
+<i>267</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

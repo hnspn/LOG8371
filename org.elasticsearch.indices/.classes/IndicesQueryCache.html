@@ -1,0 +1,486 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndicesQueryCache</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.indices</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndicesQueryCache (org.elasticsearch.indices)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndicesQueryCache</td>
+<td class="coverageStat">
+  <span class="percent">
+    77.8%
+  </span>
+  <span class="absValue">
+    (7/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    56.5%
+  </span>
+  <span class="absValue">
+    (35/ 62)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndicesQueryCache$CachingWeightWrapper</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 16)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">IndicesQueryCache$ElasticsearchLRUQueryCache</td>
+<td class="coverageStat">
+  <span class="percent">
+    18.2%
+  </span>
+  <span class="absValue">
+    (2/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    13.6%
+  </span>
+  <span class="absValue">
+    (8/ 59)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    32.1%
+  </span>
+  <span class="absValue">
+    (9/ 28)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    31.4%
+  </span>
+  <span class="absValue">
+    (43/ 137)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.indices;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>25</i>&nbsp;import org.apache.lucene.index.Term;
+<i>26</i>&nbsp;import org.apache.lucene.search.BulkScorer;
+<i>27</i>&nbsp;import org.apache.lucene.search.Explanation;
+<i>28</i>&nbsp;import org.apache.lucene.search.LRUQueryCache;
+<i>29</i>&nbsp;import org.apache.lucene.search.Query;
+<i>30</i>&nbsp;import org.apache.lucene.search.QueryCache;
+<i>31</i>&nbsp;import org.apache.lucene.search.QueryCachingPolicy;
+<i>32</i>&nbsp;import org.apache.lucene.search.Scorer;
+<i>33</i>&nbsp;import org.apache.lucene.search.ScorerSupplier;
+<i>34</i>&nbsp;import org.apache.lucene.search.Weight;
+<i>35</i>&nbsp;import org.elasticsearch.common.lucene.ShardCoreKeyMap;
+<i>36</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>37</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>38</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>39</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>40</i>&nbsp;import org.elasticsearch.index.cache.query.QueryCacheStats;
+<i>41</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.io.Closeable;
+<i>44</i>&nbsp;import java.io.IOException;
+<i>45</i>&nbsp;import java.util.Collections;
+<i>46</i>&nbsp;import java.util.HashMap;
+<i>47</i>&nbsp;import java.util.IdentityHashMap;
+<i>48</i>&nbsp;import java.util.Map;
+<i>49</i>&nbsp;import java.util.Set;
+<i>50</i>&nbsp;import java.util.concurrent.ConcurrentHashMap;
+<i>51</i>&nbsp;import java.util.function.Predicate;
+<i>52</i>&nbsp;
+<b class="fc"><i>53</i>&nbsp;public class IndicesQueryCache implements QueryCache, Closeable {</b>
+<i>54</i>&nbsp;
+<b class="fc"><i>55</i>&nbsp;    private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);</b>
+<i>56</i>&nbsp;
+<b class="fc"><i>57</i>&nbsp;    public static final Setting&lt;ByteSizeValue&gt; INDICES_CACHE_QUERY_SIZE_SETTING = </b>
+<b class="fc"><i>58</i>&nbsp;            Setting.memorySizeSetting(&quot;indices.queries.cache.size&quot;, &quot;10%&quot;, Property.NodeScope);</b>
+<i>59</i>&nbsp;    // mostly a way to prevent queries from being the main source of memory usage
+<i>60</i>&nbsp;    // of the cache
+<b class="fc"><i>61</i>&nbsp;    public static final Setting&lt;Integer&gt; INDICES_CACHE_QUERY_COUNT_SETTING = </b>
+<b class="fc"><i>62</i>&nbsp;            Setting.intSetting(&quot;indices.queries.cache.count&quot;, 10_000, 1, Property.NodeScope);</b>
+<i>63</i>&nbsp;    // enables caching on all segments instead of only the larger ones, for testing only
+<b class="fc"><i>64</i>&nbsp;    public static final Setting&lt;Boolean&gt; INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = </b>
+<b class="fc"><i>65</i>&nbsp;            Setting.boolSetting(&quot;indices.queries.cache.all_segments&quot;, false, Property.NodeScope);</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    private final LRUQueryCache cache;
+<b class="fc"><i>68</i>&nbsp;    private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();</b>
+<b class="fc"><i>69</i>&nbsp;    private final Map&lt;ShardId, Stats&gt; shardStats = new ConcurrentHashMap&lt;&gt;();</b>
+<i>70</i>&nbsp;    private volatile long sharedRamBytesUsed;
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    // This is a hack for the fact that the close listener for the
+<i>73</i>&nbsp;    // ShardCoreKeyMap will be called before onDocIdSetEviction
+<i>74</i>&nbsp;    // See onDocIdSetEviction for more info
+<b class="fc"><i>75</i>&nbsp;    private final Map&lt;Object, StatsAndCount&gt; stats2 = Collections.synchronizedMap(new IdentityHashMap&lt;&gt;());</b>
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;    public IndicesQueryCache(Settings settings) {</b>
+<b class="fc"><i>78</i>&nbsp;        final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);</b>
+<b class="fc"><i>79</i>&nbsp;        final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);</b>
+<b class="fc"><i>80</i>&nbsp;        logger.debug(&quot;using [node] query cache with size [{}] max filter count [{}]&quot;,</b>
+<b class="fc"><i>81</i>&nbsp;                size, count);</b>
+<b class="fc"><i>82</i>&nbsp;        if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {</b>
+<b class="nc"><i>83</i>&nbsp;            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -&gt; true);</b>
+<i>84</i>&nbsp;        } else {
+<b class="fc"><i>85</i>&nbsp;            cache = new ElasticsearchLRUQueryCache(count, size.getBytes());</b>
+<i>86</i>&nbsp;        }
+<b class="fc"><i>87</i>&nbsp;        sharedRamBytesUsed = 0;</b>
+<b class="fc"><i>88</i>&nbsp;    }</b>
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    /** Get usage statistics for the given shard. */
+<i>91</i>&nbsp;    public QueryCacheStats getStats(ShardId shard) {
+<b class="nc"><i>92</i>&nbsp;        final Map&lt;ShardId, QueryCacheStats&gt; stats = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>93</i>&nbsp;        for (Map.Entry&lt;ShardId, Stats&gt; entry : shardStats.entrySet()) {</b>
+<b class="nc"><i>94</i>&nbsp;            stats.put(entry.getKey(), entry.getValue().toQueryCacheStats());</b>
+<b class="nc"><i>95</i>&nbsp;        }</b>
+<b class="nc"><i>96</i>&nbsp;        QueryCacheStats shardStats = new QueryCacheStats();</b>
+<b class="nc"><i>97</i>&nbsp;        QueryCacheStats info = stats.get(shard);</b>
+<b class="nc"><i>98</i>&nbsp;        if (info == null) {</b>
+<b class="nc"><i>99</i>&nbsp;            info = new QueryCacheStats();</b>
+<i>100</i>&nbsp;        }
+<b class="nc"><i>101</i>&nbsp;        shardStats.add(info);</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;        // We also have some shared ram usage that we try to distribute to
+<i>104</i>&nbsp;        // proportionally to their number of cache entries of each shard
+<b class="nc"><i>105</i>&nbsp;        long totalSize = 0;</b>
+<b class="nc"><i>106</i>&nbsp;        for (QueryCacheStats s : stats.values()) {</b>
+<b class="nc"><i>107</i>&nbsp;            totalSize += s.getCacheSize();</b>
+<b class="nc"><i>108</i>&nbsp;        }</b>
+<b class="nc"><i>109</i>&nbsp;        final double weight = totalSize == 0</b>
+<b class="nc"><i>110</i>&nbsp;                ? 1d / stats.size()</b>
+<b class="nc"><i>111</i>&nbsp;                : ((double) shardStats.getCacheSize()) / totalSize;</b>
+<b class="nc"><i>112</i>&nbsp;        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);</b>
+<b class="nc"><i>113</i>&nbsp;        shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));</b>
+<b class="nc"><i>114</i>&nbsp;        return shardStats;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    @Override
+<i>118</i>&nbsp;    public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+<b class="nc"><i>119</i>&nbsp;        while (weight instanceof CachingWeightWrapper) {</b>
+<b class="nc"><i>120</i>&nbsp;            weight = ((CachingWeightWrapper) weight).in;</b>
+<i>121</i>&nbsp;        }
+<b class="nc"><i>122</i>&nbsp;        final Weight in = cache.doCache(weight, policy);</b>
+<i>123</i>&nbsp;        // We wrap the weight to track the readers it sees and map them with
+<i>124</i>&nbsp;        // the shards they belong to
+<b class="nc"><i>125</i>&nbsp;        return new CachingWeightWrapper(in);</b>
+<i>126</i>&nbsp;    }
+<i>127</i>&nbsp;
+<b class="nc"><i>128</i>&nbsp;    private class CachingWeightWrapper extends Weight {</b>
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;        private final Weight in;
+<i>131</i>&nbsp;
+<b class="nc"><i>132</i>&nbsp;        protected CachingWeightWrapper(Weight in) {</b>
+<b class="nc"><i>133</i>&nbsp;            super(in.getQuery());</b>
+<b class="nc"><i>134</i>&nbsp;            this.in = in;</b>
+<b class="nc"><i>135</i>&nbsp;        }</b>
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;        @Override
+<i>138</i>&nbsp;        public void extractTerms(Set&lt;Term&gt; terms) {
+<b class="nc"><i>139</i>&nbsp;            in.extractTerms(terms);</b>
+<b class="nc"><i>140</i>&nbsp;        }</b>
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;        @Override
+<i>143</i>&nbsp;        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+<b class="nc"><i>144</i>&nbsp;            shardKeyMap.add(context.reader());</b>
+<b class="nc"><i>145</i>&nbsp;            return in.explain(context, doc);</b>
+<i>146</i>&nbsp;        }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;        @Override
+<i>149</i>&nbsp;        public Scorer scorer(LeafReaderContext context) throws IOException {
+<b class="nc"><i>150</i>&nbsp;            shardKeyMap.add(context.reader());</b>
+<b class="nc"><i>151</i>&nbsp;            return in.scorer(context);</b>
+<i>152</i>&nbsp;        }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;        @Override
+<i>155</i>&nbsp;        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+<b class="nc"><i>156</i>&nbsp;            shardKeyMap.add(context.reader());</b>
+<b class="nc"><i>157</i>&nbsp;            return in.scorerSupplier(context);</b>
+<i>158</i>&nbsp;        }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;        @Override
+<i>161</i>&nbsp;        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+<b class="nc"><i>162</i>&nbsp;            shardKeyMap.add(context.reader());</b>
+<b class="nc"><i>163</i>&nbsp;            return in.bulkScorer(context);</b>
+<i>164</i>&nbsp;        }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;        @Override
+<i>167</i>&nbsp;        public boolean isCacheable(LeafReaderContext ctx) {
+<b class="nc"><i>168</i>&nbsp;            return in.isCacheable(ctx);</b>
+<i>169</i>&nbsp;        }
+<i>170</i>&nbsp;    }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    /** Clear all entries that belong to the given index. */
+<i>173</i>&nbsp;    public void clearIndex(String index) {
+<b class="fc"><i>174</i>&nbsp;        final Set&lt;Object&gt; coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);</b>
+<b class="fc"><i>175</i>&nbsp;        for (Object coreKey : coreCacheKeys) {</b>
+<b class="nc"><i>176</i>&nbsp;            cache.clearCoreCacheKey(coreKey);</b>
+<b class="nc"><i>177</i>&nbsp;        }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;        // This cache stores two things: filters, and doc id sets. Calling
+<i>180</i>&nbsp;        // clear only removes the doc id sets, but if we reach the situation
+<i>181</i>&nbsp;        // that the cache does not contain any DocIdSet anymore, then it
+<i>182</i>&nbsp;        // probably means that the user wanted to remove everything.
+<b class="fc"><i>183</i>&nbsp;        if (cache.getCacheSize() == 0) {</b>
+<b class="fc"><i>184</i>&nbsp;            cache.clear();</b>
+<i>185</i>&nbsp;        }
+<b class="fc"><i>186</i>&nbsp;    }</b>
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    @Override
+<i>189</i>&nbsp;    public void close() {
+<b class="fc"><i>190</i>&nbsp;        assert shardKeyMap.size() == 0 : shardKeyMap.size();</b>
+<b class="fc"><i>191</i>&nbsp;        assert shardStats.isEmpty() : shardStats.keySet();</b>
+<b class="fc"><i>192</i>&nbsp;        assert stats2.isEmpty() : stats2;</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        // This cache stores two things: filters, and doc id sets. At this time
+<i>195</i>&nbsp;        // we only know that there are no more doc id sets, but we still track
+<i>196</i>&nbsp;        // recently used queries, which we want to reclaim.
+<b class="fc"><i>197</i>&nbsp;        cache.clear();</b>
+<b class="fc"><i>198</i>&nbsp;    }</b>
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    private static class Stats implements Cloneable {
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;        final ShardId shardId;
+<i>203</i>&nbsp;        volatile long ramBytesUsed;
+<i>204</i>&nbsp;        volatile long hitCount;
+<i>205</i>&nbsp;        volatile long missCount;
+<i>206</i>&nbsp;        volatile long cacheCount;
+<i>207</i>&nbsp;        volatile long cacheSize;
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;        Stats(ShardId shardId) {
+<i>210</i>&nbsp;            this.shardId = shardId;
+<i>211</i>&nbsp;        }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;        QueryCacheStats toQueryCacheStats() {
+<i>214</i>&nbsp;            return new QueryCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
+<i>215</i>&nbsp;        }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;        @Override
+<i>218</i>&nbsp;        public String toString() {
+<i>219</i>&nbsp;            return &quot;{shardId=&quot; + shardId + &quot;, ramBytedUsed=&quot; + ramBytesUsed + &quot;, hitCount=&quot; + hitCount + &quot;, missCount=&quot; + missCount +
+<i>220</i>&nbsp;                    &quot;, cacheCount=&quot; + cacheCount + &quot;, cacheSize=&quot; + cacheSize + &quot;}&quot;;
+<i>221</i>&nbsp;        }
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    private static class StatsAndCount {
+<i>225</i>&nbsp;        volatile int count;
+<i>226</i>&nbsp;        final Stats stats;
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;        StatsAndCount(Stats stats) {
+<i>229</i>&nbsp;            this.stats = stats;
+<i>230</i>&nbsp;            this.count = 0;
+<i>231</i>&nbsp;        }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;        @Override
+<i>234</i>&nbsp;        public String toString() {
+<i>235</i>&nbsp;            return &quot;{stats=&quot; + stats + &quot; ,count=&quot; + count + &quot;}&quot;;
+<i>236</i>&nbsp;        }
+<i>237</i>&nbsp;    }
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    private boolean empty(Stats stats) {
+<b class="fc"><i>240</i>&nbsp;        if (stats == null) {</b>
+<b class="fc"><i>241</i>&nbsp;            return true;</b>
+<i>242</i>&nbsp;        }
+<b class="nc"><i>243</i>&nbsp;        return stats.cacheSize == 0 &amp;&amp; stats.ramBytesUsed == 0;</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    public void onClose(ShardId shardId) {
+<b class="fc"><i>247</i>&nbsp;        assert empty(shardStats.get(shardId));</b>
+<b class="fc"><i>248</i>&nbsp;        shardStats.remove(shardId);</b>
+<b class="fc"><i>249</i>&nbsp;    }</b>
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    private class ElasticsearchLRUQueryCache extends LRUQueryCache {
+<i>252</i>&nbsp;
+<b class="nc"><i>253</i>&nbsp;        ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate&lt;LeafReaderContext&gt; leavesToCache) {</b>
+<b class="nc"><i>254</i>&nbsp;            super(maxSize, maxRamBytesUsed, leavesToCache);</b>
+<b class="nc"><i>255</i>&nbsp;        }</b>
+<i>256</i>&nbsp;
+<b class="fc"><i>257</i>&nbsp;        ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed) {</b>
+<b class="fc"><i>258</i>&nbsp;            super(maxSize, maxRamBytesUsed);</b>
+<b class="fc"><i>259</i>&nbsp;        }</b>
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;        private Stats getStats(Object coreKey) {
+<b class="nc"><i>262</i>&nbsp;            final ShardId shardId = shardKeyMap.getShardId(coreKey);</b>
+<b class="nc"><i>263</i>&nbsp;            if (shardId == null) {</b>
+<b class="nc"><i>264</i>&nbsp;                return null;</b>
+<i>265</i>&nbsp;            }
+<b class="nc"><i>266</i>&nbsp;            return shardStats.get(shardId);</b>
+<i>267</i>&nbsp;        }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;        private Stats getOrCreateStats(Object coreKey) {
+<b class="nc"><i>270</i>&nbsp;            final ShardId shardId = shardKeyMap.getShardId(coreKey);</b>
+<b class="nc"><i>271</i>&nbsp;            Stats stats = shardStats.get(shardId);</b>
+<b class="nc"><i>272</i>&nbsp;            if (stats == null) {</b>
+<b class="nc"><i>273</i>&nbsp;                stats = new Stats(shardId);</b>
+<b class="nc"><i>274</i>&nbsp;                shardStats.put(shardId, stats);</b>
+<i>275</i>&nbsp;            }
+<b class="nc"><i>276</i>&nbsp;            return stats;</b>
+<i>277</i>&nbsp;        }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;        // It&#39;s ok to not protect these callbacks by a lock since it is
+<i>280</i>&nbsp;        // done in LRUQueryCache
+<i>281</i>&nbsp;        @Override
+<i>282</i>&nbsp;        protected void onClear() {
+<b class="fc"><i>283</i>&nbsp;            super.onClear();</b>
+<b class="fc"><i>284</i>&nbsp;            for (Stats stats : shardStats.values()) {</b>
+<i>285</i>&nbsp;                // don&#39;t throw away hit/miss
+<b class="nc"><i>286</i>&nbsp;                stats.cacheSize = 0;</b>
+<b class="nc"><i>287</i>&nbsp;                stats.ramBytesUsed = 0;</b>
+<b class="nc"><i>288</i>&nbsp;            }</b>
+<b class="fc"><i>289</i>&nbsp;            stats2.clear();</b>
+<b class="fc"><i>290</i>&nbsp;            sharedRamBytesUsed = 0;</b>
+<b class="fc"><i>291</i>&nbsp;        }</b>
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;        @Override
+<i>294</i>&nbsp;        protected void onQueryCache(Query filter, long ramBytesUsed) {
+<b class="nc"><i>295</i>&nbsp;            super.onQueryCache(filter, ramBytesUsed);</b>
+<b class="nc"><i>296</i>&nbsp;            sharedRamBytesUsed += ramBytesUsed;</b>
+<b class="nc"><i>297</i>&nbsp;        }</b>
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;        @Override
+<i>300</i>&nbsp;        protected void onQueryEviction(Query filter, long ramBytesUsed) {
+<b class="nc"><i>301</i>&nbsp;            super.onQueryEviction(filter, ramBytesUsed);</b>
+<b class="nc"><i>302</i>&nbsp;            sharedRamBytesUsed -= ramBytesUsed;</b>
+<b class="nc"><i>303</i>&nbsp;        }</b>
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;        @Override
+<i>306</i>&nbsp;        protected void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
+<b class="nc"><i>307</i>&nbsp;            super.onDocIdSetCache(readerCoreKey, ramBytesUsed);</b>
+<b class="nc"><i>308</i>&nbsp;            final Stats shardStats = getOrCreateStats(readerCoreKey);</b>
+<b class="nc"><i>309</i>&nbsp;            shardStats.cacheSize += 1;</b>
+<b class="nc"><i>310</i>&nbsp;            shardStats.cacheCount += 1;</b>
+<b class="nc"><i>311</i>&nbsp;            shardStats.ramBytesUsed += ramBytesUsed;</b>
+<i>312</i>&nbsp;
+<b class="nc"><i>313</i>&nbsp;            StatsAndCount statsAndCount = stats2.get(readerCoreKey);</b>
+<b class="nc"><i>314</i>&nbsp;            if (statsAndCount == null) {</b>
+<b class="nc"><i>315</i>&nbsp;                statsAndCount = new StatsAndCount(shardStats);</b>
+<b class="nc"><i>316</i>&nbsp;                stats2.put(readerCoreKey, statsAndCount);</b>
+<i>317</i>&nbsp;            }
+<b class="nc"><i>318</i>&nbsp;            statsAndCount.count += 1;</b>
+<b class="nc"><i>319</i>&nbsp;        }</b>
+<i>320</i>&nbsp;
+<i>321</i>&nbsp;        @Override
+<i>322</i>&nbsp;        protected void onDocIdSetEviction(Object readerCoreKey, int numEntries, long sumRamBytesUsed) {
+<b class="nc"><i>323</i>&nbsp;            super.onDocIdSetEviction(readerCoreKey, numEntries, sumRamBytesUsed);</b>
+<i>324</i>&nbsp;            // onDocIdSetEviction might sometimes be called with a number
+<i>325</i>&nbsp;            // of entries equal to zero if the cache for the given segment
+<i>326</i>&nbsp;            // was already empty when the close listener was called
+<b class="nc"><i>327</i>&nbsp;            if (numEntries &gt; 0) {</b>
+<i>328</i>&nbsp;                // We can&#39;t use ShardCoreKeyMap here because its core closed
+<i>329</i>&nbsp;                // listener is called before the listener of the cache which
+<i>330</i>&nbsp;                // triggers this eviction. So instead we use use stats2 that
+<i>331</i>&nbsp;                // we only evict when nothing is cached anymore on the segment
+<i>332</i>&nbsp;                // instead of relying on close listeners
+<b class="nc"><i>333</i>&nbsp;                final StatsAndCount statsAndCount = stats2.get(readerCoreKey);</b>
+<b class="nc"><i>334</i>&nbsp;                final Stats shardStats = statsAndCount.stats;</b>
+<b class="nc"><i>335</i>&nbsp;                shardStats.cacheSize -= numEntries;</b>
+<b class="nc"><i>336</i>&nbsp;                shardStats.ramBytesUsed -= sumRamBytesUsed;</b>
+<b class="nc"><i>337</i>&nbsp;                statsAndCount.count -= numEntries;</b>
+<b class="nc"><i>338</i>&nbsp;                if (statsAndCount.count == 0) {</b>
+<b class="nc"><i>339</i>&nbsp;                    stats2.remove(readerCoreKey);</b>
+<i>340</i>&nbsp;                }
+<i>341</i>&nbsp;            }
+<b class="nc"><i>342</i>&nbsp;        }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;        @Override
+<i>345</i>&nbsp;        protected void onHit(Object readerCoreKey, Query filter) {
+<b class="nc"><i>346</i>&nbsp;            super.onHit(readerCoreKey, filter);</b>
+<b class="nc"><i>347</i>&nbsp;            final Stats shardStats = getStats(readerCoreKey);</b>
+<b class="nc"><i>348</i>&nbsp;            shardStats.hitCount += 1;</b>
+<b class="nc"><i>349</i>&nbsp;        }</b>
+<i>350</i>&nbsp;
+<i>351</i>&nbsp;        @Override
+<i>352</i>&nbsp;        protected void onMiss(Object readerCoreKey, Query filter) {
+<b class="nc"><i>353</i>&nbsp;            super.onMiss(readerCoreKey, filter);</b>
+<b class="nc"><i>354</i>&nbsp;            final Stats shardStats = getOrCreateStats(readerCoreKey);</b>
+<b class="nc"><i>355</i>&nbsp;            shardStats.missCount += 1;</b>
+<b class="nc"><i>356</i>&nbsp;        }</b>
+<i>357</i>&nbsp;    }
+<i>358</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

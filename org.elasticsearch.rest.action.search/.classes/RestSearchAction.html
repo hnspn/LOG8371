@@ -1,0 +1,410 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestSearchAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestSearchAction (org.elasticsearch.rest.action.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestSearchAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (2/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8%
+  </span>
+  <span class="absValue">
+    (11/ 137)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.elasticsearch.action.search.SearchAction;
+<i>24</i>&nbsp;import org.elasticsearch.action.search.SearchRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.search.SearchResponse;
+<i>26</i>&nbsp;import org.elasticsearch.action.support.IndicesOptions;
+<i>27</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>28</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>29</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>30</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>32</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>33</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>34</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>35</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>36</i>&nbsp;import org.elasticsearch.rest.action.RestActions;
+<i>37</i>&nbsp;import org.elasticsearch.rest.action.RestStatusToXContentListener;
+<i>38</i>&nbsp;import org.elasticsearch.search.Scroll;
+<i>39</i>&nbsp;import org.elasticsearch.search.builder.SearchSourceBuilder;
+<i>40</i>&nbsp;import org.elasticsearch.search.fetch.StoredFieldsContext;
+<i>41</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>42</i>&nbsp;import org.elasticsearch.search.internal.SearchContext;
+<i>43</i>&nbsp;import org.elasticsearch.search.sort.SortOrder;
+<i>44</i>&nbsp;import org.elasticsearch.search.suggest.SuggestBuilder;
+<i>45</i>&nbsp;import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import java.io.IOException;
+<i>48</i>&nbsp;import java.util.Arrays;
+<i>49</i>&nbsp;import java.util.Collections;
+<i>50</i>&nbsp;import java.util.HashSet;
+<i>51</i>&nbsp;import java.util.Set;
+<i>52</i>&nbsp;import java.util.function.IntConsumer;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+<i>55</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>56</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.POST;
+<i>57</i>&nbsp;import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;public class RestSearchAction extends BaseRestHandler {
+<i>60</i>&nbsp;    /**
+<i>61</i>&nbsp;     * Indicates whether hits.total should be rendered as an integer or an object
+<i>62</i>&nbsp;     * in the rest search response.
+<i>63</i>&nbsp;     */
+<i>64</i>&nbsp;    public static final String TOTAL_HITS_AS_INT_PARAM = &quot;rest_total_hits_as_int&quot;;
+<i>65</i>&nbsp;    public static final String TYPED_KEYS_PARAM = &quot;typed_keys&quot;;
+<i>66</i>&nbsp;    private static final Set&lt;String&gt; RESPONSE_PARAMS;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    static {
+<b class="fc"><i>69</i>&nbsp;        final Set&lt;String&gt; responseParams = new HashSet&lt;&gt;(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));</b>
+<b class="fc"><i>70</i>&nbsp;        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);</b>
+<i>71</i>&nbsp;    }
+<i>72</i>&nbsp;
+<b class="fc"><i>73</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));</b>
+<i>74</i>&nbsp;    public static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal]&quot; +
+<i>75</i>&nbsp;        &quot; Specifying types in search requests is deprecated.&quot;;
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;    public RestSearchAction(RestController controller) {</b>
+<b class="fc"><i>78</i>&nbsp;        controller.registerHandler(GET, &quot;/_search&quot;, this);</b>
+<b class="fc"><i>79</i>&nbsp;        controller.registerHandler(POST, &quot;/_search&quot;, this);</b>
+<b class="fc"><i>80</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/_search&quot;, this);</b>
+<b class="fc"><i>81</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/_search&quot;, this);</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        // Deprecated typed endpoints.
+<b class="fc"><i>84</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/{type}/_search&quot;, this);</b>
+<b class="fc"><i>85</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/{type}/_search&quot;, this);</b>
+<b class="fc"><i>86</i>&nbsp;    }</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    @Override
+<i>89</i>&nbsp;    public String getName() {
+<b class="nc"><i>90</i>&nbsp;        return &quot;search_action&quot;;</b>
+<i>91</i>&nbsp;    }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    @Override
+<i>94</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<b class="nc"><i>95</i>&nbsp;        SearchRequest searchRequest = new SearchRequest();</b>
+<i>96</i>&nbsp;        /*
+<i>97</i>&nbsp;         * We have to pull out the call to `source().size(size)` because
+<i>98</i>&nbsp;         * _update_by_query and _delete_by_query uses this same parsing
+<i>99</i>&nbsp;         * path but sets a different variable when it sees the `size`
+<i>100</i>&nbsp;         * url parameter.
+<i>101</i>&nbsp;         *
+<i>102</i>&nbsp;         * Note that we can&#39;t use `searchRequest.source()::size` because
+<i>103</i>&nbsp;         * `searchRequest.source()` is null right now. We don&#39;t have to
+<i>104</i>&nbsp;         * guard against it being null in the IntConsumer because it can&#39;t
+<i>105</i>&nbsp;         * be null later. If that is confusing to you then you are in good
+<i>106</i>&nbsp;         * company.
+<i>107</i>&nbsp;         */
+<b class="nc"><i>108</i>&nbsp;        IntConsumer setSize = size -&gt; searchRequest.source().size(size);</b>
+<b class="nc"><i>109</i>&nbsp;        request.withContentOrSourceParamParserOrNull(parser -&gt;</b>
+<b class="nc"><i>110</i>&nbsp;            parseSearchRequest(searchRequest, request, parser, setSize));</b>
+<i>111</i>&nbsp;
+<b class="nc"><i>112</i>&nbsp;        return channel -&gt; {</b>
+<b class="nc"><i>113</i>&nbsp;            RestStatusToXContentListener&lt;SearchResponse&gt; listener = new RestStatusToXContentListener&lt;&gt;(channel);</b>
+<b class="nc"><i>114</i>&nbsp;            HttpChannelTaskHandler.INSTANCE.execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);</b>
+<b class="nc"><i>115</i>&nbsp;        };</b>
+<i>116</i>&nbsp;    }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    /**
+<i>119</i>&nbsp;     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
+<i>120</i>&nbsp;     *
+<i>121</i>&nbsp;     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
+<i>122</i>&nbsp;     *        parameter
+<i>123</i>&nbsp;     * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
+<i>124</i>&nbsp;     */
+<i>125</i>&nbsp;    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
+<i>126</i>&nbsp;                                          XContentParser requestContentParser,
+<i>127</i>&nbsp;                                          IntConsumer setSize) throws IOException {
+<i>128</i>&nbsp;
+<b class="nc"><i>129</i>&nbsp;        if (searchRequest.source() == null) {</b>
+<b class="nc"><i>130</i>&nbsp;            searchRequest.source(new SearchSourceBuilder());</b>
+<i>131</i>&nbsp;        }
+<b class="nc"><i>132</i>&nbsp;        searchRequest.indices(Strings.splitStringByCommaToArray(request.param(&quot;index&quot;)));</b>
+<b class="nc"><i>133</i>&nbsp;        if (requestContentParser != null) {</b>
+<b class="nc"><i>134</i>&nbsp;            searchRequest.source().parseXContent(requestContentParser, true);</b>
+<i>135</i>&nbsp;        }
+<i>136</i>&nbsp;
+<b class="nc"><i>137</i>&nbsp;        final int batchedReduceSize = request.paramAsInt(&quot;batched_reduce_size&quot;, searchRequest.getBatchedReduceSize());</b>
+<b class="nc"><i>138</i>&nbsp;        searchRequest.setBatchedReduceSize(batchedReduceSize);</b>
+<b class="nc"><i>139</i>&nbsp;        searchRequest.setPreFilterShardSize(request.paramAsInt(&quot;pre_filter_shard_size&quot;, searchRequest.getPreFilterShardSize()));</b>
+<i>140</i>&nbsp;
+<b class="nc"><i>141</i>&nbsp;        if (request.hasParam(&quot;max_concurrent_shard_requests&quot;)) {</b>
+<i>142</i>&nbsp;            // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
+<i>143</i>&nbsp;            // based on the number of nodes in the cluster
+<b class="nc"><i>144</i>&nbsp;            final int maxConcurrentShardRequests = request.paramAsInt(&quot;max_concurrent_shard_requests&quot;,</b>
+<b class="nc"><i>145</i>&nbsp;                searchRequest.getMaxConcurrentShardRequests());</b>
+<b class="nc"><i>146</i>&nbsp;            searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);</b>
+<i>147</i>&nbsp;        }
+<i>148</i>&nbsp;
+<b class="nc"><i>149</i>&nbsp;        if (request.hasParam(&quot;allow_partial_search_results&quot;)) {</b>
+<i>150</i>&nbsp;            // only set if we have the parameter passed to override the cluster-level default
+<b class="nc"><i>151</i>&nbsp;            searchRequest.allowPartialSearchResults(request.paramAsBoolean(&quot;allow_partial_search_results&quot;, null));</b>
+<i>152</i>&nbsp;        }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;        // do not allow &#39;query_and_fetch&#39; or &#39;dfs_query_and_fetch&#39; search types
+<i>155</i>&nbsp;        // from the REST layer. these modes are an internal optimization and should
+<i>156</i>&nbsp;        // not be specified explicitly by the user.
+<b class="nc"><i>157</i>&nbsp;        String searchType = request.param(&quot;search_type&quot;);</b>
+<b class="nc"><i>158</i>&nbsp;        if (&quot;query_and_fetch&quot;.equals(searchType) ||</b>
+<b class="nc"><i>159</i>&nbsp;                &quot;dfs_query_and_fetch&quot;.equals(searchType)) {</b>
+<b class="nc"><i>160</i>&nbsp;            throw new IllegalArgumentException(&quot;Unsupported search type [&quot; + searchType + &quot;]&quot;);</b>
+<i>161</i>&nbsp;        } else {
+<b class="nc"><i>162</i>&nbsp;            searchRequest.searchType(searchType);</b>
+<i>163</i>&nbsp;        }
+<b class="nc"><i>164</i>&nbsp;        parseSearchSource(searchRequest.source(), request, setSize);</b>
+<b class="nc"><i>165</i>&nbsp;        searchRequest.requestCache(request.paramAsBoolean(&quot;request_cache&quot;, null));</b>
+<i>166</i>&nbsp;
+<b class="nc"><i>167</i>&nbsp;        String scroll = request.param(&quot;scroll&quot;);</b>
+<b class="nc"><i>168</i>&nbsp;        if (scroll != null) {</b>
+<b class="nc"><i>169</i>&nbsp;            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, &quot;scroll&quot;)));</b>
+<i>170</i>&nbsp;        }
+<i>171</i>&nbsp;
+<b class="nc"><i>172</i>&nbsp;        if (request.hasParam(&quot;type&quot;)) {</b>
+<b class="nc"><i>173</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;search_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<b class="nc"><i>174</i>&nbsp;            searchRequest.types(Strings.splitStringByCommaToArray(request.param(&quot;type&quot;)));</b>
+<i>175</i>&nbsp;        }
+<b class="nc"><i>176</i>&nbsp;        searchRequest.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>177</i>&nbsp;        searchRequest.preference(request.param(&quot;preference&quot;));</b>
+<b class="nc"><i>178</i>&nbsp;        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));</b>
+<b class="nc"><i>179</i>&nbsp;        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean(&quot;ccs_minimize_roundtrips&quot;, true));</b>
+<i>180</i>&nbsp;
+<b class="nc"><i>181</i>&nbsp;        checkRestTotalHits(request, searchRequest);</b>
+<b class="nc"><i>182</i>&nbsp;    }</b>
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    /**
+<i>185</i>&nbsp;     * Parses the rest request on top of the SearchSourceBuilder, preserving
+<i>186</i>&nbsp;     * values that are not overridden by the rest request.
+<i>187</i>&nbsp;     */
+<i>188</i>&nbsp;    private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request, IntConsumer setSize) {
+<b class="nc"><i>189</i>&nbsp;        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);</b>
+<b class="nc"><i>190</i>&nbsp;        if (queryBuilder != null) {</b>
+<b class="nc"><i>191</i>&nbsp;            searchSourceBuilder.query(queryBuilder);</b>
+<i>192</i>&nbsp;        }
+<i>193</i>&nbsp;
+<b class="nc"><i>194</i>&nbsp;        int from = request.paramAsInt(&quot;from&quot;, -1);</b>
+<b class="nc"><i>195</i>&nbsp;        if (from != -1) {</b>
+<b class="nc"><i>196</i>&nbsp;            searchSourceBuilder.from(from);</b>
+<i>197</i>&nbsp;        }
+<b class="nc"><i>198</i>&nbsp;        int size = request.paramAsInt(&quot;size&quot;, -1);</b>
+<b class="nc"><i>199</i>&nbsp;        if (size != -1) {</b>
+<b class="nc"><i>200</i>&nbsp;            setSize.accept(size);</b>
+<i>201</i>&nbsp;        }
+<i>202</i>&nbsp;
+<b class="nc"><i>203</i>&nbsp;        if (request.hasParam(&quot;explain&quot;)) {</b>
+<b class="nc"><i>204</i>&nbsp;            searchSourceBuilder.explain(request.paramAsBoolean(&quot;explain&quot;, null));</b>
+<i>205</i>&nbsp;        }
+<b class="nc"><i>206</i>&nbsp;        if (request.hasParam(&quot;version&quot;)) {</b>
+<b class="nc"><i>207</i>&nbsp;            searchSourceBuilder.version(request.paramAsBoolean(&quot;version&quot;, null));</b>
+<i>208</i>&nbsp;        }
+<b class="nc"><i>209</i>&nbsp;        if (request.hasParam(&quot;seq_no_primary_term&quot;)) {</b>
+<b class="nc"><i>210</i>&nbsp;            searchSourceBuilder.seqNoAndPrimaryTerm(request.paramAsBoolean(&quot;seq_no_primary_term&quot;, null));</b>
+<i>211</i>&nbsp;        }
+<b class="nc"><i>212</i>&nbsp;        if (request.hasParam(&quot;timeout&quot;)) {</b>
+<b class="nc"><i>213</i>&nbsp;            searchSourceBuilder.timeout(request.paramAsTime(&quot;timeout&quot;, null));</b>
+<i>214</i>&nbsp;        }
+<b class="nc"><i>215</i>&nbsp;        if (request.hasParam(&quot;terminate_after&quot;)) {</b>
+<b class="nc"><i>216</i>&nbsp;            int terminateAfter = request.paramAsInt(&quot;terminate_after&quot;,</b>
+<i>217</i>&nbsp;                    SearchContext.DEFAULT_TERMINATE_AFTER);
+<b class="nc"><i>218</i>&nbsp;            if (terminateAfter &lt; 0) {</b>
+<b class="nc"><i>219</i>&nbsp;                throw new IllegalArgumentException(&quot;terminateAfter must be &gt; 0&quot;);</b>
+<b class="nc"><i>220</i>&nbsp;            } else if (terminateAfter &gt; 0) {</b>
+<b class="nc"><i>221</i>&nbsp;                searchSourceBuilder.terminateAfter(terminateAfter);</b>
+<i>222</i>&nbsp;            }
+<i>223</i>&nbsp;        }
+<i>224</i>&nbsp;
+<b class="nc"><i>225</i>&nbsp;        StoredFieldsContext storedFieldsContext =</b>
+<b class="nc"><i>226</i>&nbsp;            StoredFieldsContext.fromRestRequest(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), request);</b>
+<b class="nc"><i>227</i>&nbsp;        if (storedFieldsContext != null) {</b>
+<b class="nc"><i>228</i>&nbsp;            searchSourceBuilder.storedFields(storedFieldsContext);</b>
+<i>229</i>&nbsp;        }
+<b class="nc"><i>230</i>&nbsp;        String sDocValueFields = request.param(&quot;docvalue_fields&quot;);</b>
+<b class="nc"><i>231</i>&nbsp;        if (sDocValueFields != null) {</b>
+<b class="nc"><i>232</i>&nbsp;            if (Strings.hasText(sDocValueFields)) {</b>
+<b class="nc"><i>233</i>&nbsp;                String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);</b>
+<b class="nc"><i>234</i>&nbsp;                for (String field : sFields) {</b>
+<b class="nc"><i>235</i>&nbsp;                    searchSourceBuilder.docValueField(field, null);</b>
+<i>236</i>&nbsp;                }
+<i>237</i>&nbsp;            }
+<i>238</i>&nbsp;        }
+<b class="nc"><i>239</i>&nbsp;        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);</b>
+<b class="nc"><i>240</i>&nbsp;        if (fetchSourceContext != null) {</b>
+<b class="nc"><i>241</i>&nbsp;            searchSourceBuilder.fetchSource(fetchSourceContext);</b>
+<i>242</i>&nbsp;        }
+<i>243</i>&nbsp;
+<b class="nc"><i>244</i>&nbsp;        if (request.hasParam(&quot;track_scores&quot;)) {</b>
+<b class="nc"><i>245</i>&nbsp;            searchSourceBuilder.trackScores(request.paramAsBoolean(&quot;track_scores&quot;, false));</b>
+<i>246</i>&nbsp;        }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;
+<b class="nc"><i>249</i>&nbsp;        if (request.hasParam(&quot;track_total_hits&quot;)) {</b>
+<b class="nc"><i>250</i>&nbsp;            if (Booleans.isBoolean(request.param(&quot;track_total_hits&quot;))) {</b>
+<b class="nc"><i>251</i>&nbsp;                searchSourceBuilder.trackTotalHits(</b>
+<b class="nc"><i>252</i>&nbsp;                    request.paramAsBoolean(&quot;track_total_hits&quot;, true)</b>
+<i>253</i>&nbsp;                );
+<i>254</i>&nbsp;            } else {
+<b class="nc"><i>255</i>&nbsp;                searchSourceBuilder.trackTotalHitsUpTo(</b>
+<b class="nc"><i>256</i>&nbsp;                    request.paramAsInt(&quot;track_total_hits&quot;, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO)</b>
+<i>257</i>&nbsp;                );
+<i>258</i>&nbsp;            }
+<i>259</i>&nbsp;        }
+<i>260</i>&nbsp;
+<b class="nc"><i>261</i>&nbsp;        String sSorts = request.param(&quot;sort&quot;);</b>
+<b class="nc"><i>262</i>&nbsp;        if (sSorts != null) {</b>
+<b class="nc"><i>263</i>&nbsp;            String[] sorts = Strings.splitStringByCommaToArray(sSorts);</b>
+<b class="nc"><i>264</i>&nbsp;            for (String sort : sorts) {</b>
+<b class="nc"><i>265</i>&nbsp;                int delimiter = sort.lastIndexOf(&quot;:&quot;);</b>
+<b class="nc"><i>266</i>&nbsp;                if (delimiter != -1) {</b>
+<b class="nc"><i>267</i>&nbsp;                    String sortField = sort.substring(0, delimiter);</b>
+<b class="nc"><i>268</i>&nbsp;                    String reverse = sort.substring(delimiter + 1);</b>
+<b class="nc"><i>269</i>&nbsp;                    if (&quot;asc&quot;.equals(reverse)) {</b>
+<b class="nc"><i>270</i>&nbsp;                        searchSourceBuilder.sort(sortField, SortOrder.ASC);</b>
+<b class="nc"><i>271</i>&nbsp;                    } else if (&quot;desc&quot;.equals(reverse)) {</b>
+<b class="nc"><i>272</i>&nbsp;                        searchSourceBuilder.sort(sortField, SortOrder.DESC);</b>
+<i>273</i>&nbsp;                    }
+<b class="nc"><i>274</i>&nbsp;                } else {</b>
+<b class="nc"><i>275</i>&nbsp;                    searchSourceBuilder.sort(sort);</b>
+<i>276</i>&nbsp;                }
+<i>277</i>&nbsp;            }
+<i>278</i>&nbsp;        }
+<i>279</i>&nbsp;
+<b class="nc"><i>280</i>&nbsp;        String sStats = request.param(&quot;stats&quot;);</b>
+<b class="nc"><i>281</i>&nbsp;        if (sStats != null) {</b>
+<b class="nc"><i>282</i>&nbsp;            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));</b>
+<i>283</i>&nbsp;        }
+<i>284</i>&nbsp;
+<b class="nc"><i>285</i>&nbsp;        String suggestField = request.param(&quot;suggest_field&quot;);</b>
+<b class="nc"><i>286</i>&nbsp;        if (suggestField != null) {</b>
+<b class="nc"><i>287</i>&nbsp;            String suggestText = request.param(&quot;suggest_text&quot;, request.param(&quot;q&quot;));</b>
+<b class="nc"><i>288</i>&nbsp;            int suggestSize = request.paramAsInt(&quot;suggest_size&quot;, 5);</b>
+<b class="nc"><i>289</i>&nbsp;            String suggestMode = request.param(&quot;suggest_mode&quot;);</b>
+<b class="nc"><i>290</i>&nbsp;            searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(suggestField,</b>
+<b class="nc"><i>291</i>&nbsp;                    termSuggestion(suggestField)</b>
+<b class="nc"><i>292</i>&nbsp;                        .text(suggestText).size(suggestSize)</b>
+<b class="nc"><i>293</i>&nbsp;                        .suggestMode(SuggestMode.resolve(suggestMode))));</b>
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;    }</b>
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    /**
+<i>298</i>&nbsp;     * Modify the search request to accurately count the total hits that match the query
+<i>299</i>&nbsp;     * if {@link #TOTAL_HITS_AS_INT_PARAM} is set.
+<i>300</i>&nbsp;     *
+<i>301</i>&nbsp;     * @throws IllegalArgumentException if {@link #TOTAL_HITS_AS_INT_PARAM}
+<i>302</i>&nbsp;     * is used in conjunction with a lower bound value (other than {@link SearchContext#DEFAULT_TRACK_TOTAL_HITS_UP_TO})
+<i>303</i>&nbsp;     * for the track_total_hits option.
+<i>304</i>&nbsp;     */
+<i>305</i>&nbsp;    public static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
+<b class="nc"><i>306</i>&nbsp;        boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);</b>
+<b class="nc"><i>307</i>&nbsp;        if (totalHitsAsInt == false) {</b>
+<b class="nc"><i>308</i>&nbsp;            return;</b>
+<i>309</i>&nbsp;        }
+<b class="nc"><i>310</i>&nbsp;        if (searchRequest.source() == null) {</b>
+<b class="nc"><i>311</i>&nbsp;            searchRequest.source(new SearchSourceBuilder());</b>
+<i>312</i>&nbsp;        }
+<b class="nc"><i>313</i>&nbsp;        Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();</b>
+<b class="nc"><i>314</i>&nbsp;        if (trackTotalHitsUpTo == null) {</b>
+<b class="nc"><i>315</i>&nbsp;            searchRequest.source().trackTotalHits(true);</b>
+<b class="nc"><i>316</i>&nbsp;        } else if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE</b>
+<b class="nc"><i>317</i>&nbsp;                &amp;&amp; trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {</b>
+<b class="nc"><i>318</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + TOTAL_HITS_AS_INT_PARAM + &quot;] cannot be used &quot; +</b>
+<i>319</i>&nbsp;                &quot;if the tracking of total hits is not accurate, got &quot; + trackTotalHitsUpTo);
+<i>320</i>&nbsp;        }
+<b class="nc"><i>321</i>&nbsp;    }</b>
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    @Override
+<i>324</i>&nbsp;    protected Set&lt;String&gt; responseParams() {
+<b class="nc"><i>325</i>&nbsp;        return RESPONSE_PARAMS;</b>
+<i>326</i>&nbsp;    }
+<i>327</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

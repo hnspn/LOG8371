@@ -1,0 +1,424 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PrioritizedEsThreadPoolExecutor</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util.concurrent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PrioritizedEsThreadPoolExecutor (org.elasticsearch.common.util.concurrent)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PrioritizedEsThreadPoolExecutor</td>
+<td class="coverageStat">
+  <span class="percent">
+    69.2%
+  </span>
+  <span class="absValue">
+    (9/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    55.2%
+  </span>
+  <span class="absValue">
+    (37/ 67)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable</td>
+<td class="coverageStat">
+  <span class="percent">
+    85.7%
+  </span>
+  <span class="absValue">
+    (6/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    90.3%
+  </span>
+  <span class="absValue">
+    (28/ 31)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (1/ 4)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    72.7%
+  </span>
+  <span class="absValue">
+    (16/ 22)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    64.7%
+  </span>
+  <span class="absValue">
+    (66/ 102)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.common.util.concurrent;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>22</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.util.ArrayList;
+<i>25</i>&nbsp;import java.util.List;
+<i>26</i>&nbsp;import java.util.Queue;
+<i>27</i>&nbsp;import java.util.concurrent.Callable;
+<i>28</i>&nbsp;import java.util.concurrent.FutureTask;
+<i>29</i>&nbsp;import java.util.concurrent.PriorityBlockingQueue;
+<i>30</i>&nbsp;import java.util.concurrent.RunnableFuture;
+<i>31</i>&nbsp;import java.util.concurrent.ScheduledExecutorService;
+<i>32</i>&nbsp;import java.util.concurrent.ScheduledFuture;
+<i>33</i>&nbsp;import java.util.concurrent.ThreadFactory;
+<i>34</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>35</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;/**
+<i>38</i>&nbsp; * A prioritizing executor which uses a priority queue as a work queue. The jobs that will be submitted will be treated
+<i>39</i>&nbsp; * as {@link PrioritizedRunnable} and/or {@link PrioritizedCallable}, those tasks that are not instances of these two will
+<i>40</i>&nbsp; * be wrapped and assign a default {@link Priority#NORMAL} priority.
+<i>41</i>&nbsp; * &lt;p&gt;
+<i>42</i>&nbsp; * Note, if two tasks have the same priority, the first to arrive will be executed first (FIFO style).
+<i>43</i>&nbsp; */
+<i>44</i>&nbsp;public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
+<i>45</i>&nbsp;
+<b class="fc"><i>46</i>&nbsp;    private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);</b>
+<b class="fc"><i>47</i>&nbsp;    private final AtomicLong insertionOrder = new AtomicLong();</b>
+<b class="fc"><i>48</i>&nbsp;    private final Queue&lt;Runnable&gt; current = ConcurrentCollections.newQueue();</b>
+<i>49</i>&nbsp;    private final ScheduledExecutorService timer;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    public PrioritizedEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+<i>52</i>&nbsp;                                    ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+<b class="fc"><i>53</i>&nbsp;        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue&lt;&gt;(), threadFactory, contextHolder);</b>
+<b class="fc"><i>54</i>&nbsp;        this.timer = timer;</b>
+<b class="fc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    public Pending[] getPending() {
+<b class="nc"><i>58</i>&nbsp;        List&lt;Pending&gt; pending = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>59</i>&nbsp;        addPending(new ArrayList&lt;&gt;(current), pending, true);</b>
+<b class="nc"><i>60</i>&nbsp;        addPending(new ArrayList&lt;&gt;(getQueue()), pending, false);</b>
+<b class="nc"><i>61</i>&nbsp;        return pending.toArray(new Pending[pending.size()]);</b>
+<i>62</i>&nbsp;    }
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    public int getNumberOfPendingTasks() {
+<b class="fc"><i>65</i>&nbsp;        int size = current.size();</b>
+<b class="fc"><i>66</i>&nbsp;        size += getQueue().size();</b>
+<b class="fc"><i>67</i>&nbsp;        return size;</b>
+<i>68</i>&nbsp;    }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    /**
+<i>71</i>&nbsp;     * Returns the waiting time of the first task in the queue
+<i>72</i>&nbsp;     */
+<i>73</i>&nbsp;    public TimeValue getMaxTaskWaitTime() {
+<b class="fc"><i>74</i>&nbsp;        if (getQueue().size() == 0) {</b>
+<b class="fc"><i>75</i>&nbsp;            return NO_WAIT_TIME_VALUE;</b>
+<i>76</i>&nbsp;        }
+<i>77</i>&nbsp;
+<b class="fc"><i>78</i>&nbsp;        long now = System.nanoTime();</b>
+<b class="fc"><i>79</i>&nbsp;        long oldestCreationDateInNanos = now;</b>
+<b class="fc"><i>80</i>&nbsp;        for (Runnable queuedRunnable : getQueue()) {</b>
+<b class="fc"><i>81</i>&nbsp;            if (queuedRunnable instanceof PrioritizedRunnable) {</b>
+<b class="fc"><i>82</i>&nbsp;                oldestCreationDateInNanos = Math.min(oldestCreationDateInNanos,</b>
+<b class="fc"><i>83</i>&nbsp;                        ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos());</b>
+<i>84</i>&nbsp;            }
+<b class="fc"><i>85</i>&nbsp;        }</b>
+<i>86</i>&nbsp;
+<b class="fc"><i>87</i>&nbsp;        return TimeValue.timeValueNanos(now - oldestCreationDateInNanos);</b>
+<i>88</i>&nbsp;    }
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    private void addPending(List&lt;Runnable&gt; runnables, List&lt;Pending&gt; pending, boolean executing) {
+<b class="nc"><i>91</i>&nbsp;        for (Runnable runnable : runnables) {</b>
+<b class="nc"><i>92</i>&nbsp;            if (runnable instanceof TieBreakingPrioritizedRunnable) {</b>
+<b class="nc"><i>93</i>&nbsp;                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;</b>
+<b class="nc"><i>94</i>&nbsp;                Runnable innerRunnable = t.runnable;</b>
+<b class="nc"><i>95</i>&nbsp;                if (innerRunnable != null) {</b>
+<i>96</i>&nbsp;                    /** innerRunnable can be null if task is finished but not removed from executor yet,
+<i>97</i>&nbsp;                     * see {@link TieBreakingPrioritizedRunnable#run} and {@link TieBreakingPrioritizedRunnable#runAndClean}
+<i>98</i>&nbsp;                     */
+<b class="nc"><i>99</i>&nbsp;                    pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));</b>
+<i>100</i>&nbsp;                }
+<b class="nc"><i>101</i>&nbsp;            } else if (runnable instanceof PrioritizedFutureTask) {</b>
+<b class="nc"><i>102</i>&nbsp;                PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;</b>
+<b class="nc"><i>103</i>&nbsp;                Object task = t.task;</b>
+<b class="nc"><i>104</i>&nbsp;                if (t.task instanceof Runnable) {</b>
+<b class="nc"><i>105</i>&nbsp;                    task = super.unwrap((Runnable) t.task);</b>
+<i>106</i>&nbsp;                }
+<b class="nc"><i>107</i>&nbsp;                pending.add(new Pending(task, t.priority, t.insertionOrder, executing));</b>
+<i>108</i>&nbsp;            }
+<b class="nc"><i>109</i>&nbsp;        }</b>
+<b class="nc"><i>110</i>&nbsp;    }</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    @Override
+<i>113</i>&nbsp;    protected void beforeExecute(Thread t, Runnable r) {
+<b class="fc"><i>114</i>&nbsp;        current.add(r);</b>
+<b class="fc"><i>115</i>&nbsp;    }</b>
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    @Override
+<i>118</i>&nbsp;    protected void afterExecute(Runnable r, Throwable t) {
+<b class="fc"><i>119</i>&nbsp;        super.afterExecute(r, t);</b>
+<b class="fc"><i>120</i>&nbsp;        current.remove(r);</b>
+<b class="fc"><i>121</i>&nbsp;    }</b>
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+<b class="fc"><i>124</i>&nbsp;        command = wrapRunnable(command);</b>
+<b class="fc"><i>125</i>&nbsp;        execute(command);</b>
+<b class="fc"><i>126</i>&nbsp;        if (timeout.nanos() &gt;= 0) {</b>
+<b class="fc"><i>127</i>&nbsp;            if (command instanceof TieBreakingPrioritizedRunnable) {</b>
+<b class="fc"><i>128</i>&nbsp;                ((TieBreakingPrioritizedRunnable) command).scheduleTimeout(timer, timeoutCallback, timeout);</b>
+<i>129</i>&nbsp;            } else {
+<i>130</i>&nbsp;                // We really shouldn&#39;t be here. The only way we can get here if somebody created PrioritizedFutureTask
+<i>131</i>&nbsp;                // and passed it to execute, which doesn&#39;t make much sense
+<b class="nc"><i>132</i>&nbsp;                throw new UnsupportedOperationException(&quot;Execute with timeout is not supported for future tasks&quot;);</b>
+<i>133</i>&nbsp;            }
+<i>134</i>&nbsp;        }
+<b class="fc"><i>135</i>&nbsp;    }</b>
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    @Override
+<i>138</i>&nbsp;    protected Runnable wrapRunnable(Runnable command) {
+<b class="fc"><i>139</i>&nbsp;        if (command instanceof PrioritizedRunnable) {</b>
+<b class="fc"><i>140</i>&nbsp;            if (command instanceof TieBreakingPrioritizedRunnable) {</b>
+<b class="fc"><i>141</i>&nbsp;                return command;</b>
+<i>142</i>&nbsp;            }
+<b class="fc"><i>143</i>&nbsp;            Priority priority = ((PrioritizedRunnable) command).priority();</b>
+<b class="fc"><i>144</i>&nbsp;            return new TieBreakingPrioritizedRunnable(super.wrapRunnable(command), priority, insertionOrder.incrementAndGet());</b>
+<b class="nc"><i>145</i>&nbsp;        } else if (command instanceof PrioritizedFutureTask) {</b>
+<b class="nc"><i>146</i>&nbsp;            return command;</b>
+<i>147</i>&nbsp;        } else { // it might be a callable wrapper...
+<b class="nc"><i>148</i>&nbsp;            return new TieBreakingPrioritizedRunnable(super.wrapRunnable(command), Priority.NORMAL, insertionOrder.incrementAndGet());</b>
+<i>149</i>&nbsp;        }
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    @Override
+<i>153</i>&nbsp;    protected Runnable unwrap(Runnable runnable) {
+<b class="fc"><i>154</i>&nbsp;        if (runnable instanceof WrappedRunnable) {</b>
+<b class="fc"><i>155</i>&nbsp;            return super.unwrap(((WrappedRunnable) runnable).unwrap());</b>
+<i>156</i>&nbsp;        } else {
+<b class="nc"><i>157</i>&nbsp;            return super.unwrap(runnable);</b>
+<i>158</i>&nbsp;        }
+<i>159</i>&nbsp;    }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;    @Override
+<i>162</i>&nbsp;    protected &lt;T&gt; RunnableFuture&lt;T&gt; newTaskFor(Runnable runnable, T value) {
+<b class="nc"><i>163</i>&nbsp;        if (!(runnable instanceof PrioritizedRunnable)) {</b>
+<b class="nc"><i>164</i>&nbsp;            runnable = PrioritizedRunnable.wrap(runnable, Priority.NORMAL);</b>
+<i>165</i>&nbsp;        }
+<b class="nc"><i>166</i>&nbsp;        Priority priority = ((PrioritizedRunnable) runnable).priority();</b>
+<b class="nc"><i>167</i>&nbsp;        return new PrioritizedFutureTask&lt;&gt;(runnable, priority, value, insertionOrder.incrementAndGet());</b>
+<i>168</i>&nbsp;    }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    @Override
+<i>171</i>&nbsp;    protected &lt;T&gt; RunnableFuture&lt;T&gt; newTaskFor(Callable&lt;T&gt; callable) {
+<b class="nc"><i>172</i>&nbsp;        if (!(callable instanceof PrioritizedCallable)) {</b>
+<b class="nc"><i>173</i>&nbsp;            callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);</b>
+<i>174</i>&nbsp;        }
+<b class="nc"><i>175</i>&nbsp;        return new PrioritizedFutureTask&lt;&gt;((PrioritizedCallable)callable, insertionOrder.incrementAndGet());</b>
+<i>176</i>&nbsp;    }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    public static class Pending {
+<i>179</i>&nbsp;        public final Object task;
+<i>180</i>&nbsp;        public final Priority priority;
+<i>181</i>&nbsp;        public final long insertionOrder;
+<i>182</i>&nbsp;        public final boolean executing;
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;        public Pending(Object task, Priority priority, long insertionOrder, boolean executing) {
+<i>185</i>&nbsp;            this.task = task;
+<i>186</i>&nbsp;            this.priority = priority;
+<i>187</i>&nbsp;            this.insertionOrder = insertionOrder;
+<i>188</i>&nbsp;            this.executing = executing;
+<i>189</i>&nbsp;        }
+<i>190</i>&nbsp;    }
+<i>191</i>&nbsp;
+<b class="nc"><i>192</i>&nbsp;    private final class TieBreakingPrioritizedRunnable extends PrioritizedRunnable implements WrappedRunnable {</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        private Runnable runnable;
+<i>195</i>&nbsp;        private final long insertionOrder;
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;        // these two variables are protected by &#39;this&#39;
+<i>198</i>&nbsp;        private ScheduledFuture&lt;?&gt; timeoutFuture;
+<b class="fc"><i>199</i>&nbsp;        private boolean started = false;</b>
+<i>200</i>&nbsp;
+<b class="fc"><i>201</i>&nbsp;        TieBreakingPrioritizedRunnable(Runnable runnable, Priority priority, long insertionOrder) {</b>
+<b class="fc"><i>202</i>&nbsp;            super(priority);</b>
+<b class="fc"><i>203</i>&nbsp;            this.runnable = runnable;</b>
+<b class="fc"><i>204</i>&nbsp;            this.insertionOrder = insertionOrder;</b>
+<b class="fc"><i>205</i>&nbsp;        }</b>
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;        @Override
+<i>208</i>&nbsp;        public void run() {
+<b class="fc"><i>209</i>&nbsp;            synchronized (this) {</b>
+<i>210</i>&nbsp;                // make the task as stared. This is needed for synchronization with the timeout handling
+<i>211</i>&nbsp;                // see  #scheduleTimeout()
+<b class="fc"><i>212</i>&nbsp;                started = true;</b>
+<b class="fc"><i>213</i>&nbsp;                FutureUtils.cancel(timeoutFuture);</b>
+<b class="fc"><i>214</i>&nbsp;            }</b>
+<b class="fc"><i>215</i>&nbsp;            runAndClean(runnable);</b>
+<b class="fc"><i>216</i>&nbsp;        }</b>
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;        @Override
+<i>219</i>&nbsp;        public int compareTo(PrioritizedRunnable pr) {
+<b class="fc"><i>220</i>&nbsp;            int res = super.compareTo(pr);</b>
+<b class="fc"><i>221</i>&nbsp;            if (res != 0 || !(pr instanceof TieBreakingPrioritizedRunnable)) {</b>
+<b class="fc"><i>222</i>&nbsp;                return res;</b>
+<i>223</i>&nbsp;            }
+<b class="nc"><i>224</i>&nbsp;            return insertionOrder &lt; ((TieBreakingPrioritizedRunnable) pr).insertionOrder ? -1 : 1;</b>
+<i>225</i>&nbsp;        }
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;        public void scheduleTimeout(ScheduledExecutorService timer, final Runnable timeoutCallback, TimeValue timeValue) {
+<b class="fc"><i>228</i>&nbsp;            synchronized (this) {</b>
+<b class="fc"><i>229</i>&nbsp;                if (timeoutFuture != null) {</b>
+<b class="nc"><i>230</i>&nbsp;                    throw new IllegalStateException(&quot;scheduleTimeout may only be called once&quot;);</b>
+<i>231</i>&nbsp;                }
+<b class="fc"><i>232</i>&nbsp;                if (started == false) {</b>
+<b class="fc"><i>233</i>&nbsp;                    timeoutFuture = timer.schedule(new Runnable() {</b>
+<i>234</i>&nbsp;                        @Override
+<i>235</i>&nbsp;                        public void run() {
+<b class="nc"><i>236</i>&nbsp;                            if (remove(TieBreakingPrioritizedRunnable.this)) {</b>
+<b class="nc"><i>237</i>&nbsp;                                runAndClean(timeoutCallback);</b>
+<i>238</i>&nbsp;                            }
+<b class="nc"><i>239</i>&nbsp;                        }</b>
+<b class="fc"><i>240</i>&nbsp;                    }, timeValue.nanos(), TimeUnit.NANOSECONDS);</b>
+<i>241</i>&nbsp;                }
+<b class="fc"><i>242</i>&nbsp;            }</b>
+<b class="fc"><i>243</i>&nbsp;        }</b>
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;        /**
+<i>246</i>&nbsp;         * Timeout callback might remain in the timer scheduling queue for some time and it might hold
+<i>247</i>&nbsp;         * the pointers to other objects. As a result it&#39;s possible to run out of memory if a large number of
+<i>248</i>&nbsp;         * tasks are executed
+<i>249</i>&nbsp;         */
+<i>250</i>&nbsp;        private void runAndClean(Runnable run) {
+<i>251</i>&nbsp;            try {
+<b class="fc"><i>252</i>&nbsp;                run.run();</b>
+<i>253</i>&nbsp;            } finally {
+<b class="fc"><i>254</i>&nbsp;                runnable = null;</b>
+<b class="fc"><i>255</i>&nbsp;                timeoutFuture = null;</b>
+<b class="fc"><i>256</i>&nbsp;            }</b>
+<b class="fc"><i>257</i>&nbsp;        }</b>
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;        @Override
+<i>260</i>&nbsp;        public Runnable unwrap() {
+<b class="fc"><i>261</i>&nbsp;            return runnable;</b>
+<i>262</i>&nbsp;        }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    private static final class PrioritizedFutureTask&lt;T&gt; extends FutureTask&lt;T&gt; implements Comparable&lt;PrioritizedFutureTask&gt; {
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;        final Object task;
+<i>269</i>&nbsp;        final Priority priority;
+<i>270</i>&nbsp;        final long insertionOrder;
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;        PrioritizedFutureTask(Runnable runnable, Priority priority, T value, long insertionOrder) {
+<i>273</i>&nbsp;            super(runnable, value);
+<i>274</i>&nbsp;            this.task = runnable;
+<i>275</i>&nbsp;            this.priority = priority;
+<i>276</i>&nbsp;            this.insertionOrder = insertionOrder;
+<i>277</i>&nbsp;        }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;        PrioritizedFutureTask(PrioritizedCallable&lt;T&gt; callable, long insertionOrder) {
+<i>280</i>&nbsp;            super(callable);
+<i>281</i>&nbsp;            this.task = callable;
+<i>282</i>&nbsp;            this.priority = callable.priority();
+<i>283</i>&nbsp;            this.insertionOrder = insertionOrder;
+<i>284</i>&nbsp;        }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;        @Override
+<i>287</i>&nbsp;        public int compareTo(PrioritizedFutureTask pft) {
+<i>288</i>&nbsp;            int res = priority.compareTo(pft.priority);
+<i>289</i>&nbsp;            if (res != 0) {
+<i>290</i>&nbsp;                return res;
+<i>291</i>&nbsp;            }
+<i>292</i>&nbsp;            return insertionOrder &lt; pft.insertionOrder ? -1 : 1;
+<i>293</i>&nbsp;        }
+<i>294</i>&nbsp;    }
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

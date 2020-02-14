@@ -1,0 +1,624 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InnerHitBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InnerHitBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InnerHitBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    46.2%
+  </span>
+  <span class="absValue">
+    (24/ 52)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    61.5%
+  </span>
+  <span class="absValue">
+    (160/ 260)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.index.query;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.Version;
+<i>22</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>23</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>24</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>32</i>&nbsp;import org.elasticsearch.script.Script;
+<i>33</i>&nbsp;import org.elasticsearch.search.builder.SearchSourceBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+<i>35</i>&nbsp;import org.elasticsearch.search.collapse.CollapseBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.search.fetch.StoredFieldsContext;
+<i>37</i>&nbsp;import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
+<i>38</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>39</i>&nbsp;import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+<i>40</i>&nbsp;import org.elasticsearch.search.sort.SortBuilder;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import java.io.IOException;
+<i>43</i>&nbsp;import java.util.ArrayList;
+<i>44</i>&nbsp;import java.util.Comparator;
+<i>45</i>&nbsp;import java.util.HashSet;
+<i>46</i>&nbsp;import java.util.Iterator;
+<i>47</i>&nbsp;import java.util.List;
+<i>48</i>&nbsp;import java.util.Objects;
+<i>49</i>&nbsp;import java.util.Set;
+<i>50</i>&nbsp;import java.util.stream.Collectors;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;public final class InnerHitBuilder implements Writeable, ToXContentObject {
+<i>55</i>&nbsp;
+<b class="fc"><i>56</i>&nbsp;    public static final ParseField NAME_FIELD = new ParseField(&quot;name&quot;);</b>
+<b class="fc"><i>57</i>&nbsp;    public static final ParseField IGNORE_UNMAPPED = new ParseField(&quot;ignore_unmapped&quot;);</b>
+<b class="fc"><i>58</i>&nbsp;    public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();</b>
+<b class="fc"><i>59</i>&nbsp;    public static final ParseField COLLAPSE_FIELD = new ParseField(&quot;collapse&quot;);</b>
+<b class="fc"><i>60</i>&nbsp;    public static final ParseField FIELD_FIELD = new ParseField(&quot;field&quot;);</b>
+<i>61</i>&nbsp;
+<b class="fc"><i>62</i>&nbsp;    private static final ObjectParser&lt;InnerHitBuilder, Void&gt; PARSER = new ObjectParser&lt;&gt;(&quot;inner_hits&quot;, InnerHitBuilder::new);</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    static {
+<b class="fc"><i>65</i>&nbsp;        PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);</b>
+<b class="fc"><i>66</i>&nbsp;        PARSER.declareBoolean((innerHitBuilder, value) -&gt; innerHitBuilder.ignoreUnmapped = value, IGNORE_UNMAPPED);</b>
+<b class="fc"><i>67</i>&nbsp;        PARSER.declareInt(InnerHitBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);</b>
+<b class="fc"><i>68</i>&nbsp;        PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);</b>
+<b class="fc"><i>69</i>&nbsp;        PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);</b>
+<b class="fc"><i>70</i>&nbsp;        PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);</b>
+<b class="fc"><i>71</i>&nbsp;        PARSER.declareBoolean(InnerHitBuilder::setSeqNoAndPrimaryTerm, SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD);</b>
+<b class="fc"><i>72</i>&nbsp;        PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);</b>
+<b class="fc"><i>73</i>&nbsp;        PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);</b>
+<b class="fc"><i>74</i>&nbsp;        PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,</b>
+<b class="nc"><i>75</i>&nbsp;                (p,c) -&gt; FieldAndFormat.fromXContent(p), SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);</b>
+<b class="fc"><i>76</i>&nbsp;        PARSER.declareField((p, i, c) -&gt; {</b>
+<i>77</i>&nbsp;            try {
+<b class="nc"><i>78</i>&nbsp;                Set&lt;ScriptField&gt; scriptFields = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>79</i>&nbsp;                for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {</b>
+<b class="nc"><i>80</i>&nbsp;                    scriptFields.add(new ScriptField(p));</b>
+<i>81</i>&nbsp;                }
+<b class="nc"><i>82</i>&nbsp;                i.setScriptFields(scriptFields);</b>
+<b class="nc"><i>83</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>84</i>&nbsp;                throw new ParsingException(p.getTokenLocation(), &quot;Could not parse inner script definition&quot;, e);</b>
+<b class="nc"><i>85</i>&nbsp;            }</b>
+<b class="nc"><i>86</i>&nbsp;        }, SearchSourceBuilder.SCRIPT_FIELDS_FIELD, ObjectParser.ValueType.OBJECT);</b>
+<b class="fc"><i>87</i>&nbsp;        PARSER.declareField((p, i, c) -&gt; i.setSorts(SortBuilder.fromXContent(p)), SearchSourceBuilder.SORT_FIELD,</b>
+<i>88</i>&nbsp;                ObjectParser.ValueType.OBJECT_ARRAY);
+<b class="fc"><i>89</i>&nbsp;        PARSER.declareField((p, i, c) -&gt; {</b>
+<i>90</i>&nbsp;            try {
+<b class="nc"><i>91</i>&nbsp;                i.setFetchSourceContext(FetchSourceContext.fromXContent(p));</b>
+<b class="nc"><i>92</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>93</i>&nbsp;                throw new ParsingException(p.getTokenLocation(), &quot;Could not parse inner _source definition&quot;, e);</b>
+<b class="nc"><i>94</i>&nbsp;            }</b>
+<b class="nc"><i>95</i>&nbsp;        }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);</b>
+<b class="fc"><i>96</i>&nbsp;        PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -&gt; HighlightBuilder.fromXContent(p),</b>
+<i>97</i>&nbsp;                SearchSourceBuilder.HIGHLIGHT_FIELD);
+<b class="fc"><i>98</i>&nbsp;        PARSER.declareField((parser, builder, context) -&gt; {</b>
+<b class="nc"><i>99</i>&nbsp;            Boolean isParsedCorrectly = false;</b>
+<i>100</i>&nbsp;            String field;
+<b class="nc"><i>101</i>&nbsp;            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>102</i>&nbsp;                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>103</i>&nbsp;                    if (FIELD_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>104</i>&nbsp;                        if (parser.nextToken() == XContentParser.Token.VALUE_STRING){</b>
+<b class="nc"><i>105</i>&nbsp;                            field = parser.text();</b>
+<b class="nc"><i>106</i>&nbsp;                            if (parser.nextToken() == XContentParser.Token.END_OBJECT){</b>
+<b class="nc"><i>107</i>&nbsp;                                isParsedCorrectly = true;</b>
+<b class="nc"><i>108</i>&nbsp;                                CollapseBuilder cb = new CollapseBuilder(field);</b>
+<b class="nc"><i>109</i>&nbsp;                                builder.setInnerCollapse(cb);</b>
+<i>110</i>&nbsp;                            }
+<i>111</i>&nbsp;                        }
+<i>112</i>&nbsp;                    }
+<i>113</i>&nbsp;                }
+<i>114</i>&nbsp;            }
+<b class="nc"><i>115</i>&nbsp;            if (isParsedCorrectly == false) {</b>
+<b class="nc"><i>116</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(), &quot;Invalid token in the inner collapse&quot;);</b>
+<i>117</i>&nbsp;            }
+<i>118</i>&nbsp;
+<b class="nc"><i>119</i>&nbsp;        }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);</b>
+<b class="fc"><i>120</i>&nbsp;    }</b>
+<i>121</i>&nbsp;    private String name;
+<i>122</i>&nbsp;    private boolean ignoreUnmapped;
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    private int from;
+<b class="fc"><i>125</i>&nbsp;    private int size = 3;</b>
+<i>126</i>&nbsp;    private boolean explain;
+<i>127</i>&nbsp;    private boolean version;
+<i>128</i>&nbsp;    private boolean seqNoAndPrimaryTerm;
+<i>129</i>&nbsp;    private boolean trackScores;
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    private StoredFieldsContext storedFieldsContext;
+<b class="fc"><i>132</i>&nbsp;    private QueryBuilder query = DEFAULT_INNER_HIT_QUERY;</b>
+<i>133</i>&nbsp;    private List&lt;SortBuilder&lt;?&gt;&gt; sorts;
+<i>134</i>&nbsp;    private List&lt;FieldAndFormat&gt; docValueFields;
+<i>135</i>&nbsp;    private Set&lt;ScriptField&gt; scriptFields;
+<i>136</i>&nbsp;    private HighlightBuilder highlightBuilder;
+<i>137</i>&nbsp;    private FetchSourceContext fetchSourceContext;
+<b class="fc"><i>138</i>&nbsp;    private CollapseBuilder innerCollapseBuilder = null;</b>
+<i>139</i>&nbsp;
+<b class="fc"><i>140</i>&nbsp;    public InnerHitBuilder() {</b>
+<b class="fc"><i>141</i>&nbsp;        this.name = null;</b>
+<b class="fc"><i>142</i>&nbsp;    }</b>
+<i>143</i>&nbsp;
+<b class="fc"><i>144</i>&nbsp;    public InnerHitBuilder(String name) {</b>
+<b class="fc"><i>145</i>&nbsp;        this.name = name;</b>
+<b class="fc"><i>146</i>&nbsp;    }</b>
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    /**
+<i>150</i>&nbsp;     * Read from a stream.
+<i>151</i>&nbsp;     */
+<b class="fc"><i>152</i>&nbsp;    public InnerHitBuilder(StreamInput in) throws IOException {</b>
+<b class="fc"><i>153</i>&nbsp;        name = in.readOptionalString();</b>
+<b class="fc"><i>154</i>&nbsp;        ignoreUnmapped = in.readBoolean();</b>
+<b class="fc"><i>155</i>&nbsp;        from = in.readVInt();</b>
+<b class="fc"><i>156</i>&nbsp;        size = in.readVInt();</b>
+<b class="fc"><i>157</i>&nbsp;        explain = in.readBoolean();</b>
+<b class="fc"><i>158</i>&nbsp;        version = in.readBoolean();</b>
+<b class="fc"><i>159</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_7_0)){</b>
+<b class="fc"><i>160</i>&nbsp;            seqNoAndPrimaryTerm = in.readBoolean();</b>
+<i>161</i>&nbsp;        } else {
+<b class="fc"><i>162</i>&nbsp;            seqNoAndPrimaryTerm = false;</b>
+<i>163</i>&nbsp;        }
+<b class="fc"><i>164</i>&nbsp;        trackScores = in.readBoolean();</b>
+<b class="fc"><i>165</i>&nbsp;        storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);</b>
+<b class="fc"><i>166</i>&nbsp;        if (in.getVersion().before(Version.V_6_4_0)) {</b>
+<i>167</i>&nbsp;            @SuppressWarnings(&quot;unchecked&quot;)
+<b class="fc"><i>168</i>&nbsp;            List&lt;String&gt; fieldList = (List&lt;String&gt;) in.readGenericValue();</b>
+<b class="fc"><i>169</i>&nbsp;            if (fieldList == null) {</b>
+<b class="fc"><i>170</i>&nbsp;                docValueFields = null;</b>
+<i>171</i>&nbsp;            } else {
+<b class="nc"><i>172</i>&nbsp;                docValueFields = fieldList.stream()</b>
+<b class="nc"><i>173</i>&nbsp;                        .map(field -&gt; new FieldAndFormat(field, null))</b>
+<b class="nc"><i>174</i>&nbsp;                        .collect(Collectors.toList());</b>
+<i>175</i>&nbsp;            }
+<b class="fc"><i>176</i>&nbsp;        } else {</b>
+<b class="fc"><i>177</i>&nbsp;            docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;</b>
+<i>178</i>&nbsp;        }
+<b class="fc"><i>179</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>180</i>&nbsp;            int size = in.readVInt();</b>
+<b class="nc"><i>181</i>&nbsp;            scriptFields = new HashSet&lt;&gt;(size);</b>
+<b class="nc"><i>182</i>&nbsp;            for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>183</i>&nbsp;                scriptFields.add(new ScriptField(in));</b>
+<i>184</i>&nbsp;            }
+<i>185</i>&nbsp;        }
+<b class="fc"><i>186</i>&nbsp;        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);</b>
+<b class="fc"><i>187</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="fc"><i>188</i>&nbsp;            int size = in.readVInt();</b>
+<b class="fc"><i>189</i>&nbsp;            sorts = new ArrayList&lt;&gt;(size);</b>
+<b class="fc"><i>190</i>&nbsp;            for (int i = 0; i &lt; size; i++) {</b>
+<b class="fc"><i>191</i>&nbsp;                sorts.add(in.readNamedWriteable(SortBuilder.class));</b>
+<i>192</i>&nbsp;            }
+<i>193</i>&nbsp;        }
+<b class="fc"><i>194</i>&nbsp;        highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);</b>
+<b class="fc"><i>195</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {</b>
+<b class="fc"><i>196</i>&nbsp;            this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);</b>
+<i>197</i>&nbsp;        }
+<b class="fc"><i>198</i>&nbsp;    }</b>
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    @Override
+<i>201</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>202</i>&nbsp;        out.writeOptionalString(name);</b>
+<b class="fc"><i>203</i>&nbsp;        out.writeBoolean(ignoreUnmapped);</b>
+<b class="fc"><i>204</i>&nbsp;        out.writeVInt(from);</b>
+<b class="fc"><i>205</i>&nbsp;        out.writeVInt(size);</b>
+<b class="fc"><i>206</i>&nbsp;        out.writeBoolean(explain);</b>
+<b class="fc"><i>207</i>&nbsp;        out.writeBoolean(version);</b>
+<b class="fc"><i>208</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {</b>
+<b class="fc"><i>209</i>&nbsp;            out.writeBoolean(seqNoAndPrimaryTerm);</b>
+<i>210</i>&nbsp;        }
+<b class="fc"><i>211</i>&nbsp;        out.writeBoolean(trackScores);</b>
+<b class="fc"><i>212</i>&nbsp;        out.writeOptionalWriteable(storedFieldsContext);</b>
+<b class="fc"><i>213</i>&nbsp;        if (out.getVersion().before(Version.V_6_4_0)) {</b>
+<b class="fc"><i>214</i>&nbsp;            out.writeGenericValue(docValueFields == null</b>
+<b class="fc"><i>215</i>&nbsp;                    ? null</b>
+<b class="nc"><i>216</i>&nbsp;                    : docValueFields.stream().map(ff -&gt; ff.field).collect(Collectors.toList()));</b>
+<i>217</i>&nbsp;        } else {
+<b class="fc"><i>218</i>&nbsp;            out.writeBoolean(docValueFields != null);</b>
+<b class="fc"><i>219</i>&nbsp;            if (docValueFields != null) {</b>
+<b class="nc"><i>220</i>&nbsp;                out.writeList(docValueFields);</b>
+<i>221</i>&nbsp;            }
+<i>222</i>&nbsp;        }
+<b class="fc"><i>223</i>&nbsp;        boolean hasScriptFields = scriptFields != null;</b>
+<b class="fc"><i>224</i>&nbsp;        out.writeBoolean(hasScriptFields);</b>
+<b class="fc"><i>225</i>&nbsp;        if (hasScriptFields) {</b>
+<b class="nc"><i>226</i>&nbsp;            out.writeVInt(scriptFields.size());</b>
+<b class="nc"><i>227</i>&nbsp;            Iterator&lt;ScriptField&gt; iterator = scriptFields.stream()</b>
+<b class="nc"><i>228</i>&nbsp;                    .sorted(Comparator.comparing(ScriptField::fieldName)).iterator();</b>
+<b class="nc"><i>229</i>&nbsp;            while (iterator.hasNext()) {</b>
+<b class="nc"><i>230</i>&nbsp;                iterator.next().writeTo(out);</b>
+<i>231</i>&nbsp;            }
+<i>232</i>&nbsp;        }
+<b class="fc"><i>233</i>&nbsp;        out.writeOptionalWriteable(fetchSourceContext);</b>
+<b class="fc"><i>234</i>&nbsp;        boolean hasSorts = sorts != null;</b>
+<b class="fc"><i>235</i>&nbsp;        out.writeBoolean(hasSorts);</b>
+<b class="fc"><i>236</i>&nbsp;        if (hasSorts) {</b>
+<b class="fc"><i>237</i>&nbsp;            out.writeVInt(sorts.size());</b>
+<b class="fc"><i>238</i>&nbsp;            for (SortBuilder&lt;?&gt; sort : sorts) {</b>
+<b class="fc"><i>239</i>&nbsp;                out.writeNamedWriteable(sort);</b>
+<b class="fc"><i>240</i>&nbsp;            }</b>
+<i>241</i>&nbsp;        }
+<b class="fc"><i>242</i>&nbsp;        out.writeOptionalWriteable(highlightBuilder);</b>
+<b class="fc"><i>243</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {</b>
+<b class="fc"><i>244</i>&nbsp;            out.writeOptionalWriteable(innerCollapseBuilder);</b>
+<i>245</i>&nbsp;        }
+<b class="fc"><i>246</i>&nbsp;    }</b>
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    public String getName() {
+<b class="fc"><i>249</i>&nbsp;        return name;</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    public InnerHitBuilder setName(String name) {
+<b class="fc"><i>253</i>&nbsp;        this.name = Objects.requireNonNull(name);</b>
+<b class="fc"><i>254</i>&nbsp;        return this;</b>
+<i>255</i>&nbsp;    }
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;    public InnerHitBuilder setIgnoreUnmapped(boolean value) {
+<b class="fc"><i>258</i>&nbsp;        this.ignoreUnmapped = value;</b>
+<b class="fc"><i>259</i>&nbsp;        return this;</b>
+<i>260</i>&nbsp;    }
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;    /**
+<i>263</i>&nbsp;     * Whether to include inner hits in the search response hits if required mappings is missing
+<i>264</i>&nbsp;     */
+<i>265</i>&nbsp;    public boolean isIgnoreUnmapped() {
+<b class="fc"><i>266</i>&nbsp;        return ignoreUnmapped;</b>
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    public int getFrom() {
+<b class="nc"><i>270</i>&nbsp;        return from;</b>
+<i>271</i>&nbsp;    }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;    public InnerHitBuilder setFrom(int from) {
+<b class="fc"><i>274</i>&nbsp;        if (from &lt; 0) {</b>
+<b class="nc"><i>275</i>&nbsp;            throw new IllegalArgumentException(&quot;illegal from value, at least 0 or higher&quot;);</b>
+<i>276</i>&nbsp;        }
+<b class="fc"><i>277</i>&nbsp;        this.from = from;</b>
+<b class="fc"><i>278</i>&nbsp;        return this;</b>
+<i>279</i>&nbsp;    }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;    public int getSize() {
+<b class="nc"><i>282</i>&nbsp;        return size;</b>
+<i>283</i>&nbsp;    }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    public InnerHitBuilder setSize(int size) {
+<b class="fc"><i>286</i>&nbsp;        if (size &lt; 0) {</b>
+<b class="nc"><i>287</i>&nbsp;            throw new IllegalArgumentException(&quot;illegal size value, at least 0 or higher&quot;);</b>
+<i>288</i>&nbsp;        }
+<b class="fc"><i>289</i>&nbsp;        this.size = size;</b>
+<b class="fc"><i>290</i>&nbsp;        return this;</b>
+<i>291</i>&nbsp;    }
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;    public boolean isExplain() {
+<b class="nc"><i>294</i>&nbsp;        return explain;</b>
+<i>295</i>&nbsp;    }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    public InnerHitBuilder setExplain(boolean explain) {
+<b class="fc"><i>298</i>&nbsp;        this.explain = explain;</b>
+<b class="fc"><i>299</i>&nbsp;        return this;</b>
+<i>300</i>&nbsp;    }
+<i>301</i>&nbsp;
+<i>302</i>&nbsp;    public boolean isVersion() {
+<b class="nc"><i>303</i>&nbsp;        return version;</b>
+<i>304</i>&nbsp;    }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;    public InnerHitBuilder setVersion(boolean version) {
+<b class="fc"><i>307</i>&nbsp;        this.version = version;</b>
+<b class="fc"><i>308</i>&nbsp;        return this;</b>
+<i>309</i>&nbsp;    }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;    public boolean isSeqNoAndPrimaryTerm() {
+<b class="nc"><i>312</i>&nbsp;        return seqNoAndPrimaryTerm;</b>
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    public InnerHitBuilder setSeqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+<b class="fc"><i>316</i>&nbsp;        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;</b>
+<b class="fc"><i>317</i>&nbsp;        return this;</b>
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    public boolean isTrackScores() {
+<b class="nc"><i>321</i>&nbsp;        return trackScores;</b>
+<i>322</i>&nbsp;    }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    public InnerHitBuilder setTrackScores(boolean trackScores) {
+<b class="fc"><i>325</i>&nbsp;        this.trackScores = trackScores;</b>
+<b class="fc"><i>326</i>&nbsp;        return this;</b>
+<i>327</i>&nbsp;    }
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;    /**
+<i>330</i>&nbsp;     * Gets the stored fields context.
+<i>331</i>&nbsp;     */
+<i>332</i>&nbsp;    public StoredFieldsContext getStoredFieldsContext() {
+<b class="nc"><i>333</i>&nbsp;        return storedFieldsContext;</b>
+<i>334</i>&nbsp;    }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    /**
+<i>337</i>&nbsp;     * Sets the stored fields to load and return.
+<i>338</i>&nbsp;     * If none are specified, the source of the document will be returned.
+<i>339</i>&nbsp;     */
+<i>340</i>&nbsp;    public InnerHitBuilder setStoredFieldNames(List&lt;String&gt; fieldNames) {
+<b class="nc"><i>341</i>&nbsp;        if (storedFieldsContext == null) {</b>
+<b class="nc"><i>342</i>&nbsp;            storedFieldsContext = StoredFieldsContext.fromList(fieldNames);</b>
+<i>343</i>&nbsp;        } else {
+<b class="nc"><i>344</i>&nbsp;            storedFieldsContext.addFieldNames(fieldNames);</b>
+<i>345</i>&nbsp;        }
+<b class="nc"><i>346</i>&nbsp;        return this;</b>
+<i>347</i>&nbsp;    }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;    /**
+<i>350</i>&nbsp;     * Gets the docvalue fields.
+<i>351</i>&nbsp;     */
+<i>352</i>&nbsp;    public List&lt;FieldAndFormat&gt; getDocValueFields() {
+<b class="nc"><i>353</i>&nbsp;        return docValueFields;</b>
+<i>354</i>&nbsp;    }
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;    /**
+<i>357</i>&nbsp;     * Sets the stored fields to load from the docvalue and return.
+<i>358</i>&nbsp;     */
+<i>359</i>&nbsp;    public InnerHitBuilder setDocValueFields(List&lt;FieldAndFormat&gt; docValueFields) {
+<b class="nc"><i>360</i>&nbsp;        this.docValueFields = docValueFields;</b>
+<b class="nc"><i>361</i>&nbsp;        return this;</b>
+<i>362</i>&nbsp;    }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;    /**
+<i>365</i>&nbsp;     * Adds a field to load from the docvalue and return.
+<i>366</i>&nbsp;     */
+<i>367</i>&nbsp;    public InnerHitBuilder addDocValueField(String field, String format) {
+<b class="nc"><i>368</i>&nbsp;        if (docValueFields == null || docValueFields.isEmpty() == true) {</b>
+<b class="nc"><i>369</i>&nbsp;            docValueFields = new ArrayList&lt;&gt;();</b>
+<i>370</i>&nbsp;        }
+<b class="nc"><i>371</i>&nbsp;        docValueFields.add(new FieldAndFormat(field, format));</b>
+<b class="nc"><i>372</i>&nbsp;        return this;</b>
+<i>373</i>&nbsp;    }
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;    /**
+<i>376</i>&nbsp;     * Adds a field to load from doc values and return.
+<i>377</i>&nbsp;     */
+<i>378</i>&nbsp;    public InnerHitBuilder addDocValueField(String field) {
+<b class="nc"><i>379</i>&nbsp;        return addDocValueField(field, null);</b>
+<i>380</i>&nbsp;    }
+<i>381</i>&nbsp;
+<i>382</i>&nbsp;    public Set&lt;ScriptField&gt; getScriptFields() {
+<b class="nc"><i>383</i>&nbsp;        return scriptFields;</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    public InnerHitBuilder setScriptFields(Set&lt;ScriptField&gt; scriptFields) {
+<b class="nc"><i>387</i>&nbsp;        this.scriptFields = scriptFields;</b>
+<b class="nc"><i>388</i>&nbsp;        return this;</b>
+<i>389</i>&nbsp;    }
+<i>390</i>&nbsp;
+<i>391</i>&nbsp;    public InnerHitBuilder addScriptField(String name, Script script) {
+<b class="nc"><i>392</i>&nbsp;        if (scriptFields == null) {</b>
+<b class="nc"><i>393</i>&nbsp;            scriptFields = new HashSet&lt;&gt;();</b>
+<i>394</i>&nbsp;        }
+<b class="nc"><i>395</i>&nbsp;        scriptFields.add(new ScriptField(name, script, false));</b>
+<b class="nc"><i>396</i>&nbsp;        return this;</b>
+<i>397</i>&nbsp;    }
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    public FetchSourceContext getFetchSourceContext() {
+<b class="nc"><i>400</i>&nbsp;        return fetchSourceContext;</b>
+<i>401</i>&nbsp;    }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;    public InnerHitBuilder setFetchSourceContext(FetchSourceContext fetchSourceContext) {
+<b class="nc"><i>404</i>&nbsp;        this.fetchSourceContext = fetchSourceContext;</b>
+<b class="nc"><i>405</i>&nbsp;        return this;</b>
+<i>406</i>&nbsp;    }
+<i>407</i>&nbsp;
+<i>408</i>&nbsp;    public List&lt;SortBuilder&lt;?&gt;&gt; getSorts() {
+<b class="nc"><i>409</i>&nbsp;        return sorts;</b>
+<i>410</i>&nbsp;    }
+<i>411</i>&nbsp;
+<i>412</i>&nbsp;    public InnerHitBuilder setSorts(List&lt;SortBuilder&lt;?&gt;&gt; sorts) {
+<b class="fc"><i>413</i>&nbsp;        this.sorts = sorts;</b>
+<b class="fc"><i>414</i>&nbsp;        return this;</b>
+<i>415</i>&nbsp;    }
+<i>416</i>&nbsp;
+<i>417</i>&nbsp;    public InnerHitBuilder addSort(SortBuilder&lt;?&gt; sort) {
+<b class="fc"><i>418</i>&nbsp;        if (sorts == null) {</b>
+<b class="fc"><i>419</i>&nbsp;            sorts = new ArrayList&lt;&gt;();</b>
+<i>420</i>&nbsp;        }
+<b class="fc"><i>421</i>&nbsp;        sorts.add(sort);</b>
+<b class="fc"><i>422</i>&nbsp;        return this;</b>
+<i>423</i>&nbsp;    }
+<i>424</i>&nbsp;
+<i>425</i>&nbsp;    public HighlightBuilder getHighlightBuilder() {
+<b class="nc"><i>426</i>&nbsp;        return highlightBuilder;</b>
+<i>427</i>&nbsp;    }
+<i>428</i>&nbsp;
+<i>429</i>&nbsp;    public InnerHitBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
+<b class="nc"><i>430</i>&nbsp;        this.highlightBuilder = highlightBuilder;</b>
+<b class="nc"><i>431</i>&nbsp;        return this;</b>
+<i>432</i>&nbsp;    }
+<i>433</i>&nbsp;
+<i>434</i>&nbsp;    QueryBuilder getQuery() {
+<b class="nc"><i>435</i>&nbsp;        return query;</b>
+<i>436</i>&nbsp;    }
+<i>437</i>&nbsp;
+<i>438</i>&nbsp;    public InnerHitBuilder setInnerCollapse(CollapseBuilder innerCollapseBuilder) {
+<b class="nc"><i>439</i>&nbsp;        this.innerCollapseBuilder = innerCollapseBuilder;</b>
+<b class="nc"><i>440</i>&nbsp;        return this;</b>
+<i>441</i>&nbsp;    }
+<i>442</i>&nbsp;
+<i>443</i>&nbsp;    public CollapseBuilder getInnerCollapseBuilder() {
+<b class="nc"><i>444</i>&nbsp;        return innerCollapseBuilder;</b>
+<i>445</i>&nbsp;    }
+<i>446</i>&nbsp;
+<i>447</i>&nbsp;    @Override
+<i>448</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="fc"><i>449</i>&nbsp;        builder.startObject();</b>
+<b class="fc"><i>450</i>&nbsp;        if (name != null) {</b>
+<b class="fc"><i>451</i>&nbsp;            builder.field(NAME_FIELD.getPreferredName(), name);</b>
+<i>452</i>&nbsp;        }
+<b class="fc"><i>453</i>&nbsp;        builder.field(IGNORE_UNMAPPED.getPreferredName(), ignoreUnmapped);</b>
+<b class="fc"><i>454</i>&nbsp;        builder.field(SearchSourceBuilder.FROM_FIELD.getPreferredName(), from);</b>
+<b class="fc"><i>455</i>&nbsp;        builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size);</b>
+<b class="fc"><i>456</i>&nbsp;        builder.field(SearchSourceBuilder.VERSION_FIELD.getPreferredName(), version);</b>
+<b class="fc"><i>457</i>&nbsp;        builder.field(SearchSourceBuilder.SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);</b>
+<b class="fc"><i>458</i>&nbsp;        builder.field(SearchSourceBuilder.EXPLAIN_FIELD.getPreferredName(), explain);</b>
+<b class="fc"><i>459</i>&nbsp;        builder.field(SearchSourceBuilder.TRACK_SCORES_FIELD.getPreferredName(), trackScores);</b>
+<b class="fc"><i>460</i>&nbsp;        if (fetchSourceContext != null) {</b>
+<b class="nc"><i>461</i>&nbsp;            builder.field(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), fetchSourceContext, params);</b>
+<i>462</i>&nbsp;        }
+<b class="fc"><i>463</i>&nbsp;        if (storedFieldsContext != null) {</b>
+<b class="nc"><i>464</i>&nbsp;            storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);</b>
+<i>465</i>&nbsp;        }
+<b class="fc"><i>466</i>&nbsp;        if (docValueFields != null) {</b>
+<b class="nc"><i>467</i>&nbsp;            builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());</b>
+<b class="nc"><i>468</i>&nbsp;            for (FieldAndFormat docValueField : docValueFields) {</b>
+<b class="nc"><i>469</i>&nbsp;                if (docValueField.format == null) {</b>
+<b class="nc"><i>470</i>&nbsp;                    builder.value(docValueField.field);</b>
+<i>471</i>&nbsp;                } else {
+<b class="nc"><i>472</i>&nbsp;                    builder.startObject()</b>
+<b class="nc"><i>473</i>&nbsp;                        .field(&quot;field&quot;, docValueField.field)</b>
+<b class="nc"><i>474</i>&nbsp;                        .field(&quot;format&quot;, docValueField.format)</b>
+<b class="nc"><i>475</i>&nbsp;                        .endObject();</b>
+<i>476</i>&nbsp;                }
+<b class="nc"><i>477</i>&nbsp;            }</b>
+<b class="nc"><i>478</i>&nbsp;            builder.endArray();</b>
+<i>479</i>&nbsp;        }
+<b class="fc"><i>480</i>&nbsp;        if (scriptFields != null) {</b>
+<b class="nc"><i>481</i>&nbsp;            builder.startObject(SearchSourceBuilder.SCRIPT_FIELDS_FIELD.getPreferredName());</b>
+<b class="nc"><i>482</i>&nbsp;            for (ScriptField scriptField : scriptFields) {</b>
+<b class="nc"><i>483</i>&nbsp;                scriptField.toXContent(builder, params);</b>
+<b class="nc"><i>484</i>&nbsp;            }</b>
+<b class="nc"><i>485</i>&nbsp;            builder.endObject();</b>
+<i>486</i>&nbsp;        }
+<b class="fc"><i>487</i>&nbsp;        if (sorts != null) {</b>
+<b class="fc"><i>488</i>&nbsp;            builder.startArray(SearchSourceBuilder.SORT_FIELD.getPreferredName());</b>
+<b class="fc"><i>489</i>&nbsp;            for (SortBuilder&lt;?&gt; sort : sorts) {</b>
+<b class="fc"><i>490</i>&nbsp;                sort.toXContent(builder, params);</b>
+<b class="fc"><i>491</i>&nbsp;            }</b>
+<b class="fc"><i>492</i>&nbsp;            builder.endArray();</b>
+<i>493</i>&nbsp;        }
+<b class="fc"><i>494</i>&nbsp;        if (highlightBuilder != null) {</b>
+<b class="nc"><i>495</i>&nbsp;            builder.field(SearchSourceBuilder.HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder, params);</b>
+<i>496</i>&nbsp;        }
+<b class="fc"><i>497</i>&nbsp;        if (innerCollapseBuilder != null) {</b>
+<b class="nc"><i>498</i>&nbsp;            builder.field(COLLAPSE_FIELD.getPreferredName(), innerCollapseBuilder);</b>
+<i>499</i>&nbsp;        }
+<b class="fc"><i>500</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>501</i>&nbsp;        return builder;</b>
+<i>502</i>&nbsp;    }
+<i>503</i>&nbsp;
+<i>504</i>&nbsp;    @Override
+<i>505</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>506</i>&nbsp;        if (this == o) return true;</b>
+<b class="fc"><i>507</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<i>508</i>&nbsp;
+<b class="fc"><i>509</i>&nbsp;        InnerHitBuilder that = (InnerHitBuilder) o;</b>
+<b class="fc"><i>510</i>&nbsp;        return Objects.equals(name, that.name) &amp;&amp;</b>
+<b class="fc"><i>511</i>&nbsp;                Objects.equals(ignoreUnmapped, that.ignoreUnmapped) &amp;&amp;</b>
+<b class="fc"><i>512</i>&nbsp;                Objects.equals(from, that.from) &amp;&amp;</b>
+<b class="fc"><i>513</i>&nbsp;                Objects.equals(size, that.size) &amp;&amp;</b>
+<b class="fc"><i>514</i>&nbsp;                Objects.equals(explain, that.explain) &amp;&amp;</b>
+<b class="fc"><i>515</i>&nbsp;                Objects.equals(version, that.version) &amp;&amp;</b>
+<b class="fc"><i>516</i>&nbsp;                Objects.equals(seqNoAndPrimaryTerm, that.seqNoAndPrimaryTerm) &amp;&amp;</b>
+<b class="fc"><i>517</i>&nbsp;                Objects.equals(trackScores, that.trackScores) &amp;&amp;</b>
+<b class="fc"><i>518</i>&nbsp;                Objects.equals(storedFieldsContext, that.storedFieldsContext) &amp;&amp;</b>
+<b class="fc"><i>519</i>&nbsp;                Objects.equals(docValueFields, that.docValueFields) &amp;&amp;</b>
+<b class="fc"><i>520</i>&nbsp;                Objects.equals(scriptFields, that.scriptFields) &amp;&amp;</b>
+<b class="fc"><i>521</i>&nbsp;                Objects.equals(fetchSourceContext, that.fetchSourceContext) &amp;&amp;</b>
+<b class="fc"><i>522</i>&nbsp;                Objects.equals(sorts, that.sorts) &amp;&amp;</b>
+<b class="fc"><i>523</i>&nbsp;                Objects.equals(highlightBuilder, that.highlightBuilder) &amp;&amp;</b>
+<b class="fc"><i>524</i>&nbsp;                Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);</b>
+<i>525</i>&nbsp;    }
+<i>526</i>&nbsp;
+<i>527</i>&nbsp;    @Override
+<i>528</i>&nbsp;    public int hashCode() {
+<b class="fc"><i>529</i>&nbsp;        return Objects.hash(name, ignoreUnmapped, from, size, explain, version, seqNoAndPrimaryTerm, trackScores,</b>
+<i>530</i>&nbsp;                storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, innerCollapseBuilder);
+<i>531</i>&nbsp;    }
+<i>532</i>&nbsp;
+<i>533</i>&nbsp;    public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="fc"><i>534</i>&nbsp;        return PARSER.parse(parser, new InnerHitBuilder(), null);</b>
+<i>535</i>&nbsp;    }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    @Override
+<i>538</i>&nbsp;    public String toString() {
+<b class="nc"><i>539</i>&nbsp;        return Strings.toString(this, true, true);</b>
+<i>540</i>&nbsp;    }
+<i>541</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

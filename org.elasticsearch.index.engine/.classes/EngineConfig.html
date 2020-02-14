@@ -1,0 +1,495 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: EngineConfig</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: EngineConfig (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">EngineConfig</td>
+<td class="coverageStat">
+  <span class="percent">
+    93.3%
+  </span>
+  <span class="absValue">
+    (28/ 30)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    91%
+  </span>
+  <span class="absValue">
+    (61/ 67)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">EngineConfig$TombstoneDocSupplier</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    93.3%
+  </span>
+  <span class="absValue">
+    (28/ 30)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    91%
+  </span>
+  <span class="absValue">
+    (61/ 67)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.index.engine;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.analysis.Analyzer;
+<i>22</i>&nbsp;import org.apache.lucene.codecs.Codec;
+<i>23</i>&nbsp;import org.apache.lucene.index.MergePolicy;
+<i>24</i>&nbsp;import org.apache.lucene.search.QueryCache;
+<i>25</i>&nbsp;import org.apache.lucene.search.QueryCachingPolicy;
+<i>26</i>&nbsp;import org.apache.lucene.search.ReferenceManager;
+<i>27</i>&nbsp;import org.apache.lucene.search.Sort;
+<i>28</i>&nbsp;import org.apache.lucene.search.similarities.Similarity;
+<i>29</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>32</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>33</i>&nbsp;import org.elasticsearch.common.unit.MemorySizeValue;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>35</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>36</i>&nbsp;import org.elasticsearch.index.codec.CodecService;
+<i>37</i>&nbsp;import org.elasticsearch.index.mapper.ParsedDocument;
+<i>38</i>&nbsp;import org.elasticsearch.index.seqno.RetentionLeases;
+<i>39</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>40</i>&nbsp;import org.elasticsearch.index.store.Store;
+<i>41</i>&nbsp;import org.elasticsearch.index.translog.TranslogConfig;
+<i>42</i>&nbsp;import org.elasticsearch.indices.IndexingMemoryController;
+<i>43</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>44</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.util.List;
+<i>47</i>&nbsp;import java.util.Objects;
+<i>48</i>&nbsp;import java.util.function.LongSupplier;
+<i>49</i>&nbsp;import java.util.function.Supplier;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;/*
+<i>52</i>&nbsp; * Holds all the configuration that is used to create an {@link Engine}.
+<i>53</i>&nbsp; * Once {@link Engine} has been created with this object, changes to this
+<i>54</i>&nbsp; * object will affect the {@link Engine} instance.
+<i>55</i>&nbsp; */
+<i>56</i>&nbsp;public final class EngineConfig {
+<i>57</i>&nbsp;    private final ShardId shardId;
+<i>58</i>&nbsp;    private final String allocationId;
+<i>59</i>&nbsp;    private final IndexSettings indexSettings;
+<i>60</i>&nbsp;    private final ByteSizeValue indexingBufferSize;
+<b class="fc"><i>61</i>&nbsp;    private volatile boolean enableGcDeletes = true;</b>
+<i>62</i>&nbsp;    private final TimeValue flushMergesAfter;
+<i>63</i>&nbsp;    private final String codecName;
+<i>64</i>&nbsp;    private final ThreadPool threadPool;
+<i>65</i>&nbsp;    private final Engine.Warmer warmer;
+<i>66</i>&nbsp;    private final Store store;
+<i>67</i>&nbsp;    private final MergePolicy mergePolicy;
+<i>68</i>&nbsp;    private final Analyzer analyzer;
+<i>69</i>&nbsp;    private final Similarity similarity;
+<i>70</i>&nbsp;    private final CodecService codecService;
+<i>71</i>&nbsp;    private final Engine.EventListener eventListener;
+<i>72</i>&nbsp;    private final QueryCache queryCache;
+<i>73</i>&nbsp;    private final QueryCachingPolicy queryCachingPolicy;
+<i>74</i>&nbsp;    @Nullable
+<i>75</i>&nbsp;    private final List&lt;ReferenceManager.RefreshListener&gt; externalRefreshListener;
+<i>76</i>&nbsp;    @Nullable
+<i>77</i>&nbsp;    private final List&lt;ReferenceManager.RefreshListener&gt; internalRefreshListener;
+<i>78</i>&nbsp;    @Nullable
+<i>79</i>&nbsp;    private final Sort indexSort;
+<i>80</i>&nbsp;    @Nullable
+<i>81</i>&nbsp;    private final CircuitBreakerService circuitBreakerService;
+<i>82</i>&nbsp;    private final LongSupplier globalCheckpointSupplier;
+<i>83</i>&nbsp;    private final Supplier&lt;RetentionLeases&gt; retentionLeasesSupplier;
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    /**
+<i>86</i>&nbsp;     * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
+<i>87</i>&nbsp;     * soft deleted should be retained.
+<i>88</i>&nbsp;     *
+<i>89</i>&nbsp;     * @return a supplier of outstanding retention leases
+<i>90</i>&nbsp;     */
+<i>91</i>&nbsp;    public Supplier&lt;RetentionLeases&gt; retentionLeasesSupplier() {
+<b class="fc"><i>92</i>&nbsp;        return retentionLeasesSupplier;</b>
+<i>93</i>&nbsp;    }
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    private final LongSupplier primaryTermSupplier;
+<i>96</i>&nbsp;    private final TombstoneDocSupplier tombstoneDocSupplier;
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    /**
+<i>99</i>&nbsp;     * Index setting to change the low level lucene codec used for writing new segments.
+<i>100</i>&nbsp;     * This setting is &lt;b&gt;not&lt;/b&gt; realtime updateable.
+<i>101</i>&nbsp;     * This setting is also settable on the node and the index level, it&#39;s commonly used in hot/cold node archs where index is likely
+<i>102</i>&nbsp;     * allocated on both `kind` of nodes.
+<i>103</i>&nbsp;     */
+<b class="fc"><i>104</i>&nbsp;    public static final Setting&lt;String&gt; INDEX_CODEC_SETTING = new Setting&lt;&gt;(&quot;index.codec&quot;, &quot;default&quot;, s -&gt; {</b>
+<b class="fc"><i>105</i>&nbsp;        switch (s) {</b>
+<i>106</i>&nbsp;            case &quot;default&quot;:
+<i>107</i>&nbsp;            case &quot;best_compression&quot;:
+<i>108</i>&nbsp;            case &quot;lucene_default&quot;:
+<b class="fc"><i>109</i>&nbsp;                return s;</b>
+<i>110</i>&nbsp;            default:
+<b class="nc"><i>111</i>&nbsp;                if (Codec.availableCodecs().contains(s) == false) { // we don&#39;t error message the not officially supported ones</b>
+<b class="nc"><i>112</i>&nbsp;                    throw new IllegalArgumentException(</b>
+<i>113</i>&nbsp;                        &quot;unknown value for [index.codec] must be one of [default, best_compression] but was: &quot; + s);
+<i>114</i>&nbsp;                }
+<b class="nc"><i>115</i>&nbsp;                return s;</b>
+<i>116</i>&nbsp;        }
+<i>117</i>&nbsp;    }, Property.IndexScope, Property.NodeScope);
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    /**
+<i>120</i>&nbsp;     * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated from &lt;code&gt;false&lt;/code&gt;
+<i>121</i>&nbsp;     * to &lt;code&gt;true&lt;/code&gt; might not take effect immediately. In other words, disabling the optimization will be immediately applied while
+<i>122</i>&nbsp;     * re-enabling it might not be applied until the engine is in a safe state to do so. Depending on the engine implementation a change to
+<i>123</i>&nbsp;     * this setting won&#39;t be reflected re-enabled optimization until the engine is restarted or the index is closed and reopened.
+<i>124</i>&nbsp;     * The default is &lt;code&gt;true&lt;/code&gt;
+<i>125</i>&nbsp;     */
+<b class="fc"><i>126</i>&nbsp;    public static final Setting&lt;Boolean&gt; INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(&quot;index.optimize_auto_generated_id&quot;, true,</b>
+<i>127</i>&nbsp;        Property.IndexScope, Property.Dynamic);
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    private final TranslogConfig translogConfig;
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    /**
+<i>132</i>&nbsp;     * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
+<i>133</i>&nbsp;     */
+<i>134</i>&nbsp;    public EngineConfig(ShardId shardId, String allocationId, ThreadPool threadPool,
+<i>135</i>&nbsp;                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
+<i>136</i>&nbsp;                        MergePolicy mergePolicy, Analyzer analyzer,
+<i>137</i>&nbsp;                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
+<i>138</i>&nbsp;                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+<i>139</i>&nbsp;                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
+<i>140</i>&nbsp;                        List&lt;ReferenceManager.RefreshListener&gt; externalRefreshListener,
+<i>141</i>&nbsp;                        List&lt;ReferenceManager.RefreshListener&gt; internalRefreshListener, Sort indexSort,
+<i>142</i>&nbsp;                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
+<i>143</i>&nbsp;                        Supplier&lt;RetentionLeases&gt; retentionLeasesSupplier,
+<i>144</i>&nbsp;                        LongSupplier primaryTermSupplier,
+<b class="fc"><i>145</i>&nbsp;                        TombstoneDocSupplier tombstoneDocSupplier) {</b>
+<b class="fc"><i>146</i>&nbsp;        this.shardId = shardId;</b>
+<b class="fc"><i>147</i>&nbsp;        this.allocationId = allocationId;</b>
+<b class="fc"><i>148</i>&nbsp;        this.indexSettings = indexSettings;</b>
+<b class="fc"><i>149</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>150</i>&nbsp;        this.warmer = warmer == null ? (a) -&gt; {} : warmer;</b>
+<b class="fc"><i>151</i>&nbsp;        this.store = store;</b>
+<b class="fc"><i>152</i>&nbsp;        this.mergePolicy = mergePolicy;</b>
+<b class="fc"><i>153</i>&nbsp;        this.analyzer = analyzer;</b>
+<b class="fc"><i>154</i>&nbsp;        this.similarity = similarity;</b>
+<b class="fc"><i>155</i>&nbsp;        this.codecService = codecService;</b>
+<b class="fc"><i>156</i>&nbsp;        this.eventListener = eventListener;</b>
+<b class="fc"><i>157</i>&nbsp;        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);</b>
+<i>158</i>&nbsp;        // We need to make the indexing buffer for this shard at least as large
+<i>159</i>&nbsp;        // as the amount of memory that is available for all engines on the
+<i>160</i>&nbsp;        // local node so that decisions to flush segments to disk are made by
+<i>161</i>&nbsp;        // IndexingMemoryController rather than Lucene.
+<i>162</i>&nbsp;        // Add an escape hatch in case this change proves problematic - it used
+<i>163</i>&nbsp;        // to be a fixed amound of RAM: 256 MB.
+<i>164</i>&nbsp;        // TODO: Remove this escape hatch in 8.x
+<b class="fc"><i>165</i>&nbsp;        final String escapeHatchProperty = &quot;es.index.memory.max_index_buffer_size&quot;;</b>
+<b class="fc"><i>166</i>&nbsp;        String maxBufferSize = System.getProperty(escapeHatchProperty);</b>
+<b class="fc"><i>167</i>&nbsp;        if (maxBufferSize != null) {</b>
+<b class="nc"><i>168</i>&nbsp;            indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);</b>
+<i>169</i>&nbsp;        } else {
+<b class="fc"><i>170</i>&nbsp;            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());</b>
+<i>171</i>&nbsp;        }
+<b class="fc"><i>172</i>&nbsp;        this.queryCache = queryCache;</b>
+<b class="fc"><i>173</i>&nbsp;        this.queryCachingPolicy = queryCachingPolicy;</b>
+<b class="fc"><i>174</i>&nbsp;        this.translogConfig = translogConfig;</b>
+<b class="fc"><i>175</i>&nbsp;        this.flushMergesAfter = flushMergesAfter;</b>
+<b class="fc"><i>176</i>&nbsp;        this.externalRefreshListener = externalRefreshListener;</b>
+<b class="fc"><i>177</i>&nbsp;        this.internalRefreshListener = internalRefreshListener;</b>
+<b class="fc"><i>178</i>&nbsp;        this.indexSort = indexSort;</b>
+<b class="fc"><i>179</i>&nbsp;        this.circuitBreakerService = circuitBreakerService;</b>
+<b class="fc"><i>180</i>&nbsp;        this.globalCheckpointSupplier = globalCheckpointSupplier;</b>
+<b class="fc"><i>181</i>&nbsp;        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);</b>
+<b class="fc"><i>182</i>&nbsp;        this.primaryTermSupplier = primaryTermSupplier;</b>
+<b class="fc"><i>183</i>&nbsp;        this.tombstoneDocSupplier = tombstoneDocSupplier;</b>
+<b class="fc"><i>184</i>&nbsp;    }</b>
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;    /**
+<i>187</i>&nbsp;     * Enables / disables gc deletes
+<i>188</i>&nbsp;     *
+<i>189</i>&nbsp;     * @see #isEnableGcDeletes()
+<i>190</i>&nbsp;     */
+<i>191</i>&nbsp;    public void setEnableGcDeletes(boolean enableGcDeletes) {
+<b class="fc"><i>192</i>&nbsp;        this.enableGcDeletes = enableGcDeletes;</b>
+<b class="fc"><i>193</i>&nbsp;    }</b>
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    /**
+<i>196</i>&nbsp;     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled
+<i>197</i>&nbsp;     * by {@link IndexingMemoryController}
+<i>198</i>&nbsp;     */
+<i>199</i>&nbsp;    public ByteSizeValue getIndexingBufferSize() {
+<b class="fc"><i>200</i>&nbsp;        return indexingBufferSize;</b>
+<i>201</i>&nbsp;    }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    /**
+<i>204</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; iff delete garbage collection in the engine should be enabled. This setting is updateable
+<i>205</i>&nbsp;     * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it&#39;s latest value.
+<i>206</i>&nbsp;     * The default is &lt;code&gt;true&lt;/code&gt;
+<i>207</i>&nbsp;     * &lt;p&gt;
+<i>208</i>&nbsp;     *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
+<i>209</i>&nbsp;     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document
+<i>210</i>&nbsp;     *     that was deleted to fail.
+<i>211</i>&nbsp;     * &lt;/p&gt;
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    public boolean isEnableGcDeletes() {
+<b class="fc"><i>214</i>&nbsp;        return enableGcDeletes;</b>
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * Returns the {@link Codec} used in the engines {@link org.apache.lucene.index.IndexWriter}
+<i>219</i>&nbsp;     * &lt;p&gt;
+<i>220</i>&nbsp;     *     Note: this settings is only read on startup.
+<i>221</i>&nbsp;     * &lt;/p&gt;
+<i>222</i>&nbsp;     */
+<i>223</i>&nbsp;    public Codec getCodec() {
+<b class="fc"><i>224</i>&nbsp;        return codecService.codec(codecName);</b>
+<i>225</i>&nbsp;    }
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;    /**
+<i>228</i>&nbsp;     * Returns a thread-pool mainly used to get estimated time stamps from
+<i>229</i>&nbsp;     * {@link org.elasticsearch.threadpool.ThreadPool#relativeTimeInMillis()} and to schedule
+<i>230</i>&nbsp;     * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
+<i>231</i>&nbsp;     */
+<i>232</i>&nbsp;    public ThreadPool getThreadPool() {
+<b class="fc"><i>233</i>&nbsp;        return threadPool;</b>
+<i>234</i>&nbsp;    }
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    /**
+<i>237</i>&nbsp;     * Returns an {@link org.elasticsearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
+<i>238</i>&nbsp;     */
+<i>239</i>&nbsp;    public Engine.Warmer getWarmer() {
+<b class="fc"><i>240</i>&nbsp;        return warmer;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the
+<i>245</i>&nbsp;     * {@link org.apache.lucene.store.Directory} used for the engines {@link org.apache.lucene.index.IndexWriter} to write it&#39;s index files
+<i>246</i>&nbsp;     * to.
+<i>247</i>&nbsp;     * &lt;p&gt;
+<i>248</i>&nbsp;     * Note: In order to use this instance the consumer needs to increment the stores reference before it&#39;s used the first time and hold
+<i>249</i>&nbsp;     * it&#39;s reference until it&#39;s not needed anymore.
+<i>250</i>&nbsp;     * &lt;/p&gt;
+<i>251</i>&nbsp;     */
+<i>252</i>&nbsp;    public Store getStore() {
+<b class="fc"><i>253</i>&nbsp;        return store;</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    /**
+<i>257</i>&nbsp;     * Returns the global checkpoint tracker
+<i>258</i>&nbsp;     */
+<i>259</i>&nbsp;    public LongSupplier getGlobalCheckpointSupplier() {
+<b class="fc"><i>260</i>&nbsp;        return globalCheckpointSupplier;</b>
+<i>261</i>&nbsp;    }
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    /**
+<i>264</i>&nbsp;     * Returns the {@link org.apache.lucene.index.MergePolicy} for the engines {@link org.apache.lucene.index.IndexWriter}
+<i>265</i>&nbsp;     */
+<i>266</i>&nbsp;    public MergePolicy getMergePolicy() {
+<b class="fc"><i>267</i>&nbsp;        return mergePolicy;</b>
+<i>268</i>&nbsp;    }
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;    /**
+<i>271</i>&nbsp;     * Returns a listener that should be called on engine failure
+<i>272</i>&nbsp;     */
+<i>273</i>&nbsp;    public Engine.EventListener getEventListener() {
+<b class="fc"><i>274</i>&nbsp;        return eventListener;</b>
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;    /**
+<i>278</i>&nbsp;     * Returns the index settings for this index.
+<i>279</i>&nbsp;     */
+<i>280</i>&nbsp;    public IndexSettings getIndexSettings() {
+<b class="fc"><i>281</i>&nbsp;        return indexSettings;</b>
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    /**
+<i>285</i>&nbsp;     * Returns the engines shard ID
+<i>286</i>&nbsp;     */
+<b class="fc"><i>287</i>&nbsp;    public ShardId getShardId() { return shardId; }</b>
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;    /**
+<i>290</i>&nbsp;     * Returns the allocation ID for the shard.
+<i>291</i>&nbsp;     *
+<i>292</i>&nbsp;     * @return the allocation ID
+<i>293</i>&nbsp;     */
+<i>294</i>&nbsp;    public String getAllocationId() {
+<b class="fc"><i>295</i>&nbsp;        return allocationId;</b>
+<i>296</i>&nbsp;    }
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;    /**
+<i>299</i>&nbsp;     * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
+<i>300</i>&nbsp;     */
+<i>301</i>&nbsp;    public Analyzer getAnalyzer() {
+<b class="fc"><i>302</i>&nbsp;        return analyzer;</b>
+<i>303</i>&nbsp;    }
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;    /**
+<i>306</i>&nbsp;     * Returns the {@link org.apache.lucene.search.similarities.Similarity} used for indexing and searching.
+<i>307</i>&nbsp;     */
+<i>308</i>&nbsp;    public Similarity getSimilarity() {
+<b class="fc"><i>309</i>&nbsp;        return similarity;</b>
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    /**
+<i>313</i>&nbsp;     * Return the cache to use for queries.
+<i>314</i>&nbsp;     */
+<i>315</i>&nbsp;    public QueryCache getQueryCache() {
+<b class="fc"><i>316</i>&nbsp;        return queryCache;</b>
+<i>317</i>&nbsp;    }
+<i>318</i>&nbsp;
+<i>319</i>&nbsp;    /**
+<i>320</i>&nbsp;     * Return the policy to use when caching queries.
+<i>321</i>&nbsp;     */
+<i>322</i>&nbsp;    public QueryCachingPolicy getQueryCachingPolicy() {
+<b class="fc"><i>323</i>&nbsp;        return queryCachingPolicy;</b>
+<i>324</i>&nbsp;    }
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;    /**
+<i>327</i>&nbsp;     * Returns the translog config for this engine
+<i>328</i>&nbsp;     */
+<i>329</i>&nbsp;    public TranslogConfig getTranslogConfig() {
+<b class="fc"><i>330</i>&nbsp;        return translogConfig;</b>
+<i>331</i>&nbsp;    }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    /**
+<i>334</i>&nbsp;     * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
+<i>335</i>&nbsp;     * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
+<i>336</i>&nbsp;     * are written after the engine became inactive from an indexing perspective.
+<i>337</i>&nbsp;     */
+<b class="nc"><i>338</i>&nbsp;    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }</b>
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    /**
+<i>341</i>&nbsp;     * The refresh listeners to add to Lucene for externally visible refreshes
+<i>342</i>&nbsp;     */
+<i>343</i>&nbsp;    public List&lt;ReferenceManager.RefreshListener&gt; getExternalRefreshListener() {
+<b class="fc"><i>344</i>&nbsp;        return externalRefreshListener;</b>
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    /**
+<i>348</i>&nbsp;     * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
+<i>349</i>&nbsp;     */
+<b class="fc"><i>350</i>&nbsp;    public List&lt;ReferenceManager.RefreshListener&gt; getInternalRefreshListener() { return internalRefreshListener;}</b>
+<i>351</i>&nbsp;
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    /**
+<i>354</i>&nbsp;     * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID
+<i>355</i>&nbsp;     */
+<i>356</i>&nbsp;    public boolean isAutoGeneratedIDsOptimizationEnabled() {
+<b class="fc"><i>357</i>&nbsp;        return indexSettings.getValue(INDEX_OPTIMIZE_AUTO_GENERATED_IDS);</b>
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    /**
+<i>361</i>&nbsp;     * Return the sort order of this index, or null if the index has no sort.
+<i>362</i>&nbsp;     */
+<i>363</i>&nbsp;    public Sort getIndexSort() {
+<b class="fc"><i>364</i>&nbsp;        return indexSort;</b>
+<i>365</i>&nbsp;    }
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;    /**
+<i>368</i>&nbsp;     * Returns the circuit breaker service for this engine, or {@code null} if none is to be used.
+<i>369</i>&nbsp;     */
+<i>370</i>&nbsp;    @Nullable
+<i>371</i>&nbsp;    public CircuitBreakerService getCircuitBreakerService() {
+<b class="fc"><i>372</i>&nbsp;        return this.circuitBreakerService;</b>
+<i>373</i>&nbsp;    }
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;    /**
+<i>376</i>&nbsp;     * Returns a supplier that supplies the latest primary term value of the associated shard.
+<i>377</i>&nbsp;     */
+<i>378</i>&nbsp;    public LongSupplier getPrimaryTermSupplier() {
+<b class="fc"><i>379</i>&nbsp;        return primaryTermSupplier;</b>
+<i>380</i>&nbsp;    }
+<i>381</i>&nbsp;
+<i>382</i>&nbsp;    /**
+<i>383</i>&nbsp;     * A supplier supplies tombstone documents which will be used in soft-update methods.
+<i>384</i>&nbsp;     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+<i>385</i>&nbsp;     */
+<i>386</i>&nbsp;    public interface TombstoneDocSupplier {
+<i>387</i>&nbsp;        /**
+<i>388</i>&nbsp;         * Creates a tombstone document for a delete operation.
+<i>389</i>&nbsp;         */
+<i>390</i>&nbsp;        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+<i>391</i>&nbsp;
+<i>392</i>&nbsp;        /**
+<i>393</i>&nbsp;         * Creates a tombstone document for a noop operation.
+<i>394</i>&nbsp;         * @param reason the reason of an a noop
+<i>395</i>&nbsp;         */
+<i>396</i>&nbsp;        ParsedDocument newNoopTombstoneDoc(String reason);
+<i>397</i>&nbsp;    }
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    public TombstoneDocSupplier getTombstoneDocSupplier() {
+<b class="nc"><i>400</i>&nbsp;        return tombstoneDocSupplier;</b>
+<i>401</i>&nbsp;    }
+<i>402</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,385 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ConsistentSettingsService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.settings</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ConsistentSettingsService (org.elasticsearch.common.settings)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ConsistentSettingsService</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.5%
+  </span>
+  <span class="absValue">
+    (6/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (16/ 96)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ConsistentSettingsService$HashesPublisher</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (3/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    77.8%
+  </span>
+  <span class="absValue">
+    (7/ 9)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ConsistentSettingsService$HashesPublisher$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (6/ 10)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    61.1%
+  </span>
+  <span class="absValue">
+    (11/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25.2%
+  </span>
+  <span class="absValue">
+    (29/ 115)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.settings;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.ClusterStateUpdateTask;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.LocalNodeMasterListener;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>29</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>30</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>31</i>&nbsp;import org.elasticsearch.common.hash.MessageDigests;
+<i>32</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import java.nio.charset.StandardCharsets;
+<i>35</i>&nbsp;import java.security.NoSuchAlgorithmException;
+<i>36</i>&nbsp;import java.security.spec.InvalidKeySpecException;
+<i>37</i>&nbsp;import java.util.Arrays;
+<i>38</i>&nbsp;import java.util.Base64;
+<i>39</i>&nbsp;import java.util.Collection;
+<i>40</i>&nbsp;import java.util.Collections;
+<i>41</i>&nbsp;import java.util.HashMap;
+<i>42</i>&nbsp;import java.util.HashSet;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Set;
+<i>45</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>46</i>&nbsp;import java.util.function.Consumer;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;import javax.crypto.SecretKey;
+<i>49</i>&nbsp;import javax.crypto.SecretKeyFactory;
+<i>50</i>&nbsp;import javax.crypto.spec.PBEKeySpec;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;/**
+<i>53</i>&nbsp; * Used to publish secure setting hashes in the cluster state and to validate those hashes against the local values of those same settings.
+<i>54</i>&nbsp; * This is colloquially referred to as the secure setting consistency check. It will publish and verify hashes only for the collection
+<i>55</i>&nbsp; * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property. 
+<i>56</i>&nbsp; */
+<b class="fc"><i>57</i>&nbsp;public final class ConsistentSettingsService {</b>
+<b class="fc"><i>58</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ConsistentSettingsService.class);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    private final Settings settings;
+<i>61</i>&nbsp;    private final ClusterService clusterService;
+<i>62</i>&nbsp;    private final Collection&lt;Setting&lt;?&gt;&gt; secureSettingsCollection;
+<i>63</i>&nbsp;    private final SecretKeyFactory pbkdf2KeyFactory;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    public ConsistentSettingsService(Settings settings, ClusterService clusterService,
+<b class="fc"><i>66</i>&nbsp;                                     Collection&lt;Setting&lt;?&gt;&gt; secureSettingsCollection) {</b>
+<b class="fc"><i>67</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>68</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>69</i>&nbsp;        this.secureSettingsCollection = secureSettingsCollection;</b>
+<i>70</i>&nbsp;        // this is used to compute the PBKDF2 hash (the published one)
+<i>71</i>&nbsp;        try {
+<b class="fc"><i>72</i>&nbsp;            this.pbkdf2KeyFactory = SecretKeyFactory.getInstance(&quot;PBKDF2WithHmacSHA512&quot;);</b>
+<b class="nc"><i>73</i>&nbsp;        } catch (NoSuchAlgorithmException e) {</b>
+<b class="nc"><i>74</i>&nbsp;            throw new RuntimeException(&quot;The \&quot;PBKDF2WithHmacSHA512\&quot; algorithm is required for consistent secure settings&#39; hashes&quot;, e);</b>
+<b class="fc"><i>75</i>&nbsp;        }</b>
+<b class="fc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    /**
+<i>79</i>&nbsp;     * Returns a {@link LocalNodeMasterListener} that will publish hashes of all the settings passed in the constructor. These hashes are
+<i>80</i>&nbsp;     * published by the master node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
+<i>81</i>&nbsp;     */
+<i>82</i>&nbsp;    public LocalNodeMasterListener newHashPublisher() {
+<i>83</i>&nbsp;        // eagerly compute hashes to be published
+<b class="fc"><i>84</i>&nbsp;        final Map&lt;String, String&gt; computedHashesOfConsistentSettings = computeHashesOfConsistentSecureSettings();</b>
+<b class="fc"><i>85</i>&nbsp;        return new HashesPublisher(computedHashesOfConsistentSettings, clusterService);</b>
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    /**
+<i>89</i>&nbsp;     * Verifies that the hashes of consistent secure settings in the latest {@code ClusterState} verify for the values of those same
+<i>90</i>&nbsp;     * settings on the local node. The settings to be checked are passed in the constructor. Also, validates that a missing local
+<i>91</i>&nbsp;     * value is also missing in the published set, and vice-versa.  
+<i>92</i>&nbsp;     */
+<i>93</i>&nbsp;    public boolean areAllConsistent() {
+<b class="nc"><i>94</i>&nbsp;        final ClusterState state = clusterService.state();</b>
+<b class="nc"><i>95</i>&nbsp;        final Map&lt;String, String&gt; publishedHashesOfConsistentSettings = state.metaData().hashesOfConsistentSettings();</b>
+<b class="nc"><i>96</i>&nbsp;        final Set&lt;String&gt; publishedSettingKeysToVerify = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>97</i>&nbsp;        publishedSettingKeysToVerify.addAll(publishedHashesOfConsistentSettings.keySet());</b>
+<b class="nc"><i>98</i>&nbsp;        final AtomicBoolean allConsistent = new AtomicBoolean(true);</b>
+<b class="nc"><i>99</i>&nbsp;        forEachConcreteSecureSettingDo(concreteSecureSetting -&gt; {</b>
+<b class="nc"><i>100</i>&nbsp;            final String publishedSaltAndHash = publishedHashesOfConsistentSettings.get(concreteSecureSetting.getKey());</b>
+<b class="nc"><i>101</i>&nbsp;            final byte[] localHash = concreteSecureSetting.getSecretDigest(settings);</b>
+<b class="nc"><i>102</i>&nbsp;            if (publishedSaltAndHash == null &amp;&amp; localHash == null) {</b>
+<i>103</i>&nbsp;                // consistency of missing
+<b class="nc"><i>104</i>&nbsp;                logger.debug(&quot;no published hash for the consistent secure setting [{}] but it also does NOT exist on the local node&quot;,</b>
+<b class="nc"><i>105</i>&nbsp;                        concreteSecureSetting.getKey());</b>
+<b class="nc"><i>106</i>&nbsp;            } else if (publishedSaltAndHash == null &amp;&amp; localHash != null) {</b>
+<i>107</i>&nbsp;                // setting missing on master but present locally
+<b class="nc"><i>108</i>&nbsp;                logger.warn(&quot;no published hash for the consistent secure setting [{}] but it exists on the local node&quot;,</b>
+<b class="nc"><i>109</i>&nbsp;                        concreteSecureSetting.getKey());</b>
+<b class="nc"><i>110</i>&nbsp;                if (state.nodes().isLocalNodeElectedMaster()) {</b>
+<b class="nc"><i>111</i>&nbsp;                    throw new IllegalStateException(&quot;Master node cannot validate consistent setting. No published hash for [&quot;</b>
+<b class="nc"><i>112</i>&nbsp;                            + concreteSecureSetting.getKey() + &quot;] but setting exists.&quot;);</b>
+<i>113</i>&nbsp;                }
+<b class="nc"><i>114</i>&nbsp;                allConsistent.set(false);</b>
+<b class="nc"><i>115</i>&nbsp;            } else if (publishedSaltAndHash != null &amp;&amp; localHash == null) {</b>
+<i>116</i>&nbsp;                // setting missing locally but present on master
+<b class="nc"><i>117</i>&nbsp;                logger.warn(&quot;the consistent secure setting [{}] does not exist on the local node but there is a published hash for it&quot;,</b>
+<b class="nc"><i>118</i>&nbsp;                        concreteSecureSetting.getKey());</b>
+<b class="nc"><i>119</i>&nbsp;                allConsistent.set(false);</b>
+<i>120</i>&nbsp;            } else {
+<b class="nc"><i>121</i>&nbsp;                assert publishedSaltAndHash != null;</b>
+<b class="nc"><i>122</i>&nbsp;                assert localHash != null;</b>
+<b class="nc"><i>123</i>&nbsp;                final String[] parts = publishedSaltAndHash.split(&quot;:&quot;);</b>
+<b class="nc"><i>124</i>&nbsp;                if (parts == null || parts.length != 2) {</b>
+<b class="nc"><i>125</i>&nbsp;                    throw new IllegalArgumentException(&quot;published hash [&quot; + publishedSaltAndHash + &quot; ] for secure setting [&quot;</b>
+<b class="nc"><i>126</i>&nbsp;                            + concreteSecureSetting.getKey() + &quot;] is invalid&quot;);</b>
+<i>127</i>&nbsp;                }
+<b class="nc"><i>128</i>&nbsp;                final String publishedSalt = parts[0];</b>
+<b class="nc"><i>129</i>&nbsp;                final String publishedHash = parts[1];</b>
+<b class="nc"><i>130</i>&nbsp;                final byte[] computedSaltedHashBytes = computeSaltedPBKDF2Hash(localHash, publishedSalt.getBytes(StandardCharsets.UTF_8));</b>
+<b class="nc"><i>131</i>&nbsp;                final String computedSaltedHash = new String(Base64.getEncoder().encode(computedSaltedHashBytes), StandardCharsets.UTF_8);</b>
+<b class="nc"><i>132</i>&nbsp;                if (false == publishedHash.equals(computedSaltedHash)) {</b>
+<b class="nc"><i>133</i>&nbsp;                    logger.warn(&quot;the published hash [{}] of the consistent secure setting [{}] differs from the locally computed one [{}]&quot;,</b>
+<b class="nc"><i>134</i>&nbsp;                            publishedHash, concreteSecureSetting.getKey(), computedSaltedHash);</b>
+<b class="nc"><i>135</i>&nbsp;                    if (state.nodes().isLocalNodeElectedMaster()) {</b>
+<b class="nc"><i>136</i>&nbsp;                        throw new IllegalStateException(&quot;Master node cannot validate consistent setting. The published hash [&quot;</b>
+<b class="nc"><i>137</i>&nbsp;                                + publishedHash + &quot;] of the consistent secure setting [&quot; + concreteSecureSetting.getKey()</b>
+<i>138</i>&nbsp;                                + &quot;] differs from the locally computed one [&quot; + computedSaltedHash + &quot;].&quot;);
+<i>139</i>&nbsp;                    }
+<b class="nc"><i>140</i>&nbsp;                    allConsistent.set(false);</b>
+<i>141</i>&nbsp;                }
+<i>142</i>&nbsp;            }
+<b class="nc"><i>143</i>&nbsp;            publishedSettingKeysToVerify.remove(concreteSecureSetting.getKey());</b>
+<b class="nc"><i>144</i>&nbsp;        });</b>
+<i>145</i>&nbsp;        // another case of settings missing locally, when group settings have not expanded to all the keys published
+<b class="nc"><i>146</i>&nbsp;        for (String publishedSettingKey : publishedSettingKeysToVerify) {</b>
+<b class="nc"><i>147</i>&nbsp;            for (Setting&lt;?&gt; setting : secureSettingsCollection) {</b>
+<b class="nc"><i>148</i>&nbsp;                if (setting.match(publishedSettingKey)) {</b>
+<i>149</i>&nbsp;                    // setting missing locally but present on master
+<b class="nc"><i>150</i>&nbsp;                    logger.warn(&quot;the consistent secure setting [{}] does not exist on the local node but there is a published hash for it&quot;,</b>
+<i>151</i>&nbsp;                            publishedSettingKey);
+<b class="nc"><i>152</i>&nbsp;                    allConsistent.set(false);</b>
+<i>153</i>&nbsp;                }
+<b class="nc"><i>154</i>&nbsp;            }</b>
+<b class="nc"><i>155</i>&nbsp;        }</b>
+<b class="nc"><i>156</i>&nbsp;        return allConsistent.get();</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    /**
+<i>160</i>&nbsp;     * Iterate over the passed in secure settings, expanding {@link Setting.AffixSetting} to concrete settings, in the scope of the local
+<i>161</i>&nbsp;     * settings.
+<i>162</i>&nbsp;     */
+<i>163</i>&nbsp;    private void forEachConcreteSecureSettingDo(Consumer&lt;SecureSetting&lt;?&gt;&gt; secureSettingConsumer) {
+<b class="fc"><i>164</i>&nbsp;        for (Setting&lt;?&gt; setting : secureSettingsCollection) {</b>
+<b class="nc"><i>165</i>&nbsp;            assert setting.isConsistent() : &quot;[&quot; + setting.getKey() + &quot;] is not a consistent setting&quot;;</b>
+<b class="nc"><i>166</i>&nbsp;            if (setting instanceof Setting.AffixSetting&lt;?&gt;) {</b>
+<b class="nc"><i>167</i>&nbsp;                ((Setting.AffixSetting&lt;?&gt;)setting).getAllConcreteSettings(settings).forEach(concreteSetting -&gt; {</b>
+<b class="nc"><i>168</i>&nbsp;                    assert concreteSetting instanceof SecureSetting&lt;?&gt; : &quot;[&quot; + concreteSetting.getKey() + &quot;] is not a secure setting&quot;;</b>
+<b class="nc"><i>169</i>&nbsp;                    secureSettingConsumer.accept((SecureSetting&lt;?&gt;)concreteSetting);</b>
+<b class="nc"><i>170</i>&nbsp;                });</b>
+<b class="nc"><i>171</i>&nbsp;            } else if (setting instanceof SecureSetting&lt;?&gt;) {</b>
+<b class="nc"><i>172</i>&nbsp;                secureSettingConsumer.accept((SecureSetting&lt;?&gt;) setting);</b>
+<i>173</i>&nbsp;            } else {
+<b class="nc"><i>174</i>&nbsp;                assert false : &quot;Unrecognized consistent secure setting [&quot; + setting.getKey() + &quot;]&quot;;</b>
+<i>175</i>&nbsp;            }
+<b class="nc"><i>176</i>&nbsp;        }</b>
+<b class="fc"><i>177</i>&nbsp;    }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    private Map&lt;String, String&gt; computeHashesOfConsistentSecureSettings() {
+<b class="fc"><i>180</i>&nbsp;        final Map&lt;String, String&gt; hashesBySettingKey = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>181</i>&nbsp;        forEachConcreteSecureSettingDo(concreteSecureSetting -&gt; {</b>
+<b class="nc"><i>182</i>&nbsp;            final byte[] localHash = concreteSecureSetting.getSecretDigest(settings);</b>
+<b class="nc"><i>183</i>&nbsp;            if (localHash != null) {</b>
+<b class="nc"><i>184</i>&nbsp;                final String salt = UUIDs.randomBase64UUID();</b>
+<b class="nc"><i>185</i>&nbsp;                final byte[] publicHash = computeSaltedPBKDF2Hash(localHash, salt.getBytes(StandardCharsets.UTF_8));</b>
+<b class="nc"><i>186</i>&nbsp;                final String encodedPublicHash = new String(Base64.getEncoder().encode(publicHash), StandardCharsets.UTF_8);</b>
+<b class="nc"><i>187</i>&nbsp;                hashesBySettingKey.put(concreteSecureSetting.getKey(), salt + &quot;:&quot; + encodedPublicHash);</b>
+<i>188</i>&nbsp;            }
+<b class="nc"><i>189</i>&nbsp;        });</b>
+<b class="fc"><i>190</i>&nbsp;        return hashesBySettingKey;</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    private byte[] computeSaltedPBKDF2Hash(byte[] bytes, byte[] salt) {
+<b class="nc"><i>194</i>&nbsp;        final int iterations = 5000;</b>
+<b class="nc"><i>195</i>&nbsp;        final int keyLength = 512;</b>
+<b class="nc"><i>196</i>&nbsp;        char[] value = null;</b>
+<i>197</i>&nbsp;        try {
+<b class="nc"><i>198</i>&nbsp;            value = MessageDigests.toHexCharArray(bytes);</b>
+<b class="nc"><i>199</i>&nbsp;            final PBEKeySpec spec = new PBEKeySpec(value, salt, iterations, keyLength);</b>
+<b class="nc"><i>200</i>&nbsp;            final SecretKey key = pbkdf2KeyFactory.generateSecret(spec);</b>
+<b class="nc"><i>201</i>&nbsp;            return key.getEncoded();</b>
+<b class="nc"><i>202</i>&nbsp;        } catch (InvalidKeySpecException e) {</b>
+<b class="nc"><i>203</i>&nbsp;            throw new RuntimeException(&quot;Unexpected exception when computing PBKDF2 hash&quot;, e);</b>
+<i>204</i>&nbsp;        } finally {
+<b class="nc"><i>205</i>&nbsp;            if (value != null) {</b>
+<b class="nc"><i>206</i>&nbsp;                Arrays.fill(value, &#39;0&#39;);</b>
+<i>207</i>&nbsp;            }
+<b class="nc"><i>208</i>&nbsp;        }</b>
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    static final class HashesPublisher implements LocalNodeMasterListener {
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;        // eagerly compute hashes to be published
+<i>214</i>&nbsp;        final Map&lt;String, String&gt; computedHashesOfConsistentSettings;
+<i>215</i>&nbsp;        final ClusterService clusterService;
+<i>216</i>&nbsp;
+<b class="fc"><i>217</i>&nbsp;        HashesPublisher(Map&lt;String, String&gt; computedHashesOfConsistentSettings, ClusterService clusterService) {</b>
+<b class="fc"><i>218</i>&nbsp;            this.computedHashesOfConsistentSettings = Collections.unmodifiableMap(computedHashesOfConsistentSettings);</b>
+<b class="fc"><i>219</i>&nbsp;            this.clusterService = clusterService;</b>
+<b class="fc"><i>220</i>&nbsp;        }</b>
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;        @Override
+<i>223</i>&nbsp;        public void onMaster() {
+<b class="fc"><i>224</i>&nbsp;            clusterService.submitStateUpdateTask(&quot;publish-secure-settings-hashes&quot;, new ClusterStateUpdateTask(Priority.URGENT) {</b>
+<i>225</i>&nbsp;                @Override
+<i>226</i>&nbsp;                public ClusterState execute(ClusterState currentState) {
+<b class="fc"><i>227</i>&nbsp;                    final Map&lt;String, String&gt; publishedHashesOfConsistentSettings = currentState.metaData()</b>
+<b class="fc"><i>228</i>&nbsp;                            .hashesOfConsistentSettings();</b>
+<b class="fc"><i>229</i>&nbsp;                    if (computedHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {</b>
+<b class="fc"><i>230</i>&nbsp;                        logger.debug(&quot;Nothing to publish. What is already published matches this node&#39;s view.&quot;);</b>
+<b class="fc"><i>231</i>&nbsp;                        return currentState;</b>
+<i>232</i>&nbsp;                    } else {
+<b class="nc"><i>233</i>&nbsp;                        return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())</b>
+<b class="nc"><i>234</i>&nbsp;                                .hashesOfConsistentSettings(computedHashesOfConsistentSettings)).build();</b>
+<i>235</i>&nbsp;                    }
+<i>236</i>&nbsp;                }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;                @Override
+<i>239</i>&nbsp;                public void onFailure(String source, Exception e) {
+<b class="nc"><i>240</i>&nbsp;                    logger.error(&quot;unable to publish secure settings hashes&quot;, e);</b>
+<b class="nc"><i>241</i>&nbsp;                }</b>
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;            });
+<b class="fc"><i>244</i>&nbsp;        }</b>
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;        @Override
+<i>247</i>&nbsp;        public void offMaster() {
+<b class="nc"><i>248</i>&nbsp;            logger.trace(&quot;I am no longer master, nothing to do&quot;);</b>
+<b class="nc"><i>249</i>&nbsp;        }</b>
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;        @Override
+<i>252</i>&nbsp;        public String executorName() {
+<b class="fc"><i>253</i>&nbsp;            return ThreadPool.Names.SAME;</b>
+<i>254</i>&nbsp;        }
+<i>255</i>&nbsp;    }
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

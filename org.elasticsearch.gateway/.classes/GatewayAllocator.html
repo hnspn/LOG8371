@@ -1,0 +1,402 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GatewayAllocator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GatewayAllocator (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GatewayAllocator</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (10/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (50/ 75)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">GatewayAllocator$InternalAsyncFetch</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 10)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">GatewayAllocator$InternalPrimaryShardAllocator</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    27.3%
+  </span>
+  <span class="absValue">
+    (3/ 11)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">GatewayAllocator$InternalReplicaShardAllocator</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (1/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (3/ 12)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    44.4%
+  </span>
+  <span class="absValue">
+    (12/ 27)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    51.9%
+  </span>
+  <span class="absValue">
+    (56/ 108)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>26</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.RerouteService;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNodes;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.FailedShard;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>37</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>38</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>39</i>&nbsp;import org.elasticsearch.common.lease.Releasables;
+<i>40</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>41</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>42</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>43</i>&nbsp;import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;import java.util.Collections;
+<i>46</i>&nbsp;import java.util.List;
+<i>47</i>&nbsp;import java.util.Set;
+<i>48</i>&nbsp;import java.util.concurrent.ConcurrentMap;
+<i>49</i>&nbsp;import java.util.stream.Collectors;
+<i>50</i>&nbsp;import java.util.stream.StreamSupport;
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;public class GatewayAllocator {</b>
+<i>53</i>&nbsp;
+<b class="fc"><i>54</i>&nbsp;    private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private final RerouteService rerouteService;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final PrimaryShardAllocator primaryShardAllocator;
+<i>59</i>&nbsp;    private final ReplicaShardAllocator replicaShardAllocator;
+<i>60</i>&nbsp;
+<b class="fc"><i>61</i>&nbsp;    private final ConcurrentMap&lt;ShardId, AsyncShardFetch&lt;TransportNodesListGatewayStartedShards.NodeGatewayStartedShards&gt;&gt;</b>
+<b class="fc"><i>62</i>&nbsp;        asyncFetchStarted = ConcurrentCollections.newConcurrentMap();</b>
+<b class="fc"><i>63</i>&nbsp;    private final ConcurrentMap&lt;ShardId, AsyncShardFetch&lt;TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData&gt;&gt;</b>
+<b class="fc"><i>64</i>&nbsp;        asyncFetchStore = ConcurrentCollections.newConcurrentMap();</b>
+<b class="fc"><i>65</i>&nbsp;    private Set&lt;String&gt; lastSeenEphemeralIds = Collections.emptySet();</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    @Inject
+<i>68</i>&nbsp;    public GatewayAllocator(RerouteService rerouteService,
+<i>69</i>&nbsp;                            TransportNodesListGatewayStartedShards startedAction,
+<b class="fc"><i>70</i>&nbsp;                            TransportNodesListShardStoreMetaData storeAction) {</b>
+<b class="fc"><i>71</i>&nbsp;        this.rerouteService = rerouteService;</b>
+<b class="fc"><i>72</i>&nbsp;        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);</b>
+<b class="fc"><i>73</i>&nbsp;        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);</b>
+<b class="fc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    public void cleanCaches() {
+<b class="fc"><i>77</i>&nbsp;        Releasables.close(asyncFetchStarted.values());</b>
+<b class="fc"><i>78</i>&nbsp;        asyncFetchStarted.clear();</b>
+<b class="fc"><i>79</i>&nbsp;        Releasables.close(asyncFetchStore.values());</b>
+<b class="fc"><i>80</i>&nbsp;        asyncFetchStore.clear();</b>
+<b class="fc"><i>81</i>&nbsp;    }</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    // for tests
+<b class="nc"><i>84</i>&nbsp;    protected GatewayAllocator() {</b>
+<b class="nc"><i>85</i>&nbsp;        this.rerouteService = null;</b>
+<b class="nc"><i>86</i>&nbsp;        this.primaryShardAllocator = null;</b>
+<b class="nc"><i>87</i>&nbsp;        this.replicaShardAllocator = null;</b>
+<b class="nc"><i>88</i>&nbsp;    }</b>
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    public int getNumberOfInFlightFetch() {
+<b class="fc"><i>91</i>&nbsp;        int count = 0;</b>
+<b class="fc"><i>92</i>&nbsp;        for (AsyncShardFetch&lt;TransportNodesListGatewayStartedShards.NodeGatewayStartedShards&gt; fetch : asyncFetchStarted.values()) {</b>
+<b class="nc"><i>93</i>&nbsp;            count += fetch.getNumberOfInFlightFetches();</b>
+<b class="nc"><i>94</i>&nbsp;        }</b>
+<b class="fc"><i>95</i>&nbsp;        for (AsyncShardFetch&lt;TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData&gt; fetch : asyncFetchStore.values()) {</b>
+<b class="nc"><i>96</i>&nbsp;            count += fetch.getNumberOfInFlightFetches();</b>
+<b class="nc"><i>97</i>&nbsp;        }</b>
+<b class="fc"><i>98</i>&nbsp;        return count;</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    public void applyStartedShards(final RoutingAllocation allocation, final List&lt;ShardRouting&gt; startedShards) {
+<b class="fc"><i>102</i>&nbsp;        for (ShardRouting startedShard : startedShards) {</b>
+<b class="fc"><i>103</i>&nbsp;            Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));</b>
+<b class="fc"><i>104</i>&nbsp;            Releasables.close(asyncFetchStore.remove(startedShard.shardId()));</b>
+<b class="fc"><i>105</i>&nbsp;        }</b>
+<b class="fc"><i>106</i>&nbsp;    }</b>
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    public void applyFailedShards(final RoutingAllocation allocation, final List&lt;FailedShard&gt; failedShards) {
+<b class="nc"><i>109</i>&nbsp;        for (FailedShard failedShard : failedShards) {</b>
+<b class="nc"><i>110</i>&nbsp;            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));</b>
+<b class="nc"><i>111</i>&nbsp;            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));</b>
+<b class="nc"><i>112</i>&nbsp;        }</b>
+<b class="nc"><i>113</i>&nbsp;    }</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    public void allocateUnassigned(final RoutingAllocation allocation) {
+<b class="fc"><i>116</i>&nbsp;        assert primaryShardAllocator != null;</b>
+<b class="fc"><i>117</i>&nbsp;        assert replicaShardAllocator != null;</b>
+<b class="fc"><i>118</i>&nbsp;        ensureAsyncFetchStorePrimaryRecency(allocation);</b>
+<b class="fc"><i>119</i>&nbsp;        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);</b>
+<b class="fc"><i>120</i>&nbsp;    }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    // allow for testing infra to change shard allocators implementation
+<i>123</i>&nbsp;    protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
+<i>124</i>&nbsp;                                                   PrimaryShardAllocator primaryShardAllocator,
+<i>125</i>&nbsp;                                                   ReplicaShardAllocator replicaShardAllocator) {
+<b class="fc"><i>126</i>&nbsp;        RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();</b>
+<b class="fc"><i>127</i>&nbsp;        unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering</b>
+<i>128</i>&nbsp;
+<b class="fc"><i>129</i>&nbsp;        primaryShardAllocator.allocateUnassigned(allocation);</b>
+<b class="fc"><i>130</i>&nbsp;        if (allocation.routingNodes().hasInactiveShards()) {</b>
+<i>131</i>&nbsp;            // cancel existing recoveries if we have a better match
+<b class="nc"><i>132</i>&nbsp;            replicaShardAllocator.processExistingRecoveries(allocation);</b>
+<i>133</i>&nbsp;        }
+<b class="fc"><i>134</i>&nbsp;        replicaShardAllocator.allocateUnassigned(allocation);</b>
+<b class="fc"><i>135</i>&nbsp;    }</b>
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    /**
+<i>138</i>&nbsp;     * Computes and returns the design for allocating a single unassigned shard.  If called on an assigned shard,
+<i>139</i>&nbsp;     * {@link AllocateUnassignedDecision#NOT_TAKEN} is returned.
+<i>140</i>&nbsp;     */
+<i>141</i>&nbsp;    public AllocateUnassignedDecision decideUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+<b class="nc"><i>142</i>&nbsp;        if (unassignedShard.primary()) {</b>
+<b class="nc"><i>143</i>&nbsp;            assert primaryShardAllocator != null;</b>
+<b class="nc"><i>144</i>&nbsp;            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);</b>
+<i>145</i>&nbsp;        } else {
+<b class="nc"><i>146</i>&nbsp;            assert replicaShardAllocator != null;</b>
+<b class="nc"><i>147</i>&nbsp;            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);</b>
+<i>148</i>&nbsp;        }
+<i>149</i>&nbsp;    }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;    /**
+<i>152</i>&nbsp;     * Clear the fetched data for the primary to ensure we do not cancel recoveries based on excessively stale data.
+<i>153</i>&nbsp;     */
+<i>154</i>&nbsp;    private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
+<b class="fc"><i>155</i>&nbsp;        DiscoveryNodes nodes = allocation.nodes();</b>
+<b class="fc"><i>156</i>&nbsp;        if (hasNewNodes(nodes)) {</b>
+<b class="fc"><i>157</i>&nbsp;            final Set&lt;String&gt; newEphemeralIds = StreamSupport.stream(nodes.getDataNodes().spliterator(), false)</b>
+<b class="fc"><i>158</i>&nbsp;                .map(node -&gt; node.value.getEphemeralId()).collect(Collectors.toSet());</b>
+<i>159</i>&nbsp;            // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
+<i>160</i>&nbsp;            // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
+<i>161</i>&nbsp;            // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
+<i>162</i>&nbsp;            // making the wrong decision here is not catastrophic so we only need to cover the common case.
+<b class="fc"><i>163</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(</b>
+<b class="nc"><i>164</i>&nbsp;                &quot;new nodes {} found, clearing primary async-fetch-store cache&quot;, Sets.difference(newEphemeralIds, lastSeenEphemeralIds)));</b>
+<b class="fc"><i>165</i>&nbsp;            asyncFetchStore.values().forEach(fetch -&gt; clearCacheForPrimary(fetch, allocation));</b>
+<i>166</i>&nbsp;            // recalc to also (lazily) clear out old nodes.
+<b class="fc"><i>167</i>&nbsp;            this.lastSeenEphemeralIds = newEphemeralIds;</b>
+<i>168</i>&nbsp;        }
+<b class="fc"><i>169</i>&nbsp;    }</b>
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    private static void clearCacheForPrimary(AsyncShardFetch&lt;TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData&gt; fetch,
+<i>172</i>&nbsp;                                             RoutingAllocation allocation) {
+<b class="nc"><i>173</i>&nbsp;        ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);</b>
+<b class="nc"><i>174</i>&nbsp;        if (primary != null) {</b>
+<b class="nc"><i>175</i>&nbsp;            fetch.clearCacheForNode(primary.currentNodeId());</b>
+<i>176</i>&nbsp;        }
+<b class="nc"><i>177</i>&nbsp;    }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    private boolean hasNewNodes(DiscoveryNodes nodes) {
+<b class="fc"><i>180</i>&nbsp;        for (ObjectObjectCursor&lt;String, DiscoveryNode&gt; node : nodes.getDataNodes()) {</b>
+<b class="fc"><i>181</i>&nbsp;            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {</b>
+<b class="fc"><i>182</i>&nbsp;                return true;</b>
+<i>183</i>&nbsp;            }
+<b class="fc"><i>184</i>&nbsp;        }</b>
+<b class="fc"><i>185</i>&nbsp;        return false;</b>
+<i>186</i>&nbsp;    }
+<i>187</i>&nbsp;
+<b class="nc"><i>188</i>&nbsp;    class InternalAsyncFetch&lt;T extends BaseNodeResponse&gt; extends AsyncShardFetch&lt;T&gt; {</b>
+<i>189</i>&nbsp;
+<b class="nc"><i>190</i>&nbsp;        InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister&lt;? extends BaseNodesResponse&lt;T&gt;, T&gt; action) {</b>
+<b class="nc"><i>191</i>&nbsp;            super(logger, type, shardId, action);</b>
+<b class="nc"><i>192</i>&nbsp;        }</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        @Override
+<i>195</i>&nbsp;        protected void reroute(ShardId shardId, String reason) {
+<b class="nc"><i>196</i>&nbsp;            logger.trace(&quot;{} scheduling reroute for {}&quot;, shardId, reason);</b>
+<b class="nc"><i>197</i>&nbsp;            assert rerouteService != null;</b>
+<b class="nc"><i>198</i>&nbsp;            rerouteService.reroute(&quot;async_shard_fetch&quot;, Priority.HIGH, ActionListener.wrap(</b>
+<b class="nc"><i>199</i>&nbsp;                r -&gt; logger.trace(&quot;{} scheduled reroute completed for {}&quot;, shardId, reason),</b>
+<b class="nc"><i>200</i>&nbsp;                e -&gt; logger.debug(new ParameterizedMessage(&quot;{} scheduled reroute failed for {}&quot;, shardId, reason), e)));</b>
+<b class="nc"><i>201</i>&nbsp;        }</b>
+<i>202</i>&nbsp;    }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;    class InternalPrimaryShardAllocator extends PrimaryShardAllocator {
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;        private final TransportNodesListGatewayStartedShards startedAction;
+<i>207</i>&nbsp;
+<b class="fc"><i>208</i>&nbsp;        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction) {</b>
+<b class="fc"><i>209</i>&nbsp;            this.startedAction = startedAction;</b>
+<b class="fc"><i>210</i>&nbsp;        }</b>
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        @Override
+<i>213</i>&nbsp;        protected AsyncShardFetch.FetchResult&lt;TransportNodesListGatewayStartedShards.NodeGatewayStartedShards&gt;
+<i>214</i>&nbsp;                                                                        fetchData(ShardRouting shard, RoutingAllocation allocation) {
+<b class="nc"><i>215</i>&nbsp;            AsyncShardFetch&lt;TransportNodesListGatewayStartedShards.NodeGatewayStartedShards&gt; fetch =</b>
+<b class="nc"><i>216</i>&nbsp;                asyncFetchStarted.computeIfAbsent(shard.shardId(),</b>
+<b class="nc"><i>217</i>&nbsp;                    shardId -&gt; new InternalAsyncFetch&lt;&gt;(logger, &quot;shard_started&quot;, shardId, startedAction));</b>
+<b class="nc"><i>218</i>&nbsp;            AsyncShardFetch.FetchResult&lt;TransportNodesListGatewayStartedShards.NodeGatewayStartedShards&gt; shardState =</b>
+<b class="nc"><i>219</i>&nbsp;                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));</b>
+<i>220</i>&nbsp;
+<b class="nc"><i>221</i>&nbsp;            if (shardState.hasData()) {</b>
+<b class="nc"><i>222</i>&nbsp;                shardState.processAllocation(allocation);</b>
+<i>223</i>&nbsp;            }
+<b class="nc"><i>224</i>&nbsp;            return shardState;</b>
+<i>225</i>&nbsp;        }
+<i>226</i>&nbsp;    }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    class InternalReplicaShardAllocator extends ReplicaShardAllocator {
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;        private final TransportNodesListShardStoreMetaData storeAction;
+<i>231</i>&nbsp;
+<b class="fc"><i>232</i>&nbsp;        InternalReplicaShardAllocator(TransportNodesListShardStoreMetaData storeAction) {</b>
+<b class="fc"><i>233</i>&nbsp;            this.storeAction = storeAction;</b>
+<b class="fc"><i>234</i>&nbsp;        }</b>
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;        @Override
+<i>237</i>&nbsp;        protected AsyncShardFetch.FetchResult&lt;TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData&gt;
+<i>238</i>&nbsp;                                                                        fetchData(ShardRouting shard, RoutingAllocation allocation) {
+<b class="nc"><i>239</i>&nbsp;            AsyncShardFetch&lt;TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData&gt; fetch =</b>
+<b class="nc"><i>240</i>&nbsp;                asyncFetchStore.computeIfAbsent(shard.shardId(),</b>
+<b class="nc"><i>241</i>&nbsp;                    shardId -&gt; new InternalAsyncFetch&lt;&gt;(logger, &quot;shard_store&quot;, shard.shardId(), storeAction));</b>
+<b class="nc"><i>242</i>&nbsp;            AsyncShardFetch.FetchResult&lt;TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData&gt; shardStores =</b>
+<b class="nc"><i>243</i>&nbsp;                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));</b>
+<b class="nc"><i>244</i>&nbsp;            if (shardStores.hasData()) {</b>
+<b class="nc"><i>245</i>&nbsp;                shardStores.processAllocation(allocation);</b>
+<i>246</i>&nbsp;            }
+<b class="nc"><i>247</i>&nbsp;            return shardStores;</b>
+<i>248</i>&nbsp;        }
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;        @Override
+<i>251</i>&nbsp;        protected boolean hasInitiatedFetching(ShardRouting shard) {
+<b class="nc"><i>252</i>&nbsp;            return asyncFetchStore.get(shard.shardId()) != null;</b>
+<i>253</i>&nbsp;        }
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

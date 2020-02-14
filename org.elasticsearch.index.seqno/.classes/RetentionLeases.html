@@ -1,0 +1,387 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RetentionLeases</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.seqno</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RetentionLeases (org.elasticsearch.index.seqno)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RetentionLeases</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (12/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    58.6%
+  </span>
+  <span class="absValue">
+    (34/ 58)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">RetentionLeases$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (3/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    65.2%
+  </span>
+  <span class="absValue">
+    (15/ 23)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    61.3%
+  </span>
+  <span class="absValue">
+    (38/ 62)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.seqno;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>23</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>31</i>&nbsp;import org.elasticsearch.gateway.MetaDataStateFormat;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.util.Collection;
+<i>35</i>&nbsp;import java.util.Collections;
+<i>36</i>&nbsp;import java.util.LinkedHashMap;
+<i>37</i>&nbsp;import java.util.Map;
+<i>38</i>&nbsp;import java.util.Objects;
+<i>39</i>&nbsp;import java.util.function.Function;
+<i>40</i>&nbsp;import java.util.stream.Collectors;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;/**
+<i>43</i>&nbsp; * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
+<i>44</i>&nbsp; * arrive out of order on the replica, using the version to ensure that older sync requests are rejected.
+<i>45</i>&nbsp; */
+<b class="fc"><i>46</i>&nbsp;public class RetentionLeases implements ToXContentFragment, Writeable {</b>
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    private final long primaryTerm;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    /**
+<i>51</i>&nbsp;     * The primary term of this retention lease collection.
+<i>52</i>&nbsp;     *
+<i>53</i>&nbsp;     * @return the primary term
+<i>54</i>&nbsp;     */
+<i>55</i>&nbsp;    public long primaryTerm() {
+<b class="fc"><i>56</i>&nbsp;        return primaryTerm;</b>
+<i>57</i>&nbsp;    }
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    private final long version;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * The version of this retention lease collection. The version is managed on the primary and incremented any time that a retention lease
+<i>63</i>&nbsp;     * is added, renewed, or when retention leases expire.
+<i>64</i>&nbsp;     *
+<i>65</i>&nbsp;     * @return the version of this retention lease collection
+<i>66</i>&nbsp;     */
+<i>67</i>&nbsp;    public long version() {
+<b class="fc"><i>68</i>&nbsp;        return version;</b>
+<i>69</i>&nbsp;    }
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    /**
+<i>72</i>&nbsp;     * Checks if this retention leases collection supersedes the specified retention leases collection. A retention leases collection
+<i>73</i>&nbsp;     * supersedes another retention leases collection if its primary term is higher, or if for equal primary terms its version is higher.
+<i>74</i>&nbsp;     *
+<i>75</i>&nbsp;     * @param that the retention leases collection to test against
+<i>76</i>&nbsp;     * @return true if this retention leases collection supercedes the specified retention lease collection, otherwise false
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    boolean supersedes(final RetentionLeases that) {
+<b class="fc"><i>79</i>&nbsp;        return supersedes(that.primaryTerm, that.version);</b>
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * Checks if this retention leases collection would supersede a retention leases collection with the specified primary term and version.
+<i>84</i>&nbsp;     * A retention leases collection supersedes another retention leases collection if its primary term is higher, or if for equal primary
+<i>85</i>&nbsp;     * terms its version is higher.
+<i>86</i>&nbsp;     *
+<i>87</i>&nbsp;     * @param primaryTerm the primary term
+<i>88</i>&nbsp;     * @param version     the version
+<i>89</i>&nbsp;     * @return true if this retention leases collection would supercedes a retention lease collection with the specified primary term and
+<i>90</i>&nbsp;     * version
+<i>91</i>&nbsp;     */
+<i>92</i>&nbsp;    boolean supersedes(final long primaryTerm, final long version) {
+<b class="fc"><i>93</i>&nbsp;        return this.primaryTerm &gt; primaryTerm || this.primaryTerm == primaryTerm &amp;&amp; this.version &gt; version;</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    private final Map&lt;String, RetentionLease&gt; leases;
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    /**
+<i>99</i>&nbsp;     * The underlying collection of retention leases
+<i>100</i>&nbsp;     *
+<i>101</i>&nbsp;     * @return the retention leases
+<i>102</i>&nbsp;     */
+<i>103</i>&nbsp;    public Collection&lt;RetentionLease&gt; leases() {
+<b class="fc"><i>104</i>&nbsp;        return Collections.unmodifiableCollection(leases.values());</b>
+<i>105</i>&nbsp;    }
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    /**
+<i>108</i>&nbsp;     * Checks if this retention lease collection contains a retention lease with the specified {@link RetentionLease#id()}.
+<i>109</i>&nbsp;     *
+<i>110</i>&nbsp;     * @param id the retention lease ID
+<i>111</i>&nbsp;     * @return true if this retention lease collection contains a retention lease with the specified ID, otherwise false
+<i>112</i>&nbsp;     */
+<i>113</i>&nbsp;    public boolean contains(final String id) {
+<b class="nc"><i>114</i>&nbsp;        return leases.containsKey(id);</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    /**
+<i>118</i>&nbsp;     * Returns the retention lease with the specified ID, or null if no such retention lease exists.
+<i>119</i>&nbsp;     *
+<i>120</i>&nbsp;     * @param id the retention lease ID
+<i>121</i>&nbsp;     * @return the retention lease, or null if no retention lease with the specified ID exists
+<i>122</i>&nbsp;     */
+<i>123</i>&nbsp;    public RetentionLease get(final String id) {
+<b class="nc"><i>124</i>&nbsp;        return leases.get(id);</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * Represents an empty an un-versioned retention lease collection. This is used when no retention lease collection is found in the
+<i>129</i>&nbsp;     * commit point
+<i>130</i>&nbsp;     */
+<b class="fc"><i>131</i>&nbsp;    public static RetentionLeases EMPTY = new RetentionLeases(1, 0, Collections.emptyList());</b>
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    /**
+<i>134</i>&nbsp;     * Constructs a new retention lease collection with the specified version and underlying collection of retention leases.
+<i>135</i>&nbsp;     *
+<i>136</i>&nbsp;     * @param primaryTerm the primary term under which this retention lease collection was created
+<i>137</i>&nbsp;     * @param version the version of this retention lease collection
+<i>138</i>&nbsp;     * @param leases  the retention leases
+<i>139</i>&nbsp;     */
+<b class="fc"><i>140</i>&nbsp;    public RetentionLeases(final long primaryTerm, final long version, final Collection&lt;RetentionLease&gt; leases) {</b>
+<b class="fc"><i>141</i>&nbsp;        if (primaryTerm &lt;= 0) {</b>
+<b class="nc"><i>142</i>&nbsp;            throw new IllegalArgumentException(&quot;primary term must be positive but was [&quot; + primaryTerm + &quot;]&quot;);</b>
+<i>143</i>&nbsp;        }
+<b class="fc"><i>144</i>&nbsp;        if (version &lt; 0) {</b>
+<b class="nc"><i>145</i>&nbsp;            throw new IllegalArgumentException(&quot;version must be non-negative but was [&quot; + version + &quot;]&quot;);</b>
+<i>146</i>&nbsp;        }
+<b class="fc"><i>147</i>&nbsp;        Objects.requireNonNull(leases);</b>
+<b class="fc"><i>148</i>&nbsp;        this.primaryTerm = primaryTerm;</b>
+<b class="fc"><i>149</i>&nbsp;        this.version = version;</b>
+<b class="fc"><i>150</i>&nbsp;        this.leases = Collections.unmodifiableMap(toMap(leases));</b>
+<b class="fc"><i>151</i>&nbsp;    }</b>
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    /**
+<i>154</i>&nbsp;     * Constructs a new retention lease collection from a stream. The retention lease collection should have been written via
+<i>155</i>&nbsp;     * {@link #writeTo(StreamOutput)}.
+<i>156</i>&nbsp;     *
+<i>157</i>&nbsp;     * @param in the stream to construct the retention lease collection from
+<i>158</i>&nbsp;     * @throws IOException if an I/O exception occurs reading from the stream
+<i>159</i>&nbsp;     */
+<b class="nc"><i>160</i>&nbsp;    public RetentionLeases(final StreamInput in) throws IOException {</b>
+<b class="nc"><i>161</i>&nbsp;        primaryTerm = in.readVLong();</b>
+<b class="nc"><i>162</i>&nbsp;        version = in.readVLong();</b>
+<b class="nc"><i>163</i>&nbsp;        leases = Collections.unmodifiableMap(toMap(in.readList(RetentionLease::new)));</b>
+<b class="nc"><i>164</i>&nbsp;    }</b>
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    /**
+<i>167</i>&nbsp;     * Writes a retention lease collection to a stream in a manner suitable for later reconstruction via
+<i>168</i>&nbsp;     * {@link #RetentionLeases(StreamInput)} (StreamInput)}.
+<i>169</i>&nbsp;     *
+<i>170</i>&nbsp;     * @param out the stream to write the retention lease collection to
+<i>171</i>&nbsp;     * @throws IOException if an I/O exception occurs writing to the stream
+<i>172</i>&nbsp;     */
+<i>173</i>&nbsp;    @Override
+<i>174</i>&nbsp;    public void writeTo(final StreamOutput out) throws IOException {
+<b class="nc"><i>175</i>&nbsp;        out.writeVLong(primaryTerm);</b>
+<b class="nc"><i>176</i>&nbsp;        out.writeVLong(version);</b>
+<b class="nc"><i>177</i>&nbsp;        out.writeCollection(leases.values());</b>
+<b class="nc"><i>178</i>&nbsp;    }</b>
+<i>179</i>&nbsp;
+<b class="fc"><i>180</i>&nbsp;    private static final ParseField PRIMARY_TERM_FIELD = new ParseField(&quot;primary_term&quot;);</b>
+<b class="fc"><i>181</i>&nbsp;    private static final ParseField VERSION_FIELD = new ParseField(&quot;version&quot;);</b>
+<b class="fc"><i>182</i>&nbsp;    private static final ParseField LEASES_FIELD = new ParseField(&quot;leases&quot;);</b>
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<b class="fc"><i>185</i>&nbsp;    private static ConstructingObjectParser&lt;RetentionLeases, Void&gt; PARSER = new ConstructingObjectParser&lt;&gt;(</b>
+<i>186</i>&nbsp;            &quot;retention_leases&quot;,
+<b class="fc"><i>187</i>&nbsp;            (a) -&gt; new RetentionLeases((Long) a[0], (Long) a[1], (Collection&lt;RetentionLease&gt;) a[2]));</b>
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    static {
+<b class="fc"><i>190</i>&nbsp;        PARSER.declareLong(ConstructingObjectParser.constructorArg(), PRIMARY_TERM_FIELD);</b>
+<b class="fc"><i>191</i>&nbsp;        PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);</b>
+<b class="fc"><i>192</i>&nbsp;        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -&gt; RetentionLease.fromXContent(p), LEASES_FIELD);</b>
+<i>193</i>&nbsp;    }
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    @Override
+<i>196</i>&nbsp;    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+<b class="fc"><i>197</i>&nbsp;        builder.field(PRIMARY_TERM_FIELD.getPreferredName(), primaryTerm);</b>
+<b class="fc"><i>198</i>&nbsp;        builder.field(VERSION_FIELD.getPreferredName(), version);</b>
+<b class="fc"><i>199</i>&nbsp;        builder.startArray(LEASES_FIELD.getPreferredName());</b>
+<i>200</i>&nbsp;        {
+<b class="fc"><i>201</i>&nbsp;            for (final RetentionLease retentionLease : leases.values()) {</b>
+<b class="nc"><i>202</i>&nbsp;                retentionLease.toXContent(builder, params);</b>
+<b class="nc"><i>203</i>&nbsp;            }</b>
+<i>204</i>&nbsp;        }
+<b class="fc"><i>205</i>&nbsp;        builder.endArray();</b>
+<b class="fc"><i>206</i>&nbsp;        return builder;</b>
+<i>207</i>&nbsp;    }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;    /**
+<i>210</i>&nbsp;     * Parses a retention leases collection from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention
+<i>211</i>&nbsp;     * leases were converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+<i>212</i>&nbsp;     *
+<i>213</i>&nbsp;     * @param parser the parser
+<i>214</i>&nbsp;     * @return a retention leases collection
+<i>215</i>&nbsp;     */
+<i>216</i>&nbsp;    public static RetentionLeases fromXContent(final XContentParser parser) {
+<b class="fc"><i>217</i>&nbsp;        return PARSER.apply(parser, null);</b>
+<i>218</i>&nbsp;    }
+<i>219</i>&nbsp;
+<b class="fc"><i>220</i>&nbsp;    static final MetaDataStateFormat&lt;RetentionLeases&gt; FORMAT = new MetaDataStateFormat&lt;RetentionLeases&gt;(&quot;retention-leases-&quot;) {</b>
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;        @Override
+<i>223</i>&nbsp;        public void toXContent(final XContentBuilder builder, final RetentionLeases retentionLeases) throws IOException {
+<b class="fc"><i>224</i>&nbsp;            retentionLeases.toXContent(builder, ToXContent.EMPTY_PARAMS);</b>
+<b class="fc"><i>225</i>&nbsp;        }</b>
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;        @Override
+<i>228</i>&nbsp;        public RetentionLeases fromXContent(final XContentParser parser) {
+<b class="fc"><i>229</i>&nbsp;            return RetentionLeases.fromXContent(parser);</b>
+<i>230</i>&nbsp;        }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    };
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    @Override
+<i>235</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>236</i>&nbsp;        if (this == o) return true;</b>
+<b class="nc"><i>237</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<b class="nc"><i>238</i>&nbsp;        final RetentionLeases that = (RetentionLeases) o;</b>
+<b class="nc"><i>239</i>&nbsp;        return primaryTerm == that.primaryTerm &amp;&amp;</b>
+<i>240</i>&nbsp;                version == that.version &amp;&amp;
+<b class="nc"><i>241</i>&nbsp;                Objects.equals(leases, that.leases);</b>
+<i>242</i>&nbsp;    }
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;    @Override
+<i>245</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>246</i>&nbsp;        return Objects.hash(primaryTerm, version, leases);</b>
+<i>247</i>&nbsp;    }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;    @Override
+<i>250</i>&nbsp;    public String toString() {
+<b class="nc"><i>251</i>&nbsp;        return &quot;RetentionLeases{&quot; +</b>
+<i>252</i>&nbsp;                &quot;primaryTerm=&quot; + primaryTerm +
+<i>253</i>&nbsp;                &quot;, version=&quot; + version +
+<i>254</i>&nbsp;                &quot;, leases=&quot; + leases +
+<i>255</i>&nbsp;                &#39;}&#39;;
+<i>256</i>&nbsp;    }
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    /**
+<i>259</i>&nbsp;     * A utility method to convert retention leases to a map from retention lease ID to retention lease.
+<i>260</i>&nbsp;     *
+<i>261</i>&nbsp;     * @param leases the retention leases
+<i>262</i>&nbsp;     * @return the map from retention lease ID to retention lease
+<i>263</i>&nbsp;     */
+<i>264</i>&nbsp;    private static Map&lt;String, RetentionLease&gt; toMap(final Collection&lt;RetentionLease&gt; leases) {
+<i>265</i>&nbsp;        // use a linked hash map to preserve order
+<b class="fc"><i>266</i>&nbsp;        return leases.stream()</b>
+<b class="fc"><i>267</i>&nbsp;                .collect(Collectors.toMap(</b>
+<i>268</i>&nbsp;                        RetentionLease::id,
+<b class="fc"><i>269</i>&nbsp;                        Function.identity(),</b>
+<i>270</i>&nbsp;                        (left, right) -&gt; {
+<b class="nc"><i>271</i>&nbsp;                            assert left.id().equals(right.id()) : &quot;expected [&quot; + left.id() + &quot;] to equal [&quot; + right.id() + &quot;]&quot;;</b>
+<b class="nc"><i>272</i>&nbsp;                            throw new IllegalStateException(&quot;duplicate retention lease ID [&quot; + left.id() + &quot;]&quot;);</b>
+<i>273</i>&nbsp;                        },
+<i>274</i>&nbsp;                        LinkedHashMap::new));
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;}
+<i>278</i>&nbsp;
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,686 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SimpleQueryStringBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SimpleQueryStringBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SimpleQueryStringBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 38)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 266)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.analysis.Analyzer;
+<i>23</i>&nbsp;import org.apache.lucene.search.FuzzyQuery;
+<i>24</i>&nbsp;import org.apache.lucene.search.Query;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>27</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>28</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>31</i>&nbsp;import org.elasticsearch.common.lucene.search.Queries;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>34</i>&nbsp;import org.elasticsearch.index.search.QueryParserHelper;
+<i>35</i>&nbsp;import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
+<i>36</i>&nbsp;import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.IOException;
+<i>39</i>&nbsp;import java.util.ArrayList;
+<i>40</i>&nbsp;import java.util.HashMap;
+<i>41</i>&nbsp;import java.util.List;
+<i>42</i>&nbsp;import java.util.Locale;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Objects;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;/**
+<i>47</i>&nbsp; * SimpleQuery is a query parser that acts similar to a query_string query, but
+<i>48</i>&nbsp; * won&#39;t throw exceptions for any weird string syntax. It supports
+<i>49</i>&nbsp; * the following:
+<i>50</i>&nbsp; * &lt;ul&gt;
+<i>51</i>&nbsp; * &lt;li&gt;&#39;{@code +}&#39; specifies {@code AND} operation: {@code token1+token2}
+<i>52</i>&nbsp; * &lt;li&gt;&#39;{@code |}&#39; specifies {@code OR} operation: {@code token1|token2}
+<i>53</i>&nbsp; * &lt;li&gt;&#39;{@code -}&#39; negates a single token: {@code -token0}
+<i>54</i>&nbsp; * &lt;li&gt;&#39;{@code &quot;}&#39; creates phrases of terms: {@code &quot;term1 term2 ...&quot;}
+<i>55</i>&nbsp; * &lt;li&gt;&#39;{@code *}&#39; at the end of terms specifies prefix query: {@code term*}
+<i>56</i>&nbsp; * &lt;li&gt;&#39;{@code (}&#39; and &#39;{@code)}&#39; specifies precedence: {@code token1 + (token2 | token3)}
+<i>57</i>&nbsp; * &lt;li&gt;&#39;{@code ~}N&#39; at the end of terms specifies fuzzy query: {@code term~1}
+<i>58</i>&nbsp; * &lt;li&gt;&#39;{@code ~}N&#39; at the end of phrases specifies near/slop query: {@code &quot;term1 term2&quot;~5}
+<i>59</i>&nbsp; * &lt;/ul&gt;
+<i>60</i>&nbsp; * &lt;p&gt;
+<i>61</i>&nbsp; * See: {@link SimpleQueryStringQueryParser} for more information.
+<i>62</i>&nbsp; * &lt;p&gt;
+<i>63</i>&nbsp; * This query supports these options:
+<i>64</i>&nbsp; * &lt;p&gt;
+<i>65</i>&nbsp; * Required:
+<i>66</i>&nbsp; * {@code query} - query text to be converted into other queries
+<i>67</i>&nbsp; * &lt;p&gt;
+<i>68</i>&nbsp; * Optional:
+<i>69</i>&nbsp; * {@code analyzer} - anaylzer to be used for analyzing tokens to determine
+<i>70</i>&nbsp; * which kind of query they should be converted into, defaults to &quot;standard&quot;
+<i>71</i>&nbsp; * {@code default_operator} - default operator for boolean queries, defaults
+<i>72</i>&nbsp; * to OR
+<i>73</i>&nbsp; * {@code fields} - fields to search, defaults to _all if not set, allows
+<i>74</i>&nbsp; * boosting a field with ^n
+<i>75</i>&nbsp; *
+<i>76</i>&nbsp; * For more detailed explanation of the query string syntax see also the &lt;a
+<i>77</i>&nbsp; * href=
+<i>78</i>&nbsp; * &quot;https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html&quot;
+<i>79</i>&nbsp; * &gt; online documentation&lt;/a&gt;.
+<i>80</i>&nbsp; */
+<i>81</i>&nbsp;public class SimpleQueryStringBuilder extends AbstractQueryBuilder&lt;SimpleQueryStringBuilder&gt; {
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    /** Default for using lenient query parsing.*/
+<i>84</i>&nbsp;    public static final boolean DEFAULT_LENIENT = false;
+<i>85</i>&nbsp;    /** Default for wildcard analysis.*/
+<i>86</i>&nbsp;    public static final boolean DEFAULT_ANALYZE_WILDCARD = false;
+<i>87</i>&nbsp;    /** Default for default operator to use for linking boolean clauses.*/
+<b class="nc"><i>88</i>&nbsp;    public static final Operator DEFAULT_OPERATOR = Operator.OR;</b>
+<i>89</i>&nbsp;    /** Default for search flags to use. */
+<b class="nc"><i>90</i>&nbsp;    public static final int DEFAULT_FLAGS = SimpleQueryStringFlag.ALL.value;</b>
+<i>91</i>&nbsp;    /** Default for prefix length in fuzzy queries.*/
+<i>92</i>&nbsp;    public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
+<i>93</i>&nbsp;    /** Default number of terms fuzzy queries will expand to.*/
+<i>94</i>&nbsp;    public static final int DEFAULT_FUZZY_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
+<i>95</i>&nbsp;    /** Default for using transpositions in fuzzy queries.*/
+<i>96</i>&nbsp;    public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    /** Name for (de-)serialization. */
+<i>99</i>&nbsp;    public static final String NAME = &quot;simple_query_string&quot;;
+<i>100</i>&nbsp;
+<b class="nc"><i>101</i>&nbsp;    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField(&quot;minimum_should_match&quot;);</b>
+<b class="nc"><i>102</i>&nbsp;    private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField(&quot;analyze_wildcard&quot;);</b>
+<b class="nc"><i>103</i>&nbsp;    private static final ParseField LENIENT_FIELD = new ParseField(&quot;lenient&quot;);</b>
+<b class="nc"><i>104</i>&nbsp;    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField(&quot;lowercase_expanded_terms&quot;)</b>
+<b class="nc"><i>105</i>&nbsp;            .withAllDeprecated(&quot;Decision is now made by the analyzer&quot;);</b>
+<b class="nc"><i>106</i>&nbsp;    private static final ParseField LOCALE_FIELD = new ParseField(&quot;locale&quot;)</b>
+<b class="nc"><i>107</i>&nbsp;            .withAllDeprecated(&quot;Decision is now made by the analyzer&quot;);</b>
+<b class="nc"><i>108</i>&nbsp;    private static final ParseField FLAGS_FIELD = new ParseField(&quot;flags&quot;);</b>
+<b class="nc"><i>109</i>&nbsp;    private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField(&quot;default_operator&quot;);</b>
+<b class="nc"><i>110</i>&nbsp;    private static final ParseField ANALYZER_FIELD = new ParseField(&quot;analyzer&quot;);</b>
+<b class="nc"><i>111</i>&nbsp;    private static final ParseField QUERY_FIELD = new ParseField(&quot;query&quot;);</b>
+<b class="nc"><i>112</i>&nbsp;    private static final ParseField FIELDS_FIELD = new ParseField(&quot;fields&quot;);</b>
+<b class="nc"><i>113</i>&nbsp;    private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField(&quot;quote_field_suffix&quot;);</b>
+<b class="nc"><i>114</i>&nbsp;    private static final ParseField ALL_FIELDS_FIELD = new ParseField(&quot;all_fields&quot;)</b>
+<b class="nc"><i>115</i>&nbsp;            .withAllDeprecated(&quot;Set [fields] to `*` instead&quot;);</b>
+<b class="nc"><i>116</i>&nbsp;    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField(&quot;auto_generate_synonyms_phrase_query&quot;);</b>
+<b class="nc"><i>117</i>&nbsp;    private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField(&quot;fuzzy_prefix_length&quot;);</b>
+<b class="nc"><i>118</i>&nbsp;    private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField(&quot;fuzzy_max_expansions&quot;);</b>
+<b class="nc"><i>119</i>&nbsp;    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField(&quot;fuzzy_transpositions&quot;);</b>
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    /** Query text to parse. */
+<i>122</i>&nbsp;    private final String queryText;
+<i>123</i>&nbsp;    /**
+<i>124</i>&nbsp;     * Fields to query against. If left empty will query default field,
+<i>125</i>&nbsp;     * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
+<i>126</i>&nbsp;     * always sorted in same order for generated Lucene query for easier
+<i>127</i>&nbsp;     * testing.
+<i>128</i>&nbsp;     */
+<b class="nc"><i>129</i>&nbsp;    private Map&lt;String, Float&gt; fieldsAndWeights = new HashMap&lt;&gt;();</b>
+<i>130</i>&nbsp;    /** If specified, analyzer to use to parse the query text, defaults to registered default in toQuery. */
+<i>131</i>&nbsp;    private String analyzer;
+<i>132</i>&nbsp;    /** Default operator to use for linking boolean clauses. Defaults to OR according to docs. */
+<b class="nc"><i>133</i>&nbsp;    private Operator defaultOperator = DEFAULT_OPERATOR;</b>
+<i>134</i>&nbsp;    /** If result is a boolean query, minimumShouldMatch parameter to apply. Ignored otherwise. */
+<i>135</i>&nbsp;    private String minimumShouldMatch;
+<i>136</i>&nbsp;    /** Any search flags to be used, ALL by default. */
+<b class="nc"><i>137</i>&nbsp;    private int flags = DEFAULT_FLAGS;</b>
+<i>138</i>&nbsp;    /** Whether or not the lenient flag has been set or not */
+<b class="nc"><i>139</i>&nbsp;    private boolean lenientSet = false;</b>
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    /** Further search settings needed by the ES specific query string parser only. */
+<b class="nc"><i>142</i>&nbsp;    private Settings settings = new Settings();</b>
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    /** Construct a new simple query with this query string. */
+<b class="nc"><i>145</i>&nbsp;    public SimpleQueryStringBuilder(String queryText) {</b>
+<b class="nc"><i>146</i>&nbsp;        if (queryText == null) {</b>
+<b class="nc"><i>147</i>&nbsp;            throw new IllegalArgumentException(&quot;query text missing&quot;);</b>
+<i>148</i>&nbsp;        }
+<b class="nc"><i>149</i>&nbsp;        this.queryText = queryText;</b>
+<b class="nc"><i>150</i>&nbsp;    }</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /**
+<i>153</i>&nbsp;     * Read from a stream.
+<i>154</i>&nbsp;     */
+<i>155</i>&nbsp;    public SimpleQueryStringBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>156</i>&nbsp;        super(in);</b>
+<b class="nc"><i>157</i>&nbsp;        queryText = in.readString();</b>
+<b class="nc"><i>158</i>&nbsp;        int size = in.readInt();</b>
+<b class="nc"><i>159</i>&nbsp;        Map&lt;String, Float&gt; fields = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>160</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>161</i>&nbsp;            String field = in.readString();</b>
+<b class="nc"><i>162</i>&nbsp;            Float weight = in.readFloat();</b>
+<b class="nc"><i>163</i>&nbsp;            checkNegativeBoost(weight);</b>
+<b class="nc"><i>164</i>&nbsp;            fields.put(field, weight);</b>
+<i>165</i>&nbsp;        }
+<b class="nc"><i>166</i>&nbsp;        fieldsAndWeights.putAll(fields);</b>
+<b class="nc"><i>167</i>&nbsp;        flags = in.readInt();</b>
+<b class="nc"><i>168</i>&nbsp;        analyzer = in.readOptionalString();</b>
+<b class="nc"><i>169</i>&nbsp;        defaultOperator = Operator.readFromStream(in);</b>
+<b class="nc"><i>170</i>&nbsp;        settings.lenient(in.readBoolean());</b>
+<b class="nc"><i>171</i>&nbsp;        this.lenientSet = in.readBoolean();</b>
+<b class="nc"><i>172</i>&nbsp;        settings.analyzeWildcard(in.readBoolean());</b>
+<b class="nc"><i>173</i>&nbsp;        minimumShouldMatch = in.readOptionalString();</b>
+<b class="nc"><i>174</i>&nbsp;        settings.quoteFieldSuffix(in.readOptionalString());</b>
+<b class="nc"><i>175</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {</b>
+<b class="nc"><i>176</i>&nbsp;            settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());</b>
+<b class="nc"><i>177</i>&nbsp;            settings.fuzzyPrefixLength(in.readVInt());</b>
+<b class="nc"><i>178</i>&nbsp;            settings.fuzzyMaxExpansions(in.readVInt());</b>
+<b class="nc"><i>179</i>&nbsp;            settings.fuzzyTranspositions(in.readBoolean());</b>
+<i>180</i>&nbsp;        }
+<b class="nc"><i>181</i>&nbsp;    }</b>
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    @Override
+<i>184</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>185</i>&nbsp;        out.writeString(queryText);</b>
+<b class="nc"><i>186</i>&nbsp;        out.writeInt(fieldsAndWeights.size());</b>
+<b class="nc"><i>187</i>&nbsp;        for (Map.Entry&lt;String, Float&gt; entry : fieldsAndWeights.entrySet()) {</b>
+<b class="nc"><i>188</i>&nbsp;            out.writeString(entry.getKey());</b>
+<b class="nc"><i>189</i>&nbsp;            out.writeFloat(entry.getValue());</b>
+<b class="nc"><i>190</i>&nbsp;        }</b>
+<b class="nc"><i>191</i>&nbsp;        out.writeInt(flags);</b>
+<b class="nc"><i>192</i>&nbsp;        out.writeOptionalString(analyzer);</b>
+<b class="nc"><i>193</i>&nbsp;        defaultOperator.writeTo(out);</b>
+<b class="nc"><i>194</i>&nbsp;        out.writeBoolean(settings.lenient());</b>
+<b class="nc"><i>195</i>&nbsp;        out.writeBoolean(lenientSet);</b>
+<b class="nc"><i>196</i>&nbsp;        out.writeBoolean(settings.analyzeWildcard());</b>
+<b class="nc"><i>197</i>&nbsp;        out.writeOptionalString(minimumShouldMatch);</b>
+<b class="nc"><i>198</i>&nbsp;        out.writeOptionalString(settings.quoteFieldSuffix());</b>
+<b class="nc"><i>199</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {</b>
+<b class="nc"><i>200</i>&nbsp;            out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());</b>
+<b class="nc"><i>201</i>&nbsp;            out.writeVInt(settings.fuzzyPrefixLength());</b>
+<b class="nc"><i>202</i>&nbsp;            out.writeVInt(settings.fuzzyMaxExpansions());</b>
+<b class="nc"><i>203</i>&nbsp;            out.writeBoolean(settings.fuzzyTranspositions());</b>
+<i>204</i>&nbsp;        }
+<b class="nc"><i>205</i>&nbsp;    }</b>
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;    /** Returns the text to parse the query from. */
+<i>208</i>&nbsp;    public String value() {
+<b class="nc"><i>209</i>&nbsp;        return this.queryText;</b>
+<i>210</i>&nbsp;    }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    /** Add a field to run the query against. */
+<i>213</i>&nbsp;    public SimpleQueryStringBuilder field(String field) {
+<b class="nc"><i>214</i>&nbsp;        if (Strings.isEmpty(field)) {</b>
+<b class="nc"><i>215</i>&nbsp;            throw new IllegalArgumentException(&quot;supplied field is null or empty&quot;);</b>
+<i>216</i>&nbsp;        }
+<b class="nc"><i>217</i>&nbsp;        this.fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);</b>
+<b class="nc"><i>218</i>&nbsp;        return this;</b>
+<i>219</i>&nbsp;    }
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;    /** Add a field to run the query against with a specific boost. */
+<i>222</i>&nbsp;    public SimpleQueryStringBuilder field(String field, float boost) {
+<b class="nc"><i>223</i>&nbsp;        if (Strings.isEmpty(field)) {</b>
+<b class="nc"><i>224</i>&nbsp;            throw new IllegalArgumentException(&quot;supplied field is null or empty&quot;);</b>
+<i>225</i>&nbsp;        }
+<b class="nc"><i>226</i>&nbsp;        checkNegativeBoost(boost);</b>
+<b class="nc"><i>227</i>&nbsp;        this.fieldsAndWeights.put(field, boost);</b>
+<b class="nc"><i>228</i>&nbsp;        return this;</b>
+<i>229</i>&nbsp;    }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    /** Add several fields to run the query against with a specific boost. */
+<i>232</i>&nbsp;    public SimpleQueryStringBuilder fields(Map&lt;String, Float&gt; fields) {
+<b class="nc"><i>233</i>&nbsp;        Objects.requireNonNull(fields, &quot;fields cannot be null&quot;);</b>
+<b class="nc"><i>234</i>&nbsp;        for (float fieldBoost : fields.values()) {</b>
+<b class="nc"><i>235</i>&nbsp;            checkNegativeBoost(fieldBoost);</b>
+<b class="nc"><i>236</i>&nbsp;        }</b>
+<b class="nc"><i>237</i>&nbsp;        this.fieldsAndWeights.putAll(fields);</b>
+<b class="nc"><i>238</i>&nbsp;        return this;</b>
+<i>239</i>&nbsp;    }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;    /** Returns the fields including their respective boosts to run the query against. */
+<i>242</i>&nbsp;    public Map&lt;String, Float&gt; fields() {
+<b class="nc"><i>243</i>&nbsp;        return this.fieldsAndWeights;</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    /** Specify an analyzer to use for the query. */
+<i>247</i>&nbsp;    public SimpleQueryStringBuilder analyzer(String analyzer) {
+<b class="nc"><i>248</i>&nbsp;        this.analyzer = analyzer;</b>
+<b class="nc"><i>249</i>&nbsp;        return this;</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    /** Returns the analyzer to use for the query. */
+<i>253</i>&nbsp;    public String analyzer() {
+<b class="nc"><i>254</i>&nbsp;        return this.analyzer;</b>
+<i>255</i>&nbsp;    }
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;    /**
+<i>258</i>&nbsp;     * Specify the default operator for the query. Defaults to &quot;OR&quot; if no
+<i>259</i>&nbsp;     * operator is specified.
+<i>260</i>&nbsp;     */
+<i>261</i>&nbsp;    public SimpleQueryStringBuilder defaultOperator(Operator defaultOperator) {
+<b class="nc"><i>262</i>&nbsp;        this.defaultOperator = (defaultOperator != null) ? defaultOperator : DEFAULT_OPERATOR;</b>
+<b class="nc"><i>263</i>&nbsp;        return this;</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    /** Returns the default operator for the query. */
+<i>267</i>&nbsp;    public Operator defaultOperator() {
+<b class="nc"><i>268</i>&nbsp;        return this.defaultOperator;</b>
+<i>269</i>&nbsp;    }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;    /**
+<i>272</i>&nbsp;     * Specify the enabled features of the SimpleQueryString. Defaults to ALL if
+<i>273</i>&nbsp;     * none are specified.
+<i>274</i>&nbsp;     */
+<i>275</i>&nbsp;    public SimpleQueryStringBuilder flags(SimpleQueryStringFlag... flags) {
+<b class="nc"><i>276</i>&nbsp;        if (flags != null &amp;&amp; flags.length &gt; 0) {</b>
+<b class="nc"><i>277</i>&nbsp;            int value = 0;</b>
+<b class="nc"><i>278</i>&nbsp;            for (SimpleQueryStringFlag flag : flags) {</b>
+<b class="nc"><i>279</i>&nbsp;                value |= flag.value;</b>
+<i>280</i>&nbsp;            }
+<b class="nc"><i>281</i>&nbsp;            this.flags = value;</b>
+<b class="nc"><i>282</i>&nbsp;        } else {</b>
+<b class="nc"><i>283</i>&nbsp;            this.flags = DEFAULT_FLAGS;</b>
+<i>284</i>&nbsp;        }
+<i>285</i>&nbsp;
+<b class="nc"><i>286</i>&nbsp;        return this;</b>
+<i>287</i>&nbsp;    }
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;    /** For testing and serialisation only. */
+<i>290</i>&nbsp;    SimpleQueryStringBuilder flags(int flags) {
+<b class="nc"><i>291</i>&nbsp;        this.flags = flags;</b>
+<b class="nc"><i>292</i>&nbsp;        return this;</b>
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;    /** For testing only: Return the flags set for this query. */
+<i>296</i>&nbsp;    int flags() {
+<b class="nc"><i>297</i>&nbsp;        return this.flags;</b>
+<i>298</i>&nbsp;    }
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    /**
+<i>301</i>&nbsp;     * Set the suffix to append to field names for phrase matching.
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    public SimpleQueryStringBuilder quoteFieldSuffix(String suffix) {
+<b class="nc"><i>304</i>&nbsp;        settings.quoteFieldSuffix(suffix);</b>
+<b class="nc"><i>305</i>&nbsp;        return this;</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    /**
+<i>309</i>&nbsp;     * Return the suffix to append to field names for phrase matching.
+<i>310</i>&nbsp;     */
+<i>311</i>&nbsp;    public String quoteFieldSuffix() {
+<b class="nc"><i>312</i>&nbsp;        return settings.quoteFieldSuffix();</b>
+<i>313</i>&nbsp;    }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    /** Specifies whether query parsing should be lenient. Defaults to false. */
+<i>316</i>&nbsp;    public SimpleQueryStringBuilder lenient(boolean lenient) {
+<b class="nc"><i>317</i>&nbsp;        this.settings.lenient(lenient);</b>
+<b class="nc"><i>318</i>&nbsp;        this.lenientSet = true;</b>
+<b class="nc"><i>319</i>&nbsp;        return this;</b>
+<i>320</i>&nbsp;    }
+<i>321</i>&nbsp;
+<i>322</i>&nbsp;    /** Returns whether query parsing should be lenient. */
+<i>323</i>&nbsp;    public boolean lenient() {
+<b class="nc"><i>324</i>&nbsp;        return this.settings.lenient();</b>
+<i>325</i>&nbsp;    }
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;    /** Specifies whether wildcards should be analyzed. Defaults to false. */
+<i>328</i>&nbsp;    public SimpleQueryStringBuilder analyzeWildcard(boolean analyzeWildcard) {
+<b class="nc"><i>329</i>&nbsp;        this.settings.analyzeWildcard(analyzeWildcard);</b>
+<b class="nc"><i>330</i>&nbsp;        return this;</b>
+<i>331</i>&nbsp;    }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    /** Returns whether wildcards should by analyzed. */
+<i>334</i>&nbsp;    public boolean analyzeWildcard() {
+<b class="nc"><i>335</i>&nbsp;        return this.settings.analyzeWildcard();</b>
+<i>336</i>&nbsp;    }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    /**
+<i>339</i>&nbsp;     * Specifies the minimumShouldMatch to apply to the resulting query should
+<i>340</i>&nbsp;     * that be a Boolean query.
+<i>341</i>&nbsp;     */
+<i>342</i>&nbsp;    public SimpleQueryStringBuilder minimumShouldMatch(String minimumShouldMatch) {
+<b class="nc"><i>343</i>&nbsp;        this.minimumShouldMatch = minimumShouldMatch;</b>
+<b class="nc"><i>344</i>&nbsp;        return this;</b>
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    /**
+<i>348</i>&nbsp;     * Returns the minimumShouldMatch to apply to the resulting query should
+<i>349</i>&nbsp;     * that be a Boolean query.
+<i>350</i>&nbsp;     */
+<i>351</i>&nbsp;    public String minimumShouldMatch() {
+<b class="nc"><i>352</i>&nbsp;        return minimumShouldMatch;</b>
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    public SimpleQueryStringBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
+<b class="nc"><i>356</i>&nbsp;        this.settings.autoGenerateSynonymsPhraseQuery(value);</b>
+<b class="nc"><i>357</i>&nbsp;        return this;</b>
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    /**
+<i>361</i>&nbsp;     * Whether phrase queries should be automatically generated for multi terms synonyms.
+<i>362</i>&nbsp;     * Defaults to {@code true}.
+<i>363</i>&nbsp;     */
+<i>364</i>&nbsp;    public boolean autoGenerateSynonymsPhraseQuery() {
+<b class="nc"><i>365</i>&nbsp;        return settings.autoGenerateSynonymsPhraseQuery();</b>
+<i>366</i>&nbsp;    }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;    public SimpleQueryStringBuilder fuzzyPrefixLength(int fuzzyPrefixLength) {
+<b class="nc"><i>369</i>&nbsp;        this.settings.fuzzyPrefixLength(fuzzyPrefixLength);</b>
+<b class="nc"><i>370</i>&nbsp;        return this;</b>
+<i>371</i>&nbsp;    }
+<i>372</i>&nbsp;
+<i>373</i>&nbsp;    public int fuzzyPrefixLength() {
+<b class="nc"><i>374</i>&nbsp;        return settings.fuzzyPrefixLength();</b>
+<i>375</i>&nbsp;    }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;    public SimpleQueryStringBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+<b class="nc"><i>378</i>&nbsp;        this.settings.fuzzyMaxExpansions(fuzzyMaxExpansions);</b>
+<b class="nc"><i>379</i>&nbsp;        return this;</b>
+<i>380</i>&nbsp;    }
+<i>381</i>&nbsp;
+<i>382</i>&nbsp;    public int fuzzyMaxExpansions() {
+<b class="nc"><i>383</i>&nbsp;        return settings.fuzzyMaxExpansions();</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    public boolean fuzzyTranspositions() {
+<b class="nc"><i>387</i>&nbsp;        return settings.fuzzyTranspositions();</b>
+<i>388</i>&nbsp;    }
+<i>389</i>&nbsp;
+<i>390</i>&nbsp;    /**
+<i>391</i>&nbsp;     * Sets whether transpositions are supported in fuzzy queries.&lt;p&gt;
+<i>392</i>&nbsp;     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+<i>393</i>&nbsp;     * distance formula which supports transpositions. Setting transposition to false will
+<i>394</i>&nbsp;     * switch to classic Levenshtein distance.&lt;br&gt;
+<i>395</i>&nbsp;     * If not set, Damerau-Levenshtein distance metric will be used.
+<i>396</i>&nbsp;     */
+<i>397</i>&nbsp;    public SimpleQueryStringBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+<b class="nc"><i>398</i>&nbsp;        this.settings.fuzzyTranspositions(fuzzyTranspositions);</b>
+<b class="nc"><i>399</i>&nbsp;        return this;</b>
+<i>400</i>&nbsp;    }
+<i>401</i>&nbsp;
+<i>402</i>&nbsp;    @Override
+<i>403</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>404</i>&nbsp;        Settings newSettings = new Settings(settings);</b>
+<i>405</i>&nbsp;        final Map&lt;String, Float&gt; resolvedFieldsAndWeights;
+<i>406</i>&nbsp;        boolean isAllField;
+<b class="nc"><i>407</i>&nbsp;        if (fieldsAndWeights.isEmpty() == false) {</b>
+<b class="nc"><i>408</i>&nbsp;            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);</b>
+<b class="nc"><i>409</i>&nbsp;            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());</b>
+<i>410</i>&nbsp;        } else {
+<b class="nc"><i>411</i>&nbsp;            List&lt;String&gt; defaultFields = context.defaultFields();</b>
+<b class="nc"><i>412</i>&nbsp;            resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,</b>
+<b class="nc"><i>413</i>&nbsp;                QueryParserHelper.parseFieldsAndWeights(defaultFields));</b>
+<b class="nc"><i>414</i>&nbsp;            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);</b>
+<i>415</i>&nbsp;        }
+<i>416</i>&nbsp;
+<b class="nc"><i>417</i>&nbsp;        if (isAllField) {</b>
+<b class="nc"><i>418</i>&nbsp;            newSettings.lenient(lenientSet ? settings.lenient() : true);</b>
+<i>419</i>&nbsp;        }
+<i>420</i>&nbsp;
+<i>421</i>&nbsp;        final SimpleQueryStringQueryParser sqp;
+<b class="nc"><i>422</i>&nbsp;        if (analyzer == null) {</b>
+<b class="nc"><i>423</i>&nbsp;            sqp = new SimpleQueryStringQueryParser(resolvedFieldsAndWeights, flags, newSettings, context);</b>
+<i>424</i>&nbsp;        } else {
+<b class="nc"><i>425</i>&nbsp;            Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);</b>
+<b class="nc"><i>426</i>&nbsp;            if (luceneAnalyzer == null) {</b>
+<b class="nc"><i>427</i>&nbsp;                throw new QueryShardException(context, &quot;[&quot; + SimpleQueryStringBuilder.NAME + &quot;] analyzer [&quot; + analyzer</b>
+<i>428</i>&nbsp;                        + &quot;] not found&quot;);
+<i>429</i>&nbsp;            }
+<b class="nc"><i>430</i>&nbsp;            sqp = new SimpleQueryStringQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);</b>
+<i>431</i>&nbsp;        }
+<b class="nc"><i>432</i>&nbsp;        sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());</b>
+<b class="nc"><i>433</i>&nbsp;        Query query = sqp.parse(queryText);</b>
+<b class="nc"><i>434</i>&nbsp;        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);</b>
+<i>435</i>&nbsp;    }
+<i>436</i>&nbsp;
+<i>437</i>&nbsp;    @Override
+<i>438</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>439</i>&nbsp;        builder.startObject(NAME);</b>
+<i>440</i>&nbsp;
+<b class="nc"><i>441</i>&nbsp;        builder.field(QUERY_FIELD.getPreferredName(), queryText);</b>
+<i>442</i>&nbsp;
+<b class="nc"><i>443</i>&nbsp;        if (fieldsAndWeights.size() &gt; 0) {</b>
+<b class="nc"><i>444</i>&nbsp;            builder.startArray(FIELDS_FIELD.getPreferredName());</b>
+<b class="nc"><i>445</i>&nbsp;            for (Map.Entry&lt;String, Float&gt; entry : fieldsAndWeights.entrySet()) {</b>
+<b class="nc"><i>446</i>&nbsp;                builder.value(entry.getKey() + &quot;^&quot; + entry.getValue());</b>
+<b class="nc"><i>447</i>&nbsp;            }</b>
+<b class="nc"><i>448</i>&nbsp;            builder.endArray();</b>
+<i>449</i>&nbsp;        }
+<i>450</i>&nbsp;
+<b class="nc"><i>451</i>&nbsp;        if (analyzer != null) {</b>
+<b class="nc"><i>452</i>&nbsp;            builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);</b>
+<i>453</i>&nbsp;        }
+<i>454</i>&nbsp;
+<b class="nc"><i>455</i>&nbsp;        builder.field(FLAGS_FIELD.getPreferredName(), flags);</b>
+<b class="nc"><i>456</i>&nbsp;        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));</b>
+<b class="nc"><i>457</i>&nbsp;        if (lenientSet) {</b>
+<b class="nc"><i>458</i>&nbsp;            builder.field(LENIENT_FIELD.getPreferredName(), settings.lenient());</b>
+<i>459</i>&nbsp;        }
+<b class="nc"><i>460</i>&nbsp;        builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());</b>
+<b class="nc"><i>461</i>&nbsp;        if (settings.quoteFieldSuffix() != null) {</b>
+<b class="nc"><i>462</i>&nbsp;            builder.field(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), settings.quoteFieldSuffix());</b>
+<i>463</i>&nbsp;        }
+<i>464</i>&nbsp;
+<b class="nc"><i>465</i>&nbsp;        if (minimumShouldMatch != null) {</b>
+<b class="nc"><i>466</i>&nbsp;            builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);</b>
+<i>467</i>&nbsp;        }
+<b class="nc"><i>468</i>&nbsp;        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), settings.autoGenerateSynonymsPhraseQuery());</b>
+<b class="nc"><i>469</i>&nbsp;        builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), settings.fuzzyPrefixLength());</b>
+<b class="nc"><i>470</i>&nbsp;        builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), settings.fuzzyMaxExpansions());</b>
+<b class="nc"><i>471</i>&nbsp;        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());</b>
+<b class="nc"><i>472</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>473</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>474</i>&nbsp;    }</b>
+<i>475</i>&nbsp;
+<i>476</i>&nbsp;    public static SimpleQueryStringBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>477</i>&nbsp;        String currentFieldName = null;</b>
+<b class="nc"><i>478</i>&nbsp;        String queryBody = null;</b>
+<b class="nc"><i>479</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>480</i>&nbsp;        String queryName = null;</b>
+<b class="nc"><i>481</i>&nbsp;        String minimumShouldMatch = null;</b>
+<b class="nc"><i>482</i>&nbsp;        Map&lt;String, Float&gt; fieldsAndWeights = null;</b>
+<b class="nc"><i>483</i>&nbsp;        Operator defaultOperator = null;</b>
+<b class="nc"><i>484</i>&nbsp;        String analyzerName = null;</b>
+<b class="nc"><i>485</i>&nbsp;        int flags = SimpleQueryStringFlag.ALL.value();</b>
+<b class="nc"><i>486</i>&nbsp;        Boolean lenient = null;</b>
+<b class="nc"><i>487</i>&nbsp;        boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;</b>
+<b class="nc"><i>488</i>&nbsp;        String quoteFieldSuffix = null;</b>
+<b class="nc"><i>489</i>&nbsp;        boolean autoGenerateSynonymsPhraseQuery = true;</b>
+<b class="nc"><i>490</i>&nbsp;        int fuzzyPrefixLenght = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;</b>
+<b class="nc"><i>491</i>&nbsp;        int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;</b>
+<b class="nc"><i>492</i>&nbsp;        boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;</b>
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>495</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>496</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>497</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>498</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>499</i>&nbsp;                if (FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>500</i>&nbsp;                    List&lt;String&gt; fields = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>501</i>&nbsp;                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>502</i>&nbsp;                        fields.add(parser.text());</b>
+<i>503</i>&nbsp;                    }
+<b class="nc"><i>504</i>&nbsp;                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);</b>
+<b class="nc"><i>505</i>&nbsp;                } else {</b>
+<b class="nc"><i>506</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + SimpleQueryStringBuilder.NAME +</b>
+<i>507</i>&nbsp;                            &quot;] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>508</i>&nbsp;                }
+<b class="nc"><i>509</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="nc"><i>510</i>&nbsp;                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>511</i>&nbsp;                    queryBody = parser.text();</b>
+<b class="nc"><i>512</i>&nbsp;                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>513</i>&nbsp;                    boost = parser.floatValue();</b>
+<b class="nc"><i>514</i>&nbsp;                } else if (ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>515</i>&nbsp;                    analyzerName = parser.text();</b>
+<b class="nc"><i>516</i>&nbsp;                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>517</i>&nbsp;                    defaultOperator = Operator.fromString(parser.text());</b>
+<b class="nc"><i>518</i>&nbsp;                } else if (FLAGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>519</i>&nbsp;                    if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {</b>
+<i>520</i>&nbsp;                        // Possible options are:
+<i>521</i>&nbsp;                        // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
+<b class="nc"><i>522</i>&nbsp;                        flags = SimpleQueryStringFlag.resolveFlags(parser.text());</b>
+<i>523</i>&nbsp;                    } else {
+<b class="nc"><i>524</i>&nbsp;                        flags = parser.intValue();</b>
+<b class="nc"><i>525</i>&nbsp;                        if (flags &lt; 0) {</b>
+<b class="nc"><i>526</i>&nbsp;                            flags = SimpleQueryStringFlag.ALL.value();</b>
+<i>527</i>&nbsp;                        }
+<i>528</i>&nbsp;                    }
+<b class="nc"><i>529</i>&nbsp;                } else if (LOCALE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<i>530</i>&nbsp;                    // ignore, deprecated setting
+<b class="nc"><i>531</i>&nbsp;                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<i>532</i>&nbsp;                    // ignore, deprecated setting
+<b class="nc"><i>533</i>&nbsp;                } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>534</i>&nbsp;                    lenient = parser.booleanValue();</b>
+<b class="nc"><i>535</i>&nbsp;                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>536</i>&nbsp;                    analyzeWildcard = parser.booleanValue();</b>
+<b class="nc"><i>537</i>&nbsp;                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>538</i>&nbsp;                    queryName = parser.text();</b>
+<b class="nc"><i>539</i>&nbsp;                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>540</i>&nbsp;                    minimumShouldMatch = parser.textOrNull();</b>
+<b class="nc"><i>541</i>&nbsp;                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>542</i>&nbsp;                    quoteFieldSuffix = parser.textOrNull();</b>
+<b class="nc"><i>543</i>&nbsp;                } else if (ALL_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<i>544</i>&nbsp;                    // Ignore deprecated option
+<b class="nc"><i>545</i>&nbsp;                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>546</i>&nbsp;                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();</b>
+<b class="nc"><i>547</i>&nbsp;                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>548</i>&nbsp;                    fuzzyPrefixLenght = parser.intValue();</b>
+<b class="nc"><i>549</i>&nbsp;                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>550</i>&nbsp;                    fuzzyMaxExpansions = parser.intValue();</b>
+<b class="nc"><i>551</i>&nbsp;                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>552</i>&nbsp;                    fuzzyTranspositions = parser.booleanValue();</b>
+<i>553</i>&nbsp;                } else {
+<b class="nc"><i>554</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + SimpleQueryStringBuilder.NAME +</b>
+<b class="nc"><i>555</i>&nbsp;                            &quot;] unsupported field [&quot; + parser.currentName() + &quot;]&quot;);</b>
+<i>556</i>&nbsp;                }
+<i>557</i>&nbsp;            } else {
+<b class="nc"><i>558</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + SimpleQueryStringBuilder.NAME +</b>
+<i>559</i>&nbsp;                        &quot;] unknown token [&quot; + token + &quot;] after [&quot; + currentFieldName + &quot;]&quot;);
+<i>560</i>&nbsp;            }
+<i>561</i>&nbsp;        }
+<i>562</i>&nbsp;
+<i>563</i>&nbsp;        // Query text is required
+<b class="nc"><i>564</i>&nbsp;        if (queryBody == null) {</b>
+<b class="nc"><i>565</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + SimpleQueryStringBuilder.NAME + &quot;] query text missing&quot;);</b>
+<i>566</i>&nbsp;        }
+<i>567</i>&nbsp;
+<b class="nc"><i>568</i>&nbsp;        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);</b>
+<b class="nc"><i>569</i>&nbsp;        if (fieldsAndWeights != null) {</b>
+<b class="nc"><i>570</i>&nbsp;            qb.fields(fieldsAndWeights);</b>
+<i>571</i>&nbsp;        }
+<b class="nc"><i>572</i>&nbsp;        qb.boost(boost).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);</b>
+<b class="nc"><i>573</i>&nbsp;        qb.flags(flags).defaultOperator(defaultOperator);</b>
+<b class="nc"><i>574</i>&nbsp;        if (lenient != null) {</b>
+<b class="nc"><i>575</i>&nbsp;            qb.lenient(lenient);</b>
+<i>576</i>&nbsp;        }
+<b class="nc"><i>577</i>&nbsp;        qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);</b>
+<b class="nc"><i>578</i>&nbsp;        qb.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);</b>
+<b class="nc"><i>579</i>&nbsp;        qb.fuzzyPrefixLength(fuzzyPrefixLenght);</b>
+<b class="nc"><i>580</i>&nbsp;        qb.fuzzyMaxExpansions(fuzzyMaxExpansions);</b>
+<b class="nc"><i>581</i>&nbsp;        qb.fuzzyTranspositions(fuzzyTranspositions);</b>
+<b class="nc"><i>582</i>&nbsp;        return qb;</b>
+<i>583</i>&nbsp;    }
+<i>584</i>&nbsp;
+<i>585</i>&nbsp;    @Override
+<i>586</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>587</i>&nbsp;        return NAME;</b>
+<i>588</i>&nbsp;    }
+<i>589</i>&nbsp;
+<i>590</i>&nbsp;    @Override
+<i>591</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>592</i>&nbsp;        return Objects.hash(fieldsAndWeights, analyzer, defaultOperator, queryText, minimumShouldMatch, settings, flags);</b>
+<i>593</i>&nbsp;    }
+<i>594</i>&nbsp;
+<i>595</i>&nbsp;    @Override
+<i>596</i>&nbsp;    protected boolean doEquals(SimpleQueryStringBuilder other) {
+<b class="nc"><i>597</i>&nbsp;        return Objects.equals(fieldsAndWeights, other.fieldsAndWeights) &amp;&amp; Objects.equals(analyzer, other.analyzer)</b>
+<b class="nc"><i>598</i>&nbsp;                &amp;&amp; Objects.equals(defaultOperator, other.defaultOperator) &amp;&amp; Objects.equals(queryText, other.queryText)</b>
+<b class="nc"><i>599</i>&nbsp;                &amp;&amp; Objects.equals(minimumShouldMatch, other.minimumShouldMatch)</b>
+<b class="nc"><i>600</i>&nbsp;                &amp;&amp; Objects.equals(settings, other.settings)</b>
+<i>601</i>&nbsp;                &amp;&amp; (flags == other.flags);
+<i>602</i>&nbsp;    }
+<i>603</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

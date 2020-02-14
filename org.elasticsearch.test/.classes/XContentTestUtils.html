@@ -1,0 +1,381 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: XContentTestUtils</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.test</a> ]
+</div>
+
+<h1>Coverage Summary for Class: XContentTestUtils (org.elasticsearch.test)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">XContentTestUtils</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (5/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    34.4%
+  </span>
+  <span class="absValue">
+    (33/ 96)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.test;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>23</i>&nbsp;import org.elasticsearch.common.xcontent.DeprecationHandler;
+<i>24</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>25</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.XContent;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.XContentFactory;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>32</i>&nbsp;import org.elasticsearch.test.rest.yaml.ObjectPath;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import java.io.IOException;
+<i>35</i>&nbsp;import java.util.ArrayList;
+<i>36</i>&nbsp;import java.util.List;
+<i>37</i>&nbsp;import java.util.Map;
+<i>38</i>&nbsp;import java.util.Random;
+<i>39</i>&nbsp;import java.util.Stack;
+<i>40</i>&nbsp;import java.util.function.Predicate;
+<i>41</i>&nbsp;import java.util.function.Supplier;
+<i>42</i>&nbsp;import java.util.stream.Collectors;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
+<i>45</i>&nbsp;import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+<i>46</i>&nbsp;import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;public final class XContentTestUtils {</b>
+<b class="nc"><i>49</i>&nbsp;    private XContentTestUtils() {</b>
+<i>50</i>&nbsp;
+<b class="nc"><i>51</i>&nbsp;    }</b>
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    public static Map&lt;String, Object&gt; convertToMap(ToXContent part) throws IOException {
+<b class="nc"><i>54</i>&nbsp;        XContentBuilder builder = XContentFactory.jsonBuilder();</b>
+<b class="nc"><i>55</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>56</i>&nbsp;        part.toXContent(builder, EMPTY_PARAMS);</b>
+<b class="nc"><i>57</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>58</i>&nbsp;        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();</b>
+<i>59</i>&nbsp;    }
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    /**
+<i>63</i>&nbsp;     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
+<i>64</i>&nbsp;     *
+<i>65</i>&nbsp;     * @return null if maps are equal or path to the element where the difference was found
+<i>66</i>&nbsp;     */
+<i>67</i>&nbsp;    public static String differenceBetweenMapsIgnoringArrayOrder(Map&lt;String, Object&gt; first, Map&lt;String, Object&gt; second) {
+<b class="nc"><i>68</i>&nbsp;        return differenceBetweenMapsIgnoringArrayOrder(&quot;&quot;, first, second);</b>
+<i>69</i>&nbsp;    }
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    private static String differenceBetweenMapsIgnoringArrayOrder(String path, Map&lt;String, Object&gt; first, Map&lt;String, Object&gt; second) {
+<b class="nc"><i>72</i>&nbsp;        if (first.size() != second.size()) {</b>
+<b class="nc"><i>73</i>&nbsp;            return path + &quot;: sizes of the maps don&#39;t match: &quot; + first.size() + &quot; != &quot; + second.size();</b>
+<i>74</i>&nbsp;        }
+<i>75</i>&nbsp;
+<b class="nc"><i>76</i>&nbsp;        for (String key : first.keySet()) {</b>
+<b class="nc"><i>77</i>&nbsp;            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + &quot;/&quot; + key, first.get(key), second.get(key));</b>
+<b class="nc"><i>78</i>&nbsp;            if (reason != null) {</b>
+<b class="nc"><i>79</i>&nbsp;                return reason;</b>
+<i>80</i>&nbsp;            }
+<b class="nc"><i>81</i>&nbsp;        }</b>
+<b class="nc"><i>82</i>&nbsp;        return null;</b>
+<i>83</i>&nbsp;    }
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>86</i>&nbsp;    private static String differenceBetweenObjectsIgnoringArrayOrder(String path, Object first, Object second) {
+<b class="nc"><i>87</i>&nbsp;        if (first == null) {</b>
+<b class="nc"><i>88</i>&nbsp;            if (second == null) {</b>
+<b class="nc"><i>89</i>&nbsp;                return null;</b>
+<i>90</i>&nbsp;            } else {
+<b class="nc"><i>91</i>&nbsp;                return path + &quot;: first element is null, the second element is not null&quot;;</b>
+<i>92</i>&nbsp;            }
+<b class="nc"><i>93</i>&nbsp;        } else if (first instanceof List) {</b>
+<b class="nc"><i>94</i>&nbsp;            if (second instanceof List) {</b>
+<b class="nc"><i>95</i>&nbsp;                List&lt;Object&gt; secondList = new ArrayList&lt;&gt;((List&lt;Object&gt;) second);</b>
+<b class="nc"><i>96</i>&nbsp;                List&lt;Object&gt; firstList = (List&lt;Object&gt;) first;</b>
+<b class="nc"><i>97</i>&nbsp;                if (firstList.size() == secondList.size()) {</b>
+<b class="nc"><i>98</i>&nbsp;                    String reason = path + &quot;: no matches found&quot;;</b>
+<b class="nc"><i>99</i>&nbsp;                    for (Object firstObj : firstList) {</b>
+<b class="nc"><i>100</i>&nbsp;                        boolean found = false;</b>
+<b class="nc"><i>101</i>&nbsp;                        for (Object secondObj : secondList) {</b>
+<b class="nc"><i>102</i>&nbsp;                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + &quot;/*&quot;, firstObj, secondObj);</b>
+<b class="nc"><i>103</i>&nbsp;                            if (reason == null) {</b>
+<b class="nc"><i>104</i>&nbsp;                                secondList.remove(secondObj);</b>
+<b class="nc"><i>105</i>&nbsp;                                found = true;</b>
+<b class="nc"><i>106</i>&nbsp;                                break;</b>
+<i>107</i>&nbsp;                            }
+<b class="nc"><i>108</i>&nbsp;                        }</b>
+<b class="nc"><i>109</i>&nbsp;                        if (found == false) {</b>
+<b class="nc"><i>110</i>&nbsp;                            return reason;</b>
+<i>111</i>&nbsp;                        }
+<b class="nc"><i>112</i>&nbsp;                    }</b>
+<b class="nc"><i>113</i>&nbsp;                    if (secondList.isEmpty()) {</b>
+<b class="nc"><i>114</i>&nbsp;                        return null;</b>
+<i>115</i>&nbsp;                    } else {
+<b class="nc"><i>116</i>&nbsp;                        return path + &quot;: the second list is not empty&quot;;</b>
+<i>117</i>&nbsp;                    }
+<i>118</i>&nbsp;                } else {
+<b class="nc"><i>119</i>&nbsp;                    return path + &quot;: sizes of the arrays don&#39;t match: &quot; + firstList.size() + &quot; != &quot; + secondList.size();</b>
+<i>120</i>&nbsp;                }
+<i>121</i>&nbsp;            } else {
+<b class="nc"><i>122</i>&nbsp;                return path + &quot;: the second element is not an array&quot;;</b>
+<i>123</i>&nbsp;            }
+<b class="nc"><i>124</i>&nbsp;        } else if (first instanceof Map) {</b>
+<b class="nc"><i>125</i>&nbsp;            if (second instanceof Map) {</b>
+<b class="nc"><i>126</i>&nbsp;                return differenceBetweenMapsIgnoringArrayOrder(path, (Map&lt;String, Object&gt;) first, (Map&lt;String, Object&gt;) second);</b>
+<i>127</i>&nbsp;            } else {
+<b class="nc"><i>128</i>&nbsp;                return path + &quot;: the second element is not a map (got &quot; + second +&quot;)&quot;;</b>
+<i>129</i>&nbsp;            }
+<i>130</i>&nbsp;        } else {
+<b class="nc"><i>131</i>&nbsp;            if (first.equals(second)) {</b>
+<b class="nc"><i>132</i>&nbsp;                return null;</b>
+<i>133</i>&nbsp;            } else {
+<b class="nc"><i>134</i>&nbsp;                return path + &quot;: the elements don&#39;t match: [&quot; + first + &quot;] != [&quot; + second + &quot;]&quot;;</b>
+<i>135</i>&nbsp;            }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;        }
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /**
+<i>141</i>&nbsp;     * This method takes the input xContent data and adds a random field value, inner object or array into each
+<i>142</i>&nbsp;     * json object. This can e.g. be used to test if parsers that handle the resulting xContent can handle the
+<i>143</i>&nbsp;     * augmented xContent correctly, for example when testing lenient parsing.
+<i>144</i>&nbsp;     *
+<i>145</i>&nbsp;     * If the xContent output contains objects that should be skipped of such treatment, an optional filtering
+<i>146</i>&nbsp;     * {@link Predicate} can be supplied that checks xContent paths that should be excluded from this treatment.
+<i>147</i>&nbsp;     *
+<i>148</i>&nbsp;     * This predicate should check the xContent path that we want to insert to and return {@code true} if the
+<i>149</i>&nbsp;     * path should be excluded. Paths are string concatenating field names and array indices, so e.g. in:
+<i>150</i>&nbsp;     *
+<i>151</i>&nbsp;     * &lt;pre&gt;
+<i>152</i>&nbsp;     * {
+<i>153</i>&nbsp;     *      &quot;foo1 : {
+<i>154</i>&nbsp;     *          &quot;bar&quot; : [
+<i>155</i>&nbsp;     *              { ... },
+<i>156</i>&nbsp;     *              { ... },
+<i>157</i>&nbsp;     *              {
+<i>158</i>&nbsp;     *                  &quot;baz&quot; : {
+<i>159</i>&nbsp;     *                      // insert here
+<i>160</i>&nbsp;     *                  }
+<i>161</i>&nbsp;     *              }
+<i>162</i>&nbsp;     *          ]
+<i>163</i>&nbsp;     *      }
+<i>164</i>&nbsp;     * }
+<i>165</i>&nbsp;     * &lt;/pre&gt;
+<i>166</i>&nbsp;     *
+<i>167</i>&nbsp;     * &quot;foo1.bar.2.baz&quot; would point to the desired insert location.
+<i>168</i>&nbsp;     *
+<i>169</i>&nbsp;     * To exclude inserting into the &quot;foo1&quot; object we would user a {@link Predicate} like
+<i>170</i>&nbsp;     * &lt;pre&gt;
+<i>171</i>&nbsp;     * {@code
+<i>172</i>&nbsp;     *      (path) -&gt; path.endsWith(&quot;foo1&quot;)
+<i>173</i>&nbsp;     * }
+<i>174</i>&nbsp;     * &lt;/pre&gt;
+<i>175</i>&nbsp;     *
+<i>176</i>&nbsp;     * or if we don&#39;t want any random insertions in the &quot;foo1&quot; tree we could use
+<i>177</i>&nbsp;     * &lt;pre&gt;
+<i>178</i>&nbsp;     * {@code
+<i>179</i>&nbsp;     *      (path) -&gt; path.contains(&quot;foo1&quot;)
+<i>180</i>&nbsp;     * }
+<i>181</i>&nbsp;     * &lt;/pre&gt;
+<i>182</i>&nbsp;     */
+<i>183</i>&nbsp;    public static BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate&lt;String&gt; excludeFilter,
+<i>184</i>&nbsp;            Random random) throws IOException {
+<i>185</i>&nbsp;        List&lt;String&gt; insertPaths;
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;        // we can use NamedXContentRegistry.EMPTY here because we only traverse the xContent once and don&#39;t use it
+<b class="fc"><i>188</i>&nbsp;        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY,</b>
+<i>189</i>&nbsp;            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, xContent, contentType)) {
+<b class="fc"><i>190</i>&nbsp;            parser.nextToken();</b>
+<b class="fc"><i>191</i>&nbsp;            List&lt;String&gt; possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack&lt;&gt;());</b>
+<b class="fc"><i>192</i>&nbsp;            if (excludeFilter == null) {</b>
+<b class="nc"><i>193</i>&nbsp;                insertPaths = possiblePaths;</b>
+<i>194</i>&nbsp;            } else {
+<b class="fc"><i>195</i>&nbsp;                insertPaths = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>196</i>&nbsp;                possiblePaths.stream().filter(excludeFilter.negate()).forEach(insertPaths::add);</b>
+<i>197</i>&nbsp;            }
+<b class="fc"><i>198</i>&nbsp;        }</b>
+<i>199</i>&nbsp;
+<b class="fc"><i>200</i>&nbsp;        Supplier&lt;Object&gt; value = () -&gt; {</b>
+<b class="fc"><i>201</i>&nbsp;            List&lt;Object&gt; randomValues = RandomObjects.randomStoredFieldValues(random, contentType).v1();</b>
+<b class="fc"><i>202</i>&nbsp;            if (random.nextBoolean()) {</b>
+<b class="fc"><i>203</i>&nbsp;                return randomValues.get(0);</b>
+<i>204</i>&nbsp;            } else {
+<b class="nc"><i>205</i>&nbsp;                if (random.nextBoolean()) {</b>
+<b class="nc"><i>206</i>&nbsp;                    return randomValues.stream().collect(Collectors.toMap(obj -&gt; randomAsciiOfLength(random, 10), obj -&gt; obj));</b>
+<i>207</i>&nbsp;                } else {
+<b class="nc"><i>208</i>&nbsp;                    return randomValues;</b>
+<i>209</i>&nbsp;                }
+<i>210</i>&nbsp;            }
+<i>211</i>&nbsp;        };
+<b class="fc"><i>212</i>&nbsp;        return BytesReference.bytes(XContentTestUtils</b>
+<b class="fc"><i>213</i>&nbsp;                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -&gt; randomAsciiOfLength(random, 10), value));</b>
+<i>214</i>&nbsp;    }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    /**
+<i>217</i>&nbsp;     * This utility method takes an XContentParser and walks the xContent structure to find all
+<i>218</i>&nbsp;     * possible paths to where a new object or array starts. This can be used in tests that add random
+<i>219</i>&nbsp;     * xContent values to test parsing code for errors or to check their robustness against new fields.
+<i>220</i>&nbsp;     *
+<i>221</i>&nbsp;     * The path uses dot separated fieldnames and numbers for array indices, similar to what we do in
+<i>222</i>&nbsp;     * {@link ObjectPath}.
+<i>223</i>&nbsp;     *
+<i>224</i>&nbsp;     * The {@link Stack} passed in should initially be empty, it gets pushed to by recursive calls
+<i>225</i>&nbsp;     *
+<i>226</i>&nbsp;     * As an example, the following json xContent:
+<i>227</i>&nbsp;     * &lt;pre&gt;
+<i>228</i>&nbsp;     *     {
+<i>229</i>&nbsp;     *         &quot;foo&quot; : &quot;bar&quot;,
+<i>230</i>&nbsp;     *         &quot;foo1&quot; : [ 1, { &quot;foo2&quot; : &quot;baz&quot; }, 3, 4]
+<i>231</i>&nbsp;     *         &quot;foo3&quot; : {
+<i>232</i>&nbsp;     *             &quot;foo4&quot; : {
+<i>233</i>&nbsp;     *                  &quot;foo5&quot;: &quot;buzz&quot;
+<i>234</i>&nbsp;     *             }
+<i>235</i>&nbsp;     *         }
+<i>236</i>&nbsp;     *     }
+<i>237</i>&nbsp;     * &lt;/pre&gt;
+<i>238</i>&nbsp;     *
+<i>239</i>&nbsp;     * Would return the following list:
+<i>240</i>&nbsp;     *
+<i>241</i>&nbsp;     * &lt;ul&gt;
+<i>242</i>&nbsp;     *  &lt;li&gt;&quot;&quot; (the empty string is the path to the root object)&lt;/li&gt;
+<i>243</i>&nbsp;     *  &lt;li&gt;&quot;foo1.1&quot;&lt;/li&gt;
+<i>244</i>&nbsp;     *  &lt;li&gt;&quot;foo3&lt;/li&gt;
+<i>245</i>&nbsp;     *  &lt;li&gt;&quot;foo3.foo4&lt;/li&gt;
+<i>246</i>&nbsp;     * &lt;/ul&gt;
+<i>247</i>&nbsp;     */
+<i>248</i>&nbsp;    static List&lt;String&gt; getInsertPaths(XContentParser parser, Stack&lt;String&gt; currentPath) throws IOException {
+<b class="fc"><i>249</i>&nbsp;        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY :</b>
+<i>250</i>&nbsp;            &quot;should only be called when new objects or arrays start&quot;;
+<b class="fc"><i>251</i>&nbsp;        List&lt;String&gt; validPaths = new ArrayList&lt;&gt;();</b>
+<i>252</i>&nbsp;        // parser.currentName() can be null for root object and unnamed objects in arrays
+<b class="fc"><i>253</i>&nbsp;        if (parser.currentName() != null) {</b>
+<i>254</i>&nbsp;            // dots in randomized field names need to be escaped, we use that character as the path separator
+<b class="fc"><i>255</i>&nbsp;            currentPath.push(parser.currentName().replaceAll(&quot;\\.&quot;, &quot;\\\\.&quot;));</b>
+<i>256</i>&nbsp;        }
+<b class="fc"><i>257</i>&nbsp;        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {</b>
+<b class="fc"><i>258</i>&nbsp;            validPaths.add(String.join(&quot;.&quot;, currentPath.toArray(new String[currentPath.size()])));</b>
+<b class="fc"><i>259</i>&nbsp;            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="fc"><i>260</i>&nbsp;                if (parser.currentToken() == XContentParser.Token.START_OBJECT</b>
+<b class="fc"><i>261</i>&nbsp;                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {</b>
+<b class="fc"><i>262</i>&nbsp;                    validPaths.addAll(getInsertPaths(parser, currentPath));</b>
+<i>263</i>&nbsp;                }
+<i>264</i>&nbsp;            }
+<b class="nc"><i>265</i>&nbsp;        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>266</i>&nbsp;            int itemCount = 0;</b>
+<b class="nc"><i>267</i>&nbsp;            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>268</i>&nbsp;                if (parser.currentToken() == XContentParser.Token.START_OBJECT</b>
+<b class="nc"><i>269</i>&nbsp;                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>270</i>&nbsp;                    currentPath.push(Integer.toString(itemCount));</b>
+<b class="nc"><i>271</i>&nbsp;                    validPaths.addAll(getInsertPaths(parser, currentPath));</b>
+<b class="nc"><i>272</i>&nbsp;                    currentPath.pop();</b>
+<i>273</i>&nbsp;                }
+<b class="nc"><i>274</i>&nbsp;                itemCount++;</b>
+<i>275</i>&nbsp;            }
+<i>276</i>&nbsp;        }
+<b class="fc"><i>277</i>&nbsp;        if (parser.currentName() != null) {</b>
+<b class="fc"><i>278</i>&nbsp;            currentPath.pop();</b>
+<i>279</i>&nbsp;        }
+<b class="fc"><i>280</i>&nbsp;        return validPaths;</b>
+<i>281</i>&nbsp;    }
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    /**
+<i>284</i>&nbsp;     * Inserts key/value pairs into xContent passed in as {@link BytesReference} and returns a new {@link XContentBuilder}
+<i>285</i>&nbsp;     * The paths argument uses dot separated fieldnames and numbers for array indices, similar to what we do in
+<i>286</i>&nbsp;     * {@link ObjectPath}.
+<i>287</i>&nbsp;     * The key/value arguments can suppliers that either return fixed or random values.
+<i>288</i>&nbsp;     */
+<i>289</i>&nbsp;    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List&lt;String&gt; paths, Supplier&lt;String&gt; key,
+<i>290</i>&nbsp;            Supplier&lt;Object&gt; value) throws IOException {
+<b class="fc"><i>291</i>&nbsp;        ObjectPath object = ObjectPath.createFromXContent(xContent, original);</b>
+<b class="fc"><i>292</i>&nbsp;        for (String path : paths) {</b>
+<b class="fc"><i>293</i>&nbsp;            Map&lt;String, Object&gt; insertMap = object.evaluate(path);</b>
+<b class="fc"><i>294</i>&nbsp;            insertMap.put(key.get(), value.get());</b>
+<b class="fc"><i>295</i>&nbsp;        }</b>
+<b class="fc"><i>296</i>&nbsp;        return object.toXContentBuilder(xContent);</b>
+<i>297</i>&nbsp;    }
+<i>298</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

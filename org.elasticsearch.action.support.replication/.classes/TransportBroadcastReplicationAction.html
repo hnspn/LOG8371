@@ -1,0 +1,254 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TransportBroadcastReplicationAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.support.replication</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TransportBroadcastReplicationAction (org.elasticsearch.action.support.replication)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TransportBroadcastReplicationAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (1/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    10.4%
+  </span>
+  <span class="absValue">
+    (5/ 48)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.support.replication;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.IntObjectCursor;
+<i>23</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>25</i>&nbsp;import org.elasticsearch.action.support.ActionFilters;
+<i>26</i>&nbsp;import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.HandledTransportAction;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.TransportActions;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+<i>30</i>&nbsp;import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+<i>31</i>&nbsp;import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>38</i>&nbsp;import org.elasticsearch.common.util.concurrent.CountDown;
+<i>39</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>40</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>41</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.util.ArrayList;
+<i>44</i>&nbsp;import java.util.Arrays;
+<i>45</i>&nbsp;import java.util.List;
+<i>46</i>&nbsp;import java.util.concurrent.CopyOnWriteArrayList;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;/**
+<i>49</i>&nbsp; * Base class for requests that should be executed on all shards of an index or several indices.
+<i>50</i>&nbsp; * This action sends shard requests to all primary shards of the indices and they are then replicated like write requests
+<i>51</i>&nbsp; */
+<b class="nc"><i>52</i>&nbsp;public abstract class TransportBroadcastReplicationAction&lt;Request extends BroadcastRequest&lt;Request&gt;, Response extends BroadcastResponse,</b>
+<i>53</i>&nbsp;        ShardRequest extends ReplicationRequest&lt;ShardRequest&gt;, ShardResponse extends ReplicationResponse&gt;
+<i>54</i>&nbsp;        extends HandledTransportAction&lt;Request, Response&gt; {
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private final TransportReplicationAction replicatedBroadcastShardAction;
+<i>57</i>&nbsp;    private final ClusterService clusterService;
+<i>58</i>&nbsp;    private final IndexNameExpressionResolver indexNameExpressionResolver;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    public TransportBroadcastReplicationAction(String name, Writeable.Reader&lt;Request&gt; requestReader, ClusterService clusterService,
+<i>61</i>&nbsp;                                               TransportService transportService,
+<i>62</i>&nbsp;                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+<i>63</i>&nbsp;                                               TransportReplicationAction replicatedBroadcastShardAction) {
+<b class="fc"><i>64</i>&nbsp;        super(name, transportService, actionFilters, requestReader);</b>
+<b class="fc"><i>65</i>&nbsp;        this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;</b>
+<b class="fc"><i>66</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>67</i>&nbsp;        this.indexNameExpressionResolver = indexNameExpressionResolver;</b>
+<b class="fc"><i>68</i>&nbsp;    }</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    @Override
+<i>71</i>&nbsp;    protected void doExecute(Task task, Request request, ActionListener&lt;Response&gt; listener) {
+<b class="nc"><i>72</i>&nbsp;        final ClusterState clusterState = clusterService.state();</b>
+<b class="nc"><i>73</i>&nbsp;        List&lt;ShardId&gt; shards = shards(request, clusterState);</b>
+<b class="nc"><i>74</i>&nbsp;        final CopyOnWriteArrayList&lt;ShardResponse&gt; shardsResponses = new CopyOnWriteArrayList&lt;&gt;();</b>
+<b class="nc"><i>75</i>&nbsp;        if (shards.size() == 0) {</b>
+<b class="nc"><i>76</i>&nbsp;            finishAndNotifyListener(listener, shardsResponses);</b>
+<i>77</i>&nbsp;        }
+<b class="nc"><i>78</i>&nbsp;        final CountDown responsesCountDown = new CountDown(shards.size());</b>
+<b class="nc"><i>79</i>&nbsp;        for (final ShardId shardId : shards) {</b>
+<b class="nc"><i>80</i>&nbsp;            ActionListener&lt;ShardResponse&gt; shardActionListener = new ActionListener&lt;ShardResponse&gt;() {</b>
+<i>81</i>&nbsp;                @Override
+<i>82</i>&nbsp;                public void onResponse(ShardResponse shardResponse) {
+<i>83</i>&nbsp;                    shardsResponses.add(shardResponse);
+<i>84</i>&nbsp;                    logger.trace(&quot;{}: got response from {}&quot;, actionName, shardId);
+<i>85</i>&nbsp;                    if (responsesCountDown.countDown()) {
+<i>86</i>&nbsp;                        finishAndNotifyListener(listener, shardsResponses);
+<i>87</i>&nbsp;                    }
+<i>88</i>&nbsp;                }
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;                @Override
+<i>91</i>&nbsp;                public void onFailure(Exception e) {
+<i>92</i>&nbsp;                    logger.trace(&quot;{}: got failure from {}&quot;, actionName, shardId);
+<i>93</i>&nbsp;                    int totalNumCopies = clusterState.getMetaData().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+<i>94</i>&nbsp;                    ShardResponse shardResponse = newShardResponse();
+<i>95</i>&nbsp;                    ReplicationResponse.ShardInfo.Failure[] failures;
+<i>96</i>&nbsp;                    if (TransportActions.isShardNotAvailableException(e)) {
+<i>97</i>&nbsp;                        failures = new ReplicationResponse.ShardInfo.Failure[0];
+<i>98</i>&nbsp;                    } else {
+<i>99</i>&nbsp;                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId, null, e,
+<i>100</i>&nbsp;                            ExceptionsHelper.status(e), true);
+<i>101</i>&nbsp;                        failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
+<i>102</i>&nbsp;                        Arrays.fill(failures, failure);
+<i>103</i>&nbsp;                    }
+<i>104</i>&nbsp;                    shardResponse.setShardInfo(new ReplicationResponse.ShardInfo(totalNumCopies, 0, failures));
+<i>105</i>&nbsp;                    shardsResponses.add(shardResponse);
+<i>106</i>&nbsp;                    if (responsesCountDown.countDown()) {
+<i>107</i>&nbsp;                        finishAndNotifyListener(listener, shardsResponses);
+<i>108</i>&nbsp;                    }
+<i>109</i>&nbsp;                }
+<i>110</i>&nbsp;            };
+<b class="nc"><i>111</i>&nbsp;            shardExecute(task, request, shardId, shardActionListener);</b>
+<b class="nc"><i>112</i>&nbsp;        }</b>
+<b class="nc"><i>113</i>&nbsp;    }</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener&lt;ShardResponse&gt; shardActionListener) {
+<b class="nc"><i>116</i>&nbsp;        ShardRequest shardRequest = newShardRequest(request, shardId);</b>
+<b class="nc"><i>117</i>&nbsp;        shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());</b>
+<b class="nc"><i>118</i>&nbsp;        replicatedBroadcastShardAction.execute(shardRequest, shardActionListener);</b>
+<b class="nc"><i>119</i>&nbsp;    }</b>
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    /**
+<i>122</i>&nbsp;     * @return all shard ids the request should run on
+<i>123</i>&nbsp;     */
+<i>124</i>&nbsp;    protected List&lt;ShardId&gt; shards(Request request, ClusterState clusterState) {
+<b class="nc"><i>125</i>&nbsp;        List&lt;ShardId&gt; shardIds = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>126</i>&nbsp;        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);</b>
+<b class="nc"><i>127</i>&nbsp;        for (String index : concreteIndices) {</b>
+<b class="nc"><i>128</i>&nbsp;            IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);</b>
+<b class="nc"><i>129</i>&nbsp;            if (indexMetaData != null) {</b>
+<i>130</i>&nbsp;                for (IntObjectCursor&lt;IndexShardRoutingTable&gt; shardRouting
+<b class="nc"><i>131</i>&nbsp;                        : clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {</b>
+<b class="nc"><i>132</i>&nbsp;                    shardIds.add(shardRouting.value.shardId());</b>
+<b class="nc"><i>133</i>&nbsp;                }</b>
+<i>134</i>&nbsp;            }
+<i>135</i>&nbsp;        }
+<b class="nc"><i>136</i>&nbsp;        return shardIds;</b>
+<i>137</i>&nbsp;    }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    protected abstract ShardResponse newShardResponse();
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    private void finishAndNotifyListener(ActionListener listener, CopyOnWriteArrayList&lt;ShardResponse&gt; shardsResponses) {
+<b class="nc"><i>144</i>&nbsp;        logger.trace(&quot;{}: got all shard responses&quot;, actionName);</b>
+<b class="nc"><i>145</i>&nbsp;        int successfulShards = 0;</b>
+<b class="nc"><i>146</i>&nbsp;        int failedShards = 0;</b>
+<b class="nc"><i>147</i>&nbsp;        int totalNumCopies = 0;</b>
+<b class="nc"><i>148</i>&nbsp;        List&lt;DefaultShardOperationFailedException&gt; shardFailures = null;</b>
+<b class="nc"><i>149</i>&nbsp;        for (int i = 0; i &lt; shardsResponses.size(); i++) {</b>
+<b class="nc"><i>150</i>&nbsp;            ReplicationResponse shardResponse = shardsResponses.get(i);</b>
+<b class="nc"><i>151</i>&nbsp;            if (shardResponse == null) {</b>
+<i>152</i>&nbsp;                // non active shard, ignore
+<i>153</i>&nbsp;            } else {
+<b class="nc"><i>154</i>&nbsp;                failedShards += shardResponse.getShardInfo().getFailed();</b>
+<b class="nc"><i>155</i>&nbsp;                successfulShards += shardResponse.getShardInfo().getSuccessful();</b>
+<b class="nc"><i>156</i>&nbsp;                totalNumCopies += shardResponse.getShardInfo().getTotal();</b>
+<b class="nc"><i>157</i>&nbsp;                if (shardFailures == null) {</b>
+<b class="nc"><i>158</i>&nbsp;                    shardFailures = new ArrayList&lt;&gt;();</b>
+<i>159</i>&nbsp;                }
+<b class="nc"><i>160</i>&nbsp;                for (ReplicationResponse.ShardInfo.Failure failure : shardResponse.getShardInfo().getFailures()) {</b>
+<b class="nc"><i>161</i>&nbsp;                    shardFailures.add(new DefaultShardOperationFailedException(</b>
+<b class="nc"><i>162</i>&nbsp;                        new BroadcastShardOperationFailedException(failure.fullShardId(), failure.getCause())));</b>
+<i>163</i>&nbsp;                }
+<i>164</i>&nbsp;            }
+<i>165</i>&nbsp;        }
+<b class="nc"><i>166</i>&nbsp;        listener.onResponse(newResponse(successfulShards, failedShards, totalNumCopies, shardFailures));</b>
+<b class="nc"><i>167</i>&nbsp;    }</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    protected abstract BroadcastResponse newResponse(int successfulShards, int failedShards, int totalNumCopies,
+<i>170</i>&nbsp;                                                     List&lt;DefaultShardOperationFailedException&gt; shardFailures);
+<i>171</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,1137 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TcpTransport</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.transport</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TcpTransport (org.elasticsearch.transport)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TcpTransport</td>
+<td class="coverageStat">
+  <span class="percent">
+    39.2%
+  </span>
+  <span class="absValue">
+    (20/ 51)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    35.7%
+  </span>
+  <span class="absValue">
+    (122/ 342)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">TcpTransport$HttpRequestOnTransportException</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">TcpTransport$ProfileSettings</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    90.5%
+  </span>
+  <span class="absValue">
+    (19/ 21)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    37.5%
+  </span>
+  <span class="absValue">
+    (21/ 56)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    38.2%
+  </span>
+  <span class="absValue">
+    (141/ 369)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.transport;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import com.carrotsearch.hppc.IntHashSet;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.IntSet;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>26</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>27</i>&nbsp;import org.elasticsearch.Version;
+<i>28</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.ThreadedActionListener;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>31</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>32</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>33</i>&nbsp;import org.elasticsearch.common.breaker.CircuitBreaker;
+<i>34</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>35</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>36</i>&nbsp;import org.elasticsearch.common.component.AbstractLifecycleComponent;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+<i>38</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>39</i>&nbsp;import org.elasticsearch.common.metrics.MeanMetric;
+<i>40</i>&nbsp;import org.elasticsearch.common.network.CloseableChannel;
+<i>41</i>&nbsp;import org.elasticsearch.common.network.NetworkAddress;
+<i>42</i>&nbsp;import org.elasticsearch.common.network.NetworkService;
+<i>43</i>&nbsp;import org.elasticsearch.common.network.NetworkUtils;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>45</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>46</i>&nbsp;import org.elasticsearch.common.transport.BoundTransportAddress;
+<i>47</i>&nbsp;import org.elasticsearch.common.transport.PortsRange;
+<i>48</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>49</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>50</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>51</i>&nbsp;import org.elasticsearch.common.util.BigArrays;
+<i>52</i>&nbsp;import org.elasticsearch.common.util.PageCacheRecycler;
+<i>53</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>54</i>&nbsp;import org.elasticsearch.common.util.concurrent.CountDown;
+<i>55</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>56</i>&nbsp;import org.elasticsearch.monitor.jvm.JvmInfo;
+<i>57</i>&nbsp;import org.elasticsearch.node.Node;
+<i>58</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>59</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;import java.io.IOException;
+<i>62</i>&nbsp;import java.io.StreamCorruptedException;
+<i>63</i>&nbsp;import java.net.BindException;
+<i>64</i>&nbsp;import java.net.InetAddress;
+<i>65</i>&nbsp;import java.net.InetSocketAddress;
+<i>66</i>&nbsp;import java.net.UnknownHostException;
+<i>67</i>&nbsp;import java.nio.channels.CancelledKeyException;
+<i>68</i>&nbsp;import java.nio.charset.StandardCharsets;
+<i>69</i>&nbsp;import java.util.ArrayList;
+<i>70</i>&nbsp;import java.util.Arrays;
+<i>71</i>&nbsp;import java.util.Collections;
+<i>72</i>&nbsp;import java.util.EnumMap;
+<i>73</i>&nbsp;import java.util.HashMap;
+<i>74</i>&nbsp;import java.util.HashSet;
+<i>75</i>&nbsp;import java.util.List;
+<i>76</i>&nbsp;import java.util.Map;
+<i>77</i>&nbsp;import java.util.Objects;
+<i>78</i>&nbsp;import java.util.Set;
+<i>79</i>&nbsp;import java.util.TreeSet;
+<i>80</i>&nbsp;import java.util.concurrent.ConcurrentMap;
+<i>81</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>82</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>83</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>84</i>&nbsp;import java.util.concurrent.atomic.AtomicReference;
+<i>85</i>&nbsp;import java.util.concurrent.locks.ReadWriteLock;
+<i>86</i>&nbsp;import java.util.concurrent.locks.ReentrantReadWriteLock;
+<i>87</i>&nbsp;import java.util.regex.Matcher;
+<i>88</i>&nbsp;import java.util.regex.Pattern;
+<i>89</i>&nbsp;import java.util.stream.Collectors;
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;import static java.util.Collections.unmodifiableMap;
+<i>92</i>&nbsp;import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
+<i>93</i>&nbsp;import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
+<i>94</i>&nbsp;import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+<i>95</i>&nbsp;
+<b class="fc"><i>96</i>&nbsp;public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {</b>
+<b class="fc"><i>97</i>&nbsp;    private static final Logger logger = LogManager.getLogger(TcpTransport.class);</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = &quot;transport_worker&quot;;
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    // This is the number of bytes necessary to read the message size
+<i>102</i>&nbsp;    private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+<b class="fc"><i>103</i>&nbsp;    private static final long THIRTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3);</b>
+<b class="fc"><i>104</i>&nbsp;    private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);</b>
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    // this limit is per-address
+<i>107</i>&nbsp;    private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    protected final Settings settings;
+<i>110</i>&nbsp;    protected final ThreadPool threadPool;
+<i>111</i>&nbsp;    protected final PageCacheRecycler pageCacheRecycler;
+<i>112</i>&nbsp;    protected final NetworkService networkService;
+<i>113</i>&nbsp;    protected final Set&lt;ProfileSettings&gt; profileSettings;
+<i>114</i>&nbsp;
+<b class="fc"><i>115</i>&nbsp;    private final ConcurrentMap&lt;String, BoundTransportAddress&gt; profileBoundAddresses = newConcurrentMap();</b>
+<b class="fc"><i>116</i>&nbsp;    private final Map&lt;String, List&lt;TcpServerChannel&gt;&gt; serverChannels = newConcurrentMap();</b>
+<b class="fc"><i>117</i>&nbsp;    private final Set&lt;TcpChannel&gt; acceptedChannels = ConcurrentCollections.newConcurrentSet();</b>
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    // this lock is here to make sure we close this transport and disconnect all the client nodes
+<i>120</i>&nbsp;    // connections while no connect operations is going on
+<b class="fc"><i>121</i>&nbsp;    private final ReadWriteLock closeLock = new ReentrantReadWriteLock();</b>
+<i>122</i>&nbsp;    private volatile BoundTransportAddress boundAddress;
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    private final TransportHandshaker handshaker;
+<i>125</i>&nbsp;    private final TransportKeepAlive keepAlive;
+<i>126</i>&nbsp;    private final OutboundHandler outboundHandler;
+<i>127</i>&nbsp;    private final InboundHandler inboundHandler;
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    public TcpTransport(Settings settings, Version version, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
+<i>130</i>&nbsp;                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+<b class="fc"><i>131</i>&nbsp;                        NetworkService networkService) {</b>
+<b class="fc"><i>132</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>133</i>&nbsp;        this.profileSettings = getProfileSettings(settings);</b>
+<b class="fc"><i>134</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>135</i>&nbsp;        this.pageCacheRecycler = pageCacheRecycler;</b>
+<b class="fc"><i>136</i>&nbsp;        this.networkService = networkService;</b>
+<b class="fc"><i>137</i>&nbsp;        String nodeName = Node.NODE_NAME_SETTING.get(settings);</b>
+<b class="fc"><i>138</i>&nbsp;        final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);</b>
+<i>139</i>&nbsp;        String[] features;
+<b class="fc"><i>140</i>&nbsp;        if (defaultFeatures == null) {</b>
+<b class="nc"><i>141</i>&nbsp;            features = new String[0];</b>
+<i>142</i>&nbsp;        } else {
+<b class="fc"><i>143</i>&nbsp;            defaultFeatures.names().forEach(key -&gt; {</b>
+<b class="nc"><i>144</i>&nbsp;                if (Booleans.parseBoolean(defaultFeatures.get(key)) == false) {</b>
+<b class="nc"><i>145</i>&nbsp;                    throw new IllegalArgumentException(&quot;feature settings must have default [true] value&quot;);</b>
+<i>146</i>&nbsp;                }
+<b class="nc"><i>147</i>&nbsp;            });</b>
+<i>148</i>&nbsp;            // use a sorted set to present the features in a consistent order
+<b class="fc"><i>149</i>&nbsp;            features = new TreeSet&lt;&gt;(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);</b>
+<i>150</i>&nbsp;        }
+<b class="fc"><i>151</i>&nbsp;        BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);</b>
+<i>152</i>&nbsp;
+<b class="fc"><i>153</i>&nbsp;        this.outboundHandler = new OutboundHandler(nodeName, version, features, threadPool, bigArrays);</b>
+<b class="fc"><i>154</i>&nbsp;        this.handshaker = new TransportHandshaker(version, threadPool,</b>
+<b class="nc"><i>155</i>&nbsp;            (node, channel, requestId, v) -&gt; outboundHandler.sendRequest(node, channel, requestId,</b>
+<i>156</i>&nbsp;                TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
+<i>157</i>&nbsp;                TransportRequestOptions.EMPTY, v, false, true),
+<b class="nc"><i>158</i>&nbsp;            (v, features1, channel, response, requestId) -&gt; outboundHandler.sendResponse(v, features1, channel, requestId,</b>
+<i>159</i>&nbsp;                TransportHandshaker.HANDSHAKE_ACTION_NAME, response, false, true));
+<b class="fc"><i>160</i>&nbsp;        InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());</b>
+<b class="fc"><i>161</i>&nbsp;        this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);</b>
+<b class="fc"><i>162</i>&nbsp;        this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, handshaker,</b>
+<i>163</i>&nbsp;            keepAlive);
+<b class="fc"><i>164</i>&nbsp;    }</b>
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    @Override
+<i>167</i>&nbsp;    protected void doStart() {
+<b class="fc"><i>168</i>&nbsp;    }</b>
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    @Override
+<i>171</i>&nbsp;    public synchronized void setMessageListener(TransportMessageListener listener) {
+<b class="fc"><i>172</i>&nbsp;        outboundHandler.setMessageListener(listener);</b>
+<b class="fc"><i>173</i>&nbsp;        inboundHandler.setMessageListener(listener);</b>
+<b class="fc"><i>174</i>&nbsp;    }</b>
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    @Override
+<i>177</i>&nbsp;    public synchronized &lt;Request extends TransportRequest&gt; void registerRequestHandler(RequestHandlerRegistry&lt;Request&gt; reg) {
+<b class="fc"><i>178</i>&nbsp;        inboundHandler.registerRequestHandler(reg);</b>
+<b class="fc"><i>179</i>&nbsp;    }</b>
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    public final class NodeChannels extends CloseableConnection {
+<i>182</i>&nbsp;        private final Map&lt;TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle&gt; typeMapping;
+<i>183</i>&nbsp;        private final List&lt;TcpChannel&gt; channels;
+<i>184</i>&nbsp;        private final DiscoveryNode node;
+<i>185</i>&nbsp;        private final Version version;
+<i>186</i>&nbsp;        private final boolean compress;
+<i>187</i>&nbsp;        private final AtomicBoolean isClosing = new AtomicBoolean(false);
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;        NodeChannels(DiscoveryNode node, List&lt;TcpChannel&gt; channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+<i>190</i>&nbsp;            this.node = node;
+<i>191</i>&nbsp;            this.channels = Collections.unmodifiableList(channels);
+<i>192</i>&nbsp;            assert channels.size() == connectionProfile.getNumConnections() : &quot;expected channels size to be == &quot;
+<i>193</i>&nbsp;                + connectionProfile.getNumConnections() + &quot; but was: [&quot; + channels.size() + &quot;]&quot;;
+<i>194</i>&nbsp;            typeMapping = new EnumMap&lt;&gt;(TransportRequestOptions.Type.class);
+<i>195</i>&nbsp;            for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
+<i>196</i>&nbsp;                for (TransportRequestOptions.Type type : handle.getTypes())
+<i>197</i>&nbsp;                    typeMapping.put(type, handle);
+<i>198</i>&nbsp;            }
+<i>199</i>&nbsp;            version = handshakeVersion;
+<i>200</i>&nbsp;            compress = connectionProfile.getCompressionEnabled();
+<i>201</i>&nbsp;        }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;        @Override
+<i>204</i>&nbsp;        public Version getVersion() {
+<i>205</i>&nbsp;            return version;
+<i>206</i>&nbsp;        }
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;        public List&lt;TcpChannel&gt; getChannels() {
+<i>209</i>&nbsp;            return channels;
+<i>210</i>&nbsp;        }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        public TcpChannel channel(TransportRequestOptions.Type type) {
+<i>213</i>&nbsp;            ConnectionProfile.ConnectionTypeHandle connectionTypeHandle = typeMapping.get(type);
+<i>214</i>&nbsp;            if (connectionTypeHandle == null) {
+<i>215</i>&nbsp;                throw new IllegalArgumentException(&quot;no type channel for [&quot; + type + &quot;]&quot;);
+<i>216</i>&nbsp;            }
+<i>217</i>&nbsp;            return connectionTypeHandle.getChannel(channels);
+<i>218</i>&nbsp;        }
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;        @Override
+<i>221</i>&nbsp;        public void close() {
+<i>222</i>&nbsp;            if (isClosing.compareAndSet(false, true)) {
+<i>223</i>&nbsp;                try {
+<i>224</i>&nbsp;                    boolean block = lifecycle.stopped() &amp;&amp; Transports.isTransportThread(Thread.currentThread()) == false;
+<i>225</i>&nbsp;                    CloseableChannel.closeChannels(channels, block);
+<i>226</i>&nbsp;                } finally {
+<i>227</i>&nbsp;                    // Call the super method to trigger listeners
+<i>228</i>&nbsp;                    super.close();
+<i>229</i>&nbsp;                }
+<i>230</i>&nbsp;            }
+<i>231</i>&nbsp;        }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;        @Override
+<i>234</i>&nbsp;        public DiscoveryNode getNode() {
+<i>235</i>&nbsp;            return this.node;
+<i>236</i>&nbsp;        }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;        @Override
+<i>239</i>&nbsp;        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+<i>240</i>&nbsp;            throws IOException, TransportException {
+<i>241</i>&nbsp;            if (isClosing.get()) {
+<i>242</i>&nbsp;                throw new NodeNotConnectedException(node, &quot;connection already closed&quot;);
+<i>243</i>&nbsp;            }
+<i>244</i>&nbsp;            TcpChannel channel = channel(options.type());
+<i>245</i>&nbsp;            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+<i>246</i>&nbsp;        }
+<i>247</i>&nbsp;    }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;    // This allows transport implementations to potentially override specific connection profiles. This
+<i>250</i>&nbsp;    // primarily exists for the test implementations.
+<i>251</i>&nbsp;    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+<b class="nc"><i>252</i>&nbsp;        return connectionProfile;</b>
+<i>253</i>&nbsp;    }
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    @Override
+<i>256</i>&nbsp;    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener&lt;Transport.Connection&gt; listener) {
+<i>257</i>&nbsp;
+<b class="nc"><i>258</i>&nbsp;        Objects.requireNonNull(profile, &quot;connection profile cannot be null&quot;);</b>
+<b class="nc"><i>259</i>&nbsp;        if (node == null) {</b>
+<b class="nc"><i>260</i>&nbsp;            throw new ConnectTransportException(null, &quot;can&#39;t open connection to a null node&quot;);</b>
+<i>261</i>&nbsp;        }
+<b class="nc"><i>262</i>&nbsp;        ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);</b>
+<b class="nc"><i>263</i>&nbsp;        closeLock.readLock().lock(); // ensure we don&#39;t open connections while we are closing</b>
+<i>264</i>&nbsp;        try {
+<b class="nc"><i>265</i>&nbsp;            ensureOpen();</b>
+<b class="nc"><i>266</i>&nbsp;            initiateConnection(node, finalProfile, listener);</b>
+<i>267</i>&nbsp;        } finally {
+<b class="nc"><i>268</i>&nbsp;            closeLock.readLock().unlock();</b>
+<b class="nc"><i>269</i>&nbsp;        }</b>
+<b class="nc"><i>270</i>&nbsp;    }</b>
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    private List&lt;TcpChannel&gt; initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+<i>273</i>&nbsp;                                                ActionListener&lt;Transport.Connection&gt; listener) {
+<b class="nc"><i>274</i>&nbsp;        int numConnections = connectionProfile.getNumConnections();</b>
+<b class="nc"><i>275</i>&nbsp;        assert numConnections &gt; 0 : &quot;A connection profile must be configured with at least one connection&quot;;</b>
+<i>276</i>&nbsp;
+<b class="nc"><i>277</i>&nbsp;        final List&lt;TcpChannel&gt; channels = new ArrayList&lt;&gt;(numConnections);</b>
+<i>278</i>&nbsp;
+<b class="nc"><i>279</i>&nbsp;        for (int i = 0; i &lt; numConnections; ++i) {</b>
+<i>280</i>&nbsp;            try {
+<b class="nc"><i>281</i>&nbsp;                TcpChannel channel = initiateChannel(node);</b>
+<b class="nc"><i>282</i>&nbsp;                logger.trace(() -&gt; new ParameterizedMessage(&quot;Tcp transport client channel opened: {}&quot;, channel));</b>
+<b class="nc"><i>283</i>&nbsp;                channels.add(channel);</b>
+<b class="nc"><i>284</i>&nbsp;            } catch (ConnectTransportException e) {</b>
+<b class="nc"><i>285</i>&nbsp;                CloseableChannel.closeChannels(channels, false);</b>
+<b class="nc"><i>286</i>&nbsp;                listener.onFailure(e);</b>
+<b class="nc"><i>287</i>&nbsp;                return channels;</b>
+<b class="nc"><i>288</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>289</i>&nbsp;                CloseableChannel.closeChannels(channels, false);</b>
+<b class="nc"><i>290</i>&nbsp;                listener.onFailure(new ConnectTransportException(node, &quot;general node connection failure&quot;, e));</b>
+<b class="nc"><i>291</i>&nbsp;                return channels;</b>
+<b class="nc"><i>292</i>&nbsp;            }</b>
+<i>293</i>&nbsp;        }
+<i>294</i>&nbsp;
+<b class="nc"><i>295</i>&nbsp;        ChannelsConnectedListener channelsConnectedListener = new ChannelsConnectedListener(node, connectionProfile, channels,</b>
+<i>296</i>&nbsp;            new ThreadedActionListener&lt;&gt;(logger, threadPool, ThreadPool.Names.GENERIC, listener, false));
+<i>297</i>&nbsp;
+<b class="nc"><i>298</i>&nbsp;        for (TcpChannel channel : channels) {</b>
+<b class="nc"><i>299</i>&nbsp;            channel.addConnectListener(channelsConnectedListener);</b>
+<b class="nc"><i>300</i>&nbsp;        }</b>
+<i>301</i>&nbsp;
+<b class="nc"><i>302</i>&nbsp;        TimeValue connectTimeout = connectionProfile.getConnectTimeout();</b>
+<b class="nc"><i>303</i>&nbsp;        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);</b>
+<b class="nc"><i>304</i>&nbsp;        return channels;</b>
+<i>305</i>&nbsp;    }
+<i>306</i>&nbsp;
+<i>307</i>&nbsp;    @Override
+<i>308</i>&nbsp;    public BoundTransportAddress boundAddress() {
+<b class="fc"><i>309</i>&nbsp;        return this.boundAddress;</b>
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    @Override
+<i>313</i>&nbsp;    public Map&lt;String, BoundTransportAddress&gt; profileBoundAddresses() {
+<b class="fc"><i>314</i>&nbsp;        return unmodifiableMap(new HashMap&lt;&gt;(profileBoundAddresses));</b>
+<i>315</i>&nbsp;    }
+<i>316</i>&nbsp;
+<i>317</i>&nbsp;    @Override
+<i>318</i>&nbsp;    public List&lt;String&gt; getDefaultSeedAddresses() {
+<b class="nc"><i>319</i>&nbsp;        List&lt;String&gt; local = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>320</i>&nbsp;        local.add(&quot;127.0.0.1&quot;);</b>
+<i>321</i>&nbsp;        // check if v6 is supported, if so, v4 will also work via mapped addresses.
+<b class="nc"><i>322</i>&nbsp;        if (NetworkUtils.SUPPORTS_V6) {</b>
+<b class="nc"><i>323</i>&nbsp;            local.add(&quot;[::1]&quot;); // may get ports appended!</b>
+<i>324</i>&nbsp;        }
+<b class="nc"><i>325</i>&nbsp;        return local.stream()</b>
+<b class="nc"><i>326</i>&nbsp;            .flatMap(</b>
+<b class="nc"><i>327</i>&nbsp;                address -&gt; Arrays.stream(defaultPortRange())</b>
+<b class="nc"><i>328</i>&nbsp;                    .limit(LIMIT_LOCAL_PORTS_COUNT)</b>
+<b class="nc"><i>329</i>&nbsp;                    .mapToObj(port -&gt; address + &quot;:&quot; + port)</b>
+<i>330</i>&nbsp;            )
+<b class="nc"><i>331</i>&nbsp;            .collect(Collectors.toList());</b>
+<i>332</i>&nbsp;    }
+<i>333</i>&nbsp;
+<i>334</i>&nbsp;    protected void bindServer(ProfileSettings profileSettings) {
+<i>335</i>&nbsp;        // Bind and start to accept incoming connections.
+<i>336</i>&nbsp;        InetAddress[] hostAddresses;
+<b class="fc"><i>337</i>&nbsp;        List&lt;String&gt; profileBindHosts = profileSettings.bindHosts;</b>
+<i>338</i>&nbsp;        try {
+<b class="fc"><i>339</i>&nbsp;            hostAddresses = networkService.resolveBindHostAddresses(profileBindHosts.toArray(Strings.EMPTY_ARRAY));</b>
+<b class="nc"><i>340</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>341</i>&nbsp;            throw new BindTransportException(&quot;Failed to resolve host &quot; + profileBindHosts, e);</b>
+<b class="fc"><i>342</i>&nbsp;        }</b>
+<b class="fc"><i>343</i>&nbsp;        if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>344</i>&nbsp;            String[] addresses = new String[hostAddresses.length];</b>
+<b class="nc"><i>345</i>&nbsp;            for (int i = 0; i &lt; hostAddresses.length; i++) {</b>
+<b class="nc"><i>346</i>&nbsp;                addresses[i] = NetworkAddress.format(hostAddresses[i]);</b>
+<i>347</i>&nbsp;            }
+<b class="nc"><i>348</i>&nbsp;            logger.debug(&quot;binding server bootstrap to: {}&quot;, (Object) addresses);</b>
+<i>349</i>&nbsp;        }
+<i>350</i>&nbsp;
+<b class="fc"><i>351</i>&nbsp;        assert hostAddresses.length &gt; 0;</b>
+<i>352</i>&nbsp;
+<b class="fc"><i>353</i>&nbsp;        List&lt;InetSocketAddress&gt; boundAddresses = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>354</i>&nbsp;        for (InetAddress hostAddress : hostAddresses) {</b>
+<b class="fc"><i>355</i>&nbsp;            boundAddresses.add(bindToPort(profileSettings.profileName, hostAddress, profileSettings.portOrRange));</b>
+<i>356</i>&nbsp;        }
+<i>357</i>&nbsp;
+<b class="fc"><i>358</i>&nbsp;        final BoundTransportAddress boundTransportAddress = createBoundTransportAddress(profileSettings, boundAddresses);</b>
+<i>359</i>&nbsp;
+<b class="fc"><i>360</i>&nbsp;        if (profileSettings.isDefaultProfile) {</b>
+<b class="fc"><i>361</i>&nbsp;            this.boundAddress = boundTransportAddress;</b>
+<i>362</i>&nbsp;        } else {
+<b class="nc"><i>363</i>&nbsp;            profileBoundAddresses.put(profileSettings.profileName, boundTransportAddress);</b>
+<i>364</i>&nbsp;        }
+<b class="fc"><i>365</i>&nbsp;    }</b>
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;    private InetSocketAddress bindToPort(final String name, final InetAddress hostAddress, String port) {
+<b class="fc"><i>368</i>&nbsp;        PortsRange portsRange = new PortsRange(port);</b>
+<b class="fc"><i>369</i>&nbsp;        final AtomicReference&lt;Exception&gt; lastException = new AtomicReference&lt;&gt;();</b>
+<b class="fc"><i>370</i>&nbsp;        final AtomicReference&lt;InetSocketAddress&gt; boundSocket = new AtomicReference&lt;&gt;();</b>
+<b class="fc"><i>371</i>&nbsp;        closeLock.writeLock().lock();</b>
+<i>372</i>&nbsp;        try {
+<i>373</i>&nbsp;            // No need for locking here since Lifecycle objects can&#39;t move from STARTED to INITIALIZED
+<b class="fc"><i>374</i>&nbsp;            if (lifecycle.initialized() == false &amp;&amp; lifecycle.started() == false) {</b>
+<b class="nc"><i>375</i>&nbsp;                throw new IllegalStateException(&quot;transport has been stopped&quot;);</b>
+<i>376</i>&nbsp;            }
+<b class="fc"><i>377</i>&nbsp;            boolean success = portsRange.iterate(portNumber -&gt; {</b>
+<i>378</i>&nbsp;                try {
+<b class="fc"><i>379</i>&nbsp;                    TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));</b>
+<b class="fc"><i>380</i>&nbsp;                    serverChannels.computeIfAbsent(name, k -&gt; new ArrayList&lt;&gt;()).add(channel);</b>
+<b class="fc"><i>381</i>&nbsp;                    boundSocket.set(channel.getLocalAddress());</b>
+<b class="nc"><i>382</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>383</i>&nbsp;                    lastException.set(e);</b>
+<b class="nc"><i>384</i>&nbsp;                    return false;</b>
+<b class="fc"><i>385</i>&nbsp;                }</b>
+<b class="fc"><i>386</i>&nbsp;                return true;</b>
+<i>387</i>&nbsp;            });
+<b class="fc"><i>388</i>&nbsp;            if (!success) {</b>
+<b class="nc"><i>389</i>&nbsp;                throw new BindTransportException(&quot;Failed to bind to [&quot; + port + &quot;]&quot;, lastException.get());</b>
+<i>390</i>&nbsp;            }
+<i>391</i>&nbsp;        } finally {
+<b class="fc"><i>392</i>&nbsp;            closeLock.writeLock().unlock();</b>
+<b class="fc"><i>393</i>&nbsp;        }</b>
+<b class="fc"><i>394</i>&nbsp;        if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>395</i>&nbsp;            logger.debug(&quot;Bound profile [{}] to address {{}}&quot;, name, NetworkAddress.format(boundSocket.get()));</b>
+<i>396</i>&nbsp;        }
+<i>397</i>&nbsp;
+<b class="fc"><i>398</i>&nbsp;        return boundSocket.get();</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;    private BoundTransportAddress createBoundTransportAddress(ProfileSettings profileSettings,
+<i>402</i>&nbsp;                                                              List&lt;InetSocketAddress&gt; boundAddresses) {
+<b class="fc"><i>403</i>&nbsp;        String[] boundAddressesHostStrings = new String[boundAddresses.size()];</b>
+<b class="fc"><i>404</i>&nbsp;        TransportAddress[] transportBoundAddresses = new TransportAddress[boundAddresses.size()];</b>
+<b class="fc"><i>405</i>&nbsp;        for (int i = 0; i &lt; boundAddresses.size(); i++) {</b>
+<b class="fc"><i>406</i>&nbsp;            InetSocketAddress boundAddress = boundAddresses.get(i);</b>
+<b class="fc"><i>407</i>&nbsp;            boundAddressesHostStrings[i] = boundAddress.getHostString();</b>
+<b class="fc"><i>408</i>&nbsp;            transportBoundAddresses[i] = new TransportAddress(boundAddress);</b>
+<i>409</i>&nbsp;        }
+<i>410</i>&nbsp;
+<b class="fc"><i>411</i>&nbsp;        List&lt;String&gt; publishHosts = profileSettings.publishHosts;</b>
+<b class="fc"><i>412</i>&nbsp;        if (profileSettings.isDefaultProfile == false &amp;&amp; publishHosts.isEmpty()) {</b>
+<b class="nc"><i>413</i>&nbsp;            publishHosts = Arrays.asList(boundAddressesHostStrings);</b>
+<i>414</i>&nbsp;        }
+<b class="fc"><i>415</i>&nbsp;        if (publishHosts.isEmpty()) {</b>
+<b class="fc"><i>416</i>&nbsp;            publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings);</b>
+<i>417</i>&nbsp;        }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;        final InetAddress publishInetAddress;
+<i>420</i>&nbsp;        try {
+<b class="fc"><i>421</i>&nbsp;            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));</b>
+<b class="nc"><i>422</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>423</i>&nbsp;            throw new BindTransportException(&quot;Failed to resolve publish address&quot;, e);</b>
+<b class="fc"><i>424</i>&nbsp;        }</b>
+<i>425</i>&nbsp;
+<b class="fc"><i>426</i>&nbsp;        final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);</b>
+<b class="fc"><i>427</i>&nbsp;        final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));</b>
+<b class="fc"><i>428</i>&nbsp;        return new BoundTransportAddress(transportBoundAddresses, publishAddress);</b>
+<i>429</i>&nbsp;    }
+<i>430</i>&nbsp;
+<i>431</i>&nbsp;    // package private for tests
+<i>432</i>&nbsp;    static int resolvePublishPort(ProfileSettings profileSettings, List&lt;InetSocketAddress&gt; boundAddresses,
+<i>433</i>&nbsp;                                  InetAddress publishInetAddress) {
+<b class="fc"><i>434</i>&nbsp;        int publishPort = profileSettings.publishPort;</b>
+<i>435</i>&nbsp;
+<i>436</i>&nbsp;        // if port not explicitly provided, search for port of address in boundAddresses that matches publishInetAddress
+<b class="fc"><i>437</i>&nbsp;        if (publishPort &lt; 0) {</b>
+<b class="fc"><i>438</i>&nbsp;            for (InetSocketAddress boundAddress : boundAddresses) {</b>
+<b class="fc"><i>439</i>&nbsp;                InetAddress boundInetAddress = boundAddress.getAddress();</b>
+<b class="fc"><i>440</i>&nbsp;                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {</b>
+<b class="fc"><i>441</i>&nbsp;                    publishPort = boundAddress.getPort();</b>
+<b class="fc"><i>442</i>&nbsp;                    break;</b>
+<i>443</i>&nbsp;                }
+<b class="fc"><i>444</i>&nbsp;            }</b>
+<i>445</i>&nbsp;        }
+<i>446</i>&nbsp;
+<i>447</i>&nbsp;        // if no matching boundAddress found, check if there is a unique port for all bound addresses
+<b class="fc"><i>448</i>&nbsp;        if (publishPort &lt; 0) {</b>
+<b class="nc"><i>449</i>&nbsp;            final IntSet ports = new IntHashSet();</b>
+<b class="nc"><i>450</i>&nbsp;            for (InetSocketAddress boundAddress : boundAddresses) {</b>
+<b class="nc"><i>451</i>&nbsp;                ports.add(boundAddress.getPort());</b>
+<b class="nc"><i>452</i>&nbsp;            }</b>
+<b class="nc"><i>453</i>&nbsp;            if (ports.size() == 1) {</b>
+<b class="nc"><i>454</i>&nbsp;                publishPort = ports.iterator().next().value;</b>
+<i>455</i>&nbsp;            }
+<i>456</i>&nbsp;        }
+<i>457</i>&nbsp;
+<b class="fc"><i>458</i>&nbsp;        if (publishPort &lt; 0) {</b>
+<b class="nc"><i>459</i>&nbsp;            String profileExplanation = profileSettings.isDefaultProfile ? &quot;&quot; : &quot; for profile &quot; + profileSettings.profileName;</b>
+<b class="nc"><i>460</i>&nbsp;            throw new BindTransportException(&quot;Failed to auto-resolve publish port&quot; + profileExplanation + &quot;, multiple bound addresses &quot; +</b>
+<i>461</i>&nbsp;                boundAddresses + &quot; with distinct ports and none of them matched the publish address (&quot; + publishInetAddress + &quot;). &quot; +
+<b class="nc"><i>462</i>&nbsp;                &quot;Please specify a unique port by setting &quot; + TransportSettings.PORT.getKey() + &quot; or &quot; +</b>
+<b class="nc"><i>463</i>&nbsp;                TransportSettings.PUBLISH_PORT.getKey());</b>
+<i>464</i>&nbsp;        }
+<b class="fc"><i>465</i>&nbsp;        return publishPort;</b>
+<i>466</i>&nbsp;    }
+<i>467</i>&nbsp;
+<i>468</i>&nbsp;    @Override
+<i>469</i>&nbsp;    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+<b class="nc"><i>470</i>&nbsp;        return parse(address, defaultPortRange()[0]);</b>
+<i>471</i>&nbsp;    }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;    private int[] defaultPortRange() {
+<b class="nc"><i>474</i>&nbsp;        return new PortsRange(</b>
+<b class="nc"><i>475</i>&nbsp;            settings.get(</b>
+<b class="nc"><i>476</i>&nbsp;                TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(),</b>
+<b class="nc"><i>477</i>&nbsp;                TransportSettings.PORT.get(settings)</b>
+<i>478</i>&nbsp;            )
+<b class="nc"><i>479</i>&nbsp;        ).ports();</b>
+<i>480</i>&nbsp;    }
+<i>481</i>&nbsp;
+<i>482</i>&nbsp;    // this code is a take on guava&#39;s HostAndPort, like a HostAndPortRange
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;    // pattern for validating ipv6 bracket addresses.
+<i>485</i>&nbsp;    // not perfect, but PortsRange should take care of any port range validation, not a regex
+<b class="fc"><i>486</i>&nbsp;    private static final Pattern BRACKET_PATTERN = Pattern.compile(&quot;^\\[(.*:.*)\\](?::([\\d\\-]*))?$&quot;);</b>
+<i>487</i>&nbsp;
+<i>488</i>&nbsp;    /**
+<i>489</i>&nbsp;     * parse a hostname+port spec into its equivalent addresses
+<i>490</i>&nbsp;     */
+<i>491</i>&nbsp;    static TransportAddress[] parse(String hostPortString, int defaultPort) throws UnknownHostException {
+<b class="nc"><i>492</i>&nbsp;        Objects.requireNonNull(hostPortString);</b>
+<i>493</i>&nbsp;        String host;
+<b class="nc"><i>494</i>&nbsp;        String portString = null;</b>
+<i>495</i>&nbsp;
+<b class="nc"><i>496</i>&nbsp;        if (hostPortString.startsWith(&quot;[&quot;)) {</b>
+<i>497</i>&nbsp;            // Parse a bracketed host, typically an IPv6 literal.
+<b class="nc"><i>498</i>&nbsp;            Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);</b>
+<b class="nc"><i>499</i>&nbsp;            if (!matcher.matches()) {</b>
+<b class="nc"><i>500</i>&nbsp;                throw new IllegalArgumentException(&quot;Invalid bracketed host/port range: &quot; + hostPortString);</b>
+<i>501</i>&nbsp;            }
+<b class="nc"><i>502</i>&nbsp;            host = matcher.group(1);</b>
+<b class="nc"><i>503</i>&nbsp;            portString = matcher.group(2);  // could be null</b>
+<b class="nc"><i>504</i>&nbsp;        } else {</b>
+<b class="nc"><i>505</i>&nbsp;            int colonPos = hostPortString.indexOf(&#39;:&#39;);</b>
+<b class="nc"><i>506</i>&nbsp;            if (colonPos &gt;= 0 &amp;&amp; hostPortString.indexOf(&#39;:&#39;, colonPos + 1) == -1) {</b>
+<i>507</i>&nbsp;                // Exactly 1 colon.  Split into host:port.
+<b class="nc"><i>508</i>&nbsp;                host = hostPortString.substring(0, colonPos);</b>
+<b class="nc"><i>509</i>&nbsp;                portString = hostPortString.substring(colonPos + 1);</b>
+<i>510</i>&nbsp;            } else {
+<i>511</i>&nbsp;                // 0 or 2+ colons.  Bare hostname or IPv6 literal.
+<b class="nc"><i>512</i>&nbsp;                host = hostPortString;</b>
+<i>513</i>&nbsp;                // 2+ colons and not bracketed: exception
+<b class="nc"><i>514</i>&nbsp;                if (colonPos &gt;= 0) {</b>
+<b class="nc"><i>515</i>&nbsp;                    throw new IllegalArgumentException(&quot;IPv6 addresses must be bracketed: &quot; + hostPortString);</b>
+<i>516</i>&nbsp;                }
+<i>517</i>&nbsp;            }
+<i>518</i>&nbsp;        }
+<i>519</i>&nbsp;
+<i>520</i>&nbsp;        int port;
+<i>521</i>&nbsp;        // if port isn&#39;t specified, fill with the default
+<b class="nc"><i>522</i>&nbsp;        if (portString == null || portString.isEmpty()) {</b>
+<b class="nc"><i>523</i>&nbsp;            port = defaultPort;</b>
+<i>524</i>&nbsp;        } else {
+<b class="nc"><i>525</i>&nbsp;            port = Integer.parseInt(portString);</b>
+<i>526</i>&nbsp;        }
+<i>527</i>&nbsp;
+<b class="nc"><i>528</i>&nbsp;        return Arrays.stream(InetAddress.getAllByName(host))</b>
+<b class="nc"><i>529</i>&nbsp;            .distinct()</b>
+<b class="nc"><i>530</i>&nbsp;            .map(address -&gt; new TransportAddress(address, port))</b>
+<b class="nc"><i>531</i>&nbsp;            .toArray(TransportAddress[]::new);</b>
+<i>532</i>&nbsp;    }
+<i>533</i>&nbsp;
+<i>534</i>&nbsp;    @Override
+<i>535</i>&nbsp;    protected final void doClose() {
+<b class="fc"><i>536</i>&nbsp;    }</b>
+<i>537</i>&nbsp;
+<i>538</i>&nbsp;    @Override
+<i>539</i>&nbsp;    protected final void doStop() {
+<b class="fc"><i>540</i>&nbsp;        final CountDownLatch latch = new CountDownLatch(1);</b>
+<i>541</i>&nbsp;        // make sure we run it on another thread than a possible IO handler thread
+<b class="fc"><i>542</i>&nbsp;        assert threadPool.generic().isShutdown() == false : &quot;Must stop transport before terminating underlying threadpool&quot;;</b>
+<b class="fc"><i>543</i>&nbsp;        threadPool.generic().execute(() -&gt; {</b>
+<b class="fc"><i>544</i>&nbsp;            closeLock.writeLock().lock();</b>
+<i>545</i>&nbsp;            try {
+<b class="fc"><i>546</i>&nbsp;                keepAlive.close();</b>
+<i>547</i>&nbsp;
+<i>548</i>&nbsp;                // first stop to accept any incoming connections so nobody can connect to this transport
+<b class="fc"><i>549</i>&nbsp;                for (Map.Entry&lt;String, List&lt;TcpServerChannel&gt;&gt; entry : serverChannels.entrySet()) {</b>
+<b class="fc"><i>550</i>&nbsp;                    String profile = entry.getKey();</b>
+<b class="fc"><i>551</i>&nbsp;                    List&lt;TcpServerChannel&gt; channels = entry.getValue();</b>
+<b class="fc"><i>552</i>&nbsp;                    ActionListener&lt;Void&gt; closeFailLogger = ActionListener.wrap(c -&gt; {</b>
+<b class="fc"><i>553</i>&nbsp;                        },</b>
+<b class="nc"><i>554</i>&nbsp;                        e -&gt; logger.warn(() -&gt; new ParameterizedMessage(&quot;Error closing serverChannel for profile [{}]&quot;, profile), e));</b>
+<b class="fc"><i>555</i>&nbsp;                    channels.forEach(c -&gt; c.addCloseListener(closeFailLogger));</b>
+<b class="fc"><i>556</i>&nbsp;                    CloseableChannel.closeChannels(channels, true);</b>
+<b class="fc"><i>557</i>&nbsp;                }</b>
+<b class="fc"><i>558</i>&nbsp;                serverChannels.clear();</b>
+<i>559</i>&nbsp;
+<i>560</i>&nbsp;                // close all of the incoming channels. The closeChannels method takes a list so we must convert the set.
+<b class="fc"><i>561</i>&nbsp;                CloseableChannel.closeChannels(new ArrayList&lt;&gt;(acceptedChannels), true);</b>
+<b class="fc"><i>562</i>&nbsp;                acceptedChannels.clear();</b>
+<i>563</i>&nbsp;
+<b class="fc"><i>564</i>&nbsp;                stopInternal();</b>
+<i>565</i>&nbsp;            } finally {
+<b class="fc"><i>566</i>&nbsp;                closeLock.writeLock().unlock();</b>
+<b class="fc"><i>567</i>&nbsp;                latch.countDown();</b>
+<b class="fc"><i>568</i>&nbsp;            }</b>
+<b class="fc"><i>569</i>&nbsp;        });</b>
+<i>570</i>&nbsp;
+<i>571</i>&nbsp;        try {
+<b class="fc"><i>572</i>&nbsp;            latch.await(30, TimeUnit.SECONDS);</b>
+<b class="nc"><i>573</i>&nbsp;        } catch (InterruptedException e) {</b>
+<b class="nc"><i>574</i>&nbsp;            Thread.currentThread().interrupt();</b>
+<i>575</i>&nbsp;            // ignore
+<b class="fc"><i>576</i>&nbsp;        }</b>
+<b class="fc"><i>577</i>&nbsp;    }</b>
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;    public void onException(TcpChannel channel, Exception e) {
+<b class="nc"><i>580</i>&nbsp;        if (!lifecycle.started()) {</b>
+<i>581</i>&nbsp;            // just close and ignore - we are already stopped and just need to make sure we release all resources
+<b class="nc"><i>582</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<b class="nc"><i>583</i>&nbsp;            return;</b>
+<i>584</i>&nbsp;        }
+<i>585</i>&nbsp;
+<b class="nc"><i>586</i>&nbsp;        if (isCloseConnectionException(e)) {</b>
+<b class="nc"><i>587</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(</b>
+<i>588</i>&nbsp;                &quot;close connection exception caught on transport layer [{}], disconnecting from relevant node&quot;, channel), e);
+<i>589</i>&nbsp;            // close the channel, which will cause a node to be disconnected if relevant
+<b class="nc"><i>590</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<b class="nc"><i>591</i>&nbsp;        } else if (isConnectException(e)) {</b>
+<b class="nc"><i>592</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(&quot;connect exception caught on transport layer [{}]&quot;, channel), e);</b>
+<i>593</i>&nbsp;            // close the channel as safe measure, which will cause a node to be disconnected if relevant
+<b class="nc"><i>594</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<b class="nc"><i>595</i>&nbsp;        } else if (e instanceof BindException) {</b>
+<b class="nc"><i>596</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(&quot;bind exception caught on transport layer [{}]&quot;, channel), e);</b>
+<i>597</i>&nbsp;            // close the channel as safe measure, which will cause a node to be disconnected if relevant
+<b class="nc"><i>598</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<b class="nc"><i>599</i>&nbsp;        } else if (e instanceof CancelledKeyException) {</b>
+<b class="nc"><i>600</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(</b>
+<i>601</i>&nbsp;                &quot;cancelled key exception caught on transport layer [{}], disconnecting from relevant node&quot;, channel), e);
+<i>602</i>&nbsp;            // close the channel as safe measure, which will cause a node to be disconnected if relevant
+<b class="nc"><i>603</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<b class="nc"><i>604</i>&nbsp;        } else if (e instanceof HttpRequestOnTransportException) {</b>
+<i>605</i>&nbsp;            // in case we are able to return data, serialize the exception content and sent it back to the client
+<b class="nc"><i>606</i>&nbsp;            if (channel.isOpen()) {</b>
+<b class="nc"><i>607</i>&nbsp;                BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));</b>
+<b class="nc"><i>608</i>&nbsp;                outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -&gt; CloseableChannel.closeChannel(channel)));</b>
+<b class="nc"><i>609</i>&nbsp;            }</b>
+<b class="nc"><i>610</i>&nbsp;        } else if (e instanceof StreamCorruptedException) {</b>
+<b class="nc"><i>611</i>&nbsp;            logger.warn(() -&gt; new ParameterizedMessage(&quot;{}, [{}], closing connection&quot;, e.getMessage(), channel));</b>
+<b class="nc"><i>612</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<i>613</i>&nbsp;        } else {
+<b class="nc"><i>614</i>&nbsp;            logger.warn(() -&gt; new ParameterizedMessage(&quot;exception caught on transport layer [{}], closing connection&quot;, channel), e);</b>
+<i>615</i>&nbsp;            // close the channel, which will cause a node to be disconnected if relevant
+<b class="nc"><i>616</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<i>617</i>&nbsp;        }
+<b class="nc"><i>618</i>&nbsp;    }</b>
+<i>619</i>&nbsp;
+<i>620</i>&nbsp;    protected void onServerException(TcpServerChannel channel, Exception e) {
+<b class="nc"><i>621</i>&nbsp;        if (e instanceof BindException) {</b>
+<b class="nc"><i>622</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(&quot;bind exception from server channel caught on transport layer [{}]&quot;, channel), e);</b>
+<i>623</i>&nbsp;        } else {
+<b class="nc"><i>624</i>&nbsp;            logger.error(new ParameterizedMessage(&quot;exception from server channel caught on transport layer [{}]&quot;, channel), e);</b>
+<i>625</i>&nbsp;        }
+<b class="nc"><i>626</i>&nbsp;    }</b>
+<i>627</i>&nbsp;
+<i>628</i>&nbsp;    protected void serverAcceptedChannel(TcpChannel channel) {
+<b class="nc"><i>629</i>&nbsp;        boolean addedOnThisCall = acceptedChannels.add(channel);</b>
+<b class="nc"><i>630</i>&nbsp;        assert addedOnThisCall : &quot;Channel should only be added to accepted channel set once&quot;;</b>
+<i>631</i>&nbsp;        // Mark the channel init time
+<b class="nc"><i>632</i>&nbsp;        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());</b>
+<b class="nc"><i>633</i>&nbsp;        channel.addCloseListener(ActionListener.wrap(() -&gt; acceptedChannels.remove(channel)));</b>
+<b class="nc"><i>634</i>&nbsp;        logger.trace(() -&gt; new ParameterizedMessage(&quot;Tcp transport channel accepted: {}&quot;, channel));</b>
+<b class="nc"><i>635</i>&nbsp;    }</b>
+<i>636</i>&nbsp;
+<i>637</i>&nbsp;    /**
+<i>638</i>&nbsp;     * Binds to the given {@link InetSocketAddress}
+<i>639</i>&nbsp;     *
+<i>640</i>&nbsp;     * @param name    the profile name
+<i>641</i>&nbsp;     * @param address the address to bind to
+<i>642</i>&nbsp;     */
+<i>643</i>&nbsp;    protected abstract TcpServerChannel bind(String name, InetSocketAddress address) throws IOException;
+<i>644</i>&nbsp;
+<i>645</i>&nbsp;    /**
+<i>646</i>&nbsp;     * Initiate a single tcp socket channel.
+<i>647</i>&nbsp;     *
+<i>648</i>&nbsp;     * @param node for the initiated connection
+<i>649</i>&nbsp;     * @return the pending connection
+<i>650</i>&nbsp;     * @throws IOException if an I/O exception occurs while opening the channel
+<i>651</i>&nbsp;     */
+<i>652</i>&nbsp;    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+<i>653</i>&nbsp;
+<i>654</i>&nbsp;    /**
+<i>655</i>&nbsp;     * Called to tear down internal resources
+<i>656</i>&nbsp;     */
+<i>657</i>&nbsp;    protected abstract void stopInternal();
+<i>658</i>&nbsp;
+<i>659</i>&nbsp;    /**
+<i>660</i>&nbsp;     * Handles inbound message that has been decoded.
+<i>661</i>&nbsp;     *
+<i>662</i>&nbsp;     * @param channel the channel the message is from
+<i>663</i>&nbsp;     * @param message the message
+<i>664</i>&nbsp;     */
+<i>665</i>&nbsp;    public void inboundMessage(TcpChannel channel, BytesReference message) {
+<i>666</i>&nbsp;        try {
+<b class="nc"><i>667</i>&nbsp;            inboundHandler.inboundMessage(channel, message);</b>
+<b class="nc"><i>668</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>669</i>&nbsp;            onException(channel, e);</b>
+<b class="nc"><i>670</i>&nbsp;        }</b>
+<b class="nc"><i>671</i>&nbsp;    }</b>
+<i>672</i>&nbsp;
+<i>673</i>&nbsp;    /**
+<i>674</i>&nbsp;     * Consumes bytes that are available from network reads. This method returns the number of bytes consumed
+<i>675</i>&nbsp;     * in this call.
+<i>676</i>&nbsp;     *
+<i>677</i>&nbsp;     * @param channel        the channel read from
+<i>678</i>&nbsp;     * @param bytesReference the bytes available to consume
+<i>679</i>&nbsp;     * @return the number of bytes consumed
+<i>680</i>&nbsp;     * @throws StreamCorruptedException              if the message header format is not recognized
+<i>681</i>&nbsp;     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
+<i>682</i>&nbsp;     * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
+<i>683</i>&nbsp;     *                                               This is dependent on the available memory.
+<i>684</i>&nbsp;     */
+<i>685</i>&nbsp;    public int consumeNetworkReads(TcpChannel channel, BytesReference bytesReference) throws IOException {
+<b class="nc"><i>686</i>&nbsp;        BytesReference message = decodeFrame(bytesReference);</b>
+<i>687</i>&nbsp;
+<b class="nc"><i>688</i>&nbsp;        if (message == null) {</b>
+<b class="nc"><i>689</i>&nbsp;            return 0;</b>
+<i>690</i>&nbsp;        } else {
+<b class="nc"><i>691</i>&nbsp;            inboundMessage(channel, message);</b>
+<b class="nc"><i>692</i>&nbsp;            return message.length() + BYTES_NEEDED_FOR_MESSAGE_SIZE;</b>
+<i>693</i>&nbsp;        }
+<i>694</i>&nbsp;    }
+<i>695</i>&nbsp;
+<i>696</i>&nbsp;    /**
+<i>697</i>&nbsp;     * Attempts to a decode a message from the provided bytes. If a full message is not available, null is
+<i>698</i>&nbsp;     * returned. If the message is a ping, an empty {@link BytesReference} will be returned.
+<i>699</i>&nbsp;     *
+<i>700</i>&nbsp;     * @param networkBytes the will be read
+<i>701</i>&nbsp;     * @return the message decoded
+<i>702</i>&nbsp;     * @throws StreamCorruptedException              if the message header format is not recognized
+<i>703</i>&nbsp;     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
+<i>704</i>&nbsp;     * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
+<i>705</i>&nbsp;     *                                               This is dependent on the available memory.
+<i>706</i>&nbsp;     */
+<i>707</i>&nbsp;    static BytesReference decodeFrame(BytesReference networkBytes) throws IOException {
+<b class="nc"><i>708</i>&nbsp;        int messageLength = readMessageLength(networkBytes);</b>
+<b class="nc"><i>709</i>&nbsp;        if (messageLength == -1) {</b>
+<b class="nc"><i>710</i>&nbsp;            return null;</b>
+<i>711</i>&nbsp;        } else {
+<b class="nc"><i>712</i>&nbsp;            int totalLength = messageLength + BYTES_NEEDED_FOR_MESSAGE_SIZE;</b>
+<b class="nc"><i>713</i>&nbsp;            if (totalLength &gt; networkBytes.length()) {</b>
+<b class="nc"><i>714</i>&nbsp;                return null;</b>
+<b class="nc"><i>715</i>&nbsp;            } else if (totalLength == 6) {</b>
+<b class="nc"><i>716</i>&nbsp;                return EMPTY_BYTES_REFERENCE;</b>
+<i>717</i>&nbsp;            } else {
+<b class="nc"><i>718</i>&nbsp;                return networkBytes.slice(BYTES_NEEDED_FOR_MESSAGE_SIZE, messageLength);</b>
+<i>719</i>&nbsp;            }
+<i>720</i>&nbsp;        }
+<i>721</i>&nbsp;    }
+<i>722</i>&nbsp;
+<i>723</i>&nbsp;    /**
+<i>724</i>&nbsp;     * Validates the first 6 bytes of the message header and returns the length of the message. If 6 bytes
+<i>725</i>&nbsp;     * are not available, it returns -1.
+<i>726</i>&nbsp;     *
+<i>727</i>&nbsp;     * @param networkBytes the will be read
+<i>728</i>&nbsp;     * @return the length of the message
+<i>729</i>&nbsp;     * @throws StreamCorruptedException              if the message header format is not recognized
+<i>730</i>&nbsp;     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
+<i>731</i>&nbsp;     * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
+<i>732</i>&nbsp;     *                                               This is dependent on the available memory.
+<i>733</i>&nbsp;     */
+<i>734</i>&nbsp;    public static int readMessageLength(BytesReference networkBytes) throws IOException {
+<b class="nc"><i>735</i>&nbsp;        if (networkBytes.length() &lt; BYTES_NEEDED_FOR_MESSAGE_SIZE) {</b>
+<b class="nc"><i>736</i>&nbsp;            return -1;</b>
+<i>737</i>&nbsp;        } else {
+<b class="nc"><i>738</i>&nbsp;            return readHeaderBuffer(networkBytes);</b>
+<i>739</i>&nbsp;        }
+<i>740</i>&nbsp;    }
+<i>741</i>&nbsp;
+<i>742</i>&nbsp;    private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
+<b class="nc"><i>743</i>&nbsp;        if (headerBuffer.get(0) != &#39;E&#39; || headerBuffer.get(1) != &#39;S&#39;) {</b>
+<b class="nc"><i>744</i>&nbsp;            if (appearsToBeHTTPRequest(headerBuffer)) {</b>
+<b class="nc"><i>745</i>&nbsp;                throw new HttpRequestOnTransportException(&quot;This is not an HTTP port&quot;);</b>
+<i>746</i>&nbsp;            }
+<i>747</i>&nbsp;
+<b class="nc"><i>748</i>&nbsp;            if (appearsToBeHTTPResponse(headerBuffer)) {</b>
+<b class="nc"><i>749</i>&nbsp;                throw new StreamCorruptedException(&quot;received HTTP response on transport port, ensure that transport port (not &quot; +</b>
+<i>750</i>&nbsp;                        &quot;HTTP port) of a remote node is specified in the configuration&quot;);
+<i>751</i>&nbsp;            }
+<i>752</i>&nbsp;
+<b class="nc"><i>753</i>&nbsp;            String firstBytes = &quot;(&quot;</b>
+<b class="nc"><i>754</i>&nbsp;                    + Integer.toHexString(headerBuffer.get(0) &amp; 0xFF) + &quot;,&quot;</b>
+<b class="nc"><i>755</i>&nbsp;                    + Integer.toHexString(headerBuffer.get(1) &amp; 0xFF) + &quot;,&quot;</b>
+<b class="nc"><i>756</i>&nbsp;                    + Integer.toHexString(headerBuffer.get(2) &amp; 0xFF) + &quot;,&quot;</b>
+<b class="nc"><i>757</i>&nbsp;                    + Integer.toHexString(headerBuffer.get(3) &amp; 0xFF) + &quot;)&quot;;</b>
+<i>758</i>&nbsp;
+<b class="nc"><i>759</i>&nbsp;            if (appearsToBeTLS(headerBuffer)) {</b>
+<b class="nc"><i>760</i>&nbsp;                throw new StreamCorruptedException(&quot;SSL/TLS request received but SSL/TLS is not enabled on this node, got &quot; + firstBytes);</b>
+<i>761</i>&nbsp;            }
+<i>762</i>&nbsp;
+<b class="nc"><i>763</i>&nbsp;            throw new StreamCorruptedException(&quot;invalid internal transport message format, got &quot; + firstBytes);</b>
+<i>764</i>&nbsp;        }
+<b class="nc"><i>765</i>&nbsp;        final int messageLength = headerBuffer.getInt(TcpHeader.MARKER_BYTES_SIZE);</b>
+<i>766</i>&nbsp;
+<b class="nc"><i>767</i>&nbsp;        if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {</b>
+<i>768</i>&nbsp;            // This is a ping
+<b class="nc"><i>769</i>&nbsp;            return 0;</b>
+<i>770</i>&nbsp;        }
+<i>771</i>&nbsp;
+<b class="nc"><i>772</i>&nbsp;        if (messageLength &lt;= 0) {</b>
+<b class="nc"><i>773</i>&nbsp;            throw new StreamCorruptedException(&quot;invalid data length: &quot; + messageLength);</b>
+<i>774</i>&nbsp;        }
+<i>775</i>&nbsp;
+<b class="nc"><i>776</i>&nbsp;        if (messageLength &gt; THIRTY_PER_HEAP_SIZE) {</b>
+<b class="nc"><i>777</i>&nbsp;            throw new IllegalArgumentException(&quot;transport content length received [&quot; + new ByteSizeValue(messageLength) + &quot;] exceeded [&quot;</b>
+<i>778</i>&nbsp;                + new ByteSizeValue(THIRTY_PER_HEAP_SIZE) + &quot;]&quot;);
+<i>779</i>&nbsp;        }
+<i>780</i>&nbsp;
+<b class="nc"><i>781</i>&nbsp;        return messageLength;</b>
+<i>782</i>&nbsp;    }
+<i>783</i>&nbsp;
+<i>784</i>&nbsp;    private static boolean appearsToBeHTTPRequest(BytesReference headerBuffer) {
+<b class="nc"><i>785</i>&nbsp;        return bufferStartsWith(headerBuffer, &quot;GET&quot;) ||</b>
+<b class="nc"><i>786</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;POST&quot;) ||</b>
+<b class="nc"><i>787</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;PUT&quot;) ||</b>
+<b class="nc"><i>788</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;HEAD&quot;) ||</b>
+<b class="nc"><i>789</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;DELETE&quot;) ||</b>
+<i>790</i>&nbsp;            // Actually &#39;OPTIONS&#39;. But we are only guaranteed to have read six bytes at this point.
+<b class="nc"><i>791</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;OPTION&quot;) ||</b>
+<b class="nc"><i>792</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;PATCH&quot;) ||</b>
+<b class="nc"><i>793</i>&nbsp;            bufferStartsWith(headerBuffer, &quot;TRACE&quot;);</b>
+<i>794</i>&nbsp;    }
+<i>795</i>&nbsp;
+<i>796</i>&nbsp;    private static boolean appearsToBeHTTPResponse(BytesReference headerBuffer) {
+<b class="nc"><i>797</i>&nbsp;        return bufferStartsWith(headerBuffer, &quot;HTTP&quot;);</b>
+<i>798</i>&nbsp;    }
+<i>799</i>&nbsp;
+<i>800</i>&nbsp;    private static boolean appearsToBeTLS(BytesReference headerBuffer) {
+<b class="nc"><i>801</i>&nbsp;        return headerBuffer.get(0) == 0x16 &amp;&amp; headerBuffer.get(1) == 0x03;</b>
+<i>802</i>&nbsp;    }
+<i>803</i>&nbsp;
+<i>804</i>&nbsp;    private static boolean bufferStartsWith(BytesReference buffer, String method) {
+<b class="nc"><i>805</i>&nbsp;        char[] chars = method.toCharArray();</b>
+<b class="nc"><i>806</i>&nbsp;        for (int i = 0; i &lt; chars.length; i++) {</b>
+<b class="nc"><i>807</i>&nbsp;            if (buffer.get(i) != chars[i]) {</b>
+<b class="nc"><i>808</i>&nbsp;                return false;</b>
+<i>809</i>&nbsp;            }
+<i>810</i>&nbsp;        }
+<b class="nc"><i>811</i>&nbsp;        return true;</b>
+<i>812</i>&nbsp;    }
+<i>813</i>&nbsp;
+<i>814</i>&nbsp;    /**
+<i>815</i>&nbsp;     * A helper exception to mark an incoming connection as potentially being HTTP
+<i>816</i>&nbsp;     * so an appropriate error code can be returned
+<i>817</i>&nbsp;     */
+<b class="nc"><i>818</i>&nbsp;    public static class HttpRequestOnTransportException extends ElasticsearchException {</b>
+<i>819</i>&nbsp;
+<i>820</i>&nbsp;        private HttpRequestOnTransportException(String msg) {
+<b class="nc"><i>821</i>&nbsp;            super(msg);</b>
+<b class="nc"><i>822</i>&nbsp;        }</b>
+<i>823</i>&nbsp;
+<i>824</i>&nbsp;        @Override
+<i>825</i>&nbsp;        public RestStatus status() {
+<b class="nc"><i>826</i>&nbsp;            return RestStatus.BAD_REQUEST;</b>
+<i>827</i>&nbsp;        }
+<i>828</i>&nbsp;
+<i>829</i>&nbsp;        public HttpRequestOnTransportException(StreamInput in) throws IOException {
+<b class="nc"><i>830</i>&nbsp;            super(in);</b>
+<b class="nc"><i>831</i>&nbsp;        }</b>
+<i>832</i>&nbsp;    }
+<i>833</i>&nbsp;
+<i>834</i>&nbsp;    public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener&lt;Version&gt; listener) {
+<b class="nc"><i>835</i>&nbsp;        long requestId = inboundHandler.getResponseHandlers().newRequestId();</b>
+<b class="nc"><i>836</i>&nbsp;        handshaker.sendHandshake(requestId, node, channel, profile.getHandshakeTimeout(), listener);</b>
+<b class="nc"><i>837</i>&nbsp;    }</b>
+<i>838</i>&nbsp;
+<i>839</i>&nbsp;    final TransportKeepAlive getKeepAlive() {
+<b class="nc"><i>840</i>&nbsp;        return keepAlive;</b>
+<i>841</i>&nbsp;    }
+<i>842</i>&nbsp;
+<i>843</i>&nbsp;    final int getNumPendingHandshakes() {
+<b class="nc"><i>844</i>&nbsp;        return handshaker.getNumPendingHandshakes();</b>
+<i>845</i>&nbsp;    }
+<i>846</i>&nbsp;
+<i>847</i>&nbsp;    final long getNumHandshakes() {
+<b class="nc"><i>848</i>&nbsp;        return handshaker.getNumHandshakes();</b>
+<i>849</i>&nbsp;    }
+<i>850</i>&nbsp;
+<i>851</i>&nbsp;    final Set&lt;TcpChannel&gt; getAcceptedChannels() {
+<b class="nc"><i>852</i>&nbsp;        return Collections.unmodifiableSet(acceptedChannels);</b>
+<i>853</i>&nbsp;    }
+<i>854</i>&nbsp;
+<i>855</i>&nbsp;    /**
+<i>856</i>&nbsp;     * Ensures this transport is still started / open
+<i>857</i>&nbsp;     *
+<i>858</i>&nbsp;     * @throws IllegalStateException if the transport is not started / open
+<i>859</i>&nbsp;     */
+<i>860</i>&nbsp;    private void ensureOpen() {
+<b class="nc"><i>861</i>&nbsp;        if (lifecycle.started() == false) {</b>
+<b class="nc"><i>862</i>&nbsp;            throw new IllegalStateException(&quot;transport has been stopped&quot;);</b>
+<i>863</i>&nbsp;        }
+<b class="nc"><i>864</i>&nbsp;    }</b>
+<i>865</i>&nbsp;
+<i>866</i>&nbsp;    @Override
+<i>867</i>&nbsp;    public final TransportStats getStats() {
+<b class="nc"><i>868</i>&nbsp;        MeanMetric transmittedBytes = outboundHandler.getTransmittedBytes();</b>
+<b class="nc"><i>869</i>&nbsp;        MeanMetric readBytes = inboundHandler.getReadBytes();</b>
+<b class="nc"><i>870</i>&nbsp;        return new TransportStats(acceptedChannels.size(), readBytes.count(), readBytes.sum(), transmittedBytes.count(),</b>
+<b class="nc"><i>871</i>&nbsp;            transmittedBytes.sum());</b>
+<i>872</i>&nbsp;    }
+<i>873</i>&nbsp;
+<i>874</i>&nbsp;    /**
+<i>875</i>&nbsp;     * Returns all profile settings for the given settings object
+<i>876</i>&nbsp;     */
+<i>877</i>&nbsp;    public static Set&lt;ProfileSettings&gt; getProfileSettings(Settings settings) {
+<b class="fc"><i>878</i>&nbsp;        HashSet&lt;ProfileSettings&gt; profiles = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>879</i>&nbsp;        boolean isDefaultSet = false;</b>
+<b class="fc"><i>880</i>&nbsp;        for (String profile : settings.getGroups(&quot;transport.profiles.&quot;, true).keySet()) {</b>
+<b class="nc"><i>881</i>&nbsp;            profiles.add(new ProfileSettings(settings, profile));</b>
+<b class="nc"><i>882</i>&nbsp;            if (TransportSettings.DEFAULT_PROFILE.equals(profile)) {</b>
+<b class="nc"><i>883</i>&nbsp;                isDefaultSet = true;</b>
+<i>884</i>&nbsp;            }
+<b class="nc"><i>885</i>&nbsp;        }</b>
+<b class="fc"><i>886</i>&nbsp;        if (isDefaultSet == false) {</b>
+<b class="fc"><i>887</i>&nbsp;            profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));</b>
+<i>888</i>&nbsp;        }
+<b class="fc"><i>889</i>&nbsp;        return Collections.unmodifiableSet(profiles);</b>
+<i>890</i>&nbsp;    }
+<i>891</i>&nbsp;
+<i>892</i>&nbsp;    /**
+<i>893</i>&nbsp;     * Representation of a transport profile settings for a {@code transport.profiles.$profilename.*}
+<i>894</i>&nbsp;     */
+<i>895</i>&nbsp;    public static final class ProfileSettings {
+<i>896</i>&nbsp;        public final String profileName;
+<i>897</i>&nbsp;        public final boolean tcpNoDelay;
+<i>898</i>&nbsp;        public final boolean tcpKeepAlive;
+<i>899</i>&nbsp;        public final int tcpKeepIdle;
+<i>900</i>&nbsp;        public final int tcpKeepInterval;
+<i>901</i>&nbsp;        public final int tcpKeepCount;
+<i>902</i>&nbsp;        public final boolean reuseAddress;
+<i>903</i>&nbsp;        public final ByteSizeValue sendBufferSize;
+<i>904</i>&nbsp;        public final ByteSizeValue receiveBufferSize;
+<i>905</i>&nbsp;        public final List&lt;String&gt; bindHosts;
+<i>906</i>&nbsp;        public final List&lt;String&gt; publishHosts;
+<i>907</i>&nbsp;        public final String portOrRange;
+<i>908</i>&nbsp;        public final int publishPort;
+<i>909</i>&nbsp;        public final boolean isDefaultProfile;
+<i>910</i>&nbsp;
+<b class="fc"><i>911</i>&nbsp;        public ProfileSettings(Settings settings, String profileName) {</b>
+<b class="fc"><i>912</i>&nbsp;            this.profileName = profileName;</b>
+<b class="fc"><i>913</i>&nbsp;            isDefaultProfile = TransportSettings.DEFAULT_PROFILE.equals(profileName);</b>
+<b class="fc"><i>914</i>&nbsp;            tcpKeepAlive = TransportSettings.TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>915</i>&nbsp;            tcpKeepIdle = TransportSettings.TCP_KEEP_IDLE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>916</i>&nbsp;            tcpKeepInterval = TransportSettings.TCP_KEEP_INTERVAL_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>917</i>&nbsp;            tcpKeepCount = TransportSettings.TCP_KEEP_COUNT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>918</i>&nbsp;            tcpNoDelay = TransportSettings.TCP_NO_DELAY_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>919</i>&nbsp;            reuseAddress = TransportSettings.TCP_REUSE_ADDRESS_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>920</i>&nbsp;            sendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>921</i>&nbsp;            receiveBufferSize = TransportSettings.TCP_RECEIVE_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>922</i>&nbsp;            List&lt;String&gt; profileBindHosts = TransportSettings.BIND_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>923</i>&nbsp;            bindHosts = (profileBindHosts.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : profileBindHosts);</b>
+<b class="fc"><i>924</i>&nbsp;            publishHosts = TransportSettings.PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>925</i>&nbsp;            Setting&lt;String&gt; concretePort = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName);</b>
+<b class="fc"><i>926</i>&nbsp;            if (concretePort.exists(settings) == false &amp;&amp; isDefaultProfile == false) {</b>
+<b class="nc"><i>927</i>&nbsp;                throw new IllegalStateException(&quot;profile [&quot; + profileName + &quot;] has no port configured&quot;);</b>
+<i>928</i>&nbsp;            }
+<b class="fc"><i>929</i>&nbsp;            portOrRange = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>930</i>&nbsp;            publishPort = isDefaultProfile ? TransportSettings.PUBLISH_PORT.get(settings) :</b>
+<b class="nc"><i>931</i>&nbsp;                TransportSettings.PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);</b>
+<b class="fc"><i>932</i>&nbsp;        }</b>
+<i>933</i>&nbsp;    }
+<i>934</i>&nbsp;
+<i>935</i>&nbsp;    @Override
+<i>936</i>&nbsp;    public final ResponseHandlers getResponseHandlers() {
+<b class="fc"><i>937</i>&nbsp;        return inboundHandler.getResponseHandlers();</b>
+<i>938</i>&nbsp;    }
+<i>939</i>&nbsp;
+<i>940</i>&nbsp;    @Override
+<i>941</i>&nbsp;    public final RequestHandlerRegistry&lt;? extends TransportRequest&gt; getRequestHandler(String action) {
+<b class="fc"><i>942</i>&nbsp;        return inboundHandler.getRequestHandler(action);</b>
+<i>943</i>&nbsp;    }
+<i>944</i>&nbsp;
+<i>945</i>&nbsp;    private final class ChannelsConnectedListener implements ActionListener&lt;Void&gt; {
+<i>946</i>&nbsp;
+<i>947</i>&nbsp;        private final DiscoveryNode node;
+<i>948</i>&nbsp;        private final ConnectionProfile connectionProfile;
+<i>949</i>&nbsp;        private final List&lt;TcpChannel&gt; channels;
+<i>950</i>&nbsp;        private final ActionListener&lt;Transport.Connection&gt; listener;
+<i>951</i>&nbsp;        private final CountDown countDown;
+<i>952</i>&nbsp;
+<i>953</i>&nbsp;        private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List&lt;TcpChannel&gt; channels,
+<i>954</i>&nbsp;                                          ActionListener&lt;Transport.Connection&gt; listener) {
+<i>955</i>&nbsp;            this.node = node;
+<i>956</i>&nbsp;            this.connectionProfile = connectionProfile;
+<i>957</i>&nbsp;            this.channels = channels;
+<i>958</i>&nbsp;            this.listener = listener;
+<i>959</i>&nbsp;            this.countDown = new CountDown(channels.size());
+<i>960</i>&nbsp;        }
+<i>961</i>&nbsp;
+<i>962</i>&nbsp;        @Override
+<i>963</i>&nbsp;        public void onResponse(Void v) {
+<i>964</i>&nbsp;            // Returns true if all connections have completed successfully
+<i>965</i>&nbsp;            if (countDown.countDown()) {
+<i>966</i>&nbsp;                final TcpChannel handshakeChannel = channels.get(0);
+<i>967</i>&nbsp;                try {
+<i>968</i>&nbsp;                    executeHandshake(node, handshakeChannel, connectionProfile, ActionListener.wrap(version -&gt; {
+<i>969</i>&nbsp;                        NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+<i>970</i>&nbsp;                        long relativeMillisTime = threadPool.relativeTimeInMillis();
+<i>971</i>&nbsp;                        nodeChannels.channels.forEach(ch -&gt; {
+<i>972</i>&nbsp;                            // Mark the channel init time
+<i>973</i>&nbsp;                            ch.getChannelStats().markAccessed(relativeMillisTime);
+<i>974</i>&nbsp;                            ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+<i>975</i>&nbsp;                        });
+<i>976</i>&nbsp;                        keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
+<i>977</i>&nbsp;                        listener.onResponse(nodeChannels);
+<i>978</i>&nbsp;                    }, e -&gt; closeAndFail(e instanceof ConnectTransportException ?
+<i>979</i>&nbsp;                        e : new ConnectTransportException(node, &quot;general node connection failure&quot;, e))));
+<i>980</i>&nbsp;                } catch (Exception ex) {
+<i>981</i>&nbsp;                    closeAndFail(ex);
+<i>982</i>&nbsp;                }
+<i>983</i>&nbsp;            }
+<i>984</i>&nbsp;        }
+<i>985</i>&nbsp;
+<i>986</i>&nbsp;        @Override
+<i>987</i>&nbsp;        public void onFailure(Exception ex) {
+<i>988</i>&nbsp;            if (countDown.fastForward()) {
+<i>989</i>&nbsp;                closeAndFail(new ConnectTransportException(node, &quot;connect_exception&quot;, ex));
+<i>990</i>&nbsp;            }
+<i>991</i>&nbsp;        }
+<i>992</i>&nbsp;
+<i>993</i>&nbsp;        public void onTimeout() {
+<i>994</i>&nbsp;            if (countDown.fastForward()) {
+<i>995</i>&nbsp;                closeAndFail(new ConnectTransportException(node, &quot;connect_timeout[&quot; + connectionProfile.getConnectTimeout() + &quot;]&quot;));
+<i>996</i>&nbsp;            }
+<i>997</i>&nbsp;        }
+<i>998</i>&nbsp;
+<i>999</i>&nbsp;        private void closeAndFail(Exception e) {
+<i>1000</i>&nbsp;            try {
+<i>1001</i>&nbsp;                CloseableChannel.closeChannels(channels, false);
+<i>1002</i>&nbsp;            } catch (Exception ex) {
+<i>1003</i>&nbsp;                e.addSuppressed(ex);
+<i>1004</i>&nbsp;            } finally {
+<i>1005</i>&nbsp;                listener.onFailure(e);
+<i>1006</i>&nbsp;            }
+<i>1007</i>&nbsp;        }
+<i>1008</i>&nbsp;    }
+<i>1009</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,563 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PrimaryReplicaSyncer</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.shard</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PrimaryReplicaSyncer (org.elasticsearch.index.shard)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PrimaryReplicaSyncer</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.9%
+  </span>
+  <span class="absValue">
+    (3/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    21.4%
+  </span>
+  <span class="absValue">
+    (9/ 42)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PrimaryReplicaSyncer$ResyncTask$Status</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 38)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">PrimaryReplicaSyncer$SyncAction</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (3/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.2%
+  </span>
+  <span class="absValue">
+    (9/ 80)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.index.shard;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>26</i>&nbsp;import org.elasticsearch.action.resync.ResyncReplicationRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.resync.ResyncReplicationResponse;
+<i>28</i>&nbsp;import org.elasticsearch.action.resync.TransportResyncReplicationAction;
+<i>29</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>30</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>32</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeUnit;
+<i>35</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>36</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>38</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>39</i>&nbsp;import org.elasticsearch.index.engine.Engine;
+<i>40</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>41</i>&nbsp;import org.elasticsearch.index.translog.Translog;
+<i>42</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>43</i>&nbsp;import org.elasticsearch.tasks.TaskId;
+<i>44</i>&nbsp;import org.elasticsearch.tasks.TaskManager;
+<i>45</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import java.io.IOException;
+<i>48</i>&nbsp;import java.util.ArrayList;
+<i>49</i>&nbsp;import java.util.List;
+<i>50</i>&nbsp;import java.util.Map;
+<i>51</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>52</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;import static java.util.Objects.requireNonNull;
+<i>55</i>&nbsp;
+<b class="nc"><i>56</i>&nbsp;public class PrimaryReplicaSyncer {</b>
+<i>57</i>&nbsp;
+<b class="fc"><i>58</i>&nbsp;    private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    private final TaskManager taskManager;
+<i>61</i>&nbsp;    private final SyncAction syncAction;
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);</b>
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    @Inject
+<i>68</i>&nbsp;    public PrimaryReplicaSyncer(TransportService transportService, TransportResyncReplicationAction syncAction) {
+<b class="fc"><i>69</i>&nbsp;        this(transportService.getTaskManager(), syncAction);</b>
+<b class="fc"><i>70</i>&nbsp;    }</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    // for tests
+<b class="fc"><i>73</i>&nbsp;    public PrimaryReplicaSyncer(TaskManager taskManager, SyncAction syncAction) {</b>
+<b class="fc"><i>74</i>&nbsp;        this.taskManager = taskManager;</b>
+<b class="fc"><i>75</i>&nbsp;        this.syncAction = syncAction;</b>
+<b class="fc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+<b class="nc"><i>79</i>&nbsp;        if (chunkSize.bytesAsInt() &lt;= 0) {</b>
+<b class="nc"><i>80</i>&nbsp;            throw new IllegalArgumentException(&quot;chunkSize must be &gt; 0&quot;);</b>
+<i>81</i>&nbsp;        }
+<b class="nc"><i>82</i>&nbsp;        this.chunkSize = chunkSize;</b>
+<b class="nc"><i>83</i>&nbsp;    }</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    public void resync(final IndexShard indexShard, final ActionListener&lt;ResyncTask&gt; listener) {
+<b class="nc"><i>86</i>&nbsp;        Translog.Snapshot snapshot = null;</b>
+<i>87</i>&nbsp;        try {
+<b class="nc"><i>88</i>&nbsp;            final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;</b>
+<b class="nc"><i>89</i>&nbsp;            final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();</b>
+<b class="nc"><i>90</i>&nbsp;            final ShardId shardId = indexShard.shardId();</b>
+<i>91</i>&nbsp;            // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
+<i>92</i>&nbsp;            // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
+<i>93</i>&nbsp;            // Also fail the resync early if the shard is shutting down
+<b class="nc"><i>94</i>&nbsp;            snapshot = indexShard.getHistoryOperations(&quot;resync&quot;,</b>
+<b class="nc"><i>95</i>&nbsp;                indexShard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG,</b>
+<i>96</i>&nbsp;                startingSeqNo);
+<b class="nc"><i>97</i>&nbsp;            final Translog.Snapshot originalSnapshot = snapshot;</b>
+<b class="nc"><i>98</i>&nbsp;            final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {</b>
+<i>99</i>&nbsp;                @Override
+<i>100</i>&nbsp;                public synchronized void close() throws IOException {
+<i>101</i>&nbsp;                    originalSnapshot.close();
+<i>102</i>&nbsp;                }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;                @Override
+<i>105</i>&nbsp;                public synchronized int totalOperations() {
+<i>106</i>&nbsp;                    return originalSnapshot.totalOperations();
+<i>107</i>&nbsp;                }
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;                @Override
+<i>110</i>&nbsp;                public synchronized Translog.Operation next() throws IOException {
+<i>111</i>&nbsp;                    IndexShardState state = indexShard.state();
+<i>112</i>&nbsp;                    if (state == IndexShardState.CLOSED) {
+<i>113</i>&nbsp;                        throw new IndexShardClosedException(shardId);
+<i>114</i>&nbsp;                    } else {
+<i>115</i>&nbsp;                        assert state == IndexShardState.STARTED : &quot;resync should only happen on a started shard, but state was: &quot; + state;
+<i>116</i>&nbsp;                    }
+<i>117</i>&nbsp;                    return originalSnapshot.next();
+<i>118</i>&nbsp;                }
+<i>119</i>&nbsp;            };
+<b class="nc"><i>120</i>&nbsp;            final ActionListener&lt;ResyncTask&gt; resyncListener = new ActionListener&lt;ResyncTask&gt;() {</b>
+<i>121</i>&nbsp;                @Override
+<i>122</i>&nbsp;                public void onResponse(final ResyncTask resyncTask) {
+<i>123</i>&nbsp;                    try {
+<i>124</i>&nbsp;                        wrappedSnapshot.close();
+<i>125</i>&nbsp;                        listener.onResponse(resyncTask);
+<i>126</i>&nbsp;                    } catch (final Exception e) {
+<i>127</i>&nbsp;                        onFailure(e);
+<i>128</i>&nbsp;                    }
+<i>129</i>&nbsp;                }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;                @Override
+<i>132</i>&nbsp;                public void onFailure(final Exception e) {
+<i>133</i>&nbsp;                    try {
+<i>134</i>&nbsp;                        wrappedSnapshot.close();
+<i>135</i>&nbsp;                    } catch (final Exception inner) {
+<i>136</i>&nbsp;                        e.addSuppressed(inner);
+<i>137</i>&nbsp;                    } finally {
+<i>138</i>&nbsp;                        listener.onFailure(e);
+<i>139</i>&nbsp;                    }
+<i>140</i>&nbsp;                }
+<i>141</i>&nbsp;            };
+<i>142</i>&nbsp;            // We must capture the timestamp after snapshotting a snapshot of operations to make sure
+<i>143</i>&nbsp;            // that the auto_id_timestamp of every operation in the snapshot is at most this value.
+<b class="nc"><i>144</i>&nbsp;            final long maxSeenAutoIdTimestamp = indexShard.getMaxSeenAutoIdTimestamp();</b>
+<b class="nc"><i>145</i>&nbsp;            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPendingPrimaryTerm(), wrappedSnapshot,</b>
+<i>146</i>&nbsp;                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, resyncListener);
+<b class="nc"><i>147</i>&nbsp;        } catch (Exception e) {</b>
+<i>148</i>&nbsp;            try {
+<b class="nc"><i>149</i>&nbsp;                IOUtils.close(snapshot);</b>
+<b class="nc"><i>150</i>&nbsp;            } catch (IOException inner) {</b>
+<b class="nc"><i>151</i>&nbsp;                e.addSuppressed(inner);</b>
+<i>152</i>&nbsp;            } finally {
+<b class="nc"><i>153</i>&nbsp;                listener.onFailure(e);</b>
+<b class="nc"><i>154</i>&nbsp;            }</b>
+<b class="nc"><i>155</i>&nbsp;        }</b>
+<b class="nc"><i>156</i>&nbsp;    }</b>
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
+<i>159</i>&nbsp;                        long startingSeqNo, long maxSeqNo, long maxSeenAutoIdTimestamp, ActionListener&lt;ResyncTask&gt; listener) {
+<b class="nc"><i>160</i>&nbsp;        ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);</b>
+<b class="nc"><i>161</i>&nbsp;        ResyncTask resyncTask = (ResyncTask) taskManager.register(&quot;transport&quot;, &quot;resync&quot;, request); // it&#39;s not transport :-)</b>
+<b class="nc"><i>162</i>&nbsp;        ActionListener&lt;Void&gt; wrappedListener = new ActionListener&lt;Void&gt;() {</b>
+<i>163</i>&nbsp;            @Override
+<i>164</i>&nbsp;            public void onResponse(Void ignore) {
+<i>165</i>&nbsp;                resyncTask.setPhase(&quot;finished&quot;);
+<i>166</i>&nbsp;                taskManager.unregister(resyncTask);
+<i>167</i>&nbsp;                listener.onResponse(resyncTask);
+<i>168</i>&nbsp;            }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;            @Override
+<i>171</i>&nbsp;            public void onFailure(Exception e) {
+<i>172</i>&nbsp;                resyncTask.setPhase(&quot;finished&quot;);
+<i>173</i>&nbsp;                taskManager.unregister(resyncTask);
+<i>174</i>&nbsp;                listener.onFailure(e);
+<i>175</i>&nbsp;            }
+<i>176</i>&nbsp;        };
+<i>177</i>&nbsp;        try {
+<b class="nc"><i>178</i>&nbsp;            new SnapshotSender(syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),</b>
+<b class="nc"><i>179</i>&nbsp;                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, wrappedListener).run();</b>
+<b class="nc"><i>180</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>181</i>&nbsp;            wrappedListener.onFailure(e);</b>
+<b class="nc"><i>182</i>&nbsp;        }</b>
+<b class="nc"><i>183</i>&nbsp;    }</b>
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    public interface SyncAction {
+<i>186</i>&nbsp;        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
+<i>187</i>&nbsp;                  ActionListener&lt;ResyncReplicationResponse&gt; listener);
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    static class SnapshotSender extends AbstractRunnable implements ActionListener&lt;ResyncReplicationResponse&gt; {
+<i>191</i>&nbsp;        private final Logger logger;
+<i>192</i>&nbsp;        private final SyncAction syncAction;
+<i>193</i>&nbsp;        private final ResyncTask task; // to track progress
+<i>194</i>&nbsp;        private final String primaryAllocationId;
+<i>195</i>&nbsp;        private final long primaryTerm;
+<i>196</i>&nbsp;        private final ShardId shardId;
+<i>197</i>&nbsp;        private final Translog.Snapshot snapshot;
+<i>198</i>&nbsp;        private final long startingSeqNo;
+<i>199</i>&nbsp;        private final long maxSeqNo;
+<i>200</i>&nbsp;        private final long maxSeenAutoIdTimestamp;
+<i>201</i>&nbsp;        private final int chunkSizeInBytes;
+<i>202</i>&nbsp;        private final ActionListener&lt;Void&gt; listener;
+<i>203</i>&nbsp;        private final AtomicBoolean firstMessage = new AtomicBoolean(true);
+<i>204</i>&nbsp;        private final AtomicInteger totalSentOps = new AtomicInteger();
+<i>205</i>&nbsp;        private final AtomicInteger totalSkippedOps = new AtomicInteger();
+<i>206</i>&nbsp;        private final AtomicBoolean closed = new AtomicBoolean();
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;        SnapshotSender(SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
+<i>209</i>&nbsp;                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long maxSeqNo,
+<i>210</i>&nbsp;                       long maxSeenAutoIdTimestamp, ActionListener&lt;Void&gt; listener) {
+<i>211</i>&nbsp;            this.logger = PrimaryReplicaSyncer.logger;
+<i>212</i>&nbsp;            this.syncAction = syncAction;
+<i>213</i>&nbsp;            this.task = task;
+<i>214</i>&nbsp;            this.shardId = shardId;
+<i>215</i>&nbsp;            this.primaryAllocationId = primaryAllocationId;
+<i>216</i>&nbsp;            this.primaryTerm = primaryTerm;
+<i>217</i>&nbsp;            this.snapshot = snapshot;
+<i>218</i>&nbsp;            this.chunkSizeInBytes = chunkSizeInBytes;
+<i>219</i>&nbsp;            this.startingSeqNo = startingSeqNo;
+<i>220</i>&nbsp;            this.maxSeqNo = maxSeqNo;
+<i>221</i>&nbsp;            this.maxSeenAutoIdTimestamp = maxSeenAutoIdTimestamp;
+<i>222</i>&nbsp;            this.listener = listener;
+<i>223</i>&nbsp;            task.setTotalOperations(snapshot.totalOperations());
+<i>224</i>&nbsp;        }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        @Override
+<i>227</i>&nbsp;        public void onResponse(ResyncReplicationResponse response) {
+<i>228</i>&nbsp;            run();
+<i>229</i>&nbsp;        }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;        @Override
+<i>232</i>&nbsp;        public void onFailure(Exception e) {
+<i>233</i>&nbsp;            if (closed.compareAndSet(false, true)) {
+<i>234</i>&nbsp;                listener.onFailure(e);
+<i>235</i>&nbsp;            }
+<i>236</i>&nbsp;        }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;        private static final Translog.Operation[] EMPTY_ARRAY = new Translog.Operation[0];
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;        @Override
+<i>241</i>&nbsp;        protected void doRun() throws Exception {
+<i>242</i>&nbsp;            long size = 0;
+<i>243</i>&nbsp;            final List&lt;Translog.Operation&gt; operations = new ArrayList&lt;&gt;();
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;            task.setPhase(&quot;collecting_ops&quot;);
+<i>246</i>&nbsp;            task.setResyncedOperations(totalSentOps.get());
+<i>247</i>&nbsp;            task.setSkippedOperations(totalSkippedOps.get());
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;            Translog.Operation operation;
+<i>250</i>&nbsp;            while ((operation = snapshot.next()) != null) {
+<i>251</i>&nbsp;                final long seqNo = operation.seqNo();
+<i>252</i>&nbsp;                if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo &lt; startingSeqNo) {
+<i>253</i>&nbsp;                    totalSkippedOps.incrementAndGet();
+<i>254</i>&nbsp;                    continue;
+<i>255</i>&nbsp;                }
+<i>256</i>&nbsp;                assert operation.seqNo() &gt;= 0 : &quot;sending operation with unassigned sequence number [&quot; + operation + &quot;]&quot;;
+<i>257</i>&nbsp;                operations.add(operation);
+<i>258</i>&nbsp;                size += operation.estimateSize();
+<i>259</i>&nbsp;                totalSentOps.incrementAndGet();
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;                // check if this request is past bytes threshold, and if so, send it off
+<i>262</i>&nbsp;                if (size &gt;= chunkSizeInBytes) {
+<i>263</i>&nbsp;                    break;
+<i>264</i>&nbsp;                }
+<i>265</i>&nbsp;            }
+<i>266</i>&nbsp;            final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
+<i>267</i>&nbsp;            // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
+<i>268</i>&nbsp;            if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+<i>269</i>&nbsp;                task.setPhase(&quot;sending_ops&quot;);
+<i>270</i>&nbsp;                ResyncReplicationRequest request =
+<i>271</i>&nbsp;                    new ResyncReplicationRequest(shardId, trimmedAboveSeqNo, maxSeenAutoIdTimestamp, operations.toArray(EMPTY_ARRAY));
+<i>272</i>&nbsp;                logger.trace(&quot;{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])&quot;, shardId, operations.size(),
+<i>273</i>&nbsp;                    new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
+<i>274</i>&nbsp;                firstMessage.set(false);
+<i>275</i>&nbsp;                syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
+<i>276</i>&nbsp;            } else if (closed.compareAndSet(false, true)) {
+<i>277</i>&nbsp;                logger.trace(&quot;{} resync completed (total sent: [{}], skipped: [{}])&quot;, shardId, totalSentOps.get(), totalSkippedOps.get());
+<i>278</i>&nbsp;                listener.onResponse(null);
+<i>279</i>&nbsp;            }
+<i>280</i>&nbsp;        }
+<i>281</i>&nbsp;    }
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    public static class ResyncRequest extends ActionRequest {
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;        private final ShardId shardId;
+<i>286</i>&nbsp;        private final String allocationId;
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;        public ResyncRequest(ShardId shardId, String allocationId) {
+<i>289</i>&nbsp;            this.shardId = shardId;
+<i>290</i>&nbsp;            this.allocationId = allocationId;
+<i>291</i>&nbsp;        }
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;        @Override
+<i>294</i>&nbsp;        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map&lt;String, String&gt; headers) {
+<i>295</i>&nbsp;            return new ResyncTask(id, type, action, getDescription(), parentTaskId, headers);
+<i>296</i>&nbsp;        }
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;        @Override
+<i>299</i>&nbsp;        public String getDescription() {
+<i>300</i>&nbsp;            return toString();
+<i>301</i>&nbsp;        }
+<i>302</i>&nbsp;
+<i>303</i>&nbsp;        @Override
+<i>304</i>&nbsp;        public String toString() {
+<i>305</i>&nbsp;            return &quot;ResyncRequest{ &quot; + shardId + &quot;, &quot; + allocationId + &quot; }&quot;;
+<i>306</i>&nbsp;        }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;        @Override
+<i>309</i>&nbsp;        public ActionRequestValidationException validate() {
+<i>310</i>&nbsp;            return null;
+<i>311</i>&nbsp;        }
+<i>312</i>&nbsp;    }
+<i>313</i>&nbsp;
+<i>314</i>&nbsp;    public static class ResyncTask extends Task {
+<i>315</i>&nbsp;        private volatile String phase = &quot;starting&quot;;
+<i>316</i>&nbsp;        private volatile int totalOperations;
+<i>317</i>&nbsp;        private volatile int resyncedOperations;
+<i>318</i>&nbsp;        private volatile int skippedOperations;
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;        public ResyncTask(long id, String type, String action, String description, TaskId parentTaskId, Map&lt;String, String&gt; headers) {
+<i>321</i>&nbsp;            super(id, type, action, description, parentTaskId, headers);
+<i>322</i>&nbsp;        }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;        /**
+<i>325</i>&nbsp;         * Set the current phase of the task.
+<i>326</i>&nbsp;         */
+<i>327</i>&nbsp;        public void setPhase(String phase) {
+<i>328</i>&nbsp;            this.phase = phase;
+<i>329</i>&nbsp;        }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;        /**
+<i>332</i>&nbsp;         * Get the current phase of the task.
+<i>333</i>&nbsp;         */
+<i>334</i>&nbsp;        public String getPhase() {
+<i>335</i>&nbsp;            return phase;
+<i>336</i>&nbsp;        }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;        /**
+<i>339</i>&nbsp;         * total number of translog operations that were captured by translog snapshot
+<i>340</i>&nbsp;         */
+<i>341</i>&nbsp;        public int getTotalOperations() {
+<i>342</i>&nbsp;            return totalOperations;
+<i>343</i>&nbsp;        }
+<i>344</i>&nbsp;
+<i>345</i>&nbsp;        public void setTotalOperations(int totalOperations) {
+<i>346</i>&nbsp;            this.totalOperations = totalOperations;
+<i>347</i>&nbsp;        }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;        /**
+<i>350</i>&nbsp;         * number of operations that have been successfully replicated
+<i>351</i>&nbsp;         */
+<i>352</i>&nbsp;        public int getResyncedOperations() {
+<i>353</i>&nbsp;            return resyncedOperations;
+<i>354</i>&nbsp;        }
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;        public void setResyncedOperations(int resyncedOperations) {
+<i>357</i>&nbsp;            this.resyncedOperations = resyncedOperations;
+<i>358</i>&nbsp;        }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;        /**
+<i>361</i>&nbsp;         * number of translog operations that have been skipped
+<i>362</i>&nbsp;         */
+<i>363</i>&nbsp;        public int getSkippedOperations() {
+<i>364</i>&nbsp;            return skippedOperations;
+<i>365</i>&nbsp;        }
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;        public void setSkippedOperations(int skippedOperations) {
+<i>368</i>&nbsp;            this.skippedOperations = skippedOperations;
+<i>369</i>&nbsp;        }
+<i>370</i>&nbsp;
+<i>371</i>&nbsp;        @Override
+<i>372</i>&nbsp;        public ResyncTask.Status getStatus() {
+<i>373</i>&nbsp;            return new ResyncTask.Status(phase, totalOperations, resyncedOperations, skippedOperations);
+<i>374</i>&nbsp;        }
+<i>375</i>&nbsp;
+<i>376</i>&nbsp;        public static class Status implements Task.Status {
+<i>377</i>&nbsp;            public static final String NAME = &quot;resync&quot;;
+<i>378</i>&nbsp;
+<i>379</i>&nbsp;            private final String phase;
+<i>380</i>&nbsp;            private final int totalOperations;
+<i>381</i>&nbsp;            private final int resyncedOperations;
+<i>382</i>&nbsp;            private final int skippedOperations;
+<i>383</i>&nbsp;
+<b class="nc"><i>384</i>&nbsp;            public Status(StreamInput in) throws IOException {</b>
+<b class="nc"><i>385</i>&nbsp;                phase = in.readString();</b>
+<b class="nc"><i>386</i>&nbsp;                totalOperations = in.readVInt();</b>
+<b class="nc"><i>387</i>&nbsp;                resyncedOperations = in.readVInt();</b>
+<b class="nc"><i>388</i>&nbsp;                skippedOperations = in.readVInt();</b>
+<b class="nc"><i>389</i>&nbsp;            }</b>
+<i>390</i>&nbsp;
+<b class="nc"><i>391</i>&nbsp;            public Status(String phase, int totalOperations, int resyncedOperations, int skippedOperations) {</b>
+<b class="nc"><i>392</i>&nbsp;                this.phase = requireNonNull(phase, &quot;Phase cannot be null&quot;);</b>
+<b class="nc"><i>393</i>&nbsp;                this.totalOperations = totalOperations;</b>
+<b class="nc"><i>394</i>&nbsp;                this.resyncedOperations = resyncedOperations;</b>
+<b class="nc"><i>395</i>&nbsp;                this.skippedOperations = skippedOperations;</b>
+<b class="nc"><i>396</i>&nbsp;            }</b>
+<i>397</i>&nbsp;
+<i>398</i>&nbsp;            @Override
+<i>399</i>&nbsp;            public String getWriteableName() {
+<b class="nc"><i>400</i>&nbsp;                return NAME;</b>
+<i>401</i>&nbsp;            }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;            @Override
+<i>404</i>&nbsp;            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>405</i>&nbsp;                builder.startObject();</b>
+<b class="nc"><i>406</i>&nbsp;                builder.field(&quot;phase&quot;, phase);</b>
+<b class="nc"><i>407</i>&nbsp;                builder.field(&quot;totalOperations&quot;, totalOperations);</b>
+<b class="nc"><i>408</i>&nbsp;                builder.field(&quot;resyncedOperations&quot;, resyncedOperations);</b>
+<b class="nc"><i>409</i>&nbsp;                builder.field(&quot;skippedOperations&quot;, skippedOperations);</b>
+<b class="nc"><i>410</i>&nbsp;                builder.endObject();</b>
+<b class="nc"><i>411</i>&nbsp;                return builder;</b>
+<i>412</i>&nbsp;            }
+<i>413</i>&nbsp;
+<i>414</i>&nbsp;            @Override
+<i>415</i>&nbsp;            public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>416</i>&nbsp;                out.writeString(phase);</b>
+<b class="nc"><i>417</i>&nbsp;                out.writeVLong(totalOperations);</b>
+<b class="nc"><i>418</i>&nbsp;                out.writeVLong(resyncedOperations);</b>
+<b class="nc"><i>419</i>&nbsp;                out.writeVLong(skippedOperations);</b>
+<b class="nc"><i>420</i>&nbsp;            }</b>
+<i>421</i>&nbsp;
+<i>422</i>&nbsp;            @Override
+<i>423</i>&nbsp;            public String toString() {
+<b class="nc"><i>424</i>&nbsp;                return Strings.toString(this);</b>
+<i>425</i>&nbsp;            }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;
+<i>428</i>&nbsp;            @Override
+<i>429</i>&nbsp;            public boolean equals(Object o) {
+<b class="nc"><i>430</i>&nbsp;                if (this == o) return true;</b>
+<b class="nc"><i>431</i>&nbsp;                if (o == null || getClass() != o.getClass()) return false;</b>
+<i>432</i>&nbsp;
+<b class="nc"><i>433</i>&nbsp;                Status status = (Status) o;</b>
+<i>434</i>&nbsp;
+<b class="nc"><i>435</i>&nbsp;                if (totalOperations != status.totalOperations) return false;</b>
+<b class="nc"><i>436</i>&nbsp;                if (resyncedOperations != status.resyncedOperations) return false;</b>
+<b class="nc"><i>437</i>&nbsp;                if (skippedOperations != status.skippedOperations) return false;</b>
+<b class="nc"><i>438</i>&nbsp;                return phase.equals(status.phase);</b>
+<i>439</i>&nbsp;            }
+<i>440</i>&nbsp;
+<i>441</i>&nbsp;            @Override
+<i>442</i>&nbsp;            public int hashCode() {
+<b class="nc"><i>443</i>&nbsp;                int result = phase.hashCode();</b>
+<b class="nc"><i>444</i>&nbsp;                result = 31 * result + totalOperations;</b>
+<b class="nc"><i>445</i>&nbsp;                result = 31 * result + resyncedOperations;</b>
+<b class="nc"><i>446</i>&nbsp;                result = 31 * result + skippedOperations;</b>
+<b class="nc"><i>447</i>&nbsp;                return result;</b>
+<i>448</i>&nbsp;            }
+<i>449</i>&nbsp;        }
+<i>450</i>&nbsp;    }
+<i>451</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

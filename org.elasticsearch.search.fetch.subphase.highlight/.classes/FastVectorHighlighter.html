@@ -1,0 +1,342 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FastVectorHighlighter</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.fetch.subphase.highlight</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FastVectorHighlighter (org.elasticsearch.search.fetch.subphase.highlight)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FastVectorHighlighter</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    9.2%
+  </span>
+  <span class="absValue">
+    (10/ 109)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.search.fetch.subphase.highlight;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.search.highlight.Encoder;
+<i>22</i>&nbsp;import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
+<i>23</i>&nbsp;import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
+<i>24</i>&nbsp;import org.apache.lucene.search.vectorhighlight.BreakIteratorBoundaryScanner;
+<i>25</i>&nbsp;import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
+<i>26</i>&nbsp;import org.apache.lucene.search.vectorhighlight.FieldFragList;
+<i>27</i>&nbsp;import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
+<i>28</i>&nbsp;import org.apache.lucene.search.vectorhighlight.FieldQuery;
+<i>29</i>&nbsp;import org.apache.lucene.search.vectorhighlight.FragListBuilder;
+<i>30</i>&nbsp;import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+<i>31</i>&nbsp;import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+<i>32</i>&nbsp;import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+<i>33</i>&nbsp;import org.apache.lucene.search.vectorhighlight.SimpleFieldFragList;
+<i>34</i>&nbsp;import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
+<i>35</i>&nbsp;import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>37</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>38</i>&nbsp;import org.elasticsearch.common.text.Text;
+<i>39</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>40</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>41</i>&nbsp;import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
+<i>42</i>&nbsp;import org.elasticsearch.search.fetch.FetchSubPhase;
+<i>43</i>&nbsp;import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
+<i>44</i>&nbsp;import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.text.BreakIterator;
+<i>47</i>&nbsp;import java.util.Collections;
+<i>48</i>&nbsp;import java.util.HashMap;
+<i>49</i>&nbsp;import java.util.Locale;
+<i>50</i>&nbsp;import java.util.Map;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;public class FastVectorHighlighter implements Highlighter {
+<b class="fc"><i>53</i>&nbsp;    private static final BoundaryScanner DEFAULT_SIMPLE_BOUNDARY_SCANNER = new SimpleBoundaryScanner();</b>
+<b class="fc"><i>54</i>&nbsp;    private static final BoundaryScanner DEFAULT_SENTENCE_BOUNDARY_SCANNER =</b>
+<b class="fc"><i>55</i>&nbsp;        new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(Locale.ROOT));</b>
+<b class="fc"><i>56</i>&nbsp;    private static final BoundaryScanner DEFAULT_WORD_BOUNDARY_SCANNER =</b>
+<b class="fc"><i>57</i>&nbsp;        new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(Locale.ROOT));</b>
+<i>58</i>&nbsp;
+<b class="fc"><i>59</i>&nbsp;    public static final Setting&lt;Boolean&gt; SETTING_TV_HIGHLIGHT_MULTI_VALUE =</b>
+<b class="fc"><i>60</i>&nbsp;        Setting.boolSetting(&quot;search.highlight.term_vector_multi_value&quot;, true, Setting.Property.NodeScope);</b>
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private static final String CACHE_KEY = &quot;highlight-fsv&quot;;
+<i>63</i>&nbsp;    private final Boolean termVectorMultiValue;
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    public FastVectorHighlighter(Settings settings) {</b>
+<b class="fc"><i>66</i>&nbsp;        this.termVectorMultiValue = SETTING_TV_HIGHLIGHT_MULTI_VALUE.get(settings);</b>
+<b class="fc"><i>67</i>&nbsp;    }</b>
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    @Override
+<i>70</i>&nbsp;    public HighlightField highlight(HighlighterContext highlighterContext) {
+<b class="nc"><i>71</i>&nbsp;        SearchContextHighlight.Field field = highlighterContext.field;</b>
+<b class="nc"><i>72</i>&nbsp;        QueryShardContext context = highlighterContext.context;</b>
+<b class="nc"><i>73</i>&nbsp;        FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;</b>
+<b class="nc"><i>74</i>&nbsp;        MappedFieldType fieldType = highlighterContext.fieldType;</b>
+<i>75</i>&nbsp;
+<b class="nc"><i>76</i>&nbsp;        if (canHighlight(fieldType) == false) {</b>
+<b class="nc"><i>77</i>&nbsp;            throw new IllegalArgumentException(&quot;the field [&quot; + highlighterContext.fieldName +</b>
+<i>78</i>&nbsp;                &quot;] should be indexed with term vector with position offsets to be used with fast vector highlighter&quot;);
+<i>79</i>&nbsp;        }
+<i>80</i>&nbsp;
+<b class="nc"><i>81</i>&nbsp;        Encoder encoder = field.fieldOptions().encoder().equals(&quot;html&quot;) ?</b>
+<b class="nc"><i>82</i>&nbsp;            HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;</b>
+<i>83</i>&nbsp;
+<b class="nc"><i>84</i>&nbsp;        if (!hitContext.cache().containsKey(CACHE_KEY)) {</b>
+<b class="nc"><i>85</i>&nbsp;            hitContext.cache().put(CACHE_KEY, new HighlighterEntry());</b>
+<i>86</i>&nbsp;        }
+<b class="nc"><i>87</i>&nbsp;        HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;        try {
+<b class="nc"><i>90</i>&nbsp;            FieldHighlightEntry entry = cache.fields.get(fieldType);</b>
+<b class="nc"><i>91</i>&nbsp;            if (entry == null) {</b>
+<i>92</i>&nbsp;                FragListBuilder fragListBuilder;
+<i>93</i>&nbsp;                BaseFragmentsBuilder fragmentsBuilder;
+<i>94</i>&nbsp;
+<b class="nc"><i>95</i>&nbsp;                final BoundaryScanner boundaryScanner = getBoundaryScanner(field);</b>
+<b class="nc"><i>96</i>&nbsp;                boolean forceSource = highlighterContext.highlight.forceSource(field);</b>
+<b class="nc"><i>97</i>&nbsp;                if (field.fieldOptions().numberOfFragments() == 0) {</b>
+<b class="nc"><i>98</i>&nbsp;                    fragListBuilder = new SingleFragListBuilder();</b>
+<i>99</i>&nbsp;
+<b class="nc"><i>100</i>&nbsp;                    if (!forceSource &amp;&amp; fieldType.stored()) {</b>
+<b class="nc"><i>101</i>&nbsp;                        fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),</b>
+<b class="nc"><i>102</i>&nbsp;                                field.fieldOptions().postTags(), boundaryScanner);</b>
+<i>103</i>&nbsp;                    } else {
+<b class="nc"><i>104</i>&nbsp;                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, context,</b>
+<b class="nc"><i>105</i>&nbsp;                                field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);</b>
+<i>106</i>&nbsp;                    }
+<i>107</i>&nbsp;                } else {
+<b class="nc"><i>108</i>&nbsp;                    fragListBuilder = field.fieldOptions().fragmentOffset() == -1 ?</b>
+<b class="nc"><i>109</i>&nbsp;                        new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());</b>
+<b class="nc"><i>110</i>&nbsp;                    if (field.fieldOptions().scoreOrdered()) {</b>
+<b class="nc"><i>111</i>&nbsp;                        if (!forceSource &amp;&amp; fieldType.stored()) {</b>
+<b class="nc"><i>112</i>&nbsp;                            fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),</b>
+<b class="nc"><i>113</i>&nbsp;                                    field.fieldOptions().postTags(), boundaryScanner);</b>
+<i>114</i>&nbsp;                        } else {
+<b class="nc"><i>115</i>&nbsp;                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, context,</b>
+<b class="nc"><i>116</i>&nbsp;                                    field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);</b>
+<i>117</i>&nbsp;                        }
+<i>118</i>&nbsp;                    } else {
+<b class="nc"><i>119</i>&nbsp;                        if (!forceSource &amp;&amp; fieldType.stored()) {</b>
+<b class="nc"><i>120</i>&nbsp;                            fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),</b>
+<b class="nc"><i>121</i>&nbsp;                                    field.fieldOptions().postTags(), boundaryScanner);</b>
+<i>122</i>&nbsp;                        } else {
+<b class="nc"><i>123</i>&nbsp;                            fragmentsBuilder =</b>
+<b class="nc"><i>124</i>&nbsp;                                new SourceSimpleFragmentsBuilder(fieldType, context, field.fieldOptions().preTags(),</b>
+<b class="nc"><i>125</i>&nbsp;                                    field.fieldOptions().postTags(), boundaryScanner);</b>
+<i>126</i>&nbsp;                        }
+<i>127</i>&nbsp;                    }
+<i>128</i>&nbsp;                }
+<b class="nc"><i>129</i>&nbsp;                fragmentsBuilder.setDiscreteMultiValueHighlighting(termVectorMultiValue);</b>
+<b class="nc"><i>130</i>&nbsp;                entry = new FieldHighlightEntry();</b>
+<b class="nc"><i>131</i>&nbsp;                if (field.fieldOptions().requireFieldMatch()) {</b>
+<i>132</i>&nbsp;                    /**
+<i>133</i>&nbsp;                     * we use top level reader to rewrite the query against all readers,
+<i>134</i>&nbsp;                     * with use caching it across hits (and across readers...)
+<i>135</i>&nbsp;                     */
+<b class="nc"><i>136</i>&nbsp;                    entry.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,</b>
+<b class="nc"><i>137</i>&nbsp;                        hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());</b>
+<i>138</i>&nbsp;                } else {
+<i>139</i>&nbsp;                    /**
+<i>140</i>&nbsp;                     * we use top level reader to rewrite the query against all readers,
+<i>141</i>&nbsp;                     * with use caching it across hits (and across readers...)
+<i>142</i>&nbsp;                     */
+<b class="nc"><i>143</i>&nbsp;                    entry.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,</b>
+<b class="nc"><i>144</i>&nbsp;                        hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());</b>
+<i>145</i>&nbsp;                }
+<b class="nc"><i>146</i>&nbsp;                entry.fragListBuilder = fragListBuilder;</b>
+<b class="nc"><i>147</i>&nbsp;                entry.fragmentsBuilder = fragmentsBuilder;</b>
+<b class="nc"><i>148</i>&nbsp;                if (cache.fvh == null) {</b>
+<i>149</i>&nbsp;                    // parameters to FVH are not requires since:
+<i>150</i>&nbsp;                    // first two booleans are not relevant since they are set on the CustomFieldQuery
+<i>151</i>&nbsp;                    // (phrase and fieldMatch) fragment builders are used explicitly
+<b class="nc"><i>152</i>&nbsp;                    cache.fvh = new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();</b>
+<i>153</i>&nbsp;                }
+<b class="nc"><i>154</i>&nbsp;                CustomFieldQuery.highlightFilters.set(field.fieldOptions().highlightFilter());</b>
+<b class="nc"><i>155</i>&nbsp;                cache.fields.put(fieldType, entry);</b>
+<i>156</i>&nbsp;            }
+<i>157</i>&nbsp;            final FieldQuery fieldQuery;
+<b class="nc"><i>158</i>&nbsp;            if (field.fieldOptions().requireFieldMatch()) {</b>
+<b class="nc"><i>159</i>&nbsp;                fieldQuery = entry.fieldMatchFieldQuery;</b>
+<i>160</i>&nbsp;            } else {
+<b class="nc"><i>161</i>&nbsp;                fieldQuery = entry.noFieldMatchFieldQuery;</b>
+<i>162</i>&nbsp;            }
+<b class="nc"><i>163</i>&nbsp;            cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());</b>
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;            String[] fragments;
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;            // a HACK to make highlighter do highlighting, even though its using the single frag list builder
+<b class="nc"><i>168</i>&nbsp;            int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ?</b>
+<b class="nc"><i>169</i>&nbsp;                    Integer.MAX_VALUE : field.fieldOptions().numberOfFragments();</b>
+<b class="nc"><i>170</i>&nbsp;            int fragmentCharSize = field.fieldOptions().numberOfFragments() == 0 ?</b>
+<b class="nc"><i>171</i>&nbsp;                    Integer.MAX_VALUE : field.fieldOptions().fragmentCharSize();</b>
+<i>172</i>&nbsp;            // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
+<i>173</i>&nbsp;            // Only send matched fields if they were requested to save time.
+<b class="nc"><i>174</i>&nbsp;            if (field.fieldOptions().matchedFields() != null &amp;&amp; !field.fieldOptions().matchedFields().isEmpty()) {</b>
+<b class="nc"><i>175</i>&nbsp;                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(),</b>
+<b class="nc"><i>176</i>&nbsp;                    fieldType.name(), field.fieldOptions().matchedFields(), fragmentCharSize,</b>
+<b class="nc"><i>177</i>&nbsp;                    numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.fieldOptions().preTags(),</b>
+<b class="nc"><i>178</i>&nbsp;                    field.fieldOptions().postTags(), encoder);</b>
+<i>179</i>&nbsp;            } else {
+<b class="nc"><i>180</i>&nbsp;                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(),</b>
+<b class="nc"><i>181</i>&nbsp;                    fieldType.name(), fragmentCharSize, numberOfFragments, entry.fragListBuilder,</b>
+<b class="nc"><i>182</i>&nbsp;                    entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);</b>
+<i>183</i>&nbsp;            }
+<i>184</i>&nbsp;
+<b class="nc"><i>185</i>&nbsp;            if (fragments != null &amp;&amp; fragments.length &gt; 0) {</b>
+<b class="nc"><i>186</i>&nbsp;                return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));</b>
+<i>187</i>&nbsp;            }
+<i>188</i>&nbsp;
+<b class="nc"><i>189</i>&nbsp;            int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();</b>
+<b class="nc"><i>190</i>&nbsp;            if (noMatchSize &gt; 0) {</b>
+<i>191</i>&nbsp;                // Essentially we just request that a fragment is built from 0 to noMatchSize using
+<i>192</i>&nbsp;                // the normal fragmentsBuilder
+<b class="nc"><i>193</i>&nbsp;                FieldFragList fieldFragList = new SimpleFieldFragList(-1 /*ignored*/);</b>
+<b class="nc"><i>194</i>&nbsp;                fieldFragList.add(0, noMatchSize, Collections.&lt;WeightedPhraseInfo&gt;emptyList());</b>
+<b class="nc"><i>195</i>&nbsp;                fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(),</b>
+<b class="nc"><i>196</i>&nbsp;                    fieldType.name(), fieldFragList, 1, field.fieldOptions().preTags(),</b>
+<b class="nc"><i>197</i>&nbsp;                    field.fieldOptions().postTags(), encoder);</b>
+<b class="nc"><i>198</i>&nbsp;                if (fragments != null &amp;&amp; fragments.length &gt; 0) {</b>
+<b class="nc"><i>199</i>&nbsp;                    return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));</b>
+<i>200</i>&nbsp;                }
+<i>201</i>&nbsp;            }
+<i>202</i>&nbsp;
+<b class="nc"><i>203</i>&nbsp;            return null;</b>
+<i>204</i>&nbsp;
+<b class="nc"><i>205</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>206</i>&nbsp;            throw new FetchPhaseExecutionException(highlighterContext.shardTarget,</b>
+<i>207</i>&nbsp;                &quot;Failed to highlight field [&quot; + highlighterContext.fieldName + &quot;]&quot;, e);
+<i>208</i>&nbsp;        }
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;    @Override
+<i>212</i>&nbsp;    public boolean canHighlight(MappedFieldType fieldType) {
+<b class="nc"><i>213</i>&nbsp;        return fieldType.storeTermVectors()</b>
+<b class="nc"><i>214</i>&nbsp;            &amp;&amp; fieldType.storeTermVectorOffsets()</b>
+<b class="nc"><i>215</i>&nbsp;            &amp;&amp; fieldType.storeTermVectorPositions();</b>
+<i>216</i>&nbsp;    }
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    private static BoundaryScanner getBoundaryScanner(Field field) {
+<b class="nc"><i>219</i>&nbsp;        final FieldOptions fieldOptions = field.fieldOptions();</b>
+<i>220</i>&nbsp;        final Locale boundaryScannerLocale =
+<b class="nc"><i>221</i>&nbsp;            fieldOptions.boundaryScannerLocale() != null ? fieldOptions.boundaryScannerLocale() :</b>
+<b class="nc"><i>222</i>&nbsp;                Locale.ROOT;</b>
+<i>223</i>&nbsp;        final HighlightBuilder.BoundaryScannerType type =
+<b class="nc"><i>224</i>&nbsp;            fieldOptions.boundaryScannerType()  != null ? fieldOptions.boundaryScannerType() :</b>
+<b class="nc"><i>225</i>&nbsp;                HighlightBuilder.BoundaryScannerType.CHARS;</b>
+<b class="nc"><i>226</i>&nbsp;        switch(type) {</b>
+<i>227</i>&nbsp;            case SENTENCE:
+<b class="nc"><i>228</i>&nbsp;                if (boundaryScannerLocale != null) {</b>
+<b class="nc"><i>229</i>&nbsp;                    return new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(boundaryScannerLocale));</b>
+<i>230</i>&nbsp;                }
+<b class="nc"><i>231</i>&nbsp;                return DEFAULT_SENTENCE_BOUNDARY_SCANNER;</b>
+<i>232</i>&nbsp;            case WORD:
+<b class="nc"><i>233</i>&nbsp;                if (boundaryScannerLocale != null) {</b>
+<b class="nc"><i>234</i>&nbsp;                    return new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(boundaryScannerLocale));</b>
+<i>235</i>&nbsp;                }
+<b class="nc"><i>236</i>&nbsp;                return DEFAULT_WORD_BOUNDARY_SCANNER;</b>
+<i>237</i>&nbsp;            case CHARS:
+<b class="nc"><i>238</i>&nbsp;                if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN</b>
+<b class="nc"><i>239</i>&nbsp;                    || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {</b>
+<b class="nc"><i>240</i>&nbsp;                    return new SimpleBoundaryScanner(fieldOptions.boundaryMaxScan(), fieldOptions.boundaryChars());</b>
+<i>241</i>&nbsp;                }
+<b class="nc"><i>242</i>&nbsp;                return DEFAULT_SIMPLE_BOUNDARY_SCANNER;</b>
+<i>243</i>&nbsp;            default:
+<b class="nc"><i>244</i>&nbsp;                throw new IllegalArgumentException(&quot;Invalid boundary scanner type: &quot; + type.toString());</b>
+<i>245</i>&nbsp;        }
+<i>246</i>&nbsp;    }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    private class FieldHighlightEntry {
+<i>249</i>&nbsp;        public FragListBuilder fragListBuilder;
+<i>250</i>&nbsp;        public FragmentsBuilder fragmentsBuilder;
+<i>251</i>&nbsp;        public FieldQuery noFieldMatchFieldQuery;
+<i>252</i>&nbsp;        public FieldQuery fieldMatchFieldQuery;
+<i>253</i>&nbsp;    }
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    private class HighlighterEntry {
+<i>256</i>&nbsp;        public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
+<i>257</i>&nbsp;        public Map&lt;MappedFieldType, FieldHighlightEntry&gt; fields = new HashMap&lt;&gt;();
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

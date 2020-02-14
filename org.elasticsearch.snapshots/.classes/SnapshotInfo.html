@@ -1,0 +1,845 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SnapshotInfo</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.snapshots</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SnapshotInfo (org.elasticsearch.snapshots)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SnapshotInfo</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 47)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 283)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.snapshots;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>22</i>&nbsp;import org.elasticsearch.Version;
+<i>23</i>&nbsp;import org.elasticsearch.action.ShardOperationFailedException;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+<i>25</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>26</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>30</i>&nbsp;import org.elasticsearch.common.time.DateFormatter;
+<i>31</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>36</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.IOException;
+<i>39</i>&nbsp;import java.time.Instant;
+<i>40</i>&nbsp;import java.time.ZoneOffset;
+<i>41</i>&nbsp;import java.util.ArrayList;
+<i>42</i>&nbsp;import java.util.Collections;
+<i>43</i>&nbsp;import java.util.Comparator;
+<i>44</i>&nbsp;import java.util.List;
+<i>45</i>&nbsp;import java.util.Map;
+<i>46</i>&nbsp;import java.util.Objects;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;/**
+<i>49</i>&nbsp; * Information about a snapshot
+<i>50</i>&nbsp; */
+<b class="nc"><i>51</i>&nbsp;public final class SnapshotInfo implements Comparable&lt;SnapshotInfo&gt;, ToXContent, Writeable {</b>
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    public static final String CONTEXT_MODE_PARAM = &quot;context_mode&quot;;
+<i>54</i>&nbsp;    public static final String CONTEXT_MODE_SNAPSHOT = &quot;SNAPSHOT&quot;;
+<b class="nc"><i>55</i>&nbsp;    public static final Version METADATA_FIELD_INTRODUCED = Version.V_7_3_0;</b>
+<b class="nc"><i>56</i>&nbsp;    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern(&quot;strictDateOptionalTime&quot;);</b>
+<i>57</i>&nbsp;    private static final String SNAPSHOT = &quot;snapshot&quot;;
+<i>58</i>&nbsp;    private static final String UUID = &quot;uuid&quot;;
+<i>59</i>&nbsp;    private static final String INDICES = &quot;indices&quot;;
+<i>60</i>&nbsp;    private static final String STATE = &quot;state&quot;;
+<i>61</i>&nbsp;    private static final String REASON = &quot;reason&quot;;
+<i>62</i>&nbsp;    private static final String START_TIME = &quot;start_time&quot;;
+<i>63</i>&nbsp;    private static final String START_TIME_IN_MILLIS = &quot;start_time_in_millis&quot;;
+<i>64</i>&nbsp;    private static final String END_TIME = &quot;end_time&quot;;
+<i>65</i>&nbsp;    private static final String END_TIME_IN_MILLIS = &quot;end_time_in_millis&quot;;
+<i>66</i>&nbsp;    private static final String DURATION = &quot;duration&quot;;
+<i>67</i>&nbsp;    private static final String DURATION_IN_MILLIS = &quot;duration_in_millis&quot;;
+<i>68</i>&nbsp;    private static final String FAILURES = &quot;failures&quot;;
+<i>69</i>&nbsp;    private static final String SHARDS = &quot;shards&quot;;
+<i>70</i>&nbsp;    private static final String TOTAL = &quot;total&quot;;
+<i>71</i>&nbsp;    private static final String FAILED = &quot;failed&quot;;
+<i>72</i>&nbsp;    private static final String SUCCESSFUL = &quot;successful&quot;;
+<i>73</i>&nbsp;    private static final String VERSION_ID = &quot;version_id&quot;;
+<i>74</i>&nbsp;    private static final String VERSION = &quot;version&quot;;
+<i>75</i>&nbsp;    private static final String NAME = &quot;name&quot;;
+<i>76</i>&nbsp;    private static final String TOTAL_SHARDS = &quot;total_shards&quot;;
+<i>77</i>&nbsp;    private static final String SUCCESSFUL_SHARDS = &quot;successful_shards&quot;;
+<i>78</i>&nbsp;    private static final String INCLUDE_GLOBAL_STATE = &quot;include_global_state&quot;;
+<i>79</i>&nbsp;    private static final String USER_METADATA = &quot;metadata&quot;;
+<i>80</i>&nbsp;
+<b class="nc"><i>81</i>&nbsp;    private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = Version.V_6_2_0;</b>
+<i>82</i>&nbsp;
+<b class="nc"><i>83</i>&nbsp;    private static final Comparator&lt;SnapshotInfo&gt; COMPARATOR =</b>
+<b class="nc"><i>84</i>&nbsp;        Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    public static final class SnapshotInfoBuilder {
+<i>87</i>&nbsp;        private String snapshotName = null;
+<i>88</i>&nbsp;        private String snapshotUUID = null;
+<i>89</i>&nbsp;        private String state = null;
+<i>90</i>&nbsp;        private String reason = null;
+<i>91</i>&nbsp;        private List&lt;String&gt; indices = null;
+<i>92</i>&nbsp;        private long startTime = 0L;
+<i>93</i>&nbsp;        private long endTime = 0L;
+<i>94</i>&nbsp;        private ShardStatsBuilder shardStatsBuilder = null;
+<i>95</i>&nbsp;        private Boolean includeGlobalState = null;
+<i>96</i>&nbsp;        private Map&lt;String, Object&gt; userMetadata = null;
+<i>97</i>&nbsp;        private int version = -1;
+<i>98</i>&nbsp;        private List&lt;SnapshotShardFailure&gt; shardFailures = null;
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;        private void setSnapshotName(String snapshotName) {
+<i>101</i>&nbsp;            this.snapshotName = snapshotName;
+<i>102</i>&nbsp;        }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;        private void setSnapshotUUID(String snapshotUUID) {
+<i>105</i>&nbsp;            this.snapshotUUID = snapshotUUID;
+<i>106</i>&nbsp;        }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;        private void setState(String state) {
+<i>109</i>&nbsp;            this.state = state;
+<i>110</i>&nbsp;        }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;        private void setReason(String reason) {
+<i>113</i>&nbsp;            this.reason = reason;
+<i>114</i>&nbsp;        }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;        private void setIndices(List&lt;String&gt; indices) {
+<i>117</i>&nbsp;            this.indices = indices;
+<i>118</i>&nbsp;        }
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;        private void setStartTime(long startTime) {
+<i>121</i>&nbsp;            this.startTime = startTime;
+<i>122</i>&nbsp;        }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;        private void setEndTime(long endTime) {
+<i>125</i>&nbsp;            this.endTime = endTime;
+<i>126</i>&nbsp;        }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;        private void setShardStatsBuilder(ShardStatsBuilder shardStatsBuilder) {
+<i>129</i>&nbsp;            this.shardStatsBuilder = shardStatsBuilder;
+<i>130</i>&nbsp;        }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;        private void setIncludeGlobalState(Boolean includeGlobalState) {
+<i>133</i>&nbsp;            this.includeGlobalState = includeGlobalState;
+<i>134</i>&nbsp;        }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;        private void setUserMetadata(Map&lt;String, Object&gt; userMetadata) {
+<i>137</i>&nbsp;            this.userMetadata = userMetadata;
+<i>138</i>&nbsp;        }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;        private void setVersion(int version) {
+<i>141</i>&nbsp;            this.version = version;
+<i>142</i>&nbsp;        }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;        private void setShardFailures(List&lt;SnapshotShardFailure&gt; shardFailures) {
+<i>145</i>&nbsp;            this.shardFailures = shardFailures;
+<i>146</i>&nbsp;        }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;        public SnapshotInfo build() {
+<i>149</i>&nbsp;            SnapshotId snapshotId = new SnapshotId(snapshotName, snapshotUUID);
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;            if (indices == null) {
+<i>152</i>&nbsp;                indices = Collections.emptyList();
+<i>153</i>&nbsp;            }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;            SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
+<i>156</i>&nbsp;            Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;            int totalShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getTotalShards();
+<i>159</i>&nbsp;            int successfulShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getSuccessfulShards();
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;            if (shardFailures == null) {
+<i>162</i>&nbsp;                shardFailures = new ArrayList&lt;&gt;();
+<i>163</i>&nbsp;            }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;            return new SnapshotInfo(snapshotId, indices, snapshotState, reason, version, startTime, endTime,
+<i>166</i>&nbsp;                    totalShards, successfulShards, shardFailures, includeGlobalState, userMetadata);
+<i>167</i>&nbsp;        }
+<i>168</i>&nbsp;    }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    private static final class ShardStatsBuilder {
+<i>171</i>&nbsp;        private int totalShards;
+<i>172</i>&nbsp;        private int successfulShards;
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        private void setTotalShards(int totalShards) {
+<i>175</i>&nbsp;            this.totalShards = totalShards;
+<i>176</i>&nbsp;        }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;        int getTotalShards() {
+<i>179</i>&nbsp;            return totalShards;
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        private void setSuccessfulShards(int successfulShards) {
+<i>183</i>&nbsp;            this.successfulShards = successfulShards;
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        int getSuccessfulShards() {
+<i>187</i>&nbsp;            return successfulShards;
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;    }
+<i>190</i>&nbsp;
+<b class="nc"><i>191</i>&nbsp;    public static final ObjectParser&lt;SnapshotInfoBuilder, Void&gt; SNAPSHOT_INFO_PARSER =</b>
+<b class="nc"><i>192</i>&nbsp;            new ObjectParser&lt;&gt;(SnapshotInfoBuilder.class.getName(), true, SnapshotInfoBuilder::new);</b>
+<i>193</i>&nbsp;
+<b class="nc"><i>194</i>&nbsp;    private static final ObjectParser&lt;ShardStatsBuilder, Void&gt; SHARD_STATS_PARSER =</b>
+<b class="nc"><i>195</i>&nbsp;        new ObjectParser&lt;&gt;(ShardStatsBuilder.class.getName(), true, ShardStatsBuilder::new);</b>
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    static {
+<b class="nc"><i>198</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotName, new ParseField(SNAPSHOT));</b>
+<b class="nc"><i>199</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotUUID, new ParseField(UUID));</b>
+<b class="nc"><i>200</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setState, new ParseField(STATE));</b>
+<b class="nc"><i>201</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setReason, new ParseField(REASON));</b>
+<b class="nc"><i>202</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareStringArray(SnapshotInfoBuilder::setIndices, new ParseField(INDICES));</b>
+<b class="nc"><i>203</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setStartTime, new ParseField(START_TIME_IN_MILLIS));</b>
+<b class="nc"><i>204</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setEndTime, new ParseField(END_TIME_IN_MILLIS));</b>
+<b class="nc"><i>205</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setShardStatsBuilder, SHARD_STATS_PARSER, new ParseField(SHARDS));</b>
+<b class="nc"><i>206</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));</b>
+<b class="nc"><i>207</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setUserMetadata, (p, c) -&gt; p.map() , new ParseField(USER_METADATA));</b>
+<b class="nc"><i>208</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));</b>
+<b class="nc"><i>209</i>&nbsp;        SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setShardFailures, SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,</b>
+<i>210</i>&nbsp;            new ParseField(FAILURES));
+<i>211</i>&nbsp;
+<b class="nc"><i>212</i>&nbsp;        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setTotalShards, new ParseField(TOTAL));</b>
+<b class="nc"><i>213</i>&nbsp;        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setSuccessfulShards, new ParseField(SUCCESSFUL));</b>
+<b class="nc"><i>214</i>&nbsp;    }</b>
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    private final SnapshotId snapshotId;
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    @Nullable
+<i>219</i>&nbsp;    private final SnapshotState state;
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;    @Nullable
+<i>222</i>&nbsp;    private final String reason;
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    private final List&lt;String&gt; indices;
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;    private final long startTime;
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    private final long endTime;
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;    private final int totalShards;
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    private final int successfulShards;
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    @Nullable
+<i>235</i>&nbsp;    private Boolean includeGlobalState;
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;    @Nullable
+<i>238</i>&nbsp;    private final Map&lt;String, Object&gt; userMetadata;
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;    @Nullable
+<i>241</i>&nbsp;    private final Version version;
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    private final List&lt;SnapshotShardFailure&gt; shardFailures;
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;    public SnapshotInfo(SnapshotId snapshotId, List&lt;String&gt; indices, SnapshotState state) {
+<b class="nc"><i>246</i>&nbsp;        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0,</b>
+<b class="nc"><i>247</i>&nbsp;            Collections.emptyList(), null, null);</b>
+<b class="nc"><i>248</i>&nbsp;    }</b>
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;    public SnapshotInfo(SnapshotId snapshotId, List&lt;String&gt; indices, SnapshotState state, Version version) {
+<b class="nc"><i>251</i>&nbsp;        this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0,</b>
+<b class="nc"><i>252</i>&nbsp;            Collections.emptyList(), null, null);</b>
+<b class="nc"><i>253</i>&nbsp;    }</b>
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    public SnapshotInfo(SnapshotId snapshotId, List&lt;String&gt; indices, long startTime, Boolean includeGlobalState,
+<i>256</i>&nbsp;                        Map&lt;String, Object&gt; userMetadata) {
+<b class="nc"><i>257</i>&nbsp;        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L,</b>
+<b class="nc"><i>258</i>&nbsp;            0, 0, Collections.emptyList(), includeGlobalState, userMetadata);</b>
+<b class="nc"><i>259</i>&nbsp;    }</b>
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    public SnapshotInfo(SnapshotId snapshotId, List&lt;String&gt; indices, long startTime, String reason, long endTime,
+<i>262</i>&nbsp;                        int totalShards, List&lt;SnapshotShardFailure&gt; shardFailures, Boolean includeGlobalState,
+<i>263</i>&nbsp;                        Map&lt;String, Object&gt; userMetadata) {
+<b class="nc"><i>264</i>&nbsp;        this(snapshotId, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,</b>
+<b class="nc"><i>265</i>&nbsp;             startTime, endTime, totalShards, totalShards - shardFailures.size(), shardFailures, includeGlobalState, userMetadata);</b>
+<b class="nc"><i>266</i>&nbsp;    }</b>
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    private SnapshotInfo(SnapshotId snapshotId, List&lt;String&gt; indices, SnapshotState state, String reason, Version version,
+<i>269</i>&nbsp;                         long startTime, long endTime, int totalShards, int successfulShards, List&lt;SnapshotShardFailure&gt; shardFailures,
+<b class="nc"><i>270</i>&nbsp;                         Boolean includeGlobalState, Map&lt;String, Object&gt; userMetadata) {</b>
+<b class="nc"><i>271</i>&nbsp;        this.snapshotId = Objects.requireNonNull(snapshotId);</b>
+<b class="nc"><i>272</i>&nbsp;        this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices));</b>
+<b class="nc"><i>273</i>&nbsp;        this.state = state;</b>
+<b class="nc"><i>274</i>&nbsp;        this.reason = reason;</b>
+<b class="nc"><i>275</i>&nbsp;        this.version = version;</b>
+<b class="nc"><i>276</i>&nbsp;        this.startTime = startTime;</b>
+<b class="nc"><i>277</i>&nbsp;        this.endTime = endTime;</b>
+<b class="nc"><i>278</i>&nbsp;        this.totalShards = totalShards;</b>
+<b class="nc"><i>279</i>&nbsp;        this.successfulShards = successfulShards;</b>
+<b class="nc"><i>280</i>&nbsp;        this.shardFailures = Objects.requireNonNull(shardFailures);</b>
+<b class="nc"><i>281</i>&nbsp;        this.includeGlobalState = includeGlobalState;</b>
+<b class="nc"><i>282</i>&nbsp;        this.userMetadata = userMetadata;</b>
+<b class="nc"><i>283</i>&nbsp;    }</b>
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    /**
+<i>286</i>&nbsp;     * Constructs snapshot information from stream input
+<i>287</i>&nbsp;     */
+<b class="nc"><i>288</i>&nbsp;    public SnapshotInfo(final StreamInput in) throws IOException {</b>
+<b class="nc"><i>289</i>&nbsp;        snapshotId = new SnapshotId(in);</b>
+<b class="nc"><i>290</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>291</i>&nbsp;        List&lt;String&gt; indicesListBuilder = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>292</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>293</i>&nbsp;            indicesListBuilder.add(in.readString());</b>
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;        indices = Collections.unmodifiableList(indicesListBuilder);</b>
+<b class="nc"><i>296</i>&nbsp;        state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;</b>
+<b class="nc"><i>297</i>&nbsp;        reason = in.readOptionalString();</b>
+<b class="nc"><i>298</i>&nbsp;        startTime = in.readVLong();</b>
+<b class="nc"><i>299</i>&nbsp;        endTime = in.readVLong();</b>
+<b class="nc"><i>300</i>&nbsp;        totalShards = in.readVInt();</b>
+<b class="nc"><i>301</i>&nbsp;        successfulShards = in.readVInt();</b>
+<b class="nc"><i>302</i>&nbsp;        size = in.readVInt();</b>
+<b class="nc"><i>303</i>&nbsp;        if (size &gt; 0) {</b>
+<b class="nc"><i>304</i>&nbsp;            List&lt;SnapshotShardFailure&gt; failureBuilder = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>305</i>&nbsp;            for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>306</i>&nbsp;                failureBuilder.add(new SnapshotShardFailure(in));</b>
+<i>307</i>&nbsp;            }
+<b class="nc"><i>308</i>&nbsp;            shardFailures = Collections.unmodifiableList(failureBuilder);</b>
+<b class="nc"><i>309</i>&nbsp;        } else {</b>
+<b class="nc"><i>310</i>&nbsp;            shardFailures = Collections.emptyList();</b>
+<i>311</i>&nbsp;        }
+<b class="nc"><i>312</i>&nbsp;        version = in.readBoolean() ? Version.readVersion(in) : null;</b>
+<b class="nc"><i>313</i>&nbsp;        if (in.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {</b>
+<b class="nc"><i>314</i>&nbsp;            includeGlobalState = in.readOptionalBoolean();</b>
+<i>315</i>&nbsp;        }
+<b class="nc"><i>316</i>&nbsp;        if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {</b>
+<b class="nc"><i>317</i>&nbsp;            userMetadata = in.readMap();</b>
+<i>318</i>&nbsp;        } else {
+<b class="nc"><i>319</i>&nbsp;            userMetadata = null;</b>
+<i>320</i>&nbsp;        }
+<b class="nc"><i>321</i>&nbsp;    }</b>
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    /**
+<i>324</i>&nbsp;     * Gets a new {@link SnapshotInfo} instance from the given {@link SnapshotInfo} with
+<i>325</i>&nbsp;     * all information stripped out except the snapshot id, state, and indices.
+<i>326</i>&nbsp;     */
+<i>327</i>&nbsp;    public SnapshotInfo basic() {
+<b class="nc"><i>328</i>&nbsp;        return new SnapshotInfo(snapshotId, indices, state);</b>
+<i>329</i>&nbsp;    }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;    /**
+<i>332</i>&nbsp;     * Returns snapshot id
+<i>333</i>&nbsp;     *
+<i>334</i>&nbsp;     * @return snapshot id
+<i>335</i>&nbsp;     */
+<i>336</i>&nbsp;    public SnapshotId snapshotId() {
+<b class="nc"><i>337</i>&nbsp;        return snapshotId;</b>
+<i>338</i>&nbsp;    }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    /**
+<i>341</i>&nbsp;     * Returns snapshot state; {@code null} if the state is unknown.
+<i>342</i>&nbsp;     *
+<i>343</i>&nbsp;     * @return snapshot state
+<i>344</i>&nbsp;     */
+<i>345</i>&nbsp;    @Nullable
+<i>346</i>&nbsp;    public SnapshotState state() {
+<b class="nc"><i>347</i>&nbsp;        return state;</b>
+<i>348</i>&nbsp;    }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    /**
+<i>351</i>&nbsp;     * Returns snapshot failure reason; {@code null} if the snapshot succeeded.
+<i>352</i>&nbsp;     *
+<i>353</i>&nbsp;     * @return snapshot failure reason
+<i>354</i>&nbsp;     */
+<i>355</i>&nbsp;    @Nullable
+<i>356</i>&nbsp;    public String reason() {
+<b class="nc"><i>357</i>&nbsp;        return reason;</b>
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    /**
+<i>361</i>&nbsp;     * Returns indices that were included in this snapshot.
+<i>362</i>&nbsp;     *
+<i>363</i>&nbsp;     * @return list of indices
+<i>364</i>&nbsp;     */
+<i>365</i>&nbsp;    public List&lt;String&gt; indices() {
+<b class="nc"><i>366</i>&nbsp;        return indices;</b>
+<i>367</i>&nbsp;    }
+<i>368</i>&nbsp;
+<i>369</i>&nbsp;    /**
+<i>370</i>&nbsp;     * Returns time when snapshot started; a value of {@code 0L} will be returned if
+<i>371</i>&nbsp;     * {@link #state()} returns {@code null}.
+<i>372</i>&nbsp;     *
+<i>373</i>&nbsp;     * @return snapshot start time
+<i>374</i>&nbsp;     */
+<i>375</i>&nbsp;    public long startTime() {
+<b class="nc"><i>376</i>&nbsp;        return startTime;</b>
+<i>377</i>&nbsp;    }
+<i>378</i>&nbsp;
+<i>379</i>&nbsp;    /**
+<i>380</i>&nbsp;     * Returns time when snapshot ended; a value of {@code 0L} will be returned if the
+<i>381</i>&nbsp;     * snapshot is still running or if {@link #state()} returns {@code null}.
+<i>382</i>&nbsp;     *
+<i>383</i>&nbsp;     * @return snapshot end time
+<i>384</i>&nbsp;     */
+<i>385</i>&nbsp;    public long endTime() {
+<b class="nc"><i>386</i>&nbsp;        return endTime;</b>
+<i>387</i>&nbsp;    }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;    /**
+<i>390</i>&nbsp;     * Returns total number of shards that were snapshotted; a value of {@code 0} will
+<i>391</i>&nbsp;     * be returned if {@link #state()} returns {@code null}.
+<i>392</i>&nbsp;     *
+<i>393</i>&nbsp;     * @return number of shards
+<i>394</i>&nbsp;     */
+<i>395</i>&nbsp;    public int totalShards() {
+<b class="nc"><i>396</i>&nbsp;        return totalShards;</b>
+<i>397</i>&nbsp;    }
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    /**
+<i>400</i>&nbsp;     * Number of failed shards; a value of {@code 0} will be returned if there were no
+<i>401</i>&nbsp;     * failed shards, or if {@link #state()} returns {@code null}.
+<i>402</i>&nbsp;     *
+<i>403</i>&nbsp;     * @return number of failed shards
+<i>404</i>&nbsp;     */
+<i>405</i>&nbsp;    public int failedShards() {
+<b class="nc"><i>406</i>&nbsp;        return totalShards - successfulShards;</b>
+<i>407</i>&nbsp;    }
+<i>408</i>&nbsp;
+<i>409</i>&nbsp;    /**
+<i>410</i>&nbsp;     * Returns total number of shards that were successfully snapshotted; a value of
+<i>411</i>&nbsp;     * {@code 0} will be returned if {@link #state()} returns {@code null}.
+<i>412</i>&nbsp;     *
+<i>413</i>&nbsp;     * @return number of successful shards
+<i>414</i>&nbsp;     */
+<i>415</i>&nbsp;    public int successfulShards() {
+<b class="nc"><i>416</i>&nbsp;        return successfulShards;</b>
+<i>417</i>&nbsp;    }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    public Boolean includeGlobalState() {
+<b class="nc"><i>420</i>&nbsp;        return includeGlobalState;</b>
+<i>421</i>&nbsp;    }
+<i>422</i>&nbsp;
+<i>423</i>&nbsp;    /**
+<i>424</i>&nbsp;     * Returns shard failures; an empty list will be returned if there were no shard
+<i>425</i>&nbsp;     * failures, or if {@link #state()} returns {@code null}.
+<i>426</i>&nbsp;     *
+<i>427</i>&nbsp;     * @return shard failures
+<i>428</i>&nbsp;     */
+<i>429</i>&nbsp;    public List&lt;SnapshotShardFailure&gt; shardFailures() {
+<b class="nc"><i>430</i>&nbsp;        return shardFailures;</b>
+<i>431</i>&nbsp;    }
+<i>432</i>&nbsp;
+<i>433</i>&nbsp;    /**
+<i>434</i>&nbsp;     * Returns the version of elasticsearch that the snapshot was created with.  Will only
+<i>435</i>&nbsp;     * return {@code null} if {@link #state()} returns {@code null} or {@link SnapshotState#INCOMPATIBLE}.
+<i>436</i>&nbsp;     *
+<i>437</i>&nbsp;     * @return version of elasticsearch that the snapshot was created with
+<i>438</i>&nbsp;     */
+<i>439</i>&nbsp;    @Nullable
+<i>440</i>&nbsp;    public Version version() {
+<b class="nc"><i>441</i>&nbsp;        return version;</b>
+<i>442</i>&nbsp;    }
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    /**
+<i>445</i>&nbsp;     * Returns the custom metadata that was attached to this snapshot at creation time.
+<i>446</i>&nbsp;     * @return custom metadata
+<i>447</i>&nbsp;     */
+<i>448</i>&nbsp;    @Nullable
+<i>449</i>&nbsp;    public Map&lt;String, Object&gt; userMetadata() {
+<b class="nc"><i>450</i>&nbsp;        return userMetadata;</b>
+<i>451</i>&nbsp;    }
+<i>452</i>&nbsp;
+<i>453</i>&nbsp;    /**
+<i>454</i>&nbsp;     * Compares two snapshots by their start time; if the start times are the same, then
+<i>455</i>&nbsp;     * compares the two snapshots by their snapshot ids.
+<i>456</i>&nbsp;     */
+<i>457</i>&nbsp;    @Override
+<i>458</i>&nbsp;    public int compareTo(final SnapshotInfo o) {
+<b class="nc"><i>459</i>&nbsp;        return COMPARATOR.compare(this, o);</b>
+<i>460</i>&nbsp;    }
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;    @Override
+<i>463</i>&nbsp;    public String toString() {
+<b class="nc"><i>464</i>&nbsp;        return &quot;SnapshotInfo{&quot; +</b>
+<i>465</i>&nbsp;            &quot;snapshotId=&quot; + snapshotId +
+<i>466</i>&nbsp;            &quot;, state=&quot; + state +
+<i>467</i>&nbsp;            &quot;, reason=&#39;&quot; + reason + &#39;\&#39;&#39; +
+<i>468</i>&nbsp;            &quot;, indices=&quot; + indices +
+<i>469</i>&nbsp;            &quot;, startTime=&quot; + startTime +
+<i>470</i>&nbsp;            &quot;, endTime=&quot; + endTime +
+<i>471</i>&nbsp;            &quot;, totalShards=&quot; + totalShards +
+<i>472</i>&nbsp;            &quot;, successfulShards=&quot; + successfulShards +
+<i>473</i>&nbsp;            &quot;, includeGlobalState=&quot; + includeGlobalState +
+<i>474</i>&nbsp;            &quot;, version=&quot; + version +
+<i>475</i>&nbsp;            &quot;, shardFailures=&quot; + shardFailures +
+<i>476</i>&nbsp;            &#39;}&#39;;
+<i>477</i>&nbsp;    }
+<i>478</i>&nbsp;
+<i>479</i>&nbsp;    /**
+<i>480</i>&nbsp;     * Returns snapshot REST status
+<i>481</i>&nbsp;     */
+<i>482</i>&nbsp;    public RestStatus status() {
+<b class="nc"><i>483</i>&nbsp;        if (state == SnapshotState.FAILED) {</b>
+<b class="nc"><i>484</i>&nbsp;            return RestStatus.INTERNAL_SERVER_ERROR;</b>
+<i>485</i>&nbsp;        }
+<b class="nc"><i>486</i>&nbsp;        if (shardFailures.size() == 0) {</b>
+<b class="nc"><i>487</i>&nbsp;            return RestStatus.OK;</b>
+<i>488</i>&nbsp;        }
+<b class="nc"><i>489</i>&nbsp;        return RestStatus.status(successfulShards, totalShards,</b>
+<b class="nc"><i>490</i>&nbsp;                                 shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]));</b>
+<i>491</i>&nbsp;    }
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;    @Override
+<i>494</i>&nbsp;    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+<i>495</i>&nbsp;        // write snapshot info to repository snapshot blob format
+<b class="nc"><i>496</i>&nbsp;        if (CONTEXT_MODE_SNAPSHOT.equals(params.param(CONTEXT_MODE_PARAM))) {</b>
+<b class="nc"><i>497</i>&nbsp;            return toXContentInternal(builder, params);</b>
+<i>498</i>&nbsp;        }
+<i>499</i>&nbsp;
+<b class="nc"><i>500</i>&nbsp;        final boolean verbose = params.paramAsBoolean(&quot;verbose&quot;, GetSnapshotsRequest.DEFAULT_VERBOSE_MODE);</b>
+<i>501</i>&nbsp;        // write snapshot info for the API and any other situations
+<b class="nc"><i>502</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>503</i>&nbsp;        builder.field(SNAPSHOT, snapshotId.getName());</b>
+<b class="nc"><i>504</i>&nbsp;        builder.field(UUID, snapshotId.getUUID());</b>
+<b class="nc"><i>505</i>&nbsp;        if (version != null) {</b>
+<b class="nc"><i>506</i>&nbsp;            builder.field(VERSION_ID, version.id);</b>
+<b class="nc"><i>507</i>&nbsp;            builder.field(VERSION, version.toString());</b>
+<i>508</i>&nbsp;        }
+<b class="nc"><i>509</i>&nbsp;        builder.startArray(INDICES);</b>
+<b class="nc"><i>510</i>&nbsp;        for (String index : indices) {</b>
+<b class="nc"><i>511</i>&nbsp;            builder.value(index);</b>
+<b class="nc"><i>512</i>&nbsp;        }</b>
+<b class="nc"><i>513</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>514</i>&nbsp;        if (includeGlobalState != null) {</b>
+<b class="nc"><i>515</i>&nbsp;            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);</b>
+<i>516</i>&nbsp;        }
+<b class="nc"><i>517</i>&nbsp;        if (userMetadata != null) {</b>
+<b class="nc"><i>518</i>&nbsp;            builder.field(USER_METADATA, userMetadata);</b>
+<i>519</i>&nbsp;        }
+<b class="nc"><i>520</i>&nbsp;        if (verbose || state != null) {</b>
+<b class="nc"><i>521</i>&nbsp;            builder.field(STATE, state);</b>
+<i>522</i>&nbsp;        }
+<b class="nc"><i>523</i>&nbsp;        if (reason != null) {</b>
+<b class="nc"><i>524</i>&nbsp;            builder.field(REASON, reason);</b>
+<i>525</i>&nbsp;        }
+<b class="nc"><i>526</i>&nbsp;        if (verbose || startTime != 0) {</b>
+<b class="nc"><i>527</i>&nbsp;            builder.field(START_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC)));</b>
+<b class="nc"><i>528</i>&nbsp;            builder.field(START_TIME_IN_MILLIS, startTime);</b>
+<i>529</i>&nbsp;        }
+<b class="nc"><i>530</i>&nbsp;        if (verbose || endTime != 0) {</b>
+<b class="nc"><i>531</i>&nbsp;            builder.field(END_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));</b>
+<b class="nc"><i>532</i>&nbsp;            builder.field(END_TIME_IN_MILLIS, endTime);</b>
+<b class="nc"><i>533</i>&nbsp;            builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));</b>
+<i>534</i>&nbsp;        }
+<b class="nc"><i>535</i>&nbsp;        if (verbose || !shardFailures.isEmpty()) {</b>
+<b class="nc"><i>536</i>&nbsp;            builder.startArray(FAILURES);</b>
+<b class="nc"><i>537</i>&nbsp;            for (SnapshotShardFailure shardFailure : shardFailures) {</b>
+<b class="nc"><i>538</i>&nbsp;                shardFailure.toXContent(builder, params);</b>
+<b class="nc"><i>539</i>&nbsp;            }</b>
+<b class="nc"><i>540</i>&nbsp;            builder.endArray();</b>
+<i>541</i>&nbsp;        }
+<b class="nc"><i>542</i>&nbsp;        if (verbose || totalShards != 0) {</b>
+<b class="nc"><i>543</i>&nbsp;            builder.startObject(SHARDS);</b>
+<b class="nc"><i>544</i>&nbsp;            builder.field(TOTAL, totalShards);</b>
+<b class="nc"><i>545</i>&nbsp;            builder.field(FAILED, failedShards());</b>
+<b class="nc"><i>546</i>&nbsp;            builder.field(SUCCESSFUL, successfulShards);</b>
+<b class="nc"><i>547</i>&nbsp;            builder.endObject();</b>
+<i>548</i>&nbsp;        }
+<b class="nc"><i>549</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>550</i>&nbsp;        return builder;</b>
+<i>551</i>&nbsp;    }
+<i>552</i>&nbsp;
+<i>553</i>&nbsp;    private XContentBuilder toXContentInternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+<b class="nc"><i>554</i>&nbsp;        builder.startObject(SNAPSHOT);</b>
+<b class="nc"><i>555</i>&nbsp;        builder.field(NAME, snapshotId.getName());</b>
+<b class="nc"><i>556</i>&nbsp;        builder.field(UUID, snapshotId.getUUID());</b>
+<b class="nc"><i>557</i>&nbsp;        assert version != null : &quot;version must always be known when writing a snapshot metadata blob&quot;;</b>
+<b class="nc"><i>558</i>&nbsp;        builder.field(VERSION_ID, version.id);</b>
+<b class="nc"><i>559</i>&nbsp;        builder.startArray(INDICES);</b>
+<b class="nc"><i>560</i>&nbsp;        for (String index : indices) {</b>
+<b class="nc"><i>561</i>&nbsp;            builder.value(index);</b>
+<b class="nc"><i>562</i>&nbsp;        }</b>
+<b class="nc"><i>563</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>564</i>&nbsp;        builder.field(STATE, state);</b>
+<b class="nc"><i>565</i>&nbsp;        if (reason != null) {</b>
+<b class="nc"><i>566</i>&nbsp;            builder.field(REASON, reason);</b>
+<i>567</i>&nbsp;        }
+<b class="nc"><i>568</i>&nbsp;        if (includeGlobalState != null) {</b>
+<b class="nc"><i>569</i>&nbsp;            builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);</b>
+<i>570</i>&nbsp;        }
+<b class="nc"><i>571</i>&nbsp;        builder.field(USER_METADATA, userMetadata);</b>
+<b class="nc"><i>572</i>&nbsp;        builder.field(START_TIME, startTime);</b>
+<b class="nc"><i>573</i>&nbsp;        builder.field(END_TIME, endTime);</b>
+<b class="nc"><i>574</i>&nbsp;        builder.field(TOTAL_SHARDS, totalShards);</b>
+<b class="nc"><i>575</i>&nbsp;        builder.field(SUCCESSFUL_SHARDS, successfulShards);</b>
+<b class="nc"><i>576</i>&nbsp;        builder.startArray(FAILURES);</b>
+<b class="nc"><i>577</i>&nbsp;        for (SnapshotShardFailure shardFailure : shardFailures) {</b>
+<b class="nc"><i>578</i>&nbsp;            shardFailure.toXContent(builder, params);</b>
+<b class="nc"><i>579</i>&nbsp;        }</b>
+<b class="nc"><i>580</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>581</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>582</i>&nbsp;        return builder;</b>
+<i>583</i>&nbsp;    }
+<i>584</i>&nbsp;
+<i>585</i>&nbsp;    /**
+<i>586</i>&nbsp;     * This method creates a SnapshotInfo from internal x-content.  It does not
+<i>587</i>&nbsp;     * handle x-content written with the external version as external x-content
+<i>588</i>&nbsp;     * is only for display purposes and does not need to be parsed.
+<i>589</i>&nbsp;     */
+<i>590</i>&nbsp;    public static SnapshotInfo fromXContentInternal(final XContentParser parser) throws IOException {
+<b class="nc"><i>591</i>&nbsp;        String name = null;</b>
+<b class="nc"><i>592</i>&nbsp;        String uuid = null;</b>
+<b class="nc"><i>593</i>&nbsp;        Version version = Version.CURRENT;</b>
+<b class="nc"><i>594</i>&nbsp;        SnapshotState state = SnapshotState.IN_PROGRESS;</b>
+<b class="nc"><i>595</i>&nbsp;        String reason = null;</b>
+<b class="nc"><i>596</i>&nbsp;        List&lt;String&gt; indices = Collections.emptyList();</b>
+<b class="nc"><i>597</i>&nbsp;        long startTime = 0;</b>
+<b class="nc"><i>598</i>&nbsp;        long endTime = 0;</b>
+<b class="nc"><i>599</i>&nbsp;        int totalShards = 0;</b>
+<b class="nc"><i>600</i>&nbsp;        int successfulShards = 0;</b>
+<b class="nc"><i>601</i>&nbsp;        Boolean includeGlobalState = null;</b>
+<b class="nc"><i>602</i>&nbsp;        Map&lt;String, Object&gt; userMetadata = null;</b>
+<b class="nc"><i>603</i>&nbsp;        List&lt;SnapshotShardFailure&gt; shardFailures = Collections.emptyList();</b>
+<b class="nc"><i>604</i>&nbsp;        if (parser.currentToken() == null) { // fresh parser? move to the first token</b>
+<b class="nc"><i>605</i>&nbsp;            parser.nextToken();</b>
+<i>606</i>&nbsp;        }
+<b class="nc"><i>607</i>&nbsp;        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token</b>
+<b class="nc"><i>608</i>&nbsp;            parser.nextToken();</b>
+<i>609</i>&nbsp;        }
+<i>610</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>611</i>&nbsp;        if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>612</i>&nbsp;            String currentFieldName = parser.currentName();</b>
+<b class="nc"><i>613</i>&nbsp;            if (SNAPSHOT.equals(currentFieldName)) {</b>
+<b class="nc"><i>614</i>&nbsp;                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>615</i>&nbsp;                    if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>616</i>&nbsp;                        currentFieldName = parser.currentName();</b>
+<b class="nc"><i>617</i>&nbsp;                        token = parser.nextToken();</b>
+<b class="nc"><i>618</i>&nbsp;                        if (token.isValue()) {</b>
+<b class="nc"><i>619</i>&nbsp;                            if (NAME.equals(currentFieldName)) {</b>
+<b class="nc"><i>620</i>&nbsp;                                name = parser.text();</b>
+<b class="nc"><i>621</i>&nbsp;                            } else if (UUID.equals(currentFieldName)) {</b>
+<b class="nc"><i>622</i>&nbsp;                                uuid = parser.text();</b>
+<b class="nc"><i>623</i>&nbsp;                            } else if (STATE.equals(currentFieldName)) {</b>
+<b class="nc"><i>624</i>&nbsp;                                state = SnapshotState.valueOf(parser.text());</b>
+<b class="nc"><i>625</i>&nbsp;                            } else if (REASON.equals(currentFieldName)) {</b>
+<b class="nc"><i>626</i>&nbsp;                                reason = parser.text();</b>
+<b class="nc"><i>627</i>&nbsp;                            } else if (START_TIME.equals(currentFieldName)) {</b>
+<b class="nc"><i>628</i>&nbsp;                                startTime = parser.longValue();</b>
+<b class="nc"><i>629</i>&nbsp;                            } else if (END_TIME.equals(currentFieldName)) {</b>
+<b class="nc"><i>630</i>&nbsp;                                endTime = parser.longValue();</b>
+<b class="nc"><i>631</i>&nbsp;                            } else if (TOTAL_SHARDS.equals(currentFieldName)) {</b>
+<b class="nc"><i>632</i>&nbsp;                                totalShards = parser.intValue();</b>
+<b class="nc"><i>633</i>&nbsp;                            } else if (SUCCESSFUL_SHARDS.equals(currentFieldName)) {</b>
+<b class="nc"><i>634</i>&nbsp;                                successfulShards = parser.intValue();</b>
+<b class="nc"><i>635</i>&nbsp;                            } else if (VERSION_ID.equals(currentFieldName)) {</b>
+<b class="nc"><i>636</i>&nbsp;                                version = Version.fromId(parser.intValue());</b>
+<b class="nc"><i>637</i>&nbsp;                            } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {</b>
+<b class="nc"><i>638</i>&nbsp;                                includeGlobalState = parser.booleanValue();</b>
+<i>639</i>&nbsp;                            }
+<b class="nc"><i>640</i>&nbsp;                        } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>641</i>&nbsp;                            if (INDICES.equals(currentFieldName)) {</b>
+<b class="nc"><i>642</i>&nbsp;                                ArrayList&lt;String&gt; indicesArray = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>643</i>&nbsp;                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>644</i>&nbsp;                                    indicesArray.add(parser.text());</b>
+<i>645</i>&nbsp;                                }
+<b class="nc"><i>646</i>&nbsp;                                indices = Collections.unmodifiableList(indicesArray);</b>
+<b class="nc"><i>647</i>&nbsp;                            } else if (FAILURES.equals(currentFieldName)) {</b>
+<b class="nc"><i>648</i>&nbsp;                                ArrayList&lt;SnapshotShardFailure&gt; shardFailureArrayList = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>649</i>&nbsp;                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>650</i>&nbsp;                                    shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));</b>
+<i>651</i>&nbsp;                                }
+<b class="nc"><i>652</i>&nbsp;                                shardFailures = Collections.unmodifiableList(shardFailureArrayList);</b>
+<b class="nc"><i>653</i>&nbsp;                            } else {</b>
+<i>654</i>&nbsp;                                // It was probably created by newer version - ignoring
+<b class="nc"><i>655</i>&nbsp;                                parser.skipChildren();</b>
+<i>656</i>&nbsp;                            }
+<b class="nc"><i>657</i>&nbsp;                        } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>658</i>&nbsp;                            if (USER_METADATA.equals(currentFieldName)) {</b>
+<b class="nc"><i>659</i>&nbsp;                                userMetadata = parser.map();</b>
+<i>660</i>&nbsp;                            } else {
+<i>661</i>&nbsp;                                // It was probably created by newer version - ignoring
+<b class="nc"><i>662</i>&nbsp;                                parser.skipChildren();</b>
+<i>663</i>&nbsp;                            }
+<i>664</i>&nbsp;                        }
+<i>665</i>&nbsp;                    }
+<i>666</i>&nbsp;                }
+<i>667</i>&nbsp;            }
+<b class="nc"><i>668</i>&nbsp;        } else {</b>
+<b class="nc"><i>669</i>&nbsp;            throw new ElasticsearchParseException(&quot;unexpected token  [&quot; + token + &quot;]&quot;);</b>
+<i>670</i>&nbsp;        }
+<b class="nc"><i>671</i>&nbsp;        if (uuid == null) {</b>
+<i>672</i>&nbsp;            // the old format where there wasn&#39;t a UUID
+<b class="nc"><i>673</i>&nbsp;            uuid = name;</b>
+<i>674</i>&nbsp;        }
+<b class="nc"><i>675</i>&nbsp;        return new SnapshotInfo(new SnapshotId(name, uuid),</b>
+<i>676</i>&nbsp;                                indices,
+<i>677</i>&nbsp;                                state,
+<i>678</i>&nbsp;                                reason,
+<i>679</i>&nbsp;                                version,
+<i>680</i>&nbsp;                                startTime,
+<i>681</i>&nbsp;                                endTime,
+<i>682</i>&nbsp;                                totalShards,
+<i>683</i>&nbsp;                                successfulShards,
+<i>684</i>&nbsp;                                shardFailures,
+<i>685</i>&nbsp;                                includeGlobalState,
+<i>686</i>&nbsp;                                userMetadata);
+<i>687</i>&nbsp;    }
+<i>688</i>&nbsp;
+<i>689</i>&nbsp;    @Override
+<i>690</i>&nbsp;    public void writeTo(final StreamOutput out) throws IOException {
+<b class="nc"><i>691</i>&nbsp;        snapshotId.writeTo(out);</b>
+<b class="nc"><i>692</i>&nbsp;        out.writeVInt(indices.size());</b>
+<b class="nc"><i>693</i>&nbsp;        for (String index : indices) {</b>
+<b class="nc"><i>694</i>&nbsp;            out.writeString(index);</b>
+<b class="nc"><i>695</i>&nbsp;        }</b>
+<b class="nc"><i>696</i>&nbsp;        if (state != null) {</b>
+<b class="nc"><i>697</i>&nbsp;            out.writeBoolean(true);</b>
+<b class="nc"><i>698</i>&nbsp;            out.writeByte(state.value());</b>
+<i>699</i>&nbsp;        } else {
+<b class="nc"><i>700</i>&nbsp;            out.writeBoolean(false);</b>
+<i>701</i>&nbsp;        }
+<b class="nc"><i>702</i>&nbsp;        out.writeOptionalString(reason);</b>
+<b class="nc"><i>703</i>&nbsp;        out.writeVLong(startTime);</b>
+<b class="nc"><i>704</i>&nbsp;        out.writeVLong(endTime);</b>
+<b class="nc"><i>705</i>&nbsp;        out.writeVInt(totalShards);</b>
+<b class="nc"><i>706</i>&nbsp;        out.writeVInt(successfulShards);</b>
+<b class="nc"><i>707</i>&nbsp;        out.writeVInt(shardFailures.size());</b>
+<b class="nc"><i>708</i>&nbsp;        for (SnapshotShardFailure failure : shardFailures) {</b>
+<b class="nc"><i>709</i>&nbsp;            failure.writeTo(out);</b>
+<b class="nc"><i>710</i>&nbsp;        }</b>
+<b class="nc"><i>711</i>&nbsp;        if (version != null) {</b>
+<b class="nc"><i>712</i>&nbsp;            out.writeBoolean(true);</b>
+<b class="nc"><i>713</i>&nbsp;            Version.writeVersion(version, out);</b>
+<i>714</i>&nbsp;        } else {
+<b class="nc"><i>715</i>&nbsp;            out.writeBoolean(false);</b>
+<i>716</i>&nbsp;        }
+<b class="nc"><i>717</i>&nbsp;        if (out.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {</b>
+<b class="nc"><i>718</i>&nbsp;            out.writeOptionalBoolean(includeGlobalState);</b>
+<i>719</i>&nbsp;        }
+<b class="nc"><i>720</i>&nbsp;        if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {</b>
+<b class="nc"><i>721</i>&nbsp;            out.writeMap(userMetadata);</b>
+<i>722</i>&nbsp;        }
+<b class="nc"><i>723</i>&nbsp;    }</b>
+<i>724</i>&nbsp;
+<i>725</i>&nbsp;    private static SnapshotState snapshotState(final String reason, final List&lt;SnapshotShardFailure&gt; shardFailures) {
+<b class="nc"><i>726</i>&nbsp;        if (reason == null) {</b>
+<b class="nc"><i>727</i>&nbsp;            if (shardFailures.isEmpty()) {</b>
+<b class="nc"><i>728</i>&nbsp;                return SnapshotState.SUCCESS;</b>
+<i>729</i>&nbsp;            } else {
+<b class="nc"><i>730</i>&nbsp;                return SnapshotState.PARTIAL;</b>
+<i>731</i>&nbsp;            }
+<i>732</i>&nbsp;        } else {
+<b class="nc"><i>733</i>&nbsp;            return SnapshotState.FAILED;</b>
+<i>734</i>&nbsp;        }
+<i>735</i>&nbsp;    }
+<i>736</i>&nbsp;
+<i>737</i>&nbsp;    @Override
+<i>738</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>739</i>&nbsp;        if (this == o) return true;</b>
+<b class="nc"><i>740</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<b class="nc"><i>741</i>&nbsp;        SnapshotInfo that = (SnapshotInfo) o;</b>
+<b class="nc"><i>742</i>&nbsp;        return startTime == that.startTime &amp;&amp;</b>
+<i>743</i>&nbsp;            endTime == that.endTime &amp;&amp;
+<i>744</i>&nbsp;            totalShards == that.totalShards &amp;&amp;
+<i>745</i>&nbsp;            successfulShards == that.successfulShards &amp;&amp;
+<b class="nc"><i>746</i>&nbsp;            Objects.equals(snapshotId, that.snapshotId) &amp;&amp;</b>
+<i>747</i>&nbsp;            state == that.state &amp;&amp;
+<b class="nc"><i>748</i>&nbsp;            Objects.equals(reason, that.reason) &amp;&amp;</b>
+<b class="nc"><i>749</i>&nbsp;            Objects.equals(indices, that.indices) &amp;&amp;</b>
+<b class="nc"><i>750</i>&nbsp;            Objects.equals(includeGlobalState, that.includeGlobalState) &amp;&amp;</b>
+<b class="nc"><i>751</i>&nbsp;            Objects.equals(version, that.version) &amp;&amp;</b>
+<b class="nc"><i>752</i>&nbsp;            Objects.equals(shardFailures, that.shardFailures) &amp;&amp;</b>
+<b class="nc"><i>753</i>&nbsp;            Objects.equals(userMetadata, that.userMetadata);</b>
+<i>754</i>&nbsp;    }
+<i>755</i>&nbsp;
+<i>756</i>&nbsp;    @Override
+<i>757</i>&nbsp;    public int hashCode() {
+<i>758</i>&nbsp;
+<b class="nc"><i>759</i>&nbsp;        return Objects.hash(snapshotId, state, reason, indices, startTime, endTime,</b>
+<b class="nc"><i>760</i>&nbsp;                totalShards, successfulShards, includeGlobalState, version, shardFailures, userMetadata);</b>
+<i>761</i>&nbsp;    }
+<i>762</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

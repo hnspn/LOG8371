@@ -1,0 +1,348 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ClusterStateHealth</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.health</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ClusterStateHealth (org.elasticsearch.cluster.health)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ClusterStateHealth</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    26.3%
+  </span>
+  <span class="absValue">
+    (5/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    44.6%
+  </span>
+  <span class="absValue">
+    (50/ 112)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.cluster.health;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.routing.IndexRoutingTable;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>28</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.io.IOException;
+<i>31</i>&nbsp;import java.util.Collections;
+<i>32</i>&nbsp;import java.util.HashMap;
+<i>33</i>&nbsp;import java.util.Iterator;
+<i>34</i>&nbsp;import java.util.List;
+<i>35</i>&nbsp;import java.util.Map;
+<i>36</i>&nbsp;import java.util.Objects;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;public final class ClusterStateHealth implements Iterable&lt;ClusterIndexHealth&gt;, Writeable {
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;    private final int numberOfNodes;
+<i>42</i>&nbsp;    private final int numberOfDataNodes;
+<i>43</i>&nbsp;    private final int activeShards;
+<i>44</i>&nbsp;    private final int relocatingShards;
+<i>45</i>&nbsp;    private final int activePrimaryShards;
+<i>46</i>&nbsp;    private final int initializingShards;
+<i>47</i>&nbsp;    private final int unassignedShards;
+<i>48</i>&nbsp;    private final double activeShardsPercent;
+<i>49</i>&nbsp;    private final ClusterHealthStatus status;
+<i>50</i>&nbsp;    private final Map&lt;String, ClusterIndexHealth&gt; indices;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    /**
+<i>53</i>&nbsp;     * Creates a new &lt;code&gt;ClusterStateHealth&lt;/code&gt; instance considering the current cluster state and all indices in the cluster.
+<i>54</i>&nbsp;     *
+<i>55</i>&nbsp;     * @param clusterState The current cluster state. Must not be null.
+<i>56</i>&nbsp;     */
+<i>57</i>&nbsp;    public ClusterStateHealth(final ClusterState clusterState) {
+<b class="fc"><i>58</i>&nbsp;        this(clusterState, clusterState.metaData().getConcreteAllIndices());</b>
+<b class="fc"><i>59</i>&nbsp;    }</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    /**
+<i>62</i>&nbsp;     * Creates a new &lt;code&gt;ClusterStateHealth&lt;/code&gt; instance considering the current cluster state and the provided index names.
+<i>63</i>&nbsp;     *
+<i>64</i>&nbsp;     * @param clusterState    The current cluster state. Must not be null.
+<i>65</i>&nbsp;     * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
+<i>66</i>&nbsp;     */
+<b class="fc"><i>67</i>&nbsp;    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {</b>
+<b class="fc"><i>68</i>&nbsp;        numberOfNodes = clusterState.nodes().getSize();</b>
+<b class="fc"><i>69</i>&nbsp;        numberOfDataNodes = clusterState.nodes().getDataNodes().size();</b>
+<b class="fc"><i>70</i>&nbsp;        indices = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>71</i>&nbsp;        for (String index : concreteIndices) {</b>
+<b class="fc"><i>72</i>&nbsp;            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);</b>
+<b class="fc"><i>73</i>&nbsp;            IndexMetaData indexMetaData = clusterState.metaData().index(index);</b>
+<b class="fc"><i>74</i>&nbsp;            if (indexRoutingTable == null) {</b>
+<b class="nc"><i>75</i>&nbsp;                continue;</b>
+<i>76</i>&nbsp;            }
+<i>77</i>&nbsp;
+<b class="fc"><i>78</i>&nbsp;            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);</b>
+<i>79</i>&nbsp;
+<b class="fc"><i>80</i>&nbsp;            indices.put(indexHealth.getIndex(), indexHealth);</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;
+<b class="fc"><i>83</i>&nbsp;        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;</b>
+<b class="fc"><i>84</i>&nbsp;        int computeActivePrimaryShards = 0;</b>
+<b class="fc"><i>85</i>&nbsp;        int computeActiveShards = 0;</b>
+<b class="fc"><i>86</i>&nbsp;        int computeRelocatingShards = 0;</b>
+<b class="fc"><i>87</i>&nbsp;        int computeInitializingShards = 0;</b>
+<b class="fc"><i>88</i>&nbsp;        int computeUnassignedShards = 0;</b>
+<i>89</i>&nbsp;
+<b class="fc"><i>90</i>&nbsp;        for (ClusterIndexHealth indexHealth : indices.values()) {</b>
+<b class="fc"><i>91</i>&nbsp;            computeActivePrimaryShards += indexHealth.getActivePrimaryShards();</b>
+<b class="fc"><i>92</i>&nbsp;            computeActiveShards += indexHealth.getActiveShards();</b>
+<b class="fc"><i>93</i>&nbsp;            computeRelocatingShards += indexHealth.getRelocatingShards();</b>
+<b class="fc"><i>94</i>&nbsp;            computeInitializingShards += indexHealth.getInitializingShards();</b>
+<b class="fc"><i>95</i>&nbsp;            computeUnassignedShards += indexHealth.getUnassignedShards();</b>
+<b class="fc"><i>96</i>&nbsp;            if (indexHealth.getStatus() == ClusterHealthStatus.RED) {</b>
+<b class="nc"><i>97</i>&nbsp;                computeStatus = ClusterHealthStatus.RED;</b>
+<b class="fc"><i>98</i>&nbsp;            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW &amp;&amp; computeStatus != ClusterHealthStatus.RED) {</b>
+<b class="fc"><i>99</i>&nbsp;                computeStatus = ClusterHealthStatus.YELLOW;</b>
+<i>100</i>&nbsp;            }
+<b class="fc"><i>101</i>&nbsp;        }</b>
+<i>102</i>&nbsp;
+<b class="fc"><i>103</i>&nbsp;        if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {</b>
+<b class="fc"><i>104</i>&nbsp;            computeStatus = ClusterHealthStatus.RED;</b>
+<i>105</i>&nbsp;        }
+<i>106</i>&nbsp;
+<b class="fc"><i>107</i>&nbsp;        this.status = computeStatus;</b>
+<b class="fc"><i>108</i>&nbsp;        this.activePrimaryShards = computeActivePrimaryShards;</b>
+<b class="fc"><i>109</i>&nbsp;        this.activeShards = computeActiveShards;</b>
+<b class="fc"><i>110</i>&nbsp;        this.relocatingShards = computeRelocatingShards;</b>
+<b class="fc"><i>111</i>&nbsp;        this.initializingShards = computeInitializingShards;</b>
+<b class="fc"><i>112</i>&nbsp;        this.unassignedShards = computeUnassignedShards;</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;        // shortcut on green
+<b class="fc"><i>115</i>&nbsp;        if (computeStatus.equals(ClusterHealthStatus.GREEN)) {</b>
+<b class="fc"><i>116</i>&nbsp;            this.activeShardsPercent = 100;</b>
+<i>117</i>&nbsp;        } else {
+<b class="fc"><i>118</i>&nbsp;            List&lt;ShardRouting&gt; shardRoutings = clusterState.getRoutingTable().allShards();</b>
+<b class="fc"><i>119</i>&nbsp;            int activeShardCount = 0;</b>
+<b class="fc"><i>120</i>&nbsp;            int totalShardCount = 0;</b>
+<b class="fc"><i>121</i>&nbsp;            for (ShardRouting shardRouting : shardRoutings) {</b>
+<b class="fc"><i>122</i>&nbsp;                if (shardRouting.active()) activeShardCount++;</b>
+<b class="fc"><i>123</i>&nbsp;                totalShardCount++;</b>
+<b class="fc"><i>124</i>&nbsp;            }</b>
+<b class="fc"><i>125</i>&nbsp;            this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;</b>
+<i>126</i>&nbsp;        }
+<b class="fc"><i>127</i>&nbsp;    }</b>
+<i>128</i>&nbsp;
+<b class="nc"><i>129</i>&nbsp;    public ClusterStateHealth(final StreamInput in) throws IOException {</b>
+<b class="nc"><i>130</i>&nbsp;        activePrimaryShards = in.readVInt();</b>
+<b class="nc"><i>131</i>&nbsp;        activeShards = in.readVInt();</b>
+<b class="nc"><i>132</i>&nbsp;        relocatingShards = in.readVInt();</b>
+<b class="nc"><i>133</i>&nbsp;        initializingShards = in.readVInt();</b>
+<b class="nc"><i>134</i>&nbsp;        unassignedShards = in.readVInt();</b>
+<b class="nc"><i>135</i>&nbsp;        numberOfNodes = in.readVInt();</b>
+<b class="nc"><i>136</i>&nbsp;        numberOfDataNodes = in.readVInt();</b>
+<b class="nc"><i>137</i>&nbsp;        status = ClusterHealthStatus.fromValue(in.readByte());</b>
+<b class="nc"><i>138</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>139</i>&nbsp;        indices = new HashMap&lt;&gt;(size);</b>
+<b class="nc"><i>140</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>141</i>&nbsp;            ClusterIndexHealth indexHealth = new ClusterIndexHealth(in);</b>
+<b class="nc"><i>142</i>&nbsp;            indices.put(indexHealth.getIndex(), indexHealth);</b>
+<i>143</i>&nbsp;        }
+<b class="nc"><i>144</i>&nbsp;        activeShardsPercent = in.readDouble();</b>
+<b class="nc"><i>145</i>&nbsp;    }</b>
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;    /**
+<i>148</i>&nbsp;     * For ClusterHealthResponse&#39;s XContent Parser
+<i>149</i>&nbsp;     */
+<i>150</i>&nbsp;    public ClusterStateHealth(int activePrimaryShards, int activeShards, int relocatingShards, int initializingShards, int unassignedShards,
+<i>151</i>&nbsp;            int numberOfNodes, int numberOfDataNodes, double activeShardsPercent, ClusterHealthStatus status,
+<b class="nc"><i>152</i>&nbsp;        Map&lt;String, ClusterIndexHealth&gt; indices) {</b>
+<b class="nc"><i>153</i>&nbsp;        this.activePrimaryShards = activePrimaryShards;</b>
+<b class="nc"><i>154</i>&nbsp;        this.activeShards = activeShards;</b>
+<b class="nc"><i>155</i>&nbsp;        this.relocatingShards = relocatingShards;</b>
+<b class="nc"><i>156</i>&nbsp;        this.initializingShards = initializingShards;</b>
+<b class="nc"><i>157</i>&nbsp;        this.unassignedShards = unassignedShards;</b>
+<b class="nc"><i>158</i>&nbsp;        this.numberOfNodes = numberOfNodes;</b>
+<b class="nc"><i>159</i>&nbsp;        this.numberOfDataNodes = numberOfDataNodes;</b>
+<b class="nc"><i>160</i>&nbsp;        this.activeShardsPercent = activeShardsPercent;</b>
+<b class="nc"><i>161</i>&nbsp;        this.status = status;</b>
+<b class="nc"><i>162</i>&nbsp;        this.indices = indices;</b>
+<b class="nc"><i>163</i>&nbsp;    }</b>
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    public int getActiveShards() {
+<b class="nc"><i>166</i>&nbsp;        return activeShards;</b>
+<i>167</i>&nbsp;    }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    public int getRelocatingShards() {
+<b class="fc"><i>170</i>&nbsp;        return relocatingShards;</b>
+<i>171</i>&nbsp;    }
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    public int getActivePrimaryShards() {
+<b class="nc"><i>174</i>&nbsp;        return activePrimaryShards;</b>
+<i>175</i>&nbsp;    }
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;    public int getInitializingShards() {
+<b class="nc"><i>178</i>&nbsp;        return initializingShards;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    public int getUnassignedShards() {
+<b class="nc"><i>182</i>&nbsp;        return unassignedShards;</b>
+<i>183</i>&nbsp;    }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    public int getNumberOfNodes() {
+<b class="nc"><i>186</i>&nbsp;        return this.numberOfNodes;</b>
+<i>187</i>&nbsp;    }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    public int getNumberOfDataNodes() {
+<b class="fc"><i>190</i>&nbsp;        return this.numberOfDataNodes;</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    public ClusterHealthStatus getStatus() {
+<b class="fc"><i>194</i>&nbsp;        return status;</b>
+<i>195</i>&nbsp;    }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    public Map&lt;String, ClusterIndexHealth&gt; getIndices() {
+<b class="nc"><i>198</i>&nbsp;        return Collections.unmodifiableMap(indices);</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    public double getActiveShardsPercent() {
+<b class="nc"><i>202</i>&nbsp;        return activeShardsPercent;</b>
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    @Override
+<i>206</i>&nbsp;    public Iterator&lt;ClusterIndexHealth&gt; iterator() {
+<b class="nc"><i>207</i>&nbsp;        return indices.values().iterator();</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    @Override
+<i>211</i>&nbsp;    public void writeTo(final StreamOutput out) throws IOException {
+<b class="nc"><i>212</i>&nbsp;        out.writeVInt(activePrimaryShards);</b>
+<b class="nc"><i>213</i>&nbsp;        out.writeVInt(activeShards);</b>
+<b class="nc"><i>214</i>&nbsp;        out.writeVInt(relocatingShards);</b>
+<b class="nc"><i>215</i>&nbsp;        out.writeVInt(initializingShards);</b>
+<b class="nc"><i>216</i>&nbsp;        out.writeVInt(unassignedShards);</b>
+<b class="nc"><i>217</i>&nbsp;        out.writeVInt(numberOfNodes);</b>
+<b class="nc"><i>218</i>&nbsp;        out.writeVInt(numberOfDataNodes);</b>
+<b class="nc"><i>219</i>&nbsp;        out.writeByte(status.value());</b>
+<b class="nc"><i>220</i>&nbsp;        out.writeVInt(indices.size());</b>
+<b class="nc"><i>221</i>&nbsp;        for (ClusterIndexHealth indexHealth : this) {</b>
+<b class="nc"><i>222</i>&nbsp;            indexHealth.writeTo(out);</b>
+<b class="nc"><i>223</i>&nbsp;        }</b>
+<b class="nc"><i>224</i>&nbsp;        out.writeDouble(activeShardsPercent);</b>
+<b class="nc"><i>225</i>&nbsp;    }</b>
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;    @Override
+<i>228</i>&nbsp;    public String toString() {
+<b class="nc"><i>229</i>&nbsp;        return &quot;ClusterStateHealth{&quot; +</b>
+<i>230</i>&nbsp;                &quot;numberOfNodes=&quot; + numberOfNodes +
+<i>231</i>&nbsp;                &quot;, numberOfDataNodes=&quot; + numberOfDataNodes +
+<i>232</i>&nbsp;                &quot;, activeShards=&quot; + activeShards +
+<i>233</i>&nbsp;                &quot;, relocatingShards=&quot; + relocatingShards +
+<i>234</i>&nbsp;                &quot;, activePrimaryShards=&quot; + activePrimaryShards +
+<i>235</i>&nbsp;                &quot;, initializingShards=&quot; + initializingShards +
+<i>236</i>&nbsp;                &quot;, unassignedShards=&quot; + unassignedShards +
+<i>237</i>&nbsp;                &quot;, activeShardsPercent=&quot; + activeShardsPercent +
+<i>238</i>&nbsp;                &quot;, status=&quot; + status +
+<b class="nc"><i>239</i>&nbsp;                &quot;, indices.size=&quot; + (indices == null ? &quot;null&quot; : indices.size()) +</b>
+<i>240</i>&nbsp;                &#39;}&#39;;
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    @Override
+<i>244</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>245</i>&nbsp;        if (this == o) return true;</b>
+<b class="nc"><i>246</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<b class="nc"><i>247</i>&nbsp;        ClusterStateHealth that = (ClusterStateHealth) o;</b>
+<b class="nc"><i>248</i>&nbsp;        return numberOfNodes == that.numberOfNodes &amp;&amp;</b>
+<i>249</i>&nbsp;                numberOfDataNodes == that.numberOfDataNodes &amp;&amp;
+<i>250</i>&nbsp;                activeShards == that.activeShards &amp;&amp;
+<i>251</i>&nbsp;                relocatingShards == that.relocatingShards &amp;&amp;
+<i>252</i>&nbsp;                activePrimaryShards == that.activePrimaryShards &amp;&amp;
+<i>253</i>&nbsp;                initializingShards == that.initializingShards &amp;&amp;
+<i>254</i>&nbsp;                unassignedShards == that.unassignedShards &amp;&amp;
+<b class="nc"><i>255</i>&nbsp;                Double.compare(that.activeShardsPercent, activeShardsPercent) == 0 &amp;&amp;</b>
+<i>256</i>&nbsp;                status == that.status &amp;&amp;
+<b class="nc"><i>257</i>&nbsp;                Objects.equals(indices, that.indices);</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    @Override
+<i>261</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>262</i>&nbsp;        return Objects.hash(numberOfNodes, numberOfDataNodes, activeShards, relocatingShards, activePrimaryShards, initializingShards,</b>
+<b class="nc"><i>263</i>&nbsp;                unassignedShards, activeShardsPercent, status, indices);</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

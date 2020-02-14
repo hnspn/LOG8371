@@ -1,0 +1,395 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ShardPath</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.shard</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ShardPath (org.elasticsearch.index.shard)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ShardPath</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    45%
+  </span>
+  <span class="absValue">
+    (9/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.7%
+  </span>
+  <span class="absValue">
+    (48/ 118)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.index.shard;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>22</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>24</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>25</i>&nbsp;import org.elasticsearch.env.NodeEnvironment;
+<i>26</i>&nbsp;import org.elasticsearch.env.ShardLock;
+<i>27</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.io.IOException;
+<i>30</i>&nbsp;import java.math.BigInteger;
+<i>31</i>&nbsp;import java.nio.file.FileStore;
+<i>32</i>&nbsp;import java.nio.file.Files;
+<i>33</i>&nbsp;import java.nio.file.Path;
+<i>34</i>&nbsp;import java.util.Arrays;
+<i>35</i>&nbsp;import java.util.HashMap;
+<i>36</i>&nbsp;import java.util.Map;
+<i>37</i>&nbsp;import java.util.Objects;
+<i>38</i>&nbsp;
+<b class="fc"><i>39</i>&nbsp;public final class ShardPath {</b>
+<i>40</i>&nbsp;    public static final String INDEX_FOLDER_NAME = &quot;index&quot;;
+<i>41</i>&nbsp;    public static final String TRANSLOG_FOLDER_NAME = &quot;translog&quot;;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;    private final Path path;
+<i>44</i>&nbsp;    private final ShardId shardId;
+<i>45</i>&nbsp;    private final Path shardStatePath;
+<i>46</i>&nbsp;    private final boolean isCustomDataPath;
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;    public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, ShardId shardId) {</b>
+<b class="fc"><i>49</i>&nbsp;        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) :</b>
+<b class="nc"><i>50</i>&nbsp;            &quot;dataPath must end with the shard ID but didn&#39;t: &quot; + dataPath.toString();</b>
+<b class="fc"><i>51</i>&nbsp;        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) :</b>
+<b class="nc"><i>52</i>&nbsp;            &quot;shardStatePath must end with the shard ID but didn&#39;t: &quot; + dataPath.toString();</b>
+<b class="fc"><i>53</i>&nbsp;        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID()) :</b>
+<b class="nc"><i>54</i>&nbsp;            &quot;dataPath must end with index path id but didn&#39;t: &quot; + dataPath.toString();</b>
+<b class="fc"><i>55</i>&nbsp;        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex().getUUID()) :</b>
+<b class="nc"><i>56</i>&nbsp;            &quot;shardStatePath must end with index path id but didn&#39;t: &quot; + dataPath.toString();</b>
+<b class="fc"><i>57</i>&nbsp;        if (isCustomDataPath &amp;&amp; dataPath.equals(shardStatePath)) {</b>
+<b class="nc"><i>58</i>&nbsp;            throw new IllegalArgumentException(&quot;shard state path must be different to the data path when using custom data paths&quot;);</b>
+<i>59</i>&nbsp;        }
+<b class="fc"><i>60</i>&nbsp;        this.isCustomDataPath = isCustomDataPath;</b>
+<b class="fc"><i>61</i>&nbsp;        this.path = dataPath;</b>
+<b class="fc"><i>62</i>&nbsp;        this.shardId = shardId;</b>
+<b class="fc"><i>63</i>&nbsp;        this.shardStatePath = shardStatePath;</b>
+<b class="fc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    public Path resolveTranslog() {
+<b class="fc"><i>67</i>&nbsp;        return path.resolve(TRANSLOG_FOLDER_NAME);</b>
+<i>68</i>&nbsp;    }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    public Path resolveIndex() {
+<b class="fc"><i>71</i>&nbsp;        return path.resolve(INDEX_FOLDER_NAME);</b>
+<i>72</i>&nbsp;    }
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    public Path getDataPath() {
+<b class="nc"><i>75</i>&nbsp;        return path;</b>
+<i>76</i>&nbsp;    }
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    public boolean exists() {
+<b class="nc"><i>79</i>&nbsp;        return Files.exists(path);</b>
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    public ShardId getShardId() {
+<b class="nc"><i>83</i>&nbsp;        return shardId;</b>
+<i>84</i>&nbsp;    }
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    public Path getShardStatePath() {
+<b class="fc"><i>87</i>&nbsp;        return shardStatePath;</b>
+<i>88</i>&nbsp;    }
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    /**
+<i>91</i>&nbsp;     * Returns the data-path root for this shard. The root is a parent of {@link #getDataPath()} without the index name
+<i>92</i>&nbsp;     * and the shard ID.
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public Path getRootDataPath() {
+<b class="nc"><i>95</i>&nbsp;        Path noIndexShardId = getDataPath().getParent().getParent();</b>
+<b class="nc"><i>96</i>&nbsp;        return isCustomDataPath ? noIndexShardId : noIndexShardId.getParent(); // also strip the indices folder</b>
+<i>97</i>&nbsp;    }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    /**
+<i>100</i>&nbsp;     * Returns the state-path root for this shard. The root is a parent of {@link #getRootStatePath()} ()} without the index name
+<i>101</i>&nbsp;     * and the shard ID.
+<i>102</i>&nbsp;     */
+<i>103</i>&nbsp;    public Path getRootStatePath() {
+<b class="nc"><i>104</i>&nbsp;        return getShardStatePath().getParent().getParent().getParent(); // also strip the indices folder</b>
+<i>105</i>&nbsp;    }
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    /**
+<i>108</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; iff the data location is a custom data location and therefore outside of the nodes configured data paths.
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    public boolean isCustomDataPath() {
+<b class="nc"><i>111</i>&nbsp;        return isCustomDataPath;</b>
+<i>112</i>&nbsp;    }
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /**
+<i>115</i>&nbsp;     * This method walks through the nodes shard paths to find the data and state path for the given shard. If multiple
+<i>116</i>&nbsp;     * directories with a valid shard state exist the one with the highest version will be used.
+<i>117</i>&nbsp;     * &lt;b&gt;Note:&lt;/b&gt; this method resolves custom data locations for the shard.
+<i>118</i>&nbsp;     */
+<i>119</i>&nbsp;    public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
+<i>120</i>&nbsp;                                                ShardId shardId, IndexSettings indexSettings) throws IOException {
+<b class="fc"><i>121</i>&nbsp;        final Path[] paths = env.availableShardPaths(shardId);</b>
+<b class="fc"><i>122</i>&nbsp;        final int nodeLockId = env.getNodeLockId();</b>
+<b class="fc"><i>123</i>&nbsp;        final Path sharedDataPath = env.sharedDataPath();</b>
+<b class="fc"><i>124</i>&nbsp;        return loadShardPath(logger, shardId, indexSettings, paths, nodeLockId, sharedDataPath);</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * This method walks through the nodes shard paths to find the data and state path for the given shard. If multiple
+<i>129</i>&nbsp;     * directories with a valid shard state exist the one with the highest version will be used.
+<i>130</i>&nbsp;     * &lt;b&gt;Note:&lt;/b&gt; this method resolves custom data locations for the shard.
+<i>131</i>&nbsp;     */
+<i>132</i>&nbsp;    public static ShardPath loadShardPath(Logger logger, ShardId shardId, IndexSettings indexSettings, Path[] availableShardPaths,
+<i>133</i>&nbsp;                                           int nodeLockId, Path sharedDataPath) throws IOException {
+<b class="fc"><i>134</i>&nbsp;        final String indexUUID = indexSettings.getUUID();</b>
+<b class="fc"><i>135</i>&nbsp;        Path loadedPath = null;</b>
+<b class="fc"><i>136</i>&nbsp;        for (Path path : availableShardPaths) {</b>
+<i>137</i>&nbsp;            // EMPTY is safe here because we never call namedObject
+<b class="fc"><i>138</i>&nbsp;            ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);</b>
+<b class="fc"><i>139</i>&nbsp;            if (load != null) {</b>
+<b class="nc"><i>140</i>&nbsp;                if (load.indexUUID.equals(indexUUID) == false &amp;&amp; IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {</b>
+<b class="nc"><i>141</i>&nbsp;                    logger.warn(&quot;{} found shard on path: [{}] with a different index UUID - this &quot;</b>
+<i>142</i>&nbsp;                        + &quot;shard seems to be leftover from a different index with the same name. &quot;
+<i>143</i>&nbsp;                        + &quot;Remove the leftover shard in order to reuse the path with the current index&quot;, shardId, path);
+<b class="nc"><i>144</i>&nbsp;                    throw new IllegalStateException(shardId + &quot; index UUID in shard state was: &quot; + load.indexUUID</b>
+<i>145</i>&nbsp;                        + &quot; expected: &quot; + indexUUID + &quot; on shard path: &quot; + path);
+<i>146</i>&nbsp;                }
+<b class="nc"><i>147</i>&nbsp;                if (loadedPath == null) {</b>
+<b class="nc"><i>148</i>&nbsp;                    loadedPath = path;</b>
+<i>149</i>&nbsp;                } else{
+<b class="nc"><i>150</i>&nbsp;                    throw new IllegalStateException(shardId + &quot; more than one shard state found&quot;);</b>
+<i>151</i>&nbsp;                }
+<i>152</i>&nbsp;            }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;        }
+<b class="fc"><i>155</i>&nbsp;        if (loadedPath == null) {</b>
+<b class="fc"><i>156</i>&nbsp;            return null;</b>
+<i>157</i>&nbsp;        } else {
+<i>158</i>&nbsp;            final Path dataPath;
+<b class="nc"><i>159</i>&nbsp;            final Path statePath = loadedPath;</b>
+<b class="nc"><i>160</i>&nbsp;            if (indexSettings.hasCustomDataPath()) {</b>
+<b class="nc"><i>161</i>&nbsp;                dataPath = NodeEnvironment.resolveCustomLocation(indexSettings, shardId, sharedDataPath, nodeLockId);</b>
+<i>162</i>&nbsp;            } else {
+<b class="nc"><i>163</i>&nbsp;                dataPath = statePath;</b>
+<i>164</i>&nbsp;            }
+<b class="nc"><i>165</i>&nbsp;            logger.debug(&quot;{} loaded data path [{}], state path [{}]&quot;, shardId, dataPath, statePath);</b>
+<b class="nc"><i>166</i>&nbsp;            return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);</b>
+<i>167</i>&nbsp;        }
+<i>168</i>&nbsp;    }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    /**
+<i>171</i>&nbsp;     * This method tries to delete left-over shards where the index name has been reused but the UUID is different
+<i>172</i>&nbsp;     * to allow the new shard to be allocated.
+<i>173</i>&nbsp;     */
+<i>174</i>&nbsp;    public static void deleteLeftoverShardDirectory(Logger logger, NodeEnvironment env,
+<i>175</i>&nbsp;                                                            ShardLock lock, IndexSettings indexSettings) throws IOException {
+<b class="nc"><i>176</i>&nbsp;        final String indexUUID = indexSettings.getUUID();</b>
+<b class="nc"><i>177</i>&nbsp;        final Path[] paths = env.availableShardPaths(lock.getShardId());</b>
+<b class="nc"><i>178</i>&nbsp;        for (Path path : paths) {</b>
+<i>179</i>&nbsp;            // EMPTY is safe here because we never call namedObject
+<b class="nc"><i>180</i>&nbsp;            ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);</b>
+<b class="nc"><i>181</i>&nbsp;            if (load != null) {</b>
+<b class="nc"><i>182</i>&nbsp;                if (load.indexUUID.equals(indexUUID) == false &amp;&amp; IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {</b>
+<b class="nc"><i>183</i>&nbsp;                    logger.warn(&quot;{} deleting leftover shard on path: [{}] with a different index UUID&quot;, lock.getShardId(), path);</b>
+<b class="nc"><i>184</i>&nbsp;                    assert Files.isDirectory(path) : path + &quot; is not a directory&quot;;</b>
+<b class="nc"><i>185</i>&nbsp;                    NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);</b>
+<b class="nc"><i>186</i>&nbsp;                    IOUtils.rm(path);</b>
+<i>187</i>&nbsp;                }
+<i>188</i>&nbsp;            }
+<i>189</i>&nbsp;        }
+<b class="nc"><i>190</i>&nbsp;    }</b>
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings,
+<i>193</i>&nbsp;                                                  long avgShardSizeInBytes, Map&lt;Path,Integer&gt; dataPathToShardCount) throws IOException {
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;        final Path dataPath;
+<i>196</i>&nbsp;        final Path statePath;
+<i>197</i>&nbsp;
+<b class="fc"><i>198</i>&nbsp;        if (indexSettings.hasCustomDataPath()) {</b>
+<b class="nc"><i>199</i>&nbsp;            dataPath = env.resolveCustomLocation(indexSettings, shardId);</b>
+<b class="nc"><i>200</i>&nbsp;            statePath = env.nodePaths()[0].resolve(shardId);</b>
+<i>201</i>&nbsp;        } else {
+<b class="fc"><i>202</i>&nbsp;            BigInteger totFreeSpace = BigInteger.ZERO;</b>
+<b class="fc"><i>203</i>&nbsp;            for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {</b>
+<b class="fc"><i>204</i>&nbsp;                totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodePath.fileStore.getUsableSpace()));</b>
+<i>205</i>&nbsp;            }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;            // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
+<i>208</i>&nbsp;            // how large they will be once they&#39;re done copying, instead of a silly guess for such cases:
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;            // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
+<i>211</i>&nbsp;            // shard size across the cluster and 5% of the total available free space on this node:
+<b class="fc"><i>212</i>&nbsp;            BigInteger estShardSizeInBytes = BigInteger.valueOf(avgShardSizeInBytes).max(totFreeSpace.divide(BigInteger.valueOf(20)));</b>
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;            // TODO - do we need something more extensible? Yet, this does the job for now...
+<b class="fc"><i>215</i>&nbsp;            final NodeEnvironment.NodePath[] paths = env.nodePaths();</b>
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;            // If no better path is chosen, use the one with the most space by default
+<b class="fc"><i>218</i>&nbsp;            NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);</b>
+<i>219</i>&nbsp;
+<b class="fc"><i>220</i>&nbsp;            if (paths.length != 1) {</b>
+<b class="nc"><i>221</i>&nbsp;                Map&lt;NodeEnvironment.NodePath, Long&gt; pathToShardCount = env.shardCountPerPath(shardId.getIndex());</b>
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;                // Compute how much space there is on each path
+<b class="nc"><i>224</i>&nbsp;                final Map&lt;NodeEnvironment.NodePath, BigInteger&gt; pathsToSpace = new HashMap&lt;&gt;(paths.length);</b>
+<b class="nc"><i>225</i>&nbsp;                for (NodeEnvironment.NodePath nodePath : paths) {</b>
+<b class="nc"><i>226</i>&nbsp;                    FileStore fileStore = nodePath.fileStore;</b>
+<b class="nc"><i>227</i>&nbsp;                    BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());</b>
+<b class="nc"><i>228</i>&nbsp;                    pathsToSpace.put(nodePath, usableBytes);</b>
+<i>229</i>&nbsp;                }
+<i>230</i>&nbsp;
+<b class="nc"><i>231</i>&nbsp;                bestPath = Arrays.stream(paths)</b>
+<i>232</i>&nbsp;                        // Filter out paths that have enough space
+<b class="nc"><i>233</i>&nbsp;                        .filter((path) -&gt; pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) &gt; 0)</b>
+<i>234</i>&nbsp;                        // Sort by the number of shards for this index
+<b class="nc"><i>235</i>&nbsp;                        .sorted((p1, p2) -&gt; {</b>
+<b class="nc"><i>236</i>&nbsp;                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),</b>
+<b class="nc"><i>237</i>&nbsp;                                    pathToShardCount.getOrDefault(p2, 0L));</b>
+<b class="nc"><i>238</i>&nbsp;                                if (cmp == 0) {</b>
+<i>239</i>&nbsp;                                    // if the number of shards is equal, tie-break with the number of total shards
+<b class="nc"><i>240</i>&nbsp;                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),</b>
+<b class="nc"><i>241</i>&nbsp;                                            dataPathToShardCount.getOrDefault(p2.path, 0));</b>
+<b class="nc"><i>242</i>&nbsp;                                    if (cmp == 0) {</b>
+<i>243</i>&nbsp;                                        // if the number of shards is equal, tie-break with the usable bytes
+<b class="nc"><i>244</i>&nbsp;                                        cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));</b>
+<i>245</i>&nbsp;                                    }
+<i>246</i>&nbsp;                                }
+<b class="nc"><i>247</i>&nbsp;                                return cmp;</b>
+<i>248</i>&nbsp;                            })
+<i>249</i>&nbsp;                        // Return the first result
+<b class="nc"><i>250</i>&nbsp;                        .findFirst()</b>
+<i>251</i>&nbsp;                        // Or the existing best path if there aren&#39;t any that fit the criteria
+<b class="nc"><i>252</i>&nbsp;                        .orElse(bestPath);</b>
+<i>253</i>&nbsp;            }
+<i>254</i>&nbsp;
+<b class="fc"><i>255</i>&nbsp;            statePath = bestPath.resolve(shardId);</b>
+<b class="fc"><i>256</i>&nbsp;            dataPath = statePath;</b>
+<i>257</i>&nbsp;        }
+<b class="fc"><i>258</i>&nbsp;        return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);</b>
+<i>259</i>&nbsp;    }
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    static NodeEnvironment.NodePath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {
+<b class="fc"><i>262</i>&nbsp;        final NodeEnvironment.NodePath[] paths = env.nodePaths();</b>
+<b class="fc"><i>263</i>&nbsp;        NodeEnvironment.NodePath bestPath = null;</b>
+<b class="fc"><i>264</i>&nbsp;        long maxUsableBytes = Long.MIN_VALUE;</b>
+<b class="fc"><i>265</i>&nbsp;        for (NodeEnvironment.NodePath nodePath : paths) {</b>
+<b class="fc"><i>266</i>&nbsp;            FileStore fileStore = nodePath.fileStore;</b>
+<b class="fc"><i>267</i>&nbsp;            long usableBytes = fileStore.getUsableSpace();</b>
+<b class="fc"><i>268</i>&nbsp;            assert usableBytes &gt;= 0 : &quot;usable bytes must be &gt;= 0, got: &quot; + usableBytes;</b>
+<i>269</i>&nbsp;
+<b class="fc"><i>270</i>&nbsp;            if (bestPath == null || usableBytes &gt; maxUsableBytes) {</b>
+<i>271</i>&nbsp;                // This path has been determined to be &quot;better&quot; based on the usable bytes
+<b class="fc"><i>272</i>&nbsp;                maxUsableBytes = usableBytes;</b>
+<b class="fc"><i>273</i>&nbsp;                bestPath = nodePath;</b>
+<i>274</i>&nbsp;            }
+<i>275</i>&nbsp;        }
+<b class="fc"><i>276</i>&nbsp;        return bestPath;</b>
+<i>277</i>&nbsp;    }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;    @Override
+<i>280</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>281</i>&nbsp;        if (this == o) {</b>
+<b class="nc"><i>282</i>&nbsp;            return true;</b>
+<i>283</i>&nbsp;        }
+<b class="nc"><i>284</i>&nbsp;        if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>285</i>&nbsp;            return false;</b>
+<i>286</i>&nbsp;        }
+<b class="nc"><i>287</i>&nbsp;        final ShardPath shardPath = (ShardPath) o;</b>
+<b class="nc"><i>288</i>&nbsp;        if (Objects.equals(shardId, shardPath.shardId) == false) {</b>
+<b class="nc"><i>289</i>&nbsp;            return false;</b>
+<i>290</i>&nbsp;        }
+<b class="nc"><i>291</i>&nbsp;        if (Objects.equals(path, shardPath.path) == false) {</b>
+<b class="nc"><i>292</i>&nbsp;            return false;</b>
+<i>293</i>&nbsp;        }
+<i>294</i>&nbsp;
+<b class="nc"><i>295</i>&nbsp;        return true;</b>
+<i>296</i>&nbsp;    }
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;    @Override
+<i>299</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>300</i>&nbsp;        int result = path != null ? path.hashCode() : 0;</b>
+<b class="nc"><i>301</i>&nbsp;        result = 31 * result + (shardId != null ? shardId.hashCode() : 0);</b>
+<b class="nc"><i>302</i>&nbsp;        return result;</b>
+<i>303</i>&nbsp;    }
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;    @Override
+<i>306</i>&nbsp;    public String toString() {
+<b class="nc"><i>307</i>&nbsp;        return &quot;ShardPath{&quot; +</b>
+<i>308</i>&nbsp;                &quot;path=&quot; + path +
+<i>309</i>&nbsp;                &quot;, shard=&quot; + shardId +
+<i>310</i>&nbsp;                &#39;}&#39;;
+<i>311</i>&nbsp;    }
+<i>312</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

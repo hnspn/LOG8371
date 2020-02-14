@@ -1,0 +1,440 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: EnableAllocationDecider</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation.decider</a> ]
+</div>
+
+<h1>Coverage Summary for Class: EnableAllocationDecider (org.elasticsearch.cluster.routing.allocation.decider)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">EnableAllocationDecider</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (5/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    29.1%
+  </span>
+  <span class="absValue">
+    (25/ 86)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">EnableAllocationDecider$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">EnableAllocationDecider$Allocation</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (9/ 12)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">EnableAllocationDecider$Rebalance</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (9/ 12)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    73.7%
+  </span>
+  <span class="absValue">
+    (14/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.2%
+  </span>
+  <span class="absValue">
+    (45/ 112)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation.decider;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.util.Locale;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;/**
+<i>35</i>&nbsp; * This allocation decider allows shard allocations / rebalancing via the cluster wide settings
+<i>36</i>&nbsp; * {@link #CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} and the per index setting
+<i>37</i>&nbsp; * {@link #INDEX_ROUTING_ALLOCATION_ENABLE_SETTING} / {@link #INDEX_ROUTING_REBALANCE_ENABLE_SETTING}.
+<i>38</i>&nbsp; * The per index settings overrides the cluster wide setting.
+<i>39</i>&nbsp; *
+<i>40</i>&nbsp; * &lt;p&gt;
+<i>41</i>&nbsp; * Allocation settings can have the following values (non-casesensitive):
+<i>42</i>&nbsp; * &lt;ul&gt;
+<i>43</i>&nbsp; *     &lt;li&gt; &lt;code&gt;NONE&lt;/code&gt; - no shard allocation is allowed.
+<i>44</i>&nbsp; *     &lt;li&gt; &lt;code&gt;NEW_PRIMARIES&lt;/code&gt; - only primary shards of new indices are allowed to be allocated
+<i>45</i>&nbsp; *     &lt;li&gt; &lt;code&gt;PRIMARIES&lt;/code&gt; - only primary shards are allowed to be allocated
+<i>46</i>&nbsp; *     &lt;li&gt; &lt;code&gt;ALL&lt;/code&gt; - all shards are allowed to be allocated
+<i>47</i>&nbsp; * &lt;/ul&gt;
+<i>48</i>&nbsp; *
+<i>49</i>&nbsp; * &lt;p&gt;
+<i>50</i>&nbsp; * Rebalancing settings can have the following values (non-casesensitive):
+<i>51</i>&nbsp; * &lt;ul&gt;
+<i>52</i>&nbsp; *     &lt;li&gt; &lt;code&gt;NONE&lt;/code&gt; - no shard rebalancing is allowed.
+<i>53</i>&nbsp; *     &lt;li&gt; &lt;code&gt;REPLICAS&lt;/code&gt; - only replica shards are allowed to be balanced
+<i>54</i>&nbsp; *     &lt;li&gt; &lt;code&gt;PRIMARIES&lt;/code&gt; - only primary shards are allowed to be balanced
+<i>55</i>&nbsp; *     &lt;li&gt; &lt;code&gt;ALL&lt;/code&gt; - all shards are allowed to be balanced
+<i>56</i>&nbsp; * &lt;/ul&gt;
+<i>57</i>&nbsp; *
+<i>58</i>&nbsp; * @see Rebalance
+<i>59</i>&nbsp; * @see Allocation
+<i>60</i>&nbsp; */
+<i>61</i>&nbsp;public class EnableAllocationDecider extends AllocationDecider {
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    public static final String NAME = &quot;enable&quot;;
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    public static final Setting&lt;Allocation&gt; CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING =</b>
+<b class="fc"><i>66</i>&nbsp;        new Setting&lt;&gt;(&quot;cluster.routing.allocation.enable&quot;, Allocation.ALL.toString(), Allocation::parse,</b>
+<i>67</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<b class="fc"><i>68</i>&nbsp;    public static final Setting&lt;Allocation&gt; INDEX_ROUTING_ALLOCATION_ENABLE_SETTING =</b>
+<b class="fc"><i>69</i>&nbsp;        new Setting&lt;&gt;(&quot;index.routing.allocation.enable&quot;, Allocation.ALL.toString(), Allocation::parse,</b>
+<i>70</i>&nbsp;            Property.Dynamic, Property.IndexScope);
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    public static final Setting&lt;Rebalance&gt; CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING =</b>
+<b class="fc"><i>73</i>&nbsp;        new Setting&lt;&gt;(&quot;cluster.routing.rebalance.enable&quot;, Rebalance.ALL.toString(), Rebalance::parse,</b>
+<i>74</i>&nbsp;            Property.Dynamic, Property.NodeScope);
+<b class="fc"><i>75</i>&nbsp;    public static final Setting&lt;Rebalance&gt; INDEX_ROUTING_REBALANCE_ENABLE_SETTING =</b>
+<b class="fc"><i>76</i>&nbsp;        new Setting&lt;&gt;(&quot;index.routing.rebalance.enable&quot;, Rebalance.ALL.toString(), Rebalance::parse,</b>
+<i>77</i>&nbsp;            Property.Dynamic, Property.IndexScope);
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    private volatile Rebalance enableRebalance;
+<i>80</i>&nbsp;    private volatile Allocation enableAllocation;
+<i>81</i>&nbsp;
+<b class="fc"><i>82</i>&nbsp;    public EnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {</b>
+<b class="fc"><i>83</i>&nbsp;        this.enableAllocation = CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);</b>
+<b class="fc"><i>84</i>&nbsp;        this.enableRebalance = CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.get(settings);</b>
+<b class="fc"><i>85</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);</b>
+<b class="fc"><i>86</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    private void setEnableRebalance(Rebalance enableRebalance) {
+<b class="nc"><i>90</i>&nbsp;        this.enableRebalance = enableRebalance;</b>
+<b class="nc"><i>91</i>&nbsp;    }</b>
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    private void setEnableAllocation(Allocation enableAllocation) {
+<b class="nc"><i>94</i>&nbsp;        this.enableAllocation = enableAllocation;</b>
+<b class="nc"><i>95</i>&nbsp;    }</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    @Override
+<i>98</i>&nbsp;    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>99</i>&nbsp;        return canAllocate(shardRouting, allocation);</b>
+<i>100</i>&nbsp;    }
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    @Override
+<i>103</i>&nbsp;    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+<b class="fc"><i>104</i>&nbsp;        if (allocation.ignoreDisable()) {</b>
+<b class="nc"><i>105</i>&nbsp;            return allocation.decision(Decision.YES, NAME,</b>
+<i>106</i>&nbsp;                &quot;explicitly ignoring any disabling of allocation due to manual allocation commands via the reroute API&quot;);
+<i>107</i>&nbsp;        }
+<i>108</i>&nbsp;
+<b class="fc"><i>109</i>&nbsp;        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());</b>
+<i>110</i>&nbsp;        final Allocation enable;
+<i>111</i>&nbsp;        final boolean usedIndexSetting;
+<b class="fc"><i>112</i>&nbsp;        if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetaData.getSettings())) {</b>
+<b class="nc"><i>113</i>&nbsp;            enable = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexMetaData.getSettings());</b>
+<b class="nc"><i>114</i>&nbsp;            usedIndexSetting = true;</b>
+<i>115</i>&nbsp;        } else {
+<b class="fc"><i>116</i>&nbsp;            enable = this.enableAllocation;</b>
+<b class="fc"><i>117</i>&nbsp;            usedIndexSetting = false;</b>
+<i>118</i>&nbsp;        }
+<b class="fc"><i>119</i>&nbsp;        switch (enable) {</b>
+<i>120</i>&nbsp;            case ALL:
+<b class="fc"><i>121</i>&nbsp;                return allocation.decision(Decision.YES, NAME, &quot;all allocations are allowed&quot;);</b>
+<i>122</i>&nbsp;            case NONE:
+<b class="nc"><i>123</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;no allocations are allowed due to %s&quot;, setting(enable, usedIndexSetting));</b>
+<i>124</i>&nbsp;            case NEW_PRIMARIES:
+<b class="nc"><i>125</i>&nbsp;                if (shardRouting.primary() &amp;&amp; shardRouting.active() == false &amp;&amp;</b>
+<b class="nc"><i>126</i>&nbsp;                    shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {</b>
+<b class="nc"><i>127</i>&nbsp;                    return allocation.decision(Decision.YES, NAME, &quot;new primary allocations are allowed&quot;);</b>
+<i>128</i>&nbsp;                } else {
+<b class="nc"><i>129</i>&nbsp;                    return allocation.decision(Decision.NO, NAME, &quot;non-new primary allocations are forbidden due to %s&quot;,</b>
+<b class="nc"><i>130</i>&nbsp;                                                setting(enable, usedIndexSetting));</b>
+<i>131</i>&nbsp;                }
+<i>132</i>&nbsp;            case PRIMARIES:
+<b class="nc"><i>133</i>&nbsp;                if (shardRouting.primary()) {</b>
+<b class="nc"><i>134</i>&nbsp;                    return allocation.decision(Decision.YES, NAME, &quot;primary allocations are allowed&quot;);</b>
+<i>135</i>&nbsp;                } else {
+<b class="nc"><i>136</i>&nbsp;                    return allocation.decision(Decision.NO, NAME, &quot;replica allocations are forbidden due to %s&quot;,</b>
+<b class="nc"><i>137</i>&nbsp;                                                setting(enable, usedIndexSetting));</b>
+<i>138</i>&nbsp;                }
+<i>139</i>&nbsp;            default:
+<b class="nc"><i>140</i>&nbsp;                throw new IllegalStateException(&quot;Unknown allocation option&quot;);</b>
+<i>141</i>&nbsp;        }
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    @Override
+<i>145</i>&nbsp;    public Decision canRebalance(RoutingAllocation allocation) {
+<b class="fc"><i>146</i>&nbsp;        if (allocation.ignoreDisable()) {</b>
+<b class="nc"><i>147</i>&nbsp;            return allocation.decision(Decision.YES, NAME, &quot;allocation is explicitly ignoring any disabling of rebalancing&quot;);</b>
+<i>148</i>&nbsp;        }
+<i>149</i>&nbsp;
+<b class="fc"><i>150</i>&nbsp;        if (enableRebalance == Rebalance.NONE) {</b>
+<b class="nc"><i>151</i>&nbsp;            for (IndexMetaData indexMetaData : allocation.metaData()) {</b>
+<b class="nc"><i>152</i>&nbsp;                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetaData.getSettings())</b>
+<b class="nc"><i>153</i>&nbsp;                    &amp;&amp; INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetaData.getSettings()) != Rebalance.NONE) {</b>
+<b class="nc"><i>154</i>&nbsp;                    return allocation.decision(Decision.YES, NAME, &quot;rebalancing is permitted on one or more indices&quot;);</b>
+<i>155</i>&nbsp;                }
+<b class="nc"><i>156</i>&nbsp;            }</b>
+<b class="nc"><i>157</i>&nbsp;            return allocation.decision(Decision.NO, NAME, &quot;no rebalancing is allowed due to %s&quot;, setting(enableRebalance, false));</b>
+<i>158</i>&nbsp;        }
+<i>159</i>&nbsp;
+<b class="fc"><i>160</i>&nbsp;        return allocation.decision(Decision.YES, NAME, &quot;rebalancing is not globally disabled&quot;);</b>
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    @Override
+<i>164</i>&nbsp;    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+<b class="nc"><i>165</i>&nbsp;        if (allocation.ignoreDisable()) {</b>
+<b class="nc"><i>166</i>&nbsp;            return allocation.decision(Decision.YES, NAME, &quot;allocation is explicitly ignoring any disabling of rebalancing&quot;);</b>
+<i>167</i>&nbsp;        }
+<i>168</i>&nbsp;
+<b class="nc"><i>169</i>&nbsp;        Settings indexSettings = allocation.metaData().getIndexSafe(shardRouting.index()).getSettings();</b>
+<i>170</i>&nbsp;        final Rebalance enable;
+<i>171</i>&nbsp;        final boolean usedIndexSetting;
+<b class="nc"><i>172</i>&nbsp;        if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {</b>
+<b class="nc"><i>173</i>&nbsp;            enable = INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexSettings);</b>
+<b class="nc"><i>174</i>&nbsp;            usedIndexSetting = true;</b>
+<i>175</i>&nbsp;        } else {
+<b class="nc"><i>176</i>&nbsp;            enable = this.enableRebalance;</b>
+<b class="nc"><i>177</i>&nbsp;            usedIndexSetting = false;</b>
+<i>178</i>&nbsp;        }
+<b class="pc"><i>179</i>&nbsp;        switch (enable) {</b>
+<i>180</i>&nbsp;            case ALL:
+<b class="nc"><i>181</i>&nbsp;                return allocation.decision(Decision.YES, NAME, &quot;all rebalancing is allowed&quot;);</b>
+<i>182</i>&nbsp;            case NONE:
+<b class="nc"><i>183</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;no rebalancing is allowed due to %s&quot;, setting(enable, usedIndexSetting));</b>
+<i>184</i>&nbsp;            case PRIMARIES:
+<b class="nc"><i>185</i>&nbsp;                if (shardRouting.primary()) {</b>
+<b class="nc"><i>186</i>&nbsp;                    return allocation.decision(Decision.YES, NAME, &quot;primary rebalancing is allowed&quot;);</b>
+<i>187</i>&nbsp;                } else {
+<b class="nc"><i>188</i>&nbsp;                    return allocation.decision(Decision.NO, NAME, &quot;replica rebalancing is forbidden due to %s&quot;,</b>
+<b class="nc"><i>189</i>&nbsp;                                                setting(enable, usedIndexSetting));</b>
+<i>190</i>&nbsp;                }
+<i>191</i>&nbsp;            case REPLICAS:
+<b class="nc"><i>192</i>&nbsp;                if (shardRouting.primary() == false) {</b>
+<b class="nc"><i>193</i>&nbsp;                    return allocation.decision(Decision.YES, NAME, &quot;replica rebalancing is allowed&quot;);</b>
+<i>194</i>&nbsp;                } else {
+<b class="nc"><i>195</i>&nbsp;                    return allocation.decision(Decision.NO, NAME, &quot;primary rebalancing is forbidden due to %s&quot;,</b>
+<b class="nc"><i>196</i>&nbsp;                                                setting(enable, usedIndexSetting));</b>
+<i>197</i>&nbsp;                }
+<i>198</i>&nbsp;            default:
+<b class="nc"><i>199</i>&nbsp;                throw new IllegalStateException(&quot;Unknown rebalance option&quot;);</b>
+<i>200</i>&nbsp;        }
+<i>201</i>&nbsp;    }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    private static String setting(Allocation allocation, boolean usedIndexSetting) {
+<b class="nc"><i>204</i>&nbsp;        StringBuilder buf = new StringBuilder();</b>
+<b class="nc"><i>205</i>&nbsp;        if (usedIndexSetting) {</b>
+<b class="nc"><i>206</i>&nbsp;            buf.append(&quot;index setting [&quot;);</b>
+<b class="nc"><i>207</i>&nbsp;            buf.append(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());</b>
+<i>208</i>&nbsp;        } else {
+<b class="nc"><i>209</i>&nbsp;            buf.append(&quot;cluster setting [&quot;);</b>
+<b class="nc"><i>210</i>&nbsp;            buf.append(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());</b>
+<i>211</i>&nbsp;        }
+<b class="nc"><i>212</i>&nbsp;        buf.append(&quot;=&quot;).append(allocation.toString().toLowerCase(Locale.ROOT)).append(&quot;]&quot;);</b>
+<b class="nc"><i>213</i>&nbsp;        return buf.toString();</b>
+<i>214</i>&nbsp;    }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    private static String setting(Rebalance rebalance, boolean usedIndexSetting) {
+<b class="nc"><i>217</i>&nbsp;        StringBuilder buf = new StringBuilder();</b>
+<b class="nc"><i>218</i>&nbsp;        if (usedIndexSetting) {</b>
+<b class="nc"><i>219</i>&nbsp;            buf.append(&quot;index setting [&quot;);</b>
+<b class="nc"><i>220</i>&nbsp;            buf.append(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey());</b>
+<i>221</i>&nbsp;        } else {
+<b class="nc"><i>222</i>&nbsp;            buf.append(&quot;cluster setting [&quot;);</b>
+<b class="nc"><i>223</i>&nbsp;            buf.append(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey());</b>
+<i>224</i>&nbsp;        }
+<b class="nc"><i>225</i>&nbsp;        buf.append(&quot;=&quot;).append(rebalance.toString().toLowerCase(Locale.ROOT)).append(&quot;]&quot;);</b>
+<b class="nc"><i>226</i>&nbsp;        return buf.toString();</b>
+<i>227</i>&nbsp;    }
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    /**
+<i>230</i>&nbsp;     * Allocation values or rather their string representation to be used used with
+<i>231</i>&nbsp;     * {@link EnableAllocationDecider#CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING} /
+<i>232</i>&nbsp;     * {@link EnableAllocationDecider#INDEX_ROUTING_ALLOCATION_ENABLE_SETTING}
+<i>233</i>&nbsp;     * via cluster / index settings.
+<i>234</i>&nbsp;     */
+<b class="fc"><i>235</i>&nbsp;    public enum Allocation {</b>
+<i>236</i>&nbsp;
+<b class="fc"><i>237</i>&nbsp;        NONE,</b>
+<b class="fc"><i>238</i>&nbsp;        NEW_PRIMARIES,</b>
+<b class="fc"><i>239</i>&nbsp;        PRIMARIES,</b>
+<b class="fc"><i>240</i>&nbsp;        ALL;</b>
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;        public static Allocation parse(String strValue) {
+<b class="fc"><i>243</i>&nbsp;            if (strValue == null) {</b>
+<b class="nc"><i>244</i>&nbsp;                return null;</b>
+<i>245</i>&nbsp;            } else {
+<b class="fc"><i>246</i>&nbsp;                strValue = strValue.toUpperCase(Locale.ROOT);</b>
+<i>247</i>&nbsp;                try {
+<b class="fc"><i>248</i>&nbsp;                    return Allocation.valueOf(strValue);</b>
+<b class="nc"><i>249</i>&nbsp;                } catch (IllegalArgumentException e) {</b>
+<b class="nc"><i>250</i>&nbsp;                    throw new IllegalArgumentException(&quot;Illegal allocation.enable value [&quot; + strValue + &quot;]&quot;);</b>
+<i>251</i>&nbsp;                }
+<i>252</i>&nbsp;            }
+<i>253</i>&nbsp;        }
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;        @Override
+<i>256</i>&nbsp;        public String toString() {
+<b class="fc"><i>257</i>&nbsp;            return name().toLowerCase(Locale.ROOT);</b>
+<i>258</i>&nbsp;        }
+<i>259</i>&nbsp;    }
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    /**
+<i>262</i>&nbsp;     * Rebalance values or rather their string representation to be used used with
+<i>263</i>&nbsp;     * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} /
+<i>264</i>&nbsp;     * {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
+<i>265</i>&nbsp;     * via cluster / index settings.
+<i>266</i>&nbsp;     */
+<b class="fc"><i>267</i>&nbsp;    public enum Rebalance {</b>
+<i>268</i>&nbsp;
+<b class="fc"><i>269</i>&nbsp;        NONE,</b>
+<b class="fc"><i>270</i>&nbsp;        PRIMARIES,</b>
+<b class="fc"><i>271</i>&nbsp;        REPLICAS,</b>
+<b class="fc"><i>272</i>&nbsp;        ALL;</b>
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;        public static Rebalance parse(String strValue) {
+<b class="fc"><i>275</i>&nbsp;            if (strValue == null) {</b>
+<b class="nc"><i>276</i>&nbsp;                return null;</b>
+<i>277</i>&nbsp;            } else {
+<b class="fc"><i>278</i>&nbsp;                strValue = strValue.toUpperCase(Locale.ROOT);</b>
+<i>279</i>&nbsp;                try {
+<b class="fc"><i>280</i>&nbsp;                    return Rebalance.valueOf(strValue);</b>
+<b class="nc"><i>281</i>&nbsp;                } catch (IllegalArgumentException e) {</b>
+<b class="nc"><i>282</i>&nbsp;                    throw new IllegalArgumentException(&quot;Illegal rebalance.enable value [&quot; + strValue + &quot;]&quot;);</b>
+<i>283</i>&nbsp;                }
+<i>284</i>&nbsp;            }
+<i>285</i>&nbsp;        }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;        @Override
+<i>288</i>&nbsp;        public String toString() {
+<b class="fc"><i>289</i>&nbsp;            return name().toLowerCase(Locale.ROOT);</b>
+<i>290</i>&nbsp;        }
+<i>291</i>&nbsp;    }
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

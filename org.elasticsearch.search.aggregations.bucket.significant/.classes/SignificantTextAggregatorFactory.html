@@ -1,0 +1,281 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SignificantTextAggregatorFactory</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.bucket.significant</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SignificantTextAggregatorFactory (org.elasticsearch.search.aggregations.bucket.significant)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SignificantTextAggregatorFactory</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 56)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.bucket.significant;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>23</i>&nbsp;import org.apache.lucene.index.PostingsEnum;
+<i>24</i>&nbsp;import org.apache.lucene.index.Term;
+<i>25</i>&nbsp;import org.apache.lucene.search.BooleanClause.Occur;
+<i>26</i>&nbsp;import org.apache.lucene.search.BooleanQuery;
+<i>27</i>&nbsp;import org.apache.lucene.search.IndexSearcher;
+<i>28</i>&nbsp;import org.apache.lucene.search.Query;
+<i>29</i>&nbsp;import org.apache.lucene.search.TermQuery;
+<i>30</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>31</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>32</i>&nbsp;import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
+<i>33</i>&nbsp;import org.elasticsearch.common.lucene.index.FreqTermsEnum;
+<i>34</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>35</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>37</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>38</i>&nbsp;import org.elasticsearch.search.aggregations.Aggregator;
+<i>39</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactories;
+<i>40</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactory;
+<i>41</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+<i>42</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+<i>43</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+<i>44</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+<i>45</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+<i>46</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+<i>47</i>&nbsp;import org.elasticsearch.search.internal.SearchContext;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import java.io.IOException;
+<i>50</i>&nbsp;import java.util.List;
+<i>51</i>&nbsp;import java.util.Map;
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;public class SignificantTextAggregatorFactory extends AggregatorFactory
+<i>54</i>&nbsp;        implements Releasable {
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private final IncludeExclude includeExclude;
+<i>57</i>&nbsp;    private String indexedFieldName;
+<i>58</i>&nbsp;    private MappedFieldType fieldType;
+<i>59</i>&nbsp;    private final String[] sourceFieldNames;
+<i>60</i>&nbsp;    private FilterableTermsEnum termsEnum;
+<i>61</i>&nbsp;    private int numberOfAggregatorsCreated;
+<i>62</i>&nbsp;    private final Query filter;
+<i>63</i>&nbsp;    private final int supersetNumDocs;
+<i>64</i>&nbsp;    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+<i>65</i>&nbsp;    private final SignificanceHeuristic significanceHeuristic;
+<b class="nc"><i>66</i>&nbsp;    private final DocValueFormat format = DocValueFormat.RAW;</b>
+<i>67</i>&nbsp;    private final boolean filterDuplicateText;
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    public SignificantTextAggregatorFactory(String name,
+<i>70</i>&nbsp;                                                IncludeExclude includeExclude,
+<i>71</i>&nbsp;                                                QueryBuilder filterBuilder,
+<i>72</i>&nbsp;                                                TermsAggregator.BucketCountThresholds bucketCountThresholds,
+<i>73</i>&nbsp;                                                SignificanceHeuristic significanceHeuristic,
+<i>74</i>&nbsp;                                                QueryShardContext queryShardContext,
+<i>75</i>&nbsp;                                                AggregatorFactory parent,
+<i>76</i>&nbsp;                                                AggregatorFactories.Builder subFactoriesBuilder,
+<i>77</i>&nbsp;                                                String fieldName,
+<i>78</i>&nbsp;                                                String [] sourceFieldNames,
+<i>79</i>&nbsp;                                                boolean filterDuplicateText,
+<i>80</i>&nbsp;                                                Map&lt;String, Object&gt; metaData) throws IOException {
+<b class="nc"><i>81</i>&nbsp;        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        // Note that if the field is unmapped (its field type is null), we don&#39;t fail,
+<i>84</i>&nbsp;        // and just use the given field name as a placeholder.
+<b class="nc"><i>85</i>&nbsp;        this.fieldType = queryShardContext.fieldMapper(fieldName);</b>
+<b class="nc"><i>86</i>&nbsp;        this.indexedFieldName = fieldType != null ? fieldType.name() : fieldName;</b>
+<b class="nc"><i>87</i>&nbsp;        this.sourceFieldNames = sourceFieldNames == null</b>
+<b class="nc"><i>88</i>&nbsp;            ? new String[] { indexedFieldName }</b>
+<b class="nc"><i>89</i>&nbsp;            : sourceFieldNames;</b>
+<i>90</i>&nbsp;
+<b class="nc"><i>91</i>&nbsp;        this.includeExclude = includeExclude;</b>
+<b class="nc"><i>92</i>&nbsp;        this.filter = filterBuilder == null</b>
+<b class="nc"><i>93</i>&nbsp;                ? null</b>
+<b class="nc"><i>94</i>&nbsp;                : filterBuilder.toQuery(queryShardContext);</b>
+<b class="nc"><i>95</i>&nbsp;        this.filterDuplicateText = filterDuplicateText;</b>
+<b class="nc"><i>96</i>&nbsp;        IndexSearcher searcher = queryShardContext.searcher();</b>
+<i>97</i>&nbsp;        // Important - need to use the doc count that includes deleted docs
+<i>98</i>&nbsp;        // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
+<b class="nc"><i>99</i>&nbsp;        this.supersetNumDocs = filter == null</b>
+<b class="nc"><i>100</i>&nbsp;                ? searcher.getIndexReader().maxDoc()</b>
+<b class="nc"><i>101</i>&nbsp;                : searcher.count(filter);</b>
+<b class="nc"><i>102</i>&nbsp;        this.bucketCountThresholds = bucketCountThresholds;</b>
+<b class="nc"><i>103</i>&nbsp;        this.significanceHeuristic = significanceHeuristic;</b>
+<b class="nc"><i>104</i>&nbsp;    }</b>
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    /**
+<i>107</i>&nbsp;     * Get the number of docs in the superset.
+<i>108</i>&nbsp;     */
+<i>109</i>&nbsp;    public long getSupersetNumDocs() {
+<b class="nc"><i>110</i>&nbsp;        return supersetNumDocs;</b>
+<i>111</i>&nbsp;    }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    private FilterableTermsEnum getTermsEnum(String field) throws IOException {
+<b class="nc"><i>114</i>&nbsp;        if (termsEnum != null) {</b>
+<b class="nc"><i>115</i>&nbsp;            return termsEnum;</b>
+<i>116</i>&nbsp;        }
+<b class="nc"><i>117</i>&nbsp;        IndexReader reader = queryShardContext.getIndexReader();</b>
+<b class="nc"><i>118</i>&nbsp;        if (numberOfAggregatorsCreated &gt; 1) {</b>
+<b class="nc"><i>119</i>&nbsp;            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, queryShardContext.bigArrays());</b>
+<i>120</i>&nbsp;        } else {
+<b class="nc"><i>121</i>&nbsp;            termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);</b>
+<i>122</i>&nbsp;        }
+<b class="nc"><i>123</i>&nbsp;        return termsEnum;</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    private long getBackgroundFrequency(String value) throws IOException {
+<b class="nc"><i>127</i>&nbsp;        Query query = fieldType.termQuery(value, queryShardContext);</b>
+<b class="nc"><i>128</i>&nbsp;        if (query instanceof TermQuery) {</b>
+<i>129</i>&nbsp;            // for types that use the inverted index, we prefer using a caching terms
+<i>130</i>&nbsp;            // enum that will do a better job at reusing index inputs
+<b class="nc"><i>131</i>&nbsp;            Term term = ((TermQuery) query).getTerm();</b>
+<b class="nc"><i>132</i>&nbsp;            FilterableTermsEnum termsEnum = getTermsEnum(term.field());</b>
+<b class="nc"><i>133</i>&nbsp;            if (termsEnum.seekExact(term.bytes())) {</b>
+<b class="nc"><i>134</i>&nbsp;                return termsEnum.docFreq();</b>
+<i>135</i>&nbsp;            } else {
+<b class="nc"><i>136</i>&nbsp;                return 0;</b>
+<i>137</i>&nbsp;            }
+<i>138</i>&nbsp;        }
+<i>139</i>&nbsp;        // otherwise do it the naive way
+<b class="nc"><i>140</i>&nbsp;        if (filter != null) {</b>
+<b class="nc"><i>141</i>&nbsp;            query = new BooleanQuery.Builder()</b>
+<b class="nc"><i>142</i>&nbsp;                    .add(query, Occur.FILTER)</b>
+<b class="nc"><i>143</i>&nbsp;                    .add(filter, Occur.FILTER)</b>
+<b class="nc"><i>144</i>&nbsp;                    .build();</b>
+<i>145</i>&nbsp;        }
+<b class="nc"><i>146</i>&nbsp;        return queryShardContext.searcher().count(query);</b>
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
+<b class="nc"><i>150</i>&nbsp;        String value = format.format(termBytes).toString();</b>
+<b class="nc"><i>151</i>&nbsp;        return getBackgroundFrequency(value);</b>
+<i>152</i>&nbsp;    }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    @Override
+<i>156</i>&nbsp;    public void close() {
+<i>157</i>&nbsp;        try {
+<b class="nc"><i>158</i>&nbsp;            if (termsEnum instanceof Releasable) {</b>
+<b class="nc"><i>159</i>&nbsp;                ((Releasable) termsEnum).close();</b>
+<i>160</i>&nbsp;            }
+<i>161</i>&nbsp;        } finally {
+<b class="nc"><i>162</i>&nbsp;            termsEnum = null;</b>
+<b class="nc"><i>163</i>&nbsp;        }</b>
+<b class="nc"><i>164</i>&nbsp;    }</b>
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    @Override
+<i>167</i>&nbsp;    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+<i>168</i>&nbsp;                                        List&lt;PipelineAggregator&gt; pipelineAggregators, Map&lt;String, Object&gt; metaData)
+<i>169</i>&nbsp;            throws IOException {
+<b class="nc"><i>170</i>&nbsp;        if (collectsFromSingleBucket == false) {</b>
+<b class="nc"><i>171</i>&nbsp;            return asMultiBucketAggregator(this, searchContext, parent);</b>
+<i>172</i>&nbsp;        }
+<i>173</i>&nbsp;
+<b class="nc"><i>174</i>&nbsp;        numberOfAggregatorsCreated++;</b>
+<b class="nc"><i>175</i>&nbsp;        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);</b>
+<b class="nc"><i>176</i>&nbsp;        if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {</b>
+<i>177</i>&nbsp;            // The user has not made a shardSize selection.
+<i>178</i>&nbsp;            // Use default heuristic to avoid any wrong-ranking caused by
+<i>179</i>&nbsp;            // distributed counting but request double the usual amount.
+<i>180</i>&nbsp;            // We typically need more than the number of &quot;top&quot; terms requested
+<i>181</i>&nbsp;            // by other aggregations as the significance algorithm is in less
+<i>182</i>&nbsp;            // of a position to down-select at shard-level - some of the things
+<i>183</i>&nbsp;            // we want to find have only one occurrence on each shard and as
+<i>184</i>&nbsp;            // such are impossible to differentiate from non-significant terms
+<i>185</i>&nbsp;            // at that early stage.
+<b class="nc"><i>186</i>&nbsp;            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));</b>
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;//        TODO - need to check with mapping that this is indeed a text field....
+<i>190</i>&nbsp;
+<b class="nc"><i>191</i>&nbsp;        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null:</b>
+<b class="nc"><i>192</i>&nbsp;            includeExclude.convertToStringFilter(DocValueFormat.RAW);</b>
+<i>193</i>&nbsp;
+<b class="nc"><i>194</i>&nbsp;        return new SignificantTextAggregator(name, factories, searchContext, parent, pipelineAggregators, bucketCountThresholds,</b>
+<i>195</i>&nbsp;                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    }
+<i>198</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

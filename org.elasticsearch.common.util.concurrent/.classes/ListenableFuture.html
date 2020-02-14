@@ -1,0 +1,249 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ListenableFuture</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util.concurrent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ListenableFuture (org.elasticsearch.common.util.concurrent)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ListenableFuture</td>
+<td class="coverageStat">
+  <span class="percent">
+    71.4%
+  </span>
+  <span class="absValue">
+    (5/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    44.4%
+  </span>
+  <span class="absValue">
+    (16/ 36)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ListenableFuture$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (4/ 5)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    70%
+  </span>
+  <span class="absValue">
+    (7/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    48.8%
+  </span>
+  <span class="absValue">
+    (20/ 41)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.util.concurrent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionRunnable;
+<i>24</i>&nbsp;import org.elasticsearch.action.support.ContextPreservingActionListener;
+<i>25</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>26</i>&nbsp;
+<i>27</i>&nbsp;import java.util.ArrayList;
+<i>28</i>&nbsp;import java.util.List;
+<i>29</i>&nbsp;import java.util.concurrent.ExecutorService;
+<i>30</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;/**
+<i>33</i>&nbsp; * A future implementation that allows for the result to be passed to listeners waiting for
+<i>34</i>&nbsp; * notification. This is useful for cases where a computation is requested many times
+<i>35</i>&nbsp; * concurrently, but really only needs to be performed a single time. Once the computation
+<i>36</i>&nbsp; * has been performed the registered listeners will be notified by submitting a runnable
+<i>37</i>&nbsp; * for execution in the provided {@link ExecutorService}. If the computation has already
+<i>38</i>&nbsp; * been performed, a request to add a listener will simply result in execution of the listener
+<i>39</i>&nbsp; * on the calling thread.
+<i>40</i>&nbsp; */
+<b class="fc"><i>41</i>&nbsp;public final class ListenableFuture&lt;V&gt; extends BaseFuture&lt;V&gt; implements ActionListener&lt;V&gt; {</b>
+<i>42</i>&nbsp;
+<b class="fc"><i>43</i>&nbsp;    private volatile boolean done = false;</b>
+<b class="fc"><i>44</i>&nbsp;    private final List&lt;Tuple&lt;ActionListener&lt;V&gt;, ExecutorService&gt;&gt; listeners = new ArrayList&lt;&gt;();</b>
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    /**
+<i>48</i>&nbsp;     * Adds a listener to this future. If the future has not yet completed, the listener will be
+<i>49</i>&nbsp;     * notified of a response or exception in a runnable submitted to the ExecutorService provided.
+<i>50</i>&nbsp;     * If the future has completed, the listener will be notified immediately without forking to
+<i>51</i>&nbsp;     * a different thread.
+<i>52</i>&nbsp;     */
+<i>53</i>&nbsp;    public void addListener(ActionListener&lt;V&gt; listener, ExecutorService executor) {
+<b class="nc"><i>54</i>&nbsp;        addListener(listener, executor, null);</b>
+<b class="nc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    /**
+<i>58</i>&nbsp;     * Adds a listener to this future. If the future has not yet completed, the listener will be
+<i>59</i>&nbsp;     * notified of a response or exception in a runnable submitted to the ExecutorService provided.
+<i>60</i>&nbsp;     * If the future has completed, the listener will be notified immediately without forking to
+<i>61</i>&nbsp;     * a different thread.
+<i>62</i>&nbsp;     *
+<i>63</i>&nbsp;     * It will apply the provided ThreadContext (if not null) when executing the listening.
+<i>64</i>&nbsp;     */
+<i>65</i>&nbsp;    public void addListener(ActionListener&lt;V&gt; listener, ExecutorService executor, ThreadContext threadContext) {
+<b class="fc"><i>66</i>&nbsp;        if (done) {</b>
+<i>67</i>&nbsp;            // run the callback directly, we don&#39;t hold the lock and don&#39;t need to fork!
+<b class="fc"><i>68</i>&nbsp;            notifyListener(listener, EsExecutors.newDirectExecutorService());</b>
+<i>69</i>&nbsp;        } else {
+<i>70</i>&nbsp;            final boolean run;
+<i>71</i>&nbsp;            // check done under lock since it could have been modified and protect modifications
+<i>72</i>&nbsp;            // to the list under lock
+<b class="nc"><i>73</i>&nbsp;            synchronized (this) {</b>
+<b class="nc"><i>74</i>&nbsp;                if (done) {</b>
+<b class="nc"><i>75</i>&nbsp;                    run = true;</b>
+<i>76</i>&nbsp;                } else {
+<i>77</i>&nbsp;                    final ActionListener&lt;V&gt; wrappedListener;
+<b class="nc"><i>78</i>&nbsp;                    if (threadContext == null) {</b>
+<b class="nc"><i>79</i>&nbsp;                        wrappedListener = listener;</b>
+<i>80</i>&nbsp;                    } else {
+<b class="nc"><i>81</i>&nbsp;                        wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);</b>
+<i>82</i>&nbsp;                    }
+<b class="nc"><i>83</i>&nbsp;                    listeners.add(new Tuple&lt;&gt;(wrappedListener, executor));</b>
+<b class="nc"><i>84</i>&nbsp;                    run = false;</b>
+<i>85</i>&nbsp;                }
+<b class="nc"><i>86</i>&nbsp;            }</b>
+<i>87</i>&nbsp;
+<b class="nc"><i>88</i>&nbsp;            if (run) {</b>
+<i>89</i>&nbsp;                // run the callback directly, we don&#39;t hold the lock and don&#39;t need to fork!
+<b class="nc"><i>90</i>&nbsp;                notifyListener(listener, EsExecutors.newDirectExecutorService());</b>
+<i>91</i>&nbsp;            }
+<i>92</i>&nbsp;        }
+<b class="fc"><i>93</i>&nbsp;    }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    @Override
+<i>96</i>&nbsp;    protected synchronized void done() {
+<b class="fc"><i>97</i>&nbsp;        done = true;</b>
+<b class="fc"><i>98</i>&nbsp;        listeners.forEach(t -&gt; notifyListener(t.v1(), t.v2()));</b>
+<i>99</i>&nbsp;        // release references to any listeners as we no longer need them and will live
+<i>100</i>&nbsp;        // much longer than the listeners in most cases
+<b class="fc"><i>101</i>&nbsp;        listeners.clear();</b>
+<b class="fc"><i>102</i>&nbsp;    }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    private void notifyListener(ActionListener&lt;V&gt; listener, ExecutorService executorService) {
+<i>105</i>&nbsp;        try {
+<b class="fc"><i>106</i>&nbsp;            executorService.execute(new ActionRunnable&lt;V&gt;(listener) {</b>
+<i>107</i>&nbsp;                @Override
+<i>108</i>&nbsp;                protected void doRun() {
+<i>109</i>&nbsp;                    // call get in a non-blocking fashion as we could be on a network thread
+<i>110</i>&nbsp;                    // or another thread like the scheduler, which we should never block!
+<b class="fc"><i>111</i>&nbsp;                    V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);</b>
+<b class="fc"><i>112</i>&nbsp;                    listener.onResponse(value);</b>
+<b class="fc"><i>113</i>&nbsp;                }</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;                @Override
+<i>116</i>&nbsp;                public String toString() {
+<b class="nc"><i>117</i>&nbsp;                    return &quot;ListenableFuture notification&quot;;</b>
+<i>118</i>&nbsp;                }
+<i>119</i>&nbsp;            });
+<b class="nc"><i>120</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>121</i>&nbsp;            listener.onFailure(e);</b>
+<b class="fc"><i>122</i>&nbsp;        }</b>
+<b class="fc"><i>123</i>&nbsp;    }</b>
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    @Override
+<i>126</i>&nbsp;    public void onResponse(V v) {
+<b class="fc"><i>127</i>&nbsp;        final boolean set = set(v);</b>
+<b class="fc"><i>128</i>&nbsp;        if (set == false) {</b>
+<b class="nc"><i>129</i>&nbsp;            throw new IllegalStateException(&quot;did not set value, value or exception already set?&quot;);</b>
+<i>130</i>&nbsp;        }
+<b class="fc"><i>131</i>&nbsp;    }</b>
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    @Override
+<i>134</i>&nbsp;    public void onFailure(Exception e) {
+<b class="nc"><i>135</i>&nbsp;        final boolean set = setException(e);</b>
+<b class="nc"><i>136</i>&nbsp;        if (set == false) {</b>
+<b class="nc"><i>137</i>&nbsp;            throw new IllegalStateException(&quot;did not set exception, value already set or exception already set?&quot;);</b>
+<i>138</i>&nbsp;        }
+<b class="nc"><i>139</i>&nbsp;    }</b>
+<i>140</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,438 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexMetaDataUpdater</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexMetaDataUpdater (org.elasticsearch.cluster.routing.allocation)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexMetaDataUpdater</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (8/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    45.9%
+  </span>
+  <span class="absValue">
+    (62/ 135)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndexMetaDataUpdater$Updates</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (5/ 5)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    69.2%
+  </span>
+  <span class="absValue">
+    (9/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    47.9%
+  </span>
+  <span class="absValue">
+    (67/ 140)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingTable;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.UnassignedInfo;
+<i>32</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>33</i>&nbsp;import org.elasticsearch.index.Index;
+<i>34</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;import java.util.Collections;
+<i>37</i>&nbsp;import java.util.Comparator;
+<i>38</i>&nbsp;import java.util.HashMap;
+<i>39</i>&nbsp;import java.util.HashSet;
+<i>40</i>&nbsp;import java.util.List;
+<i>41</i>&nbsp;import java.util.Map;
+<i>42</i>&nbsp;import java.util.Objects;
+<i>43</i>&nbsp;import java.util.Set;
+<i>44</i>&nbsp;import java.util.stream.Collectors;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;/**
+<i>47</i>&nbsp; * Observer that tracks changes made to RoutingNodes in order to update the primary terms and in-sync allocation ids in
+<i>48</i>&nbsp; * {@link IndexMetaData} once the allocation round has completed.
+<i>49</i>&nbsp; *
+<i>50</i>&nbsp; * Primary terms are updated on primary initialization or when an active primary fails.
+<i>51</i>&nbsp; *
+<i>52</i>&nbsp; * Allocation ids are added for shards that become active and removed for shards that stop being active.
+<i>53</i>&nbsp; */
+<b class="fc"><i>54</i>&nbsp;public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {</b>
+<b class="fc"><i>55</i>&nbsp;    private final Map&lt;ShardId, Updates&gt; shardChanges = new HashMap&lt;&gt;();</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    @Override
+<i>58</i>&nbsp;    public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
+<b class="fc"><i>59</i>&nbsp;        assert initializedShard.isRelocationTarget() == false : &quot;shardInitialized is not called on relocation target: &quot; + initializedShard;</b>
+<b class="fc"><i>60</i>&nbsp;        if (initializedShard.primary()) {</b>
+<b class="fc"><i>61</i>&nbsp;            increasePrimaryTerm(initializedShard.shardId());</b>
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;            Updates updates = changes(initializedShard.shardId());</b>
+<b class="fc"><i>64</i>&nbsp;            assert updates.initializedPrimary == null : &quot;Primary cannot be initialized more than once in same allocation round: &quot; +</b>
+<b class="nc"><i>65</i>&nbsp;                &quot;(previous: &quot; + updates.initializedPrimary + &quot;, next: &quot; + initializedShard + &quot;)&quot;;</b>
+<b class="fc"><i>66</i>&nbsp;            updates.initializedPrimary = initializedShard;</b>
+<i>67</i>&nbsp;        }
+<b class="fc"><i>68</i>&nbsp;    }</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    @Override
+<i>71</i>&nbsp;    public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
+<b class="fc"><i>72</i>&nbsp;        assert Objects.equals(initializingShard.allocationId().getId(), startedShard.allocationId().getId())</b>
+<b class="nc"><i>73</i>&nbsp;            : &quot;initializingShard.allocationId [&quot; + initializingShard.allocationId().getId()</b>
+<b class="nc"><i>74</i>&nbsp;            + &quot;] and startedShard.allocationId [&quot; + startedShard.allocationId().getId() + &quot;] have to have the same&quot;;</b>
+<b class="fc"><i>75</i>&nbsp;        Updates updates = changes(startedShard.shardId());</b>
+<b class="fc"><i>76</i>&nbsp;        updates.addedAllocationIds.add(startedShard.allocationId().getId());</b>
+<b class="fc"><i>77</i>&nbsp;        if (startedShard.primary()</b>
+<i>78</i>&nbsp;            // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
+<b class="fc"><i>79</i>&nbsp;            &amp;&amp; (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {</b>
+<b class="nc"><i>80</i>&nbsp;            updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);</b>
+<i>81</i>&nbsp;        }
+<b class="fc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    @Override
+<i>85</i>&nbsp;    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+<b class="nc"><i>86</i>&nbsp;        if (failedShard.active() &amp;&amp; failedShard.primary()) {</b>
+<b class="nc"><i>87</i>&nbsp;            Updates updates = changes(failedShard.shardId());</b>
+<b class="nc"><i>88</i>&nbsp;            if (updates.firstFailedPrimary == null) {</b>
+<i>89</i>&nbsp;                // more than one primary can be failed (because of batching, primary can be failed, replica promoted and then failed...)
+<b class="nc"><i>90</i>&nbsp;                updates.firstFailedPrimary = failedShard;</b>
+<i>91</i>&nbsp;            }
+<b class="nc"><i>92</i>&nbsp;            increasePrimaryTerm(failedShard.shardId());</b>
+<i>93</i>&nbsp;        }
+<b class="nc"><i>94</i>&nbsp;    }</b>
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    @Override
+<i>97</i>&nbsp;    public void relocationCompleted(ShardRouting removedRelocationSource) {
+<b class="nc"><i>98</i>&nbsp;        removeAllocationId(removedRelocationSource);</b>
+<b class="nc"><i>99</i>&nbsp;    }</b>
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    /**
+<i>102</i>&nbsp;     * Updates the current {@link MetaData} based on the changes of this RoutingChangesObserver. Specifically
+<i>103</i>&nbsp;     * we update {@link IndexMetaData#getInSyncAllocationIds()} and {@link IndexMetaData#primaryTerm(int)} based on
+<i>104</i>&nbsp;     * the changes made during this allocation.
+<i>105</i>&nbsp;     *
+<i>106</i>&nbsp;     * @param oldMetaData {@link MetaData} object from before the routing nodes was changed.
+<i>107</i>&nbsp;     * @param newRoutingTable {@link RoutingTable} object after routing changes were applied.
+<i>108</i>&nbsp;     * @return adapted {@link MetaData}, potentially the original one if no change was needed.
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    public MetaData applyChanges(MetaData oldMetaData, RoutingTable newRoutingTable) {
+<b class="fc"><i>111</i>&nbsp;        Map&lt;Index, List&lt;Map.Entry&lt;ShardId, Updates&gt;&gt;&gt; changesGroupedByIndex =</b>
+<b class="fc"><i>112</i>&nbsp;            shardChanges.entrySet().stream().collect(Collectors.groupingBy(e -&gt; e.getKey().getIndex()));</b>
+<i>113</i>&nbsp;
+<b class="fc"><i>114</i>&nbsp;        MetaData.Builder metaDataBuilder = null;</b>
+<b class="fc"><i>115</i>&nbsp;        for (Map.Entry&lt;Index, List&lt;Map.Entry&lt;ShardId, Updates&gt;&gt;&gt; indexChanges : changesGroupedByIndex.entrySet()) {</b>
+<b class="fc"><i>116</i>&nbsp;            Index index = indexChanges.getKey();</b>
+<b class="fc"><i>117</i>&nbsp;            final IndexMetaData oldIndexMetaData = oldMetaData.getIndexSafe(index);</b>
+<b class="fc"><i>118</i>&nbsp;            IndexMetaData.Builder indexMetaDataBuilder = null;</b>
+<b class="fc"><i>119</i>&nbsp;            for (Map.Entry&lt;ShardId, Updates&gt; shardEntry : indexChanges.getValue()) {</b>
+<b class="fc"><i>120</i>&nbsp;                ShardId shardId = shardEntry.getKey();</b>
+<b class="fc"><i>121</i>&nbsp;                Updates updates = shardEntry.getValue();</b>
+<b class="fc"><i>122</i>&nbsp;                indexMetaDataBuilder = updateInSyncAllocations(newRoutingTable, oldIndexMetaData, indexMetaDataBuilder, shardId, updates);</b>
+<b class="fc"><i>123</i>&nbsp;                indexMetaDataBuilder = updatePrimaryTerm(oldIndexMetaData, indexMetaDataBuilder, shardId, updates);</b>
+<b class="fc"><i>124</i>&nbsp;            }</b>
+<i>125</i>&nbsp;
+<b class="fc"><i>126</i>&nbsp;            if (indexMetaDataBuilder != null) {</b>
+<b class="fc"><i>127</i>&nbsp;                if (metaDataBuilder == null) {</b>
+<b class="fc"><i>128</i>&nbsp;                    metaDataBuilder = MetaData.builder(oldMetaData);</b>
+<i>129</i>&nbsp;                }
+<b class="fc"><i>130</i>&nbsp;                metaDataBuilder.put(indexMetaDataBuilder);</b>
+<i>131</i>&nbsp;            }
+<b class="fc"><i>132</i>&nbsp;        }</b>
+<i>133</i>&nbsp;
+<b class="fc"><i>134</i>&nbsp;        if (metaDataBuilder != null) {</b>
+<b class="fc"><i>135</i>&nbsp;            return metaDataBuilder.build();</b>
+<i>136</i>&nbsp;        } else {
+<b class="nc"><i>137</i>&nbsp;            return oldMetaData;</b>
+<i>138</i>&nbsp;        }
+<i>139</i>&nbsp;    }
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    /**
+<i>142</i>&nbsp;     * Updates in-sync allocations with routing changes that were made to the routing table.
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    private IndexMetaData.Builder updateInSyncAllocations(RoutingTable newRoutingTable, IndexMetaData oldIndexMetaData,
+<i>145</i>&nbsp;                                                          IndexMetaData.Builder indexMetaDataBuilder, ShardId shardId, Updates updates) {
+<b class="fc"><i>146</i>&nbsp;        assert Sets.haveEmptyIntersection(updates.addedAllocationIds, updates.removedAllocationIds) :</b>
+<i>147</i>&nbsp;            &quot;allocation ids cannot be both added and removed in the same allocation round, added ids: &quot; +
+<b class="nc"><i>148</i>&nbsp;                updates.addedAllocationIds + &quot;, removed ids: &quot; + updates.removedAllocationIds;</b>
+<i>149</i>&nbsp;
+<b class="fc"><i>150</i>&nbsp;        Set&lt;String&gt; oldInSyncAllocationIds = oldIndexMetaData.inSyncAllocationIds(shardId.id());</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;        // check if we have been force-initializing an empty primary or a stale primary
+<b class="fc"><i>153</i>&nbsp;        if (updates.initializedPrimary != null &amp;&amp; oldInSyncAllocationIds.isEmpty() == false &amp;&amp;</b>
+<b class="nc"><i>154</i>&nbsp;            oldInSyncAllocationIds.contains(updates.initializedPrimary.allocationId().getId()) == false) {</b>
+<i>155</i>&nbsp;            // we&#39;re not reusing an existing in-sync allocation id to initialize a primary, which means that we&#39;re either force-allocating
+<i>156</i>&nbsp;            // an empty or a stale primary (see AllocateEmptyPrimaryAllocationCommand or AllocateStalePrimaryAllocationCommand).
+<b class="nc"><i>157</i>&nbsp;            RecoverySource recoverySource = updates.initializedPrimary.recoverySource();</b>
+<b class="nc"><i>158</i>&nbsp;            RecoverySource.Type recoverySourceType = recoverySource.getType();</b>
+<b class="nc"><i>159</i>&nbsp;            boolean emptyPrimary = recoverySourceType == RecoverySource.Type.EMPTY_STORE;</b>
+<b class="nc"><i>160</i>&nbsp;            assert updates.addedAllocationIds.isEmpty() : (emptyPrimary ? &quot;empty&quot; : &quot;stale&quot;) +</b>
+<i>161</i>&nbsp;                &quot; primary is not force-initialized in same allocation round where shards are started&quot;;
+<i>162</i>&nbsp;
+<b class="nc"><i>163</i>&nbsp;            if (indexMetaDataBuilder == null) {</b>
+<b class="nc"><i>164</i>&nbsp;                indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);</b>
+<i>165</i>&nbsp;            }
+<b class="nc"><i>166</i>&nbsp;            if (emptyPrimary) {</b>
+<i>167</i>&nbsp;                // forcing an empty primary resets the in-sync allocations to the empty set (ShardRouting.allocatedPostIndexCreate)
+<b class="nc"><i>168</i>&nbsp;                indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), Collections.emptySet());</b>
+<i>169</i>&nbsp;            } else {
+<i>170</i>&nbsp;                final String allocationId;
+<b class="nc"><i>171</i>&nbsp;                if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {</b>
+<b class="nc"><i>172</i>&nbsp;                    allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;</b>
+<i>173</i>&nbsp;                } else {
+<b class="nc"><i>174</i>&nbsp;                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;</b>
+<b class="nc"><i>175</i>&nbsp;                    allocationId = updates.initializedPrimary.allocationId().getId();</b>
+<i>176</i>&nbsp;                }
+<i>177</i>&nbsp;                // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
+<b class="nc"><i>178</i>&nbsp;                indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), Collections.singleton(allocationId));</b>
+<i>179</i>&nbsp;            }
+<b class="nc"><i>180</i>&nbsp;        } else {</b>
+<i>181</i>&nbsp;            // standard path for updating in-sync ids
+<b class="fc"><i>182</i>&nbsp;            Set&lt;String&gt; inSyncAllocationIds = new HashSet&lt;&gt;(oldInSyncAllocationIds);</b>
+<b class="fc"><i>183</i>&nbsp;            inSyncAllocationIds.addAll(updates.addedAllocationIds);</b>
+<b class="fc"><i>184</i>&nbsp;            inSyncAllocationIds.removeAll(updates.removedAllocationIds);</b>
+<i>185</i>&nbsp;
+<b class="fc"><i>186</i>&nbsp;            assert oldInSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false</b>
+<b class="nc"><i>187</i>&nbsp;                || inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false :</b>
+<i>188</i>&nbsp;                &quot;fake allocation id has to be removed, inSyncAllocationIds:&quot; + inSyncAllocationIds;
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;            // Prevent set of inSyncAllocationIds to grow unboundedly. This can happen for example if we don&#39;t write to a primary
+<i>191</i>&nbsp;            // but repeatedly shut down nodes that have active replicas.
+<i>192</i>&nbsp;            // We use number_of_replicas + 1 (= possible active shard copies) to bound the inSyncAllocationIds set
+<i>193</i>&nbsp;            // Only trim the set of allocation ids when it grows, otherwise we might trim too eagerly when the number
+<i>194</i>&nbsp;            // of replicas was decreased while shards were unassigned.
+<b class="fc"><i>195</i>&nbsp;            int maxActiveShards = oldIndexMetaData.getNumberOfReplicas() + 1; // +1 for the primary</b>
+<b class="fc"><i>196</i>&nbsp;            IndexShardRoutingTable newShardRoutingTable = newRoutingTable.shardRoutingTable(shardId);</b>
+<b class="fc"><i>197</i>&nbsp;            assert newShardRoutingTable.assignedShards().stream()</b>
+<b class="fc"><i>198</i>&nbsp;                .filter(ShardRouting::isRelocationTarget).map(s -&gt; s.allocationId().getId()).noneMatch(inSyncAllocationIds::contains)</b>
+<b class="nc"><i>199</i>&nbsp;                : newShardRoutingTable.assignedShards() + &quot; vs &quot; + inSyncAllocationIds;</b>
+<b class="fc"><i>200</i>&nbsp;            if (inSyncAllocationIds.size() &gt; oldInSyncAllocationIds.size() &amp;&amp; inSyncAllocationIds.size() &gt; maxActiveShards) {</b>
+<i>201</i>&nbsp;                // trim entries that have no corresponding shard routing in the cluster state (i.e. trim unavailable copies)
+<b class="nc"><i>202</i>&nbsp;                List&lt;ShardRouting&gt; assignedShards = newShardRoutingTable.assignedShards()</b>
+<b class="nc"><i>203</i>&nbsp;                    .stream().filter(s -&gt; s.isRelocationTarget() == false).collect(Collectors.toList());</b>
+<b class="nc"><i>204</i>&nbsp;                assert assignedShards.size() &lt;= maxActiveShards :</b>
+<i>205</i>&nbsp;                    &quot;cannot have more assigned shards &quot; + assignedShards + &quot; than maximum possible active shards &quot; + maxActiveShards;
+<b class="nc"><i>206</i>&nbsp;                Set&lt;String&gt; assignedAllocations = assignedShards.stream().map(s -&gt; s.allocationId().getId()).collect(Collectors.toSet());</b>
+<b class="nc"><i>207</i>&nbsp;                inSyncAllocationIds = inSyncAllocationIds.stream()</b>
+<b class="nc"><i>208</i>&nbsp;                    .sorted(Comparator.comparing(assignedAllocations::contains).reversed()) // values with routing entries first</b>
+<b class="nc"><i>209</i>&nbsp;                    .limit(maxActiveShards)</b>
+<b class="nc"><i>210</i>&nbsp;                    .collect(Collectors.toSet());</b>
+<i>211</i>&nbsp;            }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;            // only remove allocation id of failed active primary if there is at least one active shard remaining. Assume for example that
+<i>214</i>&nbsp;            // the primary fails but there is no new primary to fail over to. If we were to remove the allocation id of the primary from the
+<i>215</i>&nbsp;            // in-sync set, this could create an empty primary on the next allocation.
+<b class="fc"><i>216</i>&nbsp;            if (newShardRoutingTable.activeShards().isEmpty() &amp;&amp; updates.firstFailedPrimary != null) {</b>
+<i>217</i>&nbsp;                // add back allocation id of failed primary
+<b class="nc"><i>218</i>&nbsp;                inSyncAllocationIds.add(updates.firstFailedPrimary.allocationId().getId());</b>
+<i>219</i>&nbsp;            }
+<i>220</i>&nbsp;
+<b class="fc"><i>221</i>&nbsp;            assert inSyncAllocationIds.isEmpty() == false || oldInSyncAllocationIds.isEmpty() :</b>
+<i>222</i>&nbsp;                &quot;in-sync allocations cannot become empty after they have been non-empty: &quot; + oldInSyncAllocationIds;
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;            // be extra safe here and only update in-sync set if it is non-empty
+<b class="fc"><i>225</i>&nbsp;            if (inSyncAllocationIds.isEmpty() == false) {</b>
+<b class="fc"><i>226</i>&nbsp;                if (indexMetaDataBuilder == null) {</b>
+<b class="fc"><i>227</i>&nbsp;                    indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);</b>
+<i>228</i>&nbsp;                }
+<b class="fc"><i>229</i>&nbsp;                indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), inSyncAllocationIds);</b>
+<i>230</i>&nbsp;            }
+<i>231</i>&nbsp;        }
+<b class="fc"><i>232</i>&nbsp;        return indexMetaDataBuilder;</b>
+<i>233</i>&nbsp;    }
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;    /**
+<i>236</i>&nbsp;     * Removes allocation ids from the in-sync set for shard copies for which there is no routing entries in the routing table.
+<i>237</i>&nbsp;     * This method is called in AllocationService before any changes to the routing table are made.
+<i>238</i>&nbsp;     */
+<i>239</i>&nbsp;    public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List&lt;StaleShard&gt; staleShards, Logger logger) {
+<b class="nc"><i>240</i>&nbsp;        MetaData oldMetaData = clusterState.metaData();</b>
+<b class="nc"><i>241</i>&nbsp;        RoutingTable oldRoutingTable = clusterState.routingTable();</b>
+<b class="nc"><i>242</i>&nbsp;        MetaData.Builder metaDataBuilder = null;</b>
+<i>243</i>&nbsp;        // group staleShards entries by index
+<b class="nc"><i>244</i>&nbsp;        for (Map.Entry&lt;Index, List&lt;StaleShard&gt;&gt; indexEntry : staleShards.stream().collect(</b>
+<b class="nc"><i>245</i>&nbsp;            Collectors.groupingBy(fs -&gt; fs.getShardId().getIndex())).entrySet()) {</b>
+<b class="nc"><i>246</i>&nbsp;            final IndexMetaData oldIndexMetaData = oldMetaData.getIndexSafe(indexEntry.getKey());</b>
+<b class="nc"><i>247</i>&nbsp;            IndexMetaData.Builder indexMetaDataBuilder = null;</b>
+<i>248</i>&nbsp;            // group staleShards entries by shard id
+<b class="nc"><i>249</i>&nbsp;            for (Map.Entry&lt;ShardId, List&lt;StaleShard&gt;&gt; shardEntry : indexEntry.getValue().stream().collect(</b>
+<b class="nc"><i>250</i>&nbsp;                Collectors.groupingBy(staleShard -&gt; staleShard.getShardId())).entrySet()) {</b>
+<b class="nc"><i>251</i>&nbsp;                int shardNumber = shardEntry.getKey().getId();</b>
+<b class="nc"><i>252</i>&nbsp;                Set&lt;String&gt; oldInSyncAllocations = oldIndexMetaData.inSyncAllocationIds(shardNumber);</b>
+<b class="nc"><i>253</i>&nbsp;                Set&lt;String&gt; idsToRemove = shardEntry.getValue().stream().map(e -&gt; e.getAllocationId()).collect(Collectors.toSet());</b>
+<b class="nc"><i>254</i>&nbsp;                assert idsToRemove.stream().allMatch(id -&gt; oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null) :</b>
+<i>255</i>&nbsp;                    &quot;removing stale ids: &quot; + idsToRemove + &quot;, some of which have still a routing entry: &quot; + oldRoutingTable;
+<b class="nc"><i>256</i>&nbsp;                Set&lt;String&gt; remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);</b>
+<b class="nc"><i>257</i>&nbsp;                assert remainingInSyncAllocations.isEmpty() == false : &quot;Set of in-sync ids cannot become empty for shard &quot; +</b>
+<b class="nc"><i>258</i>&nbsp;                    shardEntry.getKey() + &quot; (before: &quot; + oldInSyncAllocations + &quot;, ids to remove: &quot; + idsToRemove + &quot;)&quot;;</b>
+<i>259</i>&nbsp;                // be extra safe here: if the in-sync set were to become empty, this would create an empty primary on the next allocation
+<i>260</i>&nbsp;                // (see ShardRouting#allocatedPostIndexCreate)
+<b class="nc"><i>261</i>&nbsp;                if (remainingInSyncAllocations.isEmpty() == false) {</b>
+<b class="nc"><i>262</i>&nbsp;                    if (indexMetaDataBuilder == null) {</b>
+<b class="nc"><i>263</i>&nbsp;                        indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);</b>
+<i>264</i>&nbsp;                    }
+<b class="nc"><i>265</i>&nbsp;                    indexMetaDataBuilder.putInSyncAllocationIds(shardNumber, remainingInSyncAllocations);</b>
+<i>266</i>&nbsp;                }
+<b class="nc"><i>267</i>&nbsp;                logger.warn(&quot;{} marking unavailable shards as stale: {}&quot;, shardEntry.getKey(), idsToRemove);</b>
+<b class="nc"><i>268</i>&nbsp;            }</b>
+<i>269</i>&nbsp;
+<b class="nc"><i>270</i>&nbsp;            if (indexMetaDataBuilder != null) {</b>
+<b class="nc"><i>271</i>&nbsp;                if (metaDataBuilder == null) {</b>
+<b class="nc"><i>272</i>&nbsp;                    metaDataBuilder = MetaData.builder(oldMetaData);</b>
+<i>273</i>&nbsp;                }
+<b class="nc"><i>274</i>&nbsp;                metaDataBuilder.put(indexMetaDataBuilder);</b>
+<i>275</i>&nbsp;            }
+<b class="nc"><i>276</i>&nbsp;        }</b>
+<i>277</i>&nbsp;
+<b class="nc"><i>278</i>&nbsp;        if (metaDataBuilder != null) {</b>
+<b class="nc"><i>279</i>&nbsp;            return ClusterState.builder(clusterState).metaData(metaDataBuilder).build();</b>
+<i>280</i>&nbsp;        } else {
+<b class="nc"><i>281</i>&nbsp;            return clusterState;</b>
+<i>282</i>&nbsp;        }
+<i>283</i>&nbsp;    }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    /**
+<i>286</i>&nbsp;     * Increases the primary term if {@link #increasePrimaryTerm} was called for this shard id.
+<i>287</i>&nbsp;     */
+<i>288</i>&nbsp;    private IndexMetaData.Builder updatePrimaryTerm(IndexMetaData oldIndexMetaData, IndexMetaData.Builder indexMetaDataBuilder,
+<i>289</i>&nbsp;                                                    ShardId shardId, Updates updates) {
+<b class="fc"><i>290</i>&nbsp;        if (updates.increaseTerm) {</b>
+<b class="fc"><i>291</i>&nbsp;            if (indexMetaDataBuilder == null) {</b>
+<b class="fc"><i>292</i>&nbsp;                indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);</b>
+<i>293</i>&nbsp;            }
+<b class="fc"><i>294</i>&nbsp;            indexMetaDataBuilder.primaryTerm(shardId.id(), oldIndexMetaData.primaryTerm(shardId.id()) + 1);</b>
+<i>295</i>&nbsp;        }
+<b class="fc"><i>296</i>&nbsp;        return indexMetaDataBuilder;</b>
+<i>297</i>&nbsp;    }
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    /**
+<i>300</i>&nbsp;     * Helper method that creates update entry for the given shard id if such an entry does not exist yet.
+<i>301</i>&nbsp;     */
+<i>302</i>&nbsp;    private Updates changes(ShardId shardId) {
+<b class="fc"><i>303</i>&nbsp;        return shardChanges.computeIfAbsent(shardId, k -&gt; new Updates());</b>
+<i>304</i>&nbsp;    }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;    /**
+<i>307</i>&nbsp;     * Remove allocation id of this shard from the set of in-sync shard copies
+<i>308</i>&nbsp;     */
+<i>309</i>&nbsp;    void removeAllocationId(ShardRouting shardRouting) {
+<b class="nc"><i>310</i>&nbsp;        if (shardRouting.active()) {</b>
+<b class="nc"><i>311</i>&nbsp;            changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());</b>
+<i>312</i>&nbsp;        }
+<b class="nc"><i>313</i>&nbsp;    }</b>
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    /**
+<i>316</i>&nbsp;     * Increase primary term for this shard id
+<i>317</i>&nbsp;     */
+<i>318</i>&nbsp;    private void increasePrimaryTerm(ShardId shardId) {
+<b class="fc"><i>319</i>&nbsp;        changes(shardId).increaseTerm = true;</b>
+<b class="fc"><i>320</i>&nbsp;    }</b>
+<i>321</i>&nbsp;
+<b class="fc"><i>322</i>&nbsp;    private static class Updates {</b>
+<i>323</i>&nbsp;        private boolean increaseTerm; // whether primary term should be increased
+<b class="fc"><i>324</i>&nbsp;        private Set&lt;String&gt; addedAllocationIds = new HashSet&lt;&gt;(); // allocation ids that should be added to the in-sync set</b>
+<b class="fc"><i>325</i>&nbsp;        private Set&lt;String&gt; removedAllocationIds = new HashSet&lt;&gt;(); // allocation ids that should be removed from the in-sync set</b>
+<b class="fc"><i>326</i>&nbsp;        private ShardRouting initializedPrimary = null; // primary that was initialized from unassigned</b>
+<b class="fc"><i>327</i>&nbsp;        private ShardRouting firstFailedPrimary = null; // first active primary that was failed</b>
+<i>328</i>&nbsp;    }
+<i>329</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,329 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PersistentTasksService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.persistent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PersistentTasksService (org.elasticsearch.persistent)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PersistentTasksService</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.4%
+  </span>
+  <span class="absValue">
+    (2/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (6/ 48)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PersistentTasksService$WaitForPersistentTaskListener</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    14.3%
+  </span>
+  <span class="absValue">
+    (2/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12%
+  </span>
+  <span class="absValue">
+    (6/ 50)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.persistent;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionType;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionRequest;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+<i>28</i>&nbsp;import org.elasticsearch.client.Client;
+<i>29</i>&nbsp;import org.elasticsearch.client.OriginSettingClient;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.ClusterStateObserver;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>33</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>35</i>&nbsp;import org.elasticsearch.node.NodeClosedException;
+<i>36</i>&nbsp;import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+<i>37</i>&nbsp;import org.elasticsearch.tasks.TaskId;
+<i>38</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import java.util.function.Predicate;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;/**
+<i>43</i>&nbsp; * This service is used by persistent tasks and allocated persistent tasks to communicate changes
+<i>44</i>&nbsp; * to the master node so that the master can update the cluster state and can track of the states
+<i>45</i>&nbsp; * of the persistent tasks.
+<i>46</i>&nbsp; */
+<b class="nc"><i>47</i>&nbsp;public class PersistentTasksService {</b>
+<i>48</i>&nbsp;
+<b class="fc"><i>49</i>&nbsp;    private static final Logger logger = LogManager.getLogger(PersistentTasksService.class);</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    private static final String PERSISTENT_TASK_ORIGIN = &quot;persistent_tasks&quot;;
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    private final Client client;
+<i>54</i>&nbsp;    private final ClusterService clusterService;
+<i>55</i>&nbsp;    private final ThreadPool threadPool;
+<i>56</i>&nbsp;
+<b class="fc"><i>57</i>&nbsp;    public PersistentTasksService(ClusterService clusterService, ThreadPool threadPool, Client client) {</b>
+<b class="fc"><i>58</i>&nbsp;        this.client = new OriginSettingClient(client, PERSISTENT_TASK_ORIGIN);</b>
+<b class="fc"><i>59</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>60</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>61</i>&nbsp;    }</b>
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    /**
+<i>64</i>&nbsp;     * Notifies the master node to create new persistent task and to assign it to a node.
+<i>65</i>&nbsp;     */
+<i>66</i>&nbsp;    public &lt;Params extends PersistentTaskParams&gt; void sendStartRequest(final String taskId,
+<i>67</i>&nbsp;                                                                       final String taskName,
+<i>68</i>&nbsp;                                                                       final Params taskParams,
+<i>69</i>&nbsp;                                                                       final ActionListener&lt;PersistentTask&lt;Params&gt;&gt; listener) {
+<i>70</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<b class="nc"><i>71</i>&nbsp;        final ActionListener&lt;PersistentTask&lt;?&gt;&gt; wrappedListener = ActionListener.map(listener, t -&gt; (PersistentTask&lt;Params&gt;) t);</b>
+<b class="nc"><i>72</i>&nbsp;        StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);</b>
+<b class="nc"><i>73</i>&nbsp;        execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);</b>
+<b class="nc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    /**
+<i>77</i>&nbsp;     * Notifies the master node about the completion of a persistent task.
+<i>78</i>&nbsp;     * &lt;p&gt;
+<i>79</i>&nbsp;     * When {@code failure} is {@code null}, the persistent task is considered as successfully completed.
+<i>80</i>&nbsp;     */
+<i>81</i>&nbsp;    public void sendCompletionRequest(final String taskId,
+<i>82</i>&nbsp;                                      final long taskAllocationId,
+<i>83</i>&nbsp;                                      final @Nullable Exception taskFailure,
+<i>84</i>&nbsp;                                      final ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>85</i>&nbsp;        CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure);</b>
+<b class="nc"><i>86</i>&nbsp;        execute(request, CompletionPersistentTaskAction.INSTANCE, listener);</b>
+<b class="nc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /**
+<i>90</i>&nbsp;     * Cancels a locally running task using the Task Manager API
+<i>91</i>&nbsp;     */
+<i>92</i>&nbsp;    void sendCancelRequest(final long taskId, final String reason, final ActionListener&lt;CancelTasksResponse&gt; listener) {
+<b class="nc"><i>93</i>&nbsp;        CancelTasksRequest request = new CancelTasksRequest();</b>
+<b class="nc"><i>94</i>&nbsp;        request.setTaskId(new TaskId(clusterService.localNode().getId(), taskId));</b>
+<b class="nc"><i>95</i>&nbsp;        request.setReason(reason);</b>
+<i>96</i>&nbsp;        try {
+<b class="nc"><i>97</i>&nbsp;            client.admin().cluster().cancelTasks(request, listener);</b>
+<b class="nc"><i>98</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>99</i>&nbsp;            listener.onFailure(e);</b>
+<b class="nc"><i>100</i>&nbsp;        }</b>
+<b class="nc"><i>101</i>&nbsp;    }</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    /**
+<i>104</i>&nbsp;     * Notifies the master node that the state of a persistent task has changed.
+<i>105</i>&nbsp;     * &lt;p&gt;
+<i>106</i>&nbsp;     * Persistent task implementers shouldn&#39;t call this method directly and use
+<i>107</i>&nbsp;     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead
+<i>108</i>&nbsp;     */
+<i>109</i>&nbsp;    void sendUpdateStateRequest(final String taskId,
+<i>110</i>&nbsp;                                final long taskAllocationID,
+<i>111</i>&nbsp;                                final PersistentTaskState taskState,
+<i>112</i>&nbsp;                                final ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>113</i>&nbsp;        UpdatePersistentTaskStatusAction.Request request =</b>
+<i>114</i>&nbsp;            new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, taskState);
+<b class="nc"><i>115</i>&nbsp;        execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);</b>
+<b class="nc"><i>116</i>&nbsp;    }</b>
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    /**
+<i>119</i>&nbsp;     * Notifies the master node to remove a persistent task from the cluster state
+<i>120</i>&nbsp;     */
+<i>121</i>&nbsp;    public void sendRemoveRequest(final String taskId, final ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>122</i>&nbsp;        RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);</b>
+<b class="nc"><i>123</i>&nbsp;        execute(request, RemovePersistentTaskAction.INSTANCE, listener);</b>
+<b class="nc"><i>124</i>&nbsp;    }</b>
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    /**
+<i>127</i>&nbsp;     * Executes an asynchronous persistent task action using the client.
+<i>128</i>&nbsp;     * &lt;p&gt;
+<i>129</i>&nbsp;     * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
+<i>130</i>&nbsp;     */
+<i>131</i>&nbsp;    private &lt;Req extends ActionRequest, Resp extends PersistentTaskResponse&gt;
+<i>132</i>&nbsp;        void execute(final Req request, final ActionType&lt;Resp&gt; action, final ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<i>133</i>&nbsp;            try {
+<b class="nc"><i>134</i>&nbsp;                client.execute(action, request, ActionListener.map(listener, PersistentTaskResponse::getTask));</b>
+<b class="nc"><i>135</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>136</i>&nbsp;                listener.onFailure(e);</b>
+<b class="nc"><i>137</i>&nbsp;            }</b>
+<b class="nc"><i>138</i>&nbsp;    }</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /**
+<i>141</i>&nbsp;     * Waits for a given persistent task to comply with a given predicate, then call back the listener accordingly.
+<i>142</i>&nbsp;     *
+<i>143</i>&nbsp;     * @param taskId the persistent task id
+<i>144</i>&nbsp;     * @param predicate the persistent task predicate to evaluate
+<i>145</i>&nbsp;     * @param timeout a timeout for waiting
+<i>146</i>&nbsp;     * @param listener the callback listener
+<i>147</i>&nbsp;     */
+<i>148</i>&nbsp;    public void waitForPersistentTaskCondition(final String taskId,
+<i>149</i>&nbsp;                                               final Predicate&lt;PersistentTask&lt;?&gt;&gt; predicate,
+<i>150</i>&nbsp;                                               final @Nullable TimeValue timeout,
+<i>151</i>&nbsp;                                               final WaitForPersistentTaskListener&lt;?&gt; listener) {
+<b class="nc"><i>152</i>&nbsp;        final Predicate&lt;ClusterState&gt; clusterStatePredicate = clusterState -&gt;</b>
+<b class="nc"><i>153</i>&nbsp;            predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));</b>
+<i>154</i>&nbsp;
+<b class="nc"><i>155</i>&nbsp;        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());</b>
+<b class="nc"><i>156</i>&nbsp;        final ClusterState clusterState = observer.setAndGetObservedState();</b>
+<b class="nc"><i>157</i>&nbsp;        if (clusterStatePredicate.test(clusterState)) {</b>
+<b class="nc"><i>158</i>&nbsp;            listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId));</b>
+<i>159</i>&nbsp;        } else {
+<b class="nc"><i>160</i>&nbsp;            observer.waitForNextChange(new ClusterStateObserver.Listener() {</b>
+<i>161</i>&nbsp;                @Override
+<i>162</i>&nbsp;                public void onNewClusterState(ClusterState state) {
+<i>163</i>&nbsp;                    listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(state, taskId));
+<i>164</i>&nbsp;                }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;                @Override
+<i>167</i>&nbsp;                public void onClusterServiceClose() {
+<i>168</i>&nbsp;                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+<i>169</i>&nbsp;                }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;                @Override
+<i>172</i>&nbsp;                public void onTimeout(TimeValue timeout) {
+<i>173</i>&nbsp;                    listener.onTimeout(timeout);
+<i>174</i>&nbsp;                }
+<i>175</i>&nbsp;            }, clusterStatePredicate);
+<i>176</i>&nbsp;        }
+<b class="nc"><i>177</i>&nbsp;    }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    /**
+<i>180</i>&nbsp;     * Waits for persistent tasks to comply with a given predicate, then call back the listener accordingly.
+<i>181</i>&nbsp;     *
+<i>182</i>&nbsp;     * @param predicate the predicate to evaluate
+<i>183</i>&nbsp;     * @param timeout a timeout for waiting
+<i>184</i>&nbsp;     * @param listener the callback listener
+<i>185</i>&nbsp;     */
+<i>186</i>&nbsp;    public void waitForPersistentTasksCondition(final Predicate&lt;PersistentTasksCustomMetaData&gt; predicate,
+<i>187</i>&nbsp;                                                final @Nullable TimeValue timeout,
+<i>188</i>&nbsp;                                                final ActionListener&lt;Boolean&gt; listener) {
+<b class="nc"><i>189</i>&nbsp;        final Predicate&lt;ClusterState&gt; clusterStatePredicate = clusterState -&gt;</b>
+<b class="nc"><i>190</i>&nbsp;            predicate.test(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE));</b>
+<i>191</i>&nbsp;
+<b class="nc"><i>192</i>&nbsp;        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());</b>
+<b class="nc"><i>193</i>&nbsp;        if (clusterStatePredicate.test(observer.setAndGetObservedState())) {</b>
+<b class="nc"><i>194</i>&nbsp;            listener.onResponse(true);</b>
+<i>195</i>&nbsp;        } else {
+<b class="nc"><i>196</i>&nbsp;            observer.waitForNextChange(new ClusterStateObserver.Listener() {</b>
+<i>197</i>&nbsp;                @Override
+<i>198</i>&nbsp;                public void onNewClusterState(ClusterState state) {
+<i>199</i>&nbsp;                    listener.onResponse(true);
+<i>200</i>&nbsp;                }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;                @Override
+<i>203</i>&nbsp;                public void onClusterServiceClose() {
+<i>204</i>&nbsp;                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+<i>205</i>&nbsp;                }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;                @Override
+<i>208</i>&nbsp;                public void onTimeout(TimeValue timeout) {
+<i>209</i>&nbsp;                    listener.onFailure(new IllegalStateException(&quot;Timed out when waiting for persistent tasks after &quot; + timeout));
+<i>210</i>&nbsp;                }
+<i>211</i>&nbsp;            }, clusterStatePredicate, timeout);
+<i>212</i>&nbsp;        }
+<b class="nc"><i>213</i>&nbsp;    }</b>
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    public interface WaitForPersistentTaskListener&lt;P extends PersistentTaskParams&gt; extends ActionListener&lt;PersistentTask&lt;P&gt;&gt; {
+<i>216</i>&nbsp;        default void onTimeout(TimeValue timeout) {
+<b class="nc"><i>217</i>&nbsp;            onFailure(new IllegalStateException(&quot;Timed out when waiting for persistent task after &quot; + timeout));</b>
+<b class="nc"><i>218</i>&nbsp;        }</b>
+<i>219</i>&nbsp;    }
+<i>220</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

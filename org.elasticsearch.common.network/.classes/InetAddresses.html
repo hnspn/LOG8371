@@ -1,0 +1,470 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InetAddresses</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.network</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InetAddresses (org.elasticsearch.common.network)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InetAddresses</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    56.2%
+  </span>
+  <span class="absValue">
+    (9/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    43.8%
+  </span>
+  <span class="absValue">
+    (64/ 146)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Copyright (C) 2008 The Guava Authors
+<i>3</i>&nbsp; *
+<i>4</i>&nbsp; * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<i>5</i>&nbsp; * you may not use this file except in compliance with the License.
+<i>6</i>&nbsp; * You may obtain a copy of the License at
+<i>7</i>&nbsp; *
+<i>8</i>&nbsp; * http://www.apache.org/licenses/LICENSE-2.0
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; * Unless required by applicable law or agreed to in writing, software
+<i>11</i>&nbsp; * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<i>12</i>&nbsp; * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<i>13</i>&nbsp; * See the License for the specific language governing permissions and
+<i>14</i>&nbsp; * limitations under the License.
+<i>15</i>&nbsp; */
+<i>16</i>&nbsp;
+<i>17</i>&nbsp;package org.elasticsearch.common.network;
+<i>18</i>&nbsp;
+<i>19</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import java.net.Inet4Address;
+<i>22</i>&nbsp;import java.net.Inet6Address;
+<i>23</i>&nbsp;import java.net.InetAddress;
+<i>24</i>&nbsp;import java.net.UnknownHostException;
+<i>25</i>&nbsp;import java.nio.ByteBuffer;
+<i>26</i>&nbsp;import java.util.Arrays;
+<i>27</i>&nbsp;import java.util.Locale;
+<i>28</i>&nbsp;
+<b class="nc"><i>29</i>&nbsp;public class InetAddresses {</b>
+<b class="fc"><i>30</i>&nbsp;    private static int IPV4_PART_COUNT = 4;</b>
+<b class="fc"><i>31</i>&nbsp;    private static int IPV6_PART_COUNT = 8;</b>
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;    public static boolean isInetAddress(String ipString) {
+<b class="fc"><i>34</i>&nbsp;        return ipStringToBytes(ipString) != null;</b>
+<i>35</i>&nbsp;    }
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;    private static byte[] ipStringToBytes(String ipString) {
+<i>38</i>&nbsp;        // Make a first pass to categorize the characters in this string.
+<b class="fc"><i>39</i>&nbsp;        boolean hasColon = false;</b>
+<b class="fc"><i>40</i>&nbsp;        boolean hasDot = false;</b>
+<b class="fc"><i>41</i>&nbsp;        for (int i = 0; i &lt; ipString.length(); i++) {</b>
+<b class="fc"><i>42</i>&nbsp;            char c = ipString.charAt(i);</b>
+<b class="fc"><i>43</i>&nbsp;            if (c == &#39;.&#39;) {</b>
+<b class="fc"><i>44</i>&nbsp;                hasDot = true;</b>
+<b class="fc"><i>45</i>&nbsp;            } else if (c == &#39;:&#39;) {</b>
+<b class="nc"><i>46</i>&nbsp;                if (hasDot) {</b>
+<b class="nc"><i>47</i>&nbsp;                    return null;  // Colons must not appear after dots.</b>
+<i>48</i>&nbsp;                }
+<b class="nc"><i>49</i>&nbsp;                hasColon = true;</b>
+<b class="fc"><i>50</i>&nbsp;            } else if (Character.digit(c, 16) == -1) {</b>
+<b class="nc"><i>51</i>&nbsp;                return null;  // Everything else must be a decimal or hex digit.</b>
+<i>52</i>&nbsp;            }
+<i>53</i>&nbsp;        }
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;        // Now decide which address family to parse.
+<b class="fc"><i>56</i>&nbsp;        if (hasColon) {</b>
+<b class="nc"><i>57</i>&nbsp;            if (hasDot) {</b>
+<b class="nc"><i>58</i>&nbsp;                ipString = convertDottedQuadToHex(ipString);</b>
+<b class="nc"><i>59</i>&nbsp;                if (ipString == null) {</b>
+<b class="nc"><i>60</i>&nbsp;                    return null;</b>
+<i>61</i>&nbsp;                }
+<i>62</i>&nbsp;            }
+<b class="nc"><i>63</i>&nbsp;            return textToNumericFormatV6(ipString);</b>
+<b class="fc"><i>64</i>&nbsp;        } else if (hasDot) {</b>
+<b class="fc"><i>65</i>&nbsp;            return textToNumericFormatV4(ipString);</b>
+<i>66</i>&nbsp;        }
+<b class="nc"><i>67</i>&nbsp;        return null;</b>
+<i>68</i>&nbsp;    }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    private static String convertDottedQuadToHex(String ipString) {
+<b class="nc"><i>71</i>&nbsp;        int lastColon = ipString.lastIndexOf(&#39;:&#39;);</b>
+<b class="nc"><i>72</i>&nbsp;        String initialPart = ipString.substring(0, lastColon + 1);</b>
+<b class="nc"><i>73</i>&nbsp;        String dottedQuad = ipString.substring(lastColon + 1);</b>
+<b class="nc"><i>74</i>&nbsp;        byte[] quad = textToNumericFormatV4(dottedQuad);</b>
+<b class="nc"><i>75</i>&nbsp;        if (quad == null) {</b>
+<b class="nc"><i>76</i>&nbsp;            return null;</b>
+<i>77</i>&nbsp;        }
+<b class="nc"><i>78</i>&nbsp;        String penultimate = Integer.toHexString(((quad[0] &amp; 0xff) &lt;&lt; 8) | (quad[1] &amp; 0xff));</b>
+<b class="nc"><i>79</i>&nbsp;        String ultimate = Integer.toHexString(((quad[2] &amp; 0xff) &lt;&lt; 8) | (quad[3] &amp; 0xff));</b>
+<b class="nc"><i>80</i>&nbsp;        return initialPart + penultimate + &quot;:&quot; + ultimate;</b>
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    private static byte[] textToNumericFormatV4(String ipString) {
+<b class="fc"><i>84</i>&nbsp;        String[] address = ipString.split(&quot;\\.&quot;, IPV4_PART_COUNT + 1);</b>
+<b class="fc"><i>85</i>&nbsp;        if (address.length != IPV4_PART_COUNT) {</b>
+<b class="nc"><i>86</i>&nbsp;            return null;</b>
+<i>87</i>&nbsp;        }
+<i>88</i>&nbsp;
+<b class="fc"><i>89</i>&nbsp;        byte[] bytes = new byte[IPV4_PART_COUNT];</b>
+<i>90</i>&nbsp;        try {
+<b class="fc"><i>91</i>&nbsp;            for (int i = 0; i &lt; bytes.length; i++) {</b>
+<b class="fc"><i>92</i>&nbsp;                bytes[i] = parseOctet(address[i]);</b>
+<i>93</i>&nbsp;            }
+<b class="nc"><i>94</i>&nbsp;        } catch (NumberFormatException ex) {</b>
+<b class="nc"><i>95</i>&nbsp;            return null;</b>
+<b class="fc"><i>96</i>&nbsp;        }</b>
+<i>97</i>&nbsp;
+<b class="fc"><i>98</i>&nbsp;        return bytes;</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    private static byte parseOctet(String ipPart) {
+<i>102</i>&nbsp;        // Note: we already verified that this string contains only hex digits.
+<b class="fc"><i>103</i>&nbsp;        int octet = Integer.parseInt(ipPart);</b>
+<i>104</i>&nbsp;        // Disallow leading zeroes, because no clear standard exists on
+<i>105</i>&nbsp;        // whether these should be interpreted as decimal or octal.
+<b class="fc"><i>106</i>&nbsp;        if (octet &gt; 255 || (ipPart.startsWith(&quot;0&quot;) &amp;&amp; ipPart.length() &gt; 1)) {</b>
+<b class="nc"><i>107</i>&nbsp;            throw new NumberFormatException();</b>
+<i>108</i>&nbsp;        }
+<b class="fc"><i>109</i>&nbsp;        return (byte) octet;</b>
+<i>110</i>&nbsp;    }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    private static byte[] textToNumericFormatV6(String ipString) {
+<i>113</i>&nbsp;        // An address can have [2..8] colons, and N colons make N+1 parts.
+<b class="nc"><i>114</i>&nbsp;        String[] parts = ipString.split(&quot;:&quot;, IPV6_PART_COUNT + 2);</b>
+<b class="nc"><i>115</i>&nbsp;        if (parts.length &lt; 3 || parts.length &gt; IPV6_PART_COUNT + 1) {</b>
+<b class="nc"><i>116</i>&nbsp;            return null;</b>
+<i>117</i>&nbsp;        }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;        // Disregarding the endpoints, find &quot;::&quot; with nothing in between.
+<i>120</i>&nbsp;        // This indicates that a run of zeroes has been skipped.
+<b class="nc"><i>121</i>&nbsp;        int skipIndex = -1;</b>
+<b class="nc"><i>122</i>&nbsp;        for (int i = 1; i &lt; parts.length - 1; i++) {</b>
+<b class="nc"><i>123</i>&nbsp;            if (parts[i].length() == 0) {</b>
+<b class="nc"><i>124</i>&nbsp;                if (skipIndex &gt;= 0) {</b>
+<b class="nc"><i>125</i>&nbsp;                    return null;  // Can&#39;t have more than one ::</b>
+<i>126</i>&nbsp;                }
+<b class="nc"><i>127</i>&nbsp;                skipIndex = i;</b>
+<i>128</i>&nbsp;            }
+<i>129</i>&nbsp;        }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;        int partsHi;  // Number of parts to copy from above/before the &quot;::&quot;
+<i>132</i>&nbsp;        int partsLo;  // Number of parts to copy from below/after the &quot;::&quot;
+<b class="nc"><i>133</i>&nbsp;        if (skipIndex &gt;= 0) {</b>
+<i>134</i>&nbsp;            // If we found a &quot;::&quot;, then check if it also covers the endpoints.
+<b class="nc"><i>135</i>&nbsp;            partsHi = skipIndex;</b>
+<b class="nc"><i>136</i>&nbsp;            partsLo = parts.length - skipIndex - 1;</b>
+<b class="nc"><i>137</i>&nbsp;            if (parts[0].length() == 0 &amp;&amp; --partsHi != 0) {</b>
+<b class="nc"><i>138</i>&nbsp;                return null;  // ^: requires ^::</b>
+<i>139</i>&nbsp;            }
+<b class="nc"><i>140</i>&nbsp;            if (parts[parts.length - 1].length() == 0 &amp;&amp; --partsLo != 0) {</b>
+<b class="nc"><i>141</i>&nbsp;                return null;  // :$ requires ::$</b>
+<i>142</i>&nbsp;            }
+<i>143</i>&nbsp;        } else {
+<i>144</i>&nbsp;            // Otherwise, allocate the entire address to partsHi.  The endpoints
+<i>145</i>&nbsp;            // could still be empty, but parseHextet() will check for that.
+<b class="nc"><i>146</i>&nbsp;            partsHi = parts.length;</b>
+<b class="nc"><i>147</i>&nbsp;            partsLo = 0;</b>
+<i>148</i>&nbsp;        }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;        // If we found a ::, then we must have skipped at least one part.
+<i>151</i>&nbsp;        // Otherwise, we must have exactly the right number of parts.
+<b class="nc"><i>152</i>&nbsp;        int partsSkipped = IPV6_PART_COUNT - (partsHi + partsLo);</b>
+<b class="nc"><i>153</i>&nbsp;        if (!(skipIndex &gt;= 0 ? partsSkipped &gt;= 1 : partsSkipped == 0)) {</b>
+<b class="nc"><i>154</i>&nbsp;            return null;</b>
+<i>155</i>&nbsp;        }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;        // Now parse the hextets into a byte array.
+<b class="nc"><i>158</i>&nbsp;        ByteBuffer rawBytes = ByteBuffer.allocate(2 * IPV6_PART_COUNT);</b>
+<i>159</i>&nbsp;        try {
+<b class="nc"><i>160</i>&nbsp;            for (int i = 0; i &lt; partsHi; i++) {</b>
+<b class="nc"><i>161</i>&nbsp;                rawBytes.putShort(parseHextet(parts[i]));</b>
+<i>162</i>&nbsp;            }
+<b class="nc"><i>163</i>&nbsp;            for (int i = 0; i &lt; partsSkipped; i++) {</b>
+<b class="nc"><i>164</i>&nbsp;                rawBytes.putShort((short) 0);</b>
+<i>165</i>&nbsp;            }
+<b class="nc"><i>166</i>&nbsp;            for (int i = partsLo; i &gt; 0; i--) {</b>
+<b class="nc"><i>167</i>&nbsp;                rawBytes.putShort(parseHextet(parts[parts.length - i]));</b>
+<i>168</i>&nbsp;            }
+<b class="nc"><i>169</i>&nbsp;        } catch (NumberFormatException ex) {</b>
+<b class="nc"><i>170</i>&nbsp;            return null;</b>
+<b class="nc"><i>171</i>&nbsp;        }</b>
+<b class="nc"><i>172</i>&nbsp;        return rawBytes.array();</b>
+<i>173</i>&nbsp;    }
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;    private static short parseHextet(String ipPart) {
+<i>176</i>&nbsp;        // Note: we already verified that this string contains only hex digits.
+<b class="nc"><i>177</i>&nbsp;        int hextet = Integer.parseInt(ipPart, 16);</b>
+<b class="nc"><i>178</i>&nbsp;        if (hextet &gt; 0xffff) {</b>
+<b class="nc"><i>179</i>&nbsp;            throw new NumberFormatException();</b>
+<i>180</i>&nbsp;        }
+<b class="nc"><i>181</i>&nbsp;        return (short) hextet;</b>
+<i>182</i>&nbsp;    }
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    /**
+<i>185</i>&nbsp;     * Returns the string representation of an {@link InetAddress} suitable
+<i>186</i>&nbsp;     * for inclusion in a URI.
+<i>187</i>&nbsp;     *
+<i>188</i>&nbsp;     * &lt;p&gt;For IPv4 addresses, this is identical to
+<i>189</i>&nbsp;     * {@link InetAddress#getHostAddress()}, but for IPv6 addresses it
+<i>190</i>&nbsp;     * compresses zeroes and surrounds the text with square brackets; for example
+<i>191</i>&nbsp;     * {@code &quot;[2001:db8::1]&quot;}.
+<i>192</i>&nbsp;     *
+<i>193</i>&nbsp;     * &lt;p&gt;Per section 3.2.2 of
+<i>194</i>&nbsp;     * &lt;a target=&quot;_parent&quot;
+<i>195</i>&nbsp;     *    href=&quot;http://tools.ietf.org/html/rfc3986#section-3.2.2&quot;
+<i>196</i>&nbsp;     *  &gt;http://tools.ietf.org/html/rfc3986&lt;/a&gt;,
+<i>197</i>&nbsp;     * a URI containing an IPv6 string literal is of the form
+<i>198</i>&nbsp;     * {@code &quot;http://[2001:db8::1]:8888/index.html&quot;}.
+<i>199</i>&nbsp;     *
+<i>200</i>&nbsp;     * &lt;p&gt;Use of either {@link InetAddresses#toAddrString},
+<i>201</i>&nbsp;     * {@link InetAddress#getHostAddress()}, or this method is recommended over
+<i>202</i>&nbsp;     * {@link InetAddress#toString()} when an IP address string literal is
+<i>203</i>&nbsp;     * desired.  This is because {@link InetAddress#toString()} prints the
+<i>204</i>&nbsp;     * hostname and the IP address string joined by a &quot;/&quot;.
+<i>205</i>&nbsp;     *
+<i>206</i>&nbsp;     * @param ip {@link InetAddress} to be converted to URI string literal
+<i>207</i>&nbsp;     * @return {@code String} containing URI-safe string literal
+<i>208</i>&nbsp;     */
+<i>209</i>&nbsp;    public static String toUriString(InetAddress ip) {
+<b class="fc"><i>210</i>&nbsp;        if (ip instanceof Inet6Address) {</b>
+<b class="fc"><i>211</i>&nbsp;            return &quot;[&quot; + toAddrString(ip) + &quot;]&quot;;</b>
+<i>212</i>&nbsp;        }
+<b class="nc"><i>213</i>&nbsp;        return toAddrString(ip);</b>
+<i>214</i>&nbsp;    }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    /**
+<i>217</i>&nbsp;     * Returns the string representation of an {@link InetAddress}.
+<i>218</i>&nbsp;     *
+<i>219</i>&nbsp;     * &lt;p&gt;For IPv4 addresses, this is identical to
+<i>220</i>&nbsp;     * {@link InetAddress#getHostAddress()}, but for IPv6 addresses, the output
+<i>221</i>&nbsp;     * follows &lt;a href=&quot;http://tools.ietf.org/html/rfc5952&quot;&gt;RFC 5952&lt;/a&gt;
+<i>222</i>&nbsp;     * section 4.  The main difference is that this method uses &quot;::&quot; for zero
+<i>223</i>&nbsp;     * compression, while Java&#39;s version uses the uncompressed form.
+<i>224</i>&nbsp;     *
+<i>225</i>&nbsp;     * &lt;p&gt;This method uses hexadecimal for all IPv6 addresses, including
+<i>226</i>&nbsp;     * IPv4-mapped IPv6 addresses such as &quot;::c000:201&quot;.  The output does not
+<i>227</i>&nbsp;     * include a Scope ID.
+<i>228</i>&nbsp;     *
+<i>229</i>&nbsp;     * @param ip {@link InetAddress} to be converted to an address string
+<i>230</i>&nbsp;     * @return {@code String} containing the text-formatted IP address
+<i>231</i>&nbsp;     * @since 10.0
+<i>232</i>&nbsp;     */
+<i>233</i>&nbsp;    public static String toAddrString(InetAddress ip) {
+<b class="fc"><i>234</i>&nbsp;        if (ip == null) {</b>
+<b class="nc"><i>235</i>&nbsp;            throw new NullPointerException(&quot;ip&quot;);</b>
+<i>236</i>&nbsp;        }
+<b class="fc"><i>237</i>&nbsp;        if (ip instanceof Inet4Address) {</b>
+<i>238</i>&nbsp;            // For IPv4, Java&#39;s formatting is good enough.
+<b class="fc"><i>239</i>&nbsp;            byte[] bytes = ip.getAddress();</b>
+<b class="fc"><i>240</i>&nbsp;            return (bytes[0] &amp; 0xff) + &quot;.&quot; + (bytes[1] &amp; 0xff) + &quot;.&quot; + (bytes[2] &amp; 0xff) + &quot;.&quot; + (bytes[3] &amp; 0xff);</b>
+<i>241</i>&nbsp;        }
+<b class="fc"><i>242</i>&nbsp;        if (!(ip instanceof Inet6Address)) {</b>
+<b class="nc"><i>243</i>&nbsp;            throw new IllegalArgumentException(&quot;ip&quot;);</b>
+<i>244</i>&nbsp;        }
+<b class="fc"><i>245</i>&nbsp;        byte[] bytes = ip.getAddress();</b>
+<b class="fc"><i>246</i>&nbsp;        int[] hextets = new int[IPV6_PART_COUNT];</b>
+<b class="fc"><i>247</i>&nbsp;        for (int i = 0; i &lt; hextets.length; i++) {</b>
+<b class="fc"><i>248</i>&nbsp;            hextets[i] =  (bytes[2 * i] &amp; 255) &lt;&lt; 8 | bytes[2 * i + 1] &amp; 255;</b>
+<i>249</i>&nbsp;        }
+<b class="fc"><i>250</i>&nbsp;        compressLongestRunOfZeroes(hextets);</b>
+<b class="fc"><i>251</i>&nbsp;        return hextetsToIPv6String(hextets);</b>
+<i>252</i>&nbsp;    }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    /**
+<i>255</i>&nbsp;     * Identify and mark the longest run of zeroes in an IPv6 address.
+<i>256</i>&nbsp;     *
+<i>257</i>&nbsp;     * &lt;p&gt;Only runs of two or more hextets are considered.  In case of a tie, the
+<i>258</i>&nbsp;     * leftmost run wins.  If a qualifying run is found, its hextets are replaced
+<i>259</i>&nbsp;     * by the sentinel value -1.
+<i>260</i>&nbsp;     *
+<i>261</i>&nbsp;     * @param hextets {@code int[]} mutable array of eight 16-bit hextets
+<i>262</i>&nbsp;     */
+<i>263</i>&nbsp;    private static void compressLongestRunOfZeroes(int[] hextets) {
+<b class="fc"><i>264</i>&nbsp;        int bestRunStart = -1;</b>
+<b class="fc"><i>265</i>&nbsp;        int bestRunLength = -1;</b>
+<b class="fc"><i>266</i>&nbsp;        int runStart = -1;</b>
+<b class="fc"><i>267</i>&nbsp;        for (int i = 0; i &lt; hextets.length + 1; i++) {</b>
+<b class="fc"><i>268</i>&nbsp;            if (i &lt; hextets.length &amp;&amp; hextets[i] == 0) {</b>
+<b class="fc"><i>269</i>&nbsp;                if (runStart &lt; 0) {</b>
+<b class="fc"><i>270</i>&nbsp;                    runStart = i;</b>
+<i>271</i>&nbsp;                }
+<b class="fc"><i>272</i>&nbsp;            } else if (runStart &gt;= 0) {</b>
+<b class="fc"><i>273</i>&nbsp;                int runLength = i - runStart;</b>
+<b class="fc"><i>274</i>&nbsp;                if (runLength &gt; bestRunLength) {</b>
+<b class="fc"><i>275</i>&nbsp;                    bestRunStart = runStart;</b>
+<b class="fc"><i>276</i>&nbsp;                    bestRunLength = runLength;</b>
+<i>277</i>&nbsp;                }
+<b class="fc"><i>278</i>&nbsp;                runStart = -1;</b>
+<i>279</i>&nbsp;            }
+<i>280</i>&nbsp;        }
+<b class="fc"><i>281</i>&nbsp;        if (bestRunLength &gt;= 2) {</b>
+<b class="fc"><i>282</i>&nbsp;            Arrays.fill(hextets, bestRunStart, bestRunStart + bestRunLength, -1);</b>
+<i>283</i>&nbsp;        }
+<b class="fc"><i>284</i>&nbsp;    }</b>
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;    /**
+<i>287</i>&nbsp;     * Convert a list of hextets into a human-readable IPv6 address.
+<i>288</i>&nbsp;     *
+<i>289</i>&nbsp;     * &lt;p&gt;In order for &quot;::&quot; compression to work, the input should contain negative
+<i>290</i>&nbsp;     * sentinel values in place of the elided zeroes.
+<i>291</i>&nbsp;     *
+<i>292</i>&nbsp;     * @param hextets {@code int[]} array of eight 16-bit hextets, or -1s
+<i>293</i>&nbsp;     */
+<i>294</i>&nbsp;    private static String hextetsToIPv6String(int[] hextets) {
+<i>295</i>&nbsp;    /*
+<i>296</i>&nbsp;     * While scanning the array, handle these state transitions:
+<i>297</i>&nbsp;     *   start-&gt;num =&gt; &quot;num&quot;     start-&gt;gap =&gt; &quot;::&quot;
+<i>298</i>&nbsp;     *   num-&gt;num   =&gt; &quot;:num&quot;    num-&gt;gap   =&gt; &quot;::&quot;
+<i>299</i>&nbsp;     *   gap-&gt;num   =&gt; &quot;num&quot;     gap-&gt;gap   =&gt; &quot;&quot;
+<i>300</i>&nbsp;     */
+<b class="fc"><i>301</i>&nbsp;        StringBuilder buf = new StringBuilder(39);</b>
+<b class="fc"><i>302</i>&nbsp;        boolean lastWasNumber = false;</b>
+<b class="fc"><i>303</i>&nbsp;        for (int i = 0; i &lt; hextets.length; i++) {</b>
+<b class="fc"><i>304</i>&nbsp;            boolean thisIsNumber = hextets[i] &gt;= 0;</b>
+<b class="fc"><i>305</i>&nbsp;            if (thisIsNumber) {</b>
+<b class="fc"><i>306</i>&nbsp;                if (lastWasNumber) {</b>
+<b class="nc"><i>307</i>&nbsp;                    buf.append(&#39;:&#39;);</b>
+<i>308</i>&nbsp;                }
+<b class="fc"><i>309</i>&nbsp;                buf.append(Integer.toHexString(hextets[i]));</b>
+<i>310</i>&nbsp;            } else {
+<b class="fc"><i>311</i>&nbsp;                if (i == 0 || lastWasNumber) {</b>
+<b class="fc"><i>312</i>&nbsp;                    buf.append(&quot;::&quot;);</b>
+<i>313</i>&nbsp;                }
+<i>314</i>&nbsp;            }
+<b class="fc"><i>315</i>&nbsp;            lastWasNumber = thisIsNumber;</b>
+<i>316</i>&nbsp;        }
+<b class="fc"><i>317</i>&nbsp;        return buf.toString();</b>
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    /**
+<i>321</i>&nbsp;     * Returns the {@link InetAddress} having the given string representation.
+<i>322</i>&nbsp;     *
+<i>323</i>&nbsp;     * &lt;p&gt;This deliberately avoids all nameservice lookups (e.g. no DNS).
+<i>324</i>&nbsp;     *
+<i>325</i>&nbsp;     * @param ipString {@code String} containing an IPv4 or IPv6 string literal, e.g.
+<i>326</i>&nbsp;     *     {@code &quot;192.168.0.1&quot;} or {@code &quot;2001:db8::1&quot;}
+<i>327</i>&nbsp;     * @return {@link InetAddress} representing the argument
+<i>328</i>&nbsp;     * @throws IllegalArgumentException if the argument is not a valid IP string literal
+<i>329</i>&nbsp;     */
+<i>330</i>&nbsp;    public static InetAddress forString(String ipString) {
+<b class="nc"><i>331</i>&nbsp;        byte[] addr = ipStringToBytes(ipString);</b>
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;        // The argument was malformed, i.e. not an IP string literal.
+<b class="nc"><i>334</i>&nbsp;        if (addr == null) {</b>
+<b class="nc"><i>335</i>&nbsp;            throw new IllegalArgumentException(String.format(Locale.ROOT, &quot;&#39;%s&#39; is not an IP string literal.&quot;, ipString));</b>
+<i>336</i>&nbsp;        }
+<i>337</i>&nbsp;
+<b class="nc"><i>338</i>&nbsp;        return bytesToInetAddress(addr);</b>
+<i>339</i>&nbsp;    }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;    /**
+<i>342</i>&nbsp;     * Convert a byte array into an InetAddress.
+<i>343</i>&nbsp;     *
+<i>344</i>&nbsp;     * {@link InetAddress#getByAddress} is documented as throwing a checked
+<i>345</i>&nbsp;     * exception &quot;if IP address is of illegal length.&quot;  We replace it with
+<i>346</i>&nbsp;     * an unchecked exception, for use by callers who already know that addr
+<i>347</i>&nbsp;     * is an array of length 4 or 16.
+<i>348</i>&nbsp;     *
+<i>349</i>&nbsp;     * @param addr the raw 4-byte or 16-byte IP address in big-endian order
+<i>350</i>&nbsp;     * @return an InetAddress object created from the raw IP address
+<i>351</i>&nbsp;     */
+<i>352</i>&nbsp;    private static InetAddress bytesToInetAddress(byte[] addr) {
+<i>353</i>&nbsp;        try {
+<b class="nc"><i>354</i>&nbsp;            return InetAddress.getByAddress(addr);</b>
+<b class="nc"><i>355</i>&nbsp;        } catch (UnknownHostException e) {</b>
+<b class="nc"><i>356</i>&nbsp;            throw new AssertionError(e);</b>
+<i>357</i>&nbsp;        }
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    /**
+<i>361</i>&nbsp;     * Parse an IP address and its prefix length using the CIDR notation.
+<i>362</i>&nbsp;     * @throws IllegalArgumentException if the string is not formatted as {@code ip_address/prefix_length}
+<i>363</i>&nbsp;     * @throws IllegalArgumentException if the IP address is an IPv6-mapped ipv4 address
+<i>364</i>&nbsp;     * @throws IllegalArgumentException if the prefix length is not in 0-32 for IPv4 addresses and 0-128 for IPv6 addresses
+<i>365</i>&nbsp;     * @throws NumberFormatException if the prefix length is not an integer
+<i>366</i>&nbsp;     */
+<i>367</i>&nbsp;    public static Tuple&lt;InetAddress, Integer&gt; parseCidr(String maskedAddress) {
+<b class="nc"><i>368</i>&nbsp;        String[] fields = maskedAddress.split(&quot;/&quot;);</b>
+<b class="nc"><i>369</i>&nbsp;        if (fields.length == 2) {</b>
+<b class="nc"><i>370</i>&nbsp;            final String addressString = fields[0];</b>
+<b class="nc"><i>371</i>&nbsp;            final InetAddress address = forString(addressString);</b>
+<b class="nc"><i>372</i>&nbsp;            if (addressString.contains(&quot;:&quot;) &amp;&amp; address.getAddress().length == 4) {</b>
+<b class="nc"><i>373</i>&nbsp;                throw new IllegalArgumentException(&quot;CIDR notation is not allowed with IPv6-mapped IPv4 address [&quot; + addressString +</b>
+<i>374</i>&nbsp;                        &quot; as it introduces ambiguity as to whether the prefix length should be interpreted as a v4 prefix length or a&quot; +
+<i>375</i>&nbsp;                        &quot; v6 prefix length&quot;);
+<i>376</i>&nbsp;            }
+<b class="nc"><i>377</i>&nbsp;            final int prefixLength = Integer.parseInt(fields[1]);</b>
+<b class="nc"><i>378</i>&nbsp;            if (prefixLength &lt; 0 || prefixLength &gt; 8 * address.getAddress().length) {</b>
+<b class="nc"><i>379</i>&nbsp;                throw new IllegalArgumentException(&quot;Illegal prefix length [&quot; + prefixLength + &quot;] in [&quot; + maskedAddress +</b>
+<i>380</i>&nbsp;                        &quot;]. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges&quot;);
+<i>381</i>&nbsp;            }
+<b class="nc"><i>382</i>&nbsp;            return new Tuple&lt;&gt;(address, prefixLength);</b>
+<i>383</i>&nbsp;        } else {
+<b class="nc"><i>384</i>&nbsp;            throw new IllegalArgumentException(&quot;Expected [ip/prefix] but was [&quot; + maskedAddress + &quot;]&quot;);</b>
+<i>385</i>&nbsp;        }
+<i>386</i>&nbsp;    }
+<i>387</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

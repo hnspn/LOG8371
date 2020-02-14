@@ -1,0 +1,202 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TimedRunnable</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util.concurrent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TimedRunnable (org.elasticsearch.common.util.concurrent)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TimedRunnable</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 33)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.util.concurrent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;/**
+<i>25</i>&nbsp; * A class used to wrap a {@code Runnable} that allows capturing the time of the task since creation
+<i>26</i>&nbsp; * through execution as well as only execution time.
+<i>27</i>&nbsp; */
+<i>28</i>&nbsp;class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
+<i>29</i>&nbsp;    private final Runnable original;
+<i>30</i>&nbsp;    private final long creationTimeNanos;
+<i>31</i>&nbsp;    private long startTimeNanos;
+<b class="nc"><i>32</i>&nbsp;    private long finishTimeNanos = -1;</b>
+<b class="nc"><i>33</i>&nbsp;    private boolean failedOrRejected = false;</b>
+<i>34</i>&nbsp;
+<b class="nc"><i>35</i>&nbsp;    TimedRunnable(final Runnable original) {</b>
+<b class="nc"><i>36</i>&nbsp;        this.original = original;</b>
+<b class="nc"><i>37</i>&nbsp;        this.creationTimeNanos = System.nanoTime();</b>
+<b class="nc"><i>38</i>&nbsp;    }</b>
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    @Override
+<i>41</i>&nbsp;    public void doRun() {
+<i>42</i>&nbsp;        try {
+<b class="nc"><i>43</i>&nbsp;            startTimeNanos = System.nanoTime();</b>
+<b class="nc"><i>44</i>&nbsp;            original.run();</b>
+<i>45</i>&nbsp;        } finally {
+<b class="nc"><i>46</i>&nbsp;            finishTimeNanos = System.nanoTime();</b>
+<b class="nc"><i>47</i>&nbsp;        }</b>
+<b class="nc"><i>48</i>&nbsp;    }</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    @Override
+<i>51</i>&nbsp;    public void onRejection(final Exception e) {
+<b class="nc"><i>52</i>&nbsp;        this.failedOrRejected = true;</b>
+<b class="nc"><i>53</i>&nbsp;        if (original instanceof AbstractRunnable) {</b>
+<b class="nc"><i>54</i>&nbsp;            ((AbstractRunnable) original).onRejection(e);</b>
+<i>55</i>&nbsp;        } else {
+<b class="nc"><i>56</i>&nbsp;            ExceptionsHelper.reThrowIfNotNull(e);</b>
+<i>57</i>&nbsp;        }
+<b class="nc"><i>58</i>&nbsp;    }</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    @Override
+<i>61</i>&nbsp;    public void onAfter() {
+<b class="nc"><i>62</i>&nbsp;        if (original instanceof AbstractRunnable) {</b>
+<b class="nc"><i>63</i>&nbsp;            ((AbstractRunnable) original).onAfter();</b>
+<i>64</i>&nbsp;        }
+<b class="nc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    @Override
+<i>68</i>&nbsp;    public void onFailure(final Exception e) {
+<b class="nc"><i>69</i>&nbsp;        this.failedOrRejected = true;</b>
+<b class="nc"><i>70</i>&nbsp;        if (original instanceof AbstractRunnable) {</b>
+<b class="nc"><i>71</i>&nbsp;            ((AbstractRunnable) original).onFailure(e);</b>
+<i>72</i>&nbsp;        } else {
+<b class="nc"><i>73</i>&nbsp;            ExceptionsHelper.reThrowIfNotNull(e);</b>
+<i>74</i>&nbsp;        }
+<b class="nc"><i>75</i>&nbsp;    }</b>
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    @Override
+<i>78</i>&nbsp;    public boolean isForceExecution() {
+<b class="nc"><i>79</i>&nbsp;        return original instanceof AbstractRunnable &amp;&amp; ((AbstractRunnable) original).isForceExecution();</b>
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * Return the time since this task was created until it finished running.
+<i>84</i>&nbsp;     * If the task is still running or has not yet been run, returns -1.
+<i>85</i>&nbsp;     */
+<i>86</i>&nbsp;    long getTotalNanos() {
+<b class="nc"><i>87</i>&nbsp;        if (finishTimeNanos == -1) {</b>
+<i>88</i>&nbsp;            // There must have been an exception thrown, the total time is unknown (-1)
+<b class="nc"><i>89</i>&nbsp;            return -1;</b>
+<i>90</i>&nbsp;        }
+<b class="nc"><i>91</i>&nbsp;        return Math.max(finishTimeNanos - creationTimeNanos, 1);</b>
+<i>92</i>&nbsp;    }
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    /**
+<i>95</i>&nbsp;     * Return the time this task spent being run.
+<i>96</i>&nbsp;     * If the task is still running or has not yet been run, returns -1.
+<i>97</i>&nbsp;     */
+<i>98</i>&nbsp;    long getTotalExecutionNanos() {
+<b class="nc"><i>99</i>&nbsp;        if (startTimeNanos == -1 || finishTimeNanos == -1) {</b>
+<i>100</i>&nbsp;            // There must have been an exception thrown, the total time is unknown (-1)
+<b class="nc"><i>101</i>&nbsp;            return -1;</b>
+<i>102</i>&nbsp;        }
+<b class="nc"><i>103</i>&nbsp;        return Math.max(finishTimeNanos - startTimeNanos, 1);</b>
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    /**
+<i>107</i>&nbsp;     * If the task was failed or rejected, return true.
+<i>108</i>&nbsp;     * Otherwise, false.
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    boolean getFailedOrRejected() {
+<b class="nc"><i>111</i>&nbsp;        return this.failedOrRejected;</b>
+<i>112</i>&nbsp;    }
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    @Override
+<i>115</i>&nbsp;    public Runnable unwrap() {
+<b class="nc"><i>116</i>&nbsp;        return original;</b>
+<i>117</i>&nbsp;    }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,747 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AbstractSearchAsyncAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AbstractSearchAsyncAction (org.elasticsearch.action.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AbstractSearchAsyncAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 35)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 252)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>24</i>&nbsp;import org.apache.lucene.util.SetOnce;
+<i>25</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>26</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>27</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>28</i>&nbsp;import org.elasticsearch.action.NoShardAvailableActionException;
+<i>29</i>&nbsp;import org.elasticsearch.action.ShardOperationFailedException;
+<i>30</i>&nbsp;import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+<i>31</i>&nbsp;import org.elasticsearch.action.support.TransportActions;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.routing.GroupShardsIterator;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>34</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>35</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>36</i>&nbsp;import org.elasticsearch.common.util.concurrent.AtomicArray;
+<i>37</i>&nbsp;import org.elasticsearch.search.SearchPhaseResult;
+<i>38</i>&nbsp;import org.elasticsearch.search.SearchShardTarget;
+<i>39</i>&nbsp;import org.elasticsearch.search.internal.AliasFilter;
+<i>40</i>&nbsp;import org.elasticsearch.search.internal.InternalSearchResponse;
+<i>41</i>&nbsp;import org.elasticsearch.search.internal.SearchContext;
+<i>42</i>&nbsp;import org.elasticsearch.search.internal.ShardSearchRequest;
+<i>43</i>&nbsp;import org.elasticsearch.transport.Transport;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;import java.util.ArrayDeque;
+<i>46</i>&nbsp;import java.util.ArrayList;
+<i>47</i>&nbsp;import java.util.Collections;
+<i>48</i>&nbsp;import java.util.List;
+<i>49</i>&nbsp;import java.util.Map;
+<i>50</i>&nbsp;import java.util.Set;
+<i>51</i>&nbsp;import java.util.concurrent.ConcurrentHashMap;
+<i>52</i>&nbsp;import java.util.concurrent.Executor;
+<i>53</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>54</i>&nbsp;import java.util.function.BiFunction;
+<i>55</i>&nbsp;import java.util.stream.Collectors;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;/**
+<i>58</i>&nbsp; * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
+<i>59</i>&nbsp; * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
+<i>60</i>&nbsp; * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
+<i>61</i>&nbsp; * referred to as the {@code shardIndex}.
+<i>62</i>&nbsp; * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
+<i>63</i>&nbsp; * distributed frequencies
+<i>64</i>&nbsp; */
+<b class="nc"><i>65</i>&nbsp;abstract class AbstractSearchAsyncAction&lt;Result extends SearchPhaseResult&gt; extends SearchPhase implements SearchPhaseContext {</b>
+<i>66</i>&nbsp;    private static final float DEFAULT_INDEX_BOOST = 1.0f;
+<i>67</i>&nbsp;    private final Logger logger;
+<i>68</i>&nbsp;    private final SearchTransportService searchTransportService;
+<i>69</i>&nbsp;    private final Executor executor;
+<i>70</i>&nbsp;    private final ActionListener&lt;SearchResponse&gt; listener;
+<i>71</i>&nbsp;    private final SearchRequest request;
+<i>72</i>&nbsp;    /**
+<i>73</i>&nbsp;     * Used by subclasses to resolve node ids to DiscoveryNodes.
+<i>74</i>&nbsp;     **/
+<i>75</i>&nbsp;    private final BiFunction&lt;String, String, Transport.Connection&gt; nodeIdToConnection;
+<i>76</i>&nbsp;    private final SearchTask task;
+<i>77</i>&nbsp;    private final SearchPhaseResults&lt;Result&gt; results;
+<i>78</i>&nbsp;    private final long clusterStateVersion;
+<i>79</i>&nbsp;    private final Map&lt;String, AliasFilter&gt; aliasFilter;
+<i>80</i>&nbsp;    private final Map&lt;String, Float&gt; concreteIndexBoosts;
+<i>81</i>&nbsp;    private final Map&lt;String, Set&lt;String&gt;&gt; indexRoutings;
+<b class="nc"><i>82</i>&nbsp;    private final SetOnce&lt;AtomicArray&lt;ShardSearchFailure&gt;&gt; shardFailures = new SetOnce&lt;&gt;();</b>
+<b class="nc"><i>83</i>&nbsp;    private final Object shardFailuresMutex = new Object();</b>
+<b class="nc"><i>84</i>&nbsp;    private final AtomicInteger successfulOps = new AtomicInteger();</b>
+<b class="nc"><i>85</i>&nbsp;    private final AtomicInteger skippedOps = new AtomicInteger();</b>
+<i>86</i>&nbsp;    private final SearchTimeProvider timeProvider;
+<i>87</i>&nbsp;    private final SearchResponse.Clusters clusters;
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    private final GroupShardsIterator&lt;SearchShardIterator&gt; toSkipShardsIts;
+<i>90</i>&nbsp;    private final GroupShardsIterator&lt;SearchShardIterator&gt; shardsIts;
+<i>91</i>&nbsp;    private final int expectedTotalOps;
+<b class="nc"><i>92</i>&nbsp;    private final AtomicInteger totalOps = new AtomicInteger();</b>
+<i>93</i>&nbsp;    private final int maxConcurrentRequestsPerNode;
+<b class="nc"><i>94</i>&nbsp;    private final Map&lt;String, PendingExecutions&gt; pendingExecutionsPerNode = new ConcurrentHashMap&lt;&gt;();</b>
+<i>95</i>&nbsp;    private final boolean throttleConcurrentRequests;
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
+<i>98</i>&nbsp;                                        BiFunction&lt;String, String, Transport.Connection&gt; nodeIdToConnection,
+<i>99</i>&nbsp;                                        Map&lt;String, AliasFilter&gt; aliasFilter, Map&lt;String, Float&gt; concreteIndexBoosts,
+<i>100</i>&nbsp;                                        Map&lt;String, Set&lt;String&gt;&gt; indexRoutings,
+<i>101</i>&nbsp;                                        Executor executor, SearchRequest request,
+<i>102</i>&nbsp;                                        ActionListener&lt;SearchResponse&gt; listener, GroupShardsIterator&lt;SearchShardIterator&gt; shardsIts,
+<i>103</i>&nbsp;                                        SearchTimeProvider timeProvider, long clusterStateVersion,
+<i>104</i>&nbsp;                                        SearchTask task, SearchPhaseResults&lt;Result&gt; resultConsumer, int maxConcurrentRequestsPerNode,
+<i>105</i>&nbsp;                                        SearchResponse.Clusters clusters) {
+<b class="nc"><i>106</i>&nbsp;        super(name);</b>
+<b class="nc"><i>107</i>&nbsp;        final List&lt;SearchShardIterator&gt; toSkipIterators = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>108</i>&nbsp;        final List&lt;SearchShardIterator&gt; iterators = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>109</i>&nbsp;        for (final SearchShardIterator iterator : shardsIts) {</b>
+<b class="nc"><i>110</i>&nbsp;            if (iterator.skip()) {</b>
+<b class="nc"><i>111</i>&nbsp;                toSkipIterators.add(iterator);</b>
+<i>112</i>&nbsp;            } else {
+<b class="nc"><i>113</i>&nbsp;                iterators.add(iterator);</b>
+<i>114</i>&nbsp;            }
+<b class="nc"><i>115</i>&nbsp;        }</b>
+<b class="nc"><i>116</i>&nbsp;        this.toSkipShardsIts = new GroupShardsIterator&lt;&gt;(toSkipIterators);</b>
+<b class="nc"><i>117</i>&nbsp;        this.shardsIts = new GroupShardsIterator&lt;&gt;(iterators);</b>
+<i>118</i>&nbsp;        // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
+<i>119</i>&nbsp;        // it&#39;s number of active shards but use 1 as the default if no replica of a shard is active at this point.
+<i>120</i>&nbsp;        // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
+<i>121</i>&nbsp;        // we process hence we add one for the non active partition here.
+<b class="nc"><i>122</i>&nbsp;        this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();</b>
+<b class="nc"><i>123</i>&nbsp;        this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;</b>
+<i>124</i>&nbsp;        // in the case were we have less shards than maxConcurrentRequestsPerNode we don&#39;t need to throttle
+<b class="nc"><i>125</i>&nbsp;        this.throttleConcurrentRequests = maxConcurrentRequestsPerNode &lt; shardsIts.size();</b>
+<b class="nc"><i>126</i>&nbsp;        this.timeProvider = timeProvider;</b>
+<b class="nc"><i>127</i>&nbsp;        this.logger = logger;</b>
+<b class="nc"><i>128</i>&nbsp;        this.searchTransportService = searchTransportService;</b>
+<b class="nc"><i>129</i>&nbsp;        this.executor = executor;</b>
+<b class="nc"><i>130</i>&nbsp;        this.request = request;</b>
+<b class="nc"><i>131</i>&nbsp;        this.task = task;</b>
+<b class="nc"><i>132</i>&nbsp;        this.listener = listener;</b>
+<b class="nc"><i>133</i>&nbsp;        this.nodeIdToConnection = nodeIdToConnection;</b>
+<b class="nc"><i>134</i>&nbsp;        this.clusterStateVersion = clusterStateVersion;</b>
+<b class="nc"><i>135</i>&nbsp;        this.concreteIndexBoosts = concreteIndexBoosts;</b>
+<b class="nc"><i>136</i>&nbsp;        this.aliasFilter = aliasFilter;</b>
+<b class="nc"><i>137</i>&nbsp;        this.indexRoutings = indexRoutings;</b>
+<b class="nc"><i>138</i>&nbsp;        this.results = resultConsumer;</b>
+<b class="nc"><i>139</i>&nbsp;        this.clusters = clusters;</b>
+<b class="nc"><i>140</i>&nbsp;    }</b>
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;    /**
+<i>143</i>&nbsp;     * Builds how long it took to execute the search.
+<i>144</i>&nbsp;     */
+<i>145</i>&nbsp;    long buildTookInMillis() {
+<b class="nc"><i>146</i>&nbsp;        return timeProvider.buildTookInMillis();</b>
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    /**
+<i>150</i>&nbsp;     * This is the main entry point for a search. This method starts the search execution of the initial phase.
+<i>151</i>&nbsp;     */
+<i>152</i>&nbsp;    public final void start() {
+<b class="nc"><i>153</i>&nbsp;        if (getNumShards() == 0) {</b>
+<i>154</i>&nbsp;            //no search shards to search on, bail with empty response
+<i>155</i>&nbsp;            //(it happens with search across _all with no indices around and consistent with broadcast operations)
+<b class="nc"><i>156</i>&nbsp;            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :</b>
+<b class="nc"><i>157</i>&nbsp;                request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :</b>
+<b class="nc"><i>158</i>&nbsp;                    request.source().trackTotalHitsUpTo();</b>
+<i>159</i>&nbsp;            // total hits is null in the response if the tracking of total hits is disabled
+<b class="nc"><i>160</i>&nbsp;            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;</b>
+<b class="nc"><i>161</i>&nbsp;            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),</b>
+<i>162</i>&nbsp;                ShardSearchFailure.EMPTY_ARRAY, clusters));
+<b class="nc"><i>163</i>&nbsp;            return;</b>
+<i>164</i>&nbsp;        }
+<b class="nc"><i>165</i>&nbsp;        executePhase(this);</b>
+<b class="nc"><i>166</i>&nbsp;    }</b>
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;    @Override
+<i>169</i>&nbsp;    public final void run() {
+<b class="nc"><i>170</i>&nbsp;        for (final SearchShardIterator iterator : toSkipShardsIts) {</b>
+<b class="nc"><i>171</i>&nbsp;            assert iterator.skip();</b>
+<b class="nc"><i>172</i>&nbsp;            skipShard(iterator);</b>
+<b class="nc"><i>173</i>&nbsp;        }</b>
+<b class="nc"><i>174</i>&nbsp;        if (shardsIts.size() &gt; 0) {</b>
+<b class="nc"><i>175</i>&nbsp;            assert request.allowPartialSearchResults() != null : &quot;SearchRequest missing setting for allowPartialSearchResults&quot;;</b>
+<b class="nc"><i>176</i>&nbsp;            if (request.allowPartialSearchResults() == false) {</b>
+<b class="nc"><i>177</i>&nbsp;                final StringBuilder missingShards = new StringBuilder();</b>
+<i>178</i>&nbsp;                // Fail-fast verification of all shards being available
+<b class="nc"><i>179</i>&nbsp;                for (int index = 0; index &lt; shardsIts.size(); index++) {</b>
+<b class="nc"><i>180</i>&nbsp;                    final SearchShardIterator shardRoutings = shardsIts.get(index);</b>
+<b class="nc"><i>181</i>&nbsp;                    if (shardRoutings.size() == 0) {</b>
+<b class="nc"><i>182</i>&nbsp;                        if(missingShards.length() &gt; 0){</b>
+<b class="nc"><i>183</i>&nbsp;                            missingShards.append(&quot;, &quot;);</b>
+<i>184</i>&nbsp;                        }
+<b class="nc"><i>185</i>&nbsp;                        missingShards.append(shardRoutings.shardId());</b>
+<i>186</i>&nbsp;                    }
+<i>187</i>&nbsp;                }
+<b class="nc"><i>188</i>&nbsp;                if (missingShards.length() &gt; 0) {</b>
+<i>189</i>&nbsp;                    //Status red - shard is missing all copies and would produce partial results for an index search
+<b class="nc"><i>190</i>&nbsp;                    final String msg = &quot;Search rejected due to missing shards [&quot;+ missingShards +</b>
+<i>191</i>&nbsp;                        &quot;]. Consider using `allow_partial_search_results` setting to bypass this error.&quot;;
+<b class="nc"><i>192</i>&nbsp;                    throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);</b>
+<i>193</i>&nbsp;                }
+<i>194</i>&nbsp;            }
+<b class="nc"><i>195</i>&nbsp;            for (int index = 0; index &lt; shardsIts.size(); index++) {</b>
+<b class="nc"><i>196</i>&nbsp;                final SearchShardIterator shardRoutings = shardsIts.get(index);</b>
+<b class="nc"><i>197</i>&nbsp;                assert shardRoutings.skip() == false;</b>
+<b class="nc"><i>198</i>&nbsp;                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());</b>
+<i>199</i>&nbsp;            }
+<i>200</i>&nbsp;        }
+<b class="nc"><i>201</i>&nbsp;    }</b>
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    void skipShard(SearchShardIterator iterator) {
+<b class="nc"><i>204</i>&nbsp;        successfulOps.incrementAndGet();</b>
+<b class="nc"><i>205</i>&nbsp;        skippedOps.incrementAndGet();</b>
+<b class="nc"><i>206</i>&nbsp;        assert iterator.skip();</b>
+<b class="nc"><i>207</i>&nbsp;        successfulShardExecution(iterator);</b>
+<b class="nc"><i>208</i>&nbsp;    }</b>
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
+<i>211</i>&nbsp;        /*
+<i>212</i>&nbsp;         * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
+<i>213</i>&nbsp;         * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
+<i>214</i>&nbsp;         * continue on the same thread in the case that we never went async and this happens repeatedly we will end up recursing deeply and
+<i>215</i>&nbsp;         * could stack overflow. To prevent this, we fork if we are called back on the same thread that execution started on and otherwise
+<i>216</i>&nbsp;         * we can continue (cf. InitialSearchPhase#maybeFork).
+<i>217</i>&nbsp;         */
+<b class="nc"><i>218</i>&nbsp;        if (shard == null) {</b>
+<b class="nc"><i>219</i>&nbsp;            fork(() -&gt; onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));</b>
+<i>220</i>&nbsp;        } else {
+<b class="nc"><i>221</i>&nbsp;            final PendingExecutions pendingExecutions = throttleConcurrentRequests ?</b>
+<b class="nc"><i>222</i>&nbsp;                pendingExecutionsPerNode.computeIfAbsent(shard.currentNodeId(), n -&gt; new PendingExecutions(maxConcurrentRequestsPerNode))</b>
+<b class="nc"><i>223</i>&nbsp;                : null;</b>
+<b class="nc"><i>224</i>&nbsp;            Runnable r = () -&gt; {</b>
+<b class="nc"><i>225</i>&nbsp;                final Thread thread = Thread.currentThread();</b>
+<i>226</i>&nbsp;                try {
+<b class="nc"><i>227</i>&nbsp;                    executePhaseOnShard(shardIt, shard,</b>
+<b class="nc"><i>228</i>&nbsp;                        new SearchActionListener&lt;Result&gt;(shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {</b>
+<i>229</i>&nbsp;                            @Override
+<i>230</i>&nbsp;                            public void innerOnResponse(Result result) {
+<i>231</i>&nbsp;                                try {
+<i>232</i>&nbsp;                                    onShardResult(result, shardIt);
+<i>233</i>&nbsp;                                } finally {
+<i>234</i>&nbsp;                                    executeNext(pendingExecutions, thread);
+<i>235</i>&nbsp;                                }
+<i>236</i>&nbsp;                            }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;                            @Override
+<i>239</i>&nbsp;                            public void onFailure(Exception t) {
+<i>240</i>&nbsp;                                try {
+<i>241</i>&nbsp;                                    onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+<i>242</i>&nbsp;                                } finally {
+<i>243</i>&nbsp;                                    executeNext(pendingExecutions, thread);
+<i>244</i>&nbsp;                                }
+<i>245</i>&nbsp;                            }
+<i>246</i>&nbsp;                        });
+<b class="nc"><i>247</i>&nbsp;                } catch (final Exception e) {</b>
+<i>248</i>&nbsp;                    try {
+<i>249</i>&nbsp;                        /*
+<i>250</i>&nbsp;                         * It is possible to run into connection exceptions here because we are getting the connection early and might
+<i>251</i>&nbsp;                         * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+<i>252</i>&nbsp;                         */
+<b class="nc"><i>253</i>&nbsp;                        fork(() -&gt; onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, e));</b>
+<i>254</i>&nbsp;                    } finally {
+<b class="nc"><i>255</i>&nbsp;                        executeNext(pendingExecutions, thread);</b>
+<b class="nc"><i>256</i>&nbsp;                    }</b>
+<b class="nc"><i>257</i>&nbsp;                }</b>
+<b class="nc"><i>258</i>&nbsp;            };</b>
+<b class="nc"><i>259</i>&nbsp;            if (throttleConcurrentRequests) {</b>
+<b class="nc"><i>260</i>&nbsp;                pendingExecutions.tryRun(r);</b>
+<i>261</i>&nbsp;            } else {
+<b class="nc"><i>262</i>&nbsp;                r.run();</b>
+<i>263</i>&nbsp;            }
+<i>264</i>&nbsp;        }
+<b class="nc"><i>265</i>&nbsp;    }</b>
+<i>266</i>&nbsp;
+<i>267</i>&nbsp;    /**
+<i>268</i>&nbsp;     * Sends the request to the actual shard.
+<i>269</i>&nbsp;     * @param shardIt the shards iterator
+<i>270</i>&nbsp;     * @param shard the shard routing to send the request for
+<i>271</i>&nbsp;     * @param listener the listener to notify on response
+<i>272</i>&nbsp;     */
+<i>273</i>&nbsp;    protected abstract void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard, SearchActionListener&lt;Result&gt; listener);
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;    private void fork(final Runnable runnable) {
+<b class="nc"><i>276</i>&nbsp;        executor.execute(new AbstractRunnable() {</b>
+<i>277</i>&nbsp;            @Override
+<i>278</i>&nbsp;            public void onFailure(Exception e) {
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;            }
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;            @Override
+<i>283</i>&nbsp;            protected void doRun() {
+<i>284</i>&nbsp;                runnable.run();
+<i>285</i>&nbsp;            }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;            @Override
+<i>288</i>&nbsp;            public boolean isForceExecution() {
+<i>289</i>&nbsp;                // we can not allow a stuffed queue to reject execution here
+<i>290</i>&nbsp;                return true;
+<i>291</i>&nbsp;            }
+<i>292</i>&nbsp;        });
+<b class="nc"><i>293</i>&nbsp;    }</b>
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;    @Override
+<i>296</i>&nbsp;    public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
+<i>297</i>&nbsp;        /* This is the main search phase transition where we move to the next phase. At this point we check if there is
+<i>298</i>&nbsp;         * at least one successful operation left and if so we move to the next phase. If not we immediately fail the
+<i>299</i>&nbsp;         * search phase as &quot;all shards failed&quot;*/
+<b class="nc"><i>300</i>&nbsp;        if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure</b>
+<b class="nc"><i>301</i>&nbsp;            final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());</b>
+<b class="nc"><i>302</i>&nbsp;            Throwable cause = shardSearchFailures.length == 0 ? null :</b>
+<b class="nc"><i>303</i>&nbsp;                ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];</b>
+<b class="nc"><i>304</i>&nbsp;            logger.debug(() -&gt; new ParameterizedMessage(&quot;All shards failed for phase: [{}]&quot;, getName()), cause);</b>
+<b class="nc"><i>305</i>&nbsp;            onPhaseFailure(currentPhase, &quot;all shards failed&quot;, cause);</b>
+<b class="nc"><i>306</i>&nbsp;        } else {</b>
+<b class="nc"><i>307</i>&nbsp;            Boolean allowPartialResults = request.allowPartialSearchResults();</b>
+<b class="nc"><i>308</i>&nbsp;            assert allowPartialResults != null : &quot;SearchRequest missing setting for allowPartialSearchResults&quot;;</b>
+<b class="nc"><i>309</i>&nbsp;            if (allowPartialResults == false &amp;&amp; successfulOps.get() != getNumShards()) {</b>
+<i>310</i>&nbsp;                // check if there are actual failures in the atomic array since
+<i>311</i>&nbsp;                // successful retries can reset the failures to null
+<b class="nc"><i>312</i>&nbsp;                ShardOperationFailedException[] shardSearchFailures = buildShardFailures();</b>
+<b class="nc"><i>313</i>&nbsp;                if (shardSearchFailures.length &gt; 0) {</b>
+<b class="nc"><i>314</i>&nbsp;                    if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>315</i>&nbsp;                        int numShardFailures = shardSearchFailures.length;</b>
+<b class="nc"><i>316</i>&nbsp;                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);</b>
+<b class="nc"><i>317</i>&nbsp;                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];</b>
+<b class="nc"><i>318</i>&nbsp;                        logger.debug(() -&gt; new ParameterizedMessage(&quot;{} shards failed for phase: [{}]&quot;,</b>
+<b class="nc"><i>319</i>&nbsp;                            numShardFailures, getName()), cause);</b>
+<i>320</i>&nbsp;                    }
+<b class="nc"><i>321</i>&nbsp;                    onPhaseFailure(currentPhase, &quot;Partial shards failure&quot;, null);</b>
+<b class="nc"><i>322</i>&nbsp;                    return;</b>
+<i>323</i>&nbsp;                } else {
+<b class="nc"><i>324</i>&nbsp;                    int discrepancy = getNumShards() - successfulOps.get();</b>
+<b class="nc"><i>325</i>&nbsp;                    assert discrepancy &gt; 0 : &quot;discrepancy: &quot; + discrepancy;</b>
+<b class="nc"><i>326</i>&nbsp;                    if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>327</i>&nbsp;                        logger.debug(&quot;Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})&quot;,</b>
+<b class="nc"><i>328</i>&nbsp;                            discrepancy, successfulOps.get(), skippedOps.get(), getNumShards(), currentPhase.getName());</b>
+<i>329</i>&nbsp;                    }
+<b class="nc"><i>330</i>&nbsp;                    onPhaseFailure(currentPhase, &quot;Partial shards failure (&quot; + discrepancy + &quot; shards unavailable)&quot;, null);</b>
+<b class="nc"><i>331</i>&nbsp;                    return;</b>
+<i>332</i>&nbsp;                }
+<i>333</i>&nbsp;            }
+<b class="nc"><i>334</i>&nbsp;            if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>335</i>&nbsp;                final String resultsFrom = results.getSuccessfulResults()</b>
+<b class="nc"><i>336</i>&nbsp;                    .map(r -&gt; r.getSearchShardTarget().toString()).collect(Collectors.joining(&quot;,&quot;));</b>
+<b class="nc"><i>337</i>&nbsp;                logger.trace(&quot;[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})&quot;,</b>
+<b class="nc"><i>338</i>&nbsp;                    currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);</b>
+<i>339</i>&nbsp;            }
+<b class="nc"><i>340</i>&nbsp;            executePhase(nextPhase);</b>
+<i>341</i>&nbsp;        }
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    private void executePhase(SearchPhase phase) {
+<i>345</i>&nbsp;        try {
+<b class="nc"><i>346</i>&nbsp;            phase.run();</b>
+<b class="nc"><i>347</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>348</i>&nbsp;            if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>349</i>&nbsp;                logger.debug(new ParameterizedMessage(&quot;Failed to execute [{}] while moving to [{}] phase&quot;, request, phase.getName()), e);</b>
+<i>350</i>&nbsp;            }
+<b class="nc"><i>351</i>&nbsp;            onPhaseFailure(phase, &quot;&quot;, e);</b>
+<b class="nc"><i>352</i>&nbsp;        }</b>
+<b class="nc"><i>353</i>&nbsp;    }</b>
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    ShardSearchFailure[] buildShardFailures() {
+<b class="nc"><i>356</i>&nbsp;        AtomicArray&lt;ShardSearchFailure&gt; shardFailures = this.shardFailures.get();</b>
+<b class="nc"><i>357</i>&nbsp;        if (shardFailures == null) {</b>
+<b class="nc"><i>358</i>&nbsp;            return ShardSearchFailure.EMPTY_ARRAY;</b>
+<i>359</i>&nbsp;        }
+<b class="nc"><i>360</i>&nbsp;        List&lt;ShardSearchFailure&gt; entries = shardFailures.asList();</b>
+<b class="nc"><i>361</i>&nbsp;        ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];</b>
+<b class="nc"><i>362</i>&nbsp;        for (int i = 0; i &lt; failures.length; i++) {</b>
+<b class="nc"><i>363</i>&nbsp;            failures[i] = entries.get(i);</b>
+<i>364</i>&nbsp;        }
+<b class="nc"><i>365</i>&nbsp;        return failures;</b>
+<i>366</i>&nbsp;    }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;    private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
+<i>369</i>&nbsp;                                final SearchShardIterator shardIt, Exception e) {
+<i>370</i>&nbsp;        // we always add the shard failure for a specific shard instance
+<i>371</i>&nbsp;        // we do make sure to clean it on a successful response from a shard
+<b class="nc"><i>372</i>&nbsp;        SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);</b>
+<b class="nc"><i>373</i>&nbsp;        onShardFailure(shardIndex, shardTarget, e);</b>
+<i>374</i>&nbsp;
+<b class="nc"><i>375</i>&nbsp;        if (totalOps.incrementAndGet() == expectedTotalOps) {</b>
+<b class="nc"><i>376</i>&nbsp;            if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>377</i>&nbsp;                if (e != null &amp;&amp; !TransportActions.isShardNotAvailableException(e)) {</b>
+<b class="nc"><i>378</i>&nbsp;                    logger.debug(new ParameterizedMessage(</b>
+<b class="nc"><i>379</i>&nbsp;                        &quot;{}: Failed to execute [{}]&quot;, shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);</b>
+<b class="nc"><i>380</i>&nbsp;                } else if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>381</i>&nbsp;                    logger.trace(new ParameterizedMessage(&quot;{}: Failed to execute [{}]&quot;, shard, request), e);</b>
+<i>382</i>&nbsp;                }
+<i>383</i>&nbsp;            }
+<b class="nc"><i>384</i>&nbsp;            onPhaseDone();</b>
+<i>385</i>&nbsp;        } else {
+<b class="nc"><i>386</i>&nbsp;            final ShardRouting nextShard = shardIt.nextOrNull();</b>
+<b class="nc"><i>387</i>&nbsp;            final boolean lastShard = nextShard == null;</b>
+<i>388</i>&nbsp;            // trace log this exception
+<b class="nc"><i>389</i>&nbsp;            logger.trace(() -&gt; new ParameterizedMessage(</b>
+<i>390</i>&nbsp;                &quot;{}: Failed to execute [{}] lastShard [{}]&quot;,
+<b class="nc"><i>391</i>&nbsp;                shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);</b>
+<b class="nc"><i>392</i>&nbsp;            if (!lastShard) {</b>
+<b class="nc"><i>393</i>&nbsp;                performPhaseOnShard(shardIndex, shardIt, nextShard);</b>
+<i>394</i>&nbsp;            } else {
+<i>395</i>&nbsp;                // no more shards active, add a failure
+<b class="nc"><i>396</i>&nbsp;                if (logger.isDebugEnabled() &amp;&amp; !logger.isTraceEnabled()) { // do not double log this exception</b>
+<b class="nc"><i>397</i>&nbsp;                    if (e != null &amp;&amp; !TransportActions.isShardNotAvailableException(e)) {</b>
+<b class="nc"><i>398</i>&nbsp;                        logger.debug(new ParameterizedMessage(</b>
+<i>399</i>&nbsp;                            &quot;{}: Failed to execute [{}] lastShard [{}]&quot;,
+<b class="nc"><i>400</i>&nbsp;                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);</b>
+<i>401</i>&nbsp;                    }
+<i>402</i>&nbsp;                }
+<i>403</i>&nbsp;            }
+<i>404</i>&nbsp;        }
+<b class="nc"><i>405</i>&nbsp;    }</b>
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;    /**
+<i>408</i>&nbsp;     * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given
+<i>409</i>&nbsp;     * shard target.
+<i>410</i>&nbsp;     * @param shardIndex the internal index for this shard. Each shard has an index / ordinal assigned that is used to reference
+<i>411</i>&nbsp;     *                   it&#39;s results
+<i>412</i>&nbsp;     * @param shardTarget the shard target for this failure
+<i>413</i>&nbsp;     * @param e the failure reason
+<i>414</i>&nbsp;     */
+<i>415</i>&nbsp;    @Override
+<i>416</i>&nbsp;    public final void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
+<i>417</i>&nbsp;        // we don&#39;t aggregate shard failures on non active shards (but do keep the header counts right)
+<b class="nc"><i>418</i>&nbsp;        if (TransportActions.isShardNotAvailableException(e) == false) {</b>
+<b class="nc"><i>419</i>&nbsp;            AtomicArray&lt;ShardSearchFailure&gt; shardFailures = this.shardFailures.get();</b>
+<i>420</i>&nbsp;            // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
+<b class="nc"><i>421</i>&nbsp;            if (shardFailures == null) { // this is double checked locking but it&#39;s fine since SetOnce uses a volatile read internally</b>
+<b class="nc"><i>422</i>&nbsp;                synchronized (shardFailuresMutex) {</b>
+<b class="nc"><i>423</i>&nbsp;                    shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?</b>
+<b class="nc"><i>424</i>&nbsp;                    if (shardFailures == null) { // still null so we are the first and create a new instance</b>
+<b class="nc"><i>425</i>&nbsp;                        shardFailures = new AtomicArray&lt;&gt;(getNumShards());</b>
+<b class="nc"><i>426</i>&nbsp;                        this.shardFailures.set(shardFailures);</b>
+<i>427</i>&nbsp;                    }
+<b class="nc"><i>428</i>&nbsp;                }</b>
+<i>429</i>&nbsp;            }
+<b class="nc"><i>430</i>&nbsp;            ShardSearchFailure failure = shardFailures.get(shardIndex);</b>
+<b class="nc"><i>431</i>&nbsp;            if (failure == null) {</b>
+<b class="nc"><i>432</i>&nbsp;                shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));</b>
+<i>433</i>&nbsp;            } else {
+<i>434</i>&nbsp;                // the failure is already present, try and not override it with an exception that is less meaningless
+<i>435</i>&nbsp;                // for example, getting illegal shard state
+<b class="nc"><i>436</i>&nbsp;                if (TransportActions.isReadOverrideException(e)) {</b>
+<b class="nc"><i>437</i>&nbsp;                    shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));</b>
+<i>438</i>&nbsp;                }
+<i>439</i>&nbsp;            }
+<i>440</i>&nbsp;
+<b class="nc"><i>441</i>&nbsp;            if (results.hasResult(shardIndex)) {</b>
+<b class="nc"><i>442</i>&nbsp;                assert failure == null : &quot;shard failed before but shouldn&#39;t: &quot; + failure;</b>
+<b class="nc"><i>443</i>&nbsp;                successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter</b>
+<i>444</i>&nbsp;            }
+<i>445</i>&nbsp;        }
+<b class="nc"><i>446</i>&nbsp;        results.consumeShardFailure(shardIndex);</b>
+<b class="nc"><i>447</i>&nbsp;    }</b>
+<i>448</i>&nbsp;
+<i>449</i>&nbsp;    /**
+<i>450</i>&nbsp;     * Executed once for every successful shard level request.
+<i>451</i>&nbsp;     * @param result the result returned form the shard
+<i>452</i>&nbsp;     * @param shardIt the shard iterator
+<i>453</i>&nbsp;     */
+<i>454</i>&nbsp;    private void onShardResult(Result result, SearchShardIterator shardIt) {
+<b class="nc"><i>455</i>&nbsp;        assert result.getShardIndex() != -1 : &quot;shard index is not set&quot;;</b>
+<b class="nc"><i>456</i>&nbsp;        assert result.getSearchShardTarget() != null : &quot;search shard target must not be null&quot;;</b>
+<b class="nc"><i>457</i>&nbsp;        successfulOps.incrementAndGet();</b>
+<b class="nc"><i>458</i>&nbsp;        results.consumeResult(result);</b>
+<b class="nc"><i>459</i>&nbsp;        if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>460</i>&nbsp;            logger.trace(&quot;got first-phase result from {}&quot;, result != null ? result.getSearchShardTarget() : null);</b>
+<i>461</i>&nbsp;        }
+<i>462</i>&nbsp;        // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
+<i>463</i>&nbsp;        // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
+<i>464</i>&nbsp;        // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
+<b class="nc"><i>465</i>&nbsp;        AtomicArray&lt;ShardSearchFailure&gt; shardFailures = this.shardFailures.get();</b>
+<b class="nc"><i>466</i>&nbsp;        if (shardFailures != null) {</b>
+<b class="nc"><i>467</i>&nbsp;            shardFailures.set(result.getShardIndex(), null);</b>
+<i>468</i>&nbsp;        }
+<i>469</i>&nbsp;        // we need to increment successful ops first before we compare the exit condition otherwise if we
+<i>470</i>&nbsp;        // are fast we could concurrently update totalOps but then preempt one of the threads which can
+<i>471</i>&nbsp;        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
+<i>472</i>&nbsp;        // increment all the &quot;future&quot; shards to update the total ops since we some may work and some may not...
+<i>473</i>&nbsp;        // and when that happens, we break on total ops, so we must maintain them
+<b class="nc"><i>474</i>&nbsp;        successfulShardExecution(shardIt);</b>
+<b class="nc"><i>475</i>&nbsp;    }</b>
+<i>476</i>&nbsp;
+<i>477</i>&nbsp;    private void successfulShardExecution(SearchShardIterator shardsIt) {
+<i>478</i>&nbsp;        final int remainingOpsOnIterator;
+<b class="nc"><i>479</i>&nbsp;        if (shardsIt.skip()) {</b>
+<b class="nc"><i>480</i>&nbsp;            remainingOpsOnIterator = shardsIt.remaining();</b>
+<i>481</i>&nbsp;        } else {
+<b class="nc"><i>482</i>&nbsp;            remainingOpsOnIterator = shardsIt.remaining() + 1;</b>
+<i>483</i>&nbsp;        }
+<b class="nc"><i>484</i>&nbsp;        final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);</b>
+<b class="nc"><i>485</i>&nbsp;        if (xTotalOps == expectedTotalOps) {</b>
+<b class="nc"><i>486</i>&nbsp;            onPhaseDone();</b>
+<b class="nc"><i>487</i>&nbsp;        } else if (xTotalOps &gt; expectedTotalOps) {</b>
+<b class="nc"><i>488</i>&nbsp;            throw new AssertionError(&quot;unexpected higher total ops [&quot; + xTotalOps + &quot;] compared to expected [&quot;</b>
+<i>489</i>&nbsp;                + expectedTotalOps + &quot;]&quot;);
+<i>490</i>&nbsp;        }
+<b class="nc"><i>491</i>&nbsp;    }</b>
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;    @Override
+<i>494</i>&nbsp;    public final int getNumShards() {
+<b class="nc"><i>495</i>&nbsp;        return results.getNumShards();</b>
+<i>496</i>&nbsp;    }
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;    @Override
+<i>499</i>&nbsp;    public final Logger getLogger() {
+<b class="nc"><i>500</i>&nbsp;        return logger;</b>
+<i>501</i>&nbsp;    }
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;    @Override
+<i>504</i>&nbsp;    public final SearchTask getTask() {
+<b class="nc"><i>505</i>&nbsp;        return task;</b>
+<i>506</i>&nbsp;    }
+<i>507</i>&nbsp;
+<i>508</i>&nbsp;    @Override
+<i>509</i>&nbsp;    public final SearchRequest getRequest() {
+<b class="nc"><i>510</i>&nbsp;        return request;</b>
+<i>511</i>&nbsp;    }
+<i>512</i>&nbsp;
+<i>513</i>&nbsp;    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse,
+<i>514</i>&nbsp;                                                       String scrollId,
+<i>515</i>&nbsp;                                                       ShardSearchFailure[] failures) {
+<b class="nc"><i>516</i>&nbsp;        return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),</b>
+<b class="nc"><i>517</i>&nbsp;            skippedOps.get(), buildTookInMillis(), failures, clusters);</b>
+<i>518</i>&nbsp;    }
+<i>519</i>&nbsp;
+<i>520</i>&nbsp;    @Override
+<i>521</i>&nbsp;    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+<b class="nc"><i>522</i>&nbsp;        ShardSearchFailure[] failures = buildShardFailures();</b>
+<b class="nc"><i>523</i>&nbsp;        Boolean allowPartialResults = request.allowPartialSearchResults();</b>
+<b class="nc"><i>524</i>&nbsp;        assert allowPartialResults != null : &quot;SearchRequest missing setting for allowPartialSearchResults&quot;;</b>
+<b class="nc"><i>525</i>&nbsp;        if (allowPartialResults == false &amp;&amp; failures.length &gt; 0){</b>
+<b class="nc"><i>526</i>&nbsp;            raisePhaseFailure(new SearchPhaseExecutionException(&quot;&quot;, &quot;Shard failures&quot;, null, failures));</b>
+<i>527</i>&nbsp;        } else {
+<b class="nc"><i>528</i>&nbsp;            listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId, failures));</b>
+<i>529</i>&nbsp;        }
+<b class="nc"><i>530</i>&nbsp;    }</b>
+<i>531</i>&nbsp;
+<i>532</i>&nbsp;    @Override
+<i>533</i>&nbsp;    public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+<b class="nc"><i>534</i>&nbsp;        raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));</b>
+<b class="nc"><i>535</i>&nbsp;    }</b>
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    /**
+<i>538</i>&nbsp;     * This method should be called if a search phase failed to ensure all relevant search contexts and resources are released.
+<i>539</i>&nbsp;     * this method will also notify the listener and sends back a failure to the user.
+<i>540</i>&nbsp;     *
+<i>541</i>&nbsp;     * @param exception the exception explaining or causing the phase failure
+<i>542</i>&nbsp;     */
+<i>543</i>&nbsp;    private void raisePhaseFailure(SearchPhaseExecutionException exception) {
+<b class="nc"><i>544</i>&nbsp;        results.getSuccessfulResults().forEach((entry) -&gt; {</b>
+<i>545</i>&nbsp;            try {
+<b class="nc"><i>546</i>&nbsp;                SearchShardTarget searchShardTarget = entry.getSearchShardTarget();</b>
+<b class="nc"><i>547</i>&nbsp;                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());</b>
+<b class="nc"><i>548</i>&nbsp;                sendReleaseSearchContext(entry.getRequestId(), connection, searchShardTarget.getOriginalIndices());</b>
+<b class="nc"><i>549</i>&nbsp;            } catch (Exception inner) {</b>
+<b class="nc"><i>550</i>&nbsp;                inner.addSuppressed(exception);</b>
+<b class="nc"><i>551</i>&nbsp;                logger.trace(&quot;failed to release context&quot;, inner);</b>
+<b class="nc"><i>552</i>&nbsp;            }</b>
+<b class="nc"><i>553</i>&nbsp;        });</b>
+<b class="nc"><i>554</i>&nbsp;        listener.onFailure(exception);</b>
+<b class="nc"><i>555</i>&nbsp;    }</b>
+<i>556</i>&nbsp;
+<i>557</i>&nbsp;    /**
+<i>558</i>&nbsp;     * Executed once all shard results have been received and processed
+<i>559</i>&nbsp;     * @see #onShardFailure(int, SearchShardTarget, Exception)
+<i>560</i>&nbsp;     * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
+<i>561</i>&nbsp;     */
+<i>562</i>&nbsp;    final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+<b class="nc"><i>563</i>&nbsp;        executeNextPhase(this, getNextPhase(results, this));</b>
+<b class="nc"><i>564</i>&nbsp;    }</b>
+<i>565</i>&nbsp;
+<i>566</i>&nbsp;    @Override
+<i>567</i>&nbsp;    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
+<b class="nc"><i>568</i>&nbsp;        return nodeIdToConnection.apply(clusterAlias, nodeId);</b>
+<i>569</i>&nbsp;    }
+<i>570</i>&nbsp;
+<i>571</i>&nbsp;    @Override
+<i>572</i>&nbsp;    public final SearchTransportService getSearchTransport() {
+<b class="nc"><i>573</i>&nbsp;        return searchTransportService;</b>
+<i>574</i>&nbsp;    }
+<i>575</i>&nbsp;
+<i>576</i>&nbsp;    @Override
+<i>577</i>&nbsp;    public final void execute(Runnable command) {
+<b class="nc"><i>578</i>&nbsp;        executor.execute(command);</b>
+<b class="nc"><i>579</i>&nbsp;    }</b>
+<i>580</i>&nbsp;
+<i>581</i>&nbsp;    @Override
+<i>582</i>&nbsp;    public final void onFailure(Exception e) {
+<b class="nc"><i>583</i>&nbsp;        listener.onFailure(e);</b>
+<b class="nc"><i>584</i>&nbsp;    }</b>
+<i>585</i>&nbsp;
+<i>586</i>&nbsp;    @Override
+<i>587</i>&nbsp;    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
+<b class="nc"><i>588</i>&nbsp;        AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());</b>
+<b class="nc"><i>589</i>&nbsp;        assert filter != null;</b>
+<b class="nc"><i>590</i>&nbsp;        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);</b>
+<b class="nc"><i>591</i>&nbsp;        String indexName = shardIt.shardId().getIndex().getName();</b>
+<b class="nc"><i>592</i>&nbsp;        final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())</b>
+<b class="nc"><i>593</i>&nbsp;            .toArray(new String[0]);</b>
+<b class="nc"><i>594</i>&nbsp;        return new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),</b>
+<b class="nc"><i>595</i>&nbsp;            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings);</b>
+<i>596</i>&nbsp;    }
+<i>597</i>&nbsp;
+<i>598</i>&nbsp;    /**
+<i>599</i>&nbsp;     * Returns the next phase based on the results of the initial search phase
+<i>600</i>&nbsp;     * @param results the results of the initial search phase. Each non null element in the result array represent a successfully
+<i>601</i>&nbsp;     *                executed shard request
+<i>602</i>&nbsp;     * @param context the search context for the next phase
+<i>603</i>&nbsp;     */
+<i>604</i>&nbsp;    protected abstract SearchPhase getNextPhase(SearchPhaseResults&lt;Result&gt; results, SearchPhaseContext context);
+<i>605</i>&nbsp;
+<i>606</i>&nbsp;    private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
+<b class="nc"><i>607</i>&nbsp;        executeNext(pendingExecutions == null ? null : pendingExecutions::finishAndRunNext, originalThread);</b>
+<b class="nc"><i>608</i>&nbsp;    }</b>
+<i>609</i>&nbsp;
+<i>610</i>&nbsp;    void executeNext(Runnable runnable, Thread originalThread) {
+<b class="nc"><i>611</i>&nbsp;        if (throttleConcurrentRequests) {</b>
+<b class="nc"><i>612</i>&nbsp;            if (originalThread == Thread.currentThread()) {</b>
+<b class="nc"><i>613</i>&nbsp;                fork(runnable);</b>
+<i>614</i>&nbsp;            } else {
+<b class="nc"><i>615</i>&nbsp;                runnable.run();</b>
+<i>616</i>&nbsp;            }
+<i>617</i>&nbsp;        } else {
+<b class="nc"><i>618</i>&nbsp;            assert runnable == null;</b>
+<i>619</i>&nbsp;        }
+<b class="nc"><i>620</i>&nbsp;    }</b>
+<i>621</i>&nbsp;
+<i>622</i>&nbsp;    private static final class PendingExecutions {
+<i>623</i>&nbsp;        private final int permits;
+<i>624</i>&nbsp;        private int permitsTaken = 0;
+<i>625</i>&nbsp;        private ArrayDeque&lt;Runnable&gt; queue = new ArrayDeque&lt;&gt;();
+<i>626</i>&nbsp;
+<i>627</i>&nbsp;        PendingExecutions(int permits) {
+<i>628</i>&nbsp;            assert permits &gt; 0 : &quot;not enough permits: &quot; + permits;
+<i>629</i>&nbsp;            this.permits = permits;
+<i>630</i>&nbsp;        }
+<i>631</i>&nbsp;
+<i>632</i>&nbsp;        void finishAndRunNext() {
+<i>633</i>&nbsp;            synchronized (this) {
+<i>634</i>&nbsp;                permitsTaken--;
+<i>635</i>&nbsp;                assert permitsTaken &gt;= 0 : &quot;illegal taken permits: &quot; + permitsTaken;
+<i>636</i>&nbsp;            }
+<i>637</i>&nbsp;            tryRun(null);
+<i>638</i>&nbsp;        }
+<i>639</i>&nbsp;
+<i>640</i>&nbsp;        void tryRun(Runnable runnable) {
+<i>641</i>&nbsp;            Runnable r = tryQueue(runnable);
+<i>642</i>&nbsp;            if (r != null) {
+<i>643</i>&nbsp;                r.run();
+<i>644</i>&nbsp;            }
+<i>645</i>&nbsp;        }
+<i>646</i>&nbsp;
+<i>647</i>&nbsp;        private synchronized Runnable tryQueue(Runnable runnable) {
+<i>648</i>&nbsp;            Runnable toExecute = null;
+<i>649</i>&nbsp;            if (permitsTaken &lt; permits) {
+<i>650</i>&nbsp;                permitsTaken++;
+<i>651</i>&nbsp;                toExecute = runnable;
+<i>652</i>&nbsp;                if (toExecute == null) { // only poll if we don&#39;t have anything to execute
+<i>653</i>&nbsp;                    toExecute = queue.poll();
+<i>654</i>&nbsp;                }
+<i>655</i>&nbsp;                if (toExecute == null) {
+<i>656</i>&nbsp;                    permitsTaken--;
+<i>657</i>&nbsp;                }
+<i>658</i>&nbsp;            } else if (runnable != null) {
+<i>659</i>&nbsp;                queue.add(runnable);
+<i>660</i>&nbsp;            }
+<i>661</i>&nbsp;            return toExecute;
+<i>662</i>&nbsp;        }
+<i>663</i>&nbsp;    }
+<i>664</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

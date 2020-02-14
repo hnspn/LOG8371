@@ -1,0 +1,444 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TransportSingleShardAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.support.single.shard</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TransportSingleShardAction (org.elasticsearch.action.support.single.shard)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TransportSingleShardAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.2%
+  </span>
+  <span class="absValue">
+    (2/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    54.5%
+  </span>
+  <span class="absValue">
+    (12/ 22)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">TransportSingleShardAction$ShardTransportHandler</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (1/ 5)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">TransportSingleShardAction$TransportHandler</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    30.8%
+  </span>
+  <span class="absValue">
+    (4/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    46.7%
+  </span>
+  <span class="absValue">
+    (14/ 30)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.support.single.shard;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionResponse;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionRunnable;
+<i>26</i>&nbsp;import org.elasticsearch.action.NoShardAvailableActionException;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.ActionFilters;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.ChannelActionListener;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.TransportAction;
+<i>30</i>&nbsp;import org.elasticsearch.action.support.TransportActions;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockException;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>37</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>38</i>&nbsp;import org.elasticsearch.cluster.routing.ShardsIterator;
+<i>39</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>40</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>41</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>42</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>43</i>&nbsp;import org.elasticsearch.common.logging.LoggerMessageFormat;
+<i>44</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>45</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>46</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>47</i>&nbsp;import org.elasticsearch.transport.TransportChannel;
+<i>48</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>49</i>&nbsp;import org.elasticsearch.transport.TransportRequestHandler;
+<i>50</i>&nbsp;import org.elasticsearch.transport.TransportResponseHandler;
+<i>51</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;import java.io.IOException;
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;/**
+<i>58</i>&nbsp; * A base class for operations that need to perform a read operation on a single shard copy. If the operation fails,
+<i>59</i>&nbsp; * the read operation can be performed on other shard copies. Concrete implementations can provide their own list
+<i>60</i>&nbsp; * of candidate shards to try the read operation on.
+<i>61</i>&nbsp; */
+<b class="nc"><i>62</i>&nbsp;public abstract class TransportSingleShardAction&lt;Request extends SingleShardRequest&lt;Request&gt;, Response extends ActionResponse&gt;</b>
+<i>63</i>&nbsp;        extends TransportAction&lt;Request, Response&gt; {
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    protected final ThreadPool threadPool;
+<i>66</i>&nbsp;    protected final ClusterService clusterService;
+<i>67</i>&nbsp;    protected final TransportService transportService;
+<i>68</i>&nbsp;    protected final IndexNameExpressionResolver indexNameExpressionResolver;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    private final String transportShardAction;
+<i>71</i>&nbsp;    private final String executor;
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    protected TransportSingleShardAction(String actionName, ThreadPool threadPool, ClusterService clusterService,
+<i>74</i>&nbsp;                                         TransportService transportService, ActionFilters actionFilters,
+<i>75</i>&nbsp;                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader&lt;Request&gt; request,
+<i>76</i>&nbsp;                                         String executor) {
+<b class="fc"><i>77</i>&nbsp;        super(actionName, actionFilters, transportService.getTaskManager());</b>
+<b class="fc"><i>78</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>79</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>80</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>81</i>&nbsp;        this.indexNameExpressionResolver = indexNameExpressionResolver;</b>
+<i>82</i>&nbsp;
+<b class="fc"><i>83</i>&nbsp;        this.transportShardAction = actionName + &quot;[s]&quot;;</b>
+<b class="fc"><i>84</i>&nbsp;        this.executor = executor;</b>
+<i>85</i>&nbsp;
+<b class="fc"><i>86</i>&nbsp;        if (!isSubAction()) {</b>
+<b class="fc"><i>87</i>&nbsp;            transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, request, new TransportHandler());</b>
+<i>88</i>&nbsp;        }
+<b class="fc"><i>89</i>&nbsp;        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, request, new ShardTransportHandler());</b>
+<b class="fc"><i>90</i>&nbsp;    }</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    /**
+<i>93</i>&nbsp;     * Tells whether the action is a main one or a subaction. Used to decide whether we need to register
+<i>94</i>&nbsp;     * the main transport handler. In fact if the action is a subaction, its execute method
+<i>95</i>&nbsp;     * will be called locally to its parent action.
+<i>96</i>&nbsp;     */
+<i>97</i>&nbsp;    protected boolean isSubAction() {
+<b class="fc"><i>98</i>&nbsp;        return false;</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    @Override
+<i>102</i>&nbsp;    protected void doExecute(Task task, Request request, ActionListener&lt;Response&gt; listener) {
+<b class="nc"><i>103</i>&nbsp;        new AsyncSingleAction(request, listener).start();</b>
+<b class="nc"><i>104</i>&nbsp;    }</b>
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    protected void asyncShardOperation(Request request, ShardId shardId, ActionListener&lt;Response&gt; listener) throws IOException {
+<b class="nc"><i>109</i>&nbsp;        threadPool.executor(getExecutor(request, shardId))</b>
+<b class="nc"><i>110</i>&nbsp;            .execute(ActionRunnable.supply(listener, () -&gt; shardOperation(request, shardId)));</b>
+<b class="nc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    protected abstract Writeable.Reader&lt;Response&gt; getResponseReader();
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    protected abstract boolean resolveIndex(Request request);
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    protected ClusterBlockException checkGlobalBlock(ClusterState state) {
+<b class="nc"><i>118</i>&nbsp;        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);</b>
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+<b class="nc"><i>122</i>&nbsp;        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.concreteIndex());</b>
+<i>123</i>&nbsp;    }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    protected void resolveRequest(ClusterState state, InternalRequest request) {
+<i>126</i>&nbsp;
+<b class="nc"><i>127</i>&nbsp;    }</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    /**
+<i>130</i>&nbsp;     * Returns the candidate shards to execute the operation on or &lt;code&gt;null&lt;/code&gt; the execute
+<i>131</i>&nbsp;     * the operation locally (the node that received the request)
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    @Nullable
+<i>134</i>&nbsp;    protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    class AsyncSingleAction {
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;        private final ActionListener&lt;Response&gt; listener;
+<i>139</i>&nbsp;        private final ShardsIterator shardIt;
+<i>140</i>&nbsp;        private final InternalRequest internalRequest;
+<i>141</i>&nbsp;        private final DiscoveryNodes nodes;
+<i>142</i>&nbsp;        private volatile Exception lastFailure;
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;        private AsyncSingleAction(Request request, ActionListener&lt;Response&gt; listener) {
+<i>145</i>&nbsp;            this.listener = listener;
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;            ClusterState clusterState = clusterService.state();
+<i>148</i>&nbsp;            if (logger.isTraceEnabled()) {
+<i>149</i>&nbsp;                logger.trace(&quot;executing [{}] based on cluster state version [{}]&quot;, request, clusterState.version());
+<i>150</i>&nbsp;            }
+<i>151</i>&nbsp;            nodes = clusterState.nodes();
+<i>152</i>&nbsp;            ClusterBlockException blockException = checkGlobalBlock(clusterState);
+<i>153</i>&nbsp;            if (blockException != null) {
+<i>154</i>&nbsp;                throw blockException;
+<i>155</i>&nbsp;            }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;            String concreteSingleIndex;
+<i>158</i>&nbsp;            if (resolveIndex(request)) {
+<i>159</i>&nbsp;                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
+<i>160</i>&nbsp;            } else {
+<i>161</i>&nbsp;                concreteSingleIndex = request.index();
+<i>162</i>&nbsp;            }
+<i>163</i>&nbsp;            this.internalRequest = new InternalRequest(request, concreteSingleIndex);
+<i>164</i>&nbsp;            resolveRequest(clusterState, internalRequest);
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;            blockException = checkRequestBlock(clusterState, internalRequest);
+<i>167</i>&nbsp;            if (blockException != null) {
+<i>168</i>&nbsp;                throw blockException;
+<i>169</i>&nbsp;            }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;            this.shardIt = shards(clusterState, internalRequest);
+<i>172</i>&nbsp;        }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        public void start() {
+<i>175</i>&nbsp;            if (shardIt == null) {
+<i>176</i>&nbsp;                // just execute it on the local node
+<i>177</i>&nbsp;                final Writeable.Reader&lt;Response&gt; reader = getResponseReader();
+<i>178</i>&nbsp;                transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
+<i>179</i>&nbsp;                    new TransportResponseHandler&lt;Response&gt;() {
+<i>180</i>&nbsp;                    @Override
+<i>181</i>&nbsp;                    public Response read(StreamInput in) throws IOException {
+<i>182</i>&nbsp;                        return reader.read(in);
+<i>183</i>&nbsp;                    }
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;                    @Override
+<i>186</i>&nbsp;                    public String executor() {
+<i>187</i>&nbsp;                        return ThreadPool.Names.SAME;
+<i>188</i>&nbsp;                    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;                    @Override
+<i>191</i>&nbsp;                    public void handleResponse(final Response response) {
+<i>192</i>&nbsp;                        listener.onResponse(response);
+<i>193</i>&nbsp;                    }
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;                    @Override
+<i>196</i>&nbsp;                    public void handleException(TransportException exp) {
+<i>197</i>&nbsp;                        listener.onFailure(exp);
+<i>198</i>&nbsp;                    }
+<i>199</i>&nbsp;                });
+<i>200</i>&nbsp;            } else {
+<i>201</i>&nbsp;                perform(null);
+<i>202</i>&nbsp;            }
+<i>203</i>&nbsp;        }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;        private void onFailure(ShardRouting shardRouting, Exception e) {
+<i>206</i>&nbsp;            if (e != null) {
+<i>207</i>&nbsp;                logger.trace(() -&gt; new ParameterizedMessage(&quot;{}: failed to execute [{}]&quot;, shardRouting,
+<i>208</i>&nbsp;                    internalRequest.request()), e);
+<i>209</i>&nbsp;            }
+<i>210</i>&nbsp;            perform(e);
+<i>211</i>&nbsp;        }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;        private void perform(@Nullable final Exception currentFailure) {
+<i>214</i>&nbsp;            Exception lastFailure = this.lastFailure;
+<i>215</i>&nbsp;            if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
+<i>216</i>&nbsp;                lastFailure = currentFailure;
+<i>217</i>&nbsp;                this.lastFailure = currentFailure;
+<i>218</i>&nbsp;            }
+<i>219</i>&nbsp;            final ShardRouting shardRouting = shardIt.nextOrNull();
+<i>220</i>&nbsp;            if (shardRouting == null) {
+<i>221</i>&nbsp;                Exception failure = lastFailure;
+<i>222</i>&nbsp;                if (failure == null || isShardNotAvailableException(failure)) {
+<i>223</i>&nbsp;                    failure = new NoShardAvailableActionException(null,
+<i>224</i>&nbsp;                        LoggerMessageFormat.format(&quot;No shard available for [{}]&quot;, internalRequest.request()), failure);
+<i>225</i>&nbsp;                } else {
+<i>226</i>&nbsp;                    logger.debug(() -&gt; new ParameterizedMessage(&quot;{}: failed to execute [{}]&quot;, null,
+<i>227</i>&nbsp;                        internalRequest.request()), failure);
+<i>228</i>&nbsp;                }
+<i>229</i>&nbsp;                listener.onFailure(failure);
+<i>230</i>&nbsp;                return;
+<i>231</i>&nbsp;            }
+<i>232</i>&nbsp;            DiscoveryNode node = nodes.get(shardRouting.currentNodeId());
+<i>233</i>&nbsp;            if (node == null) {
+<i>234</i>&nbsp;                onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
+<i>235</i>&nbsp;            } else {
+<i>236</i>&nbsp;                internalRequest.request().internalShardId = shardRouting.shardId();
+<i>237</i>&nbsp;                if (logger.isTraceEnabled()) {
+<i>238</i>&nbsp;                    logger.trace(
+<i>239</i>&nbsp;                            &quot;sending request [{}] to shard [{}] on node [{}]&quot;,
+<i>240</i>&nbsp;                            internalRequest.request(),
+<i>241</i>&nbsp;                            internalRequest.request().internalShardId,
+<i>242</i>&nbsp;                            node
+<i>243</i>&nbsp;                    );
+<i>244</i>&nbsp;                }
+<i>245</i>&nbsp;                final Writeable.Reader&lt;Response&gt; reader = getResponseReader();
+<i>246</i>&nbsp;                transportService.sendRequest(node, transportShardAction, internalRequest.request(),
+<i>247</i>&nbsp;                    new TransportResponseHandler&lt;Response&gt;() {
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;                        @Override
+<i>250</i>&nbsp;                        public Response read(StreamInput in) throws IOException {
+<i>251</i>&nbsp;                            return reader.read(in);
+<i>252</i>&nbsp;                        }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;                        @Override
+<i>255</i>&nbsp;                        public String executor() {
+<i>256</i>&nbsp;                            return ThreadPool.Names.SAME;
+<i>257</i>&nbsp;                        }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;                        @Override
+<i>260</i>&nbsp;                        public void handleResponse(final Response response) {
+<i>261</i>&nbsp;                            listener.onResponse(response);
+<i>262</i>&nbsp;                        }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;                        @Override
+<i>265</i>&nbsp;                        public void handleException(TransportException exp) {
+<i>266</i>&nbsp;                            onFailure(shardRouting, exp);
+<i>267</i>&nbsp;                        }
+<i>268</i>&nbsp;                });
+<i>269</i>&nbsp;            }
+<i>270</i>&nbsp;        }
+<i>271</i>&nbsp;    }
+<i>272</i>&nbsp;
+<b class="fc"><i>273</i>&nbsp;    private class TransportHandler implements TransportRequestHandler&lt;Request&gt; {</b>
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;        @Override
+<i>276</i>&nbsp;        public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
+<i>277</i>&nbsp;            // if we have a local operation, execute it on a thread since we don&#39;t spawn
+<b class="nc"><i>278</i>&nbsp;            execute(request, new ChannelActionListener&lt;&gt;(channel, actionName, request));</b>
+<b class="nc"><i>279</i>&nbsp;        }</b>
+<i>280</i>&nbsp;    }
+<i>281</i>&nbsp;
+<b class="fc"><i>282</i>&nbsp;    private class ShardTransportHandler implements TransportRequestHandler&lt;Request&gt; {</b>
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;        @Override
+<i>285</i>&nbsp;        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
+<b class="nc"><i>286</i>&nbsp;            if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>287</i>&nbsp;                logger.trace(&quot;executing [{}] on shard [{}]&quot;, request, request.internalShardId);</b>
+<i>288</i>&nbsp;            }
+<b class="nc"><i>289</i>&nbsp;            asyncShardOperation(request, request.internalShardId, new ChannelActionListener&lt;&gt;(channel, transportShardAction, request));</b>
+<b class="nc"><i>290</i>&nbsp;        }</b>
+<i>291</i>&nbsp;    }
+<i>292</i>&nbsp;    /**
+<i>293</i>&nbsp;     * Internal request class that gets built on each node. Holds the original request plus additional info.
+<i>294</i>&nbsp;     */
+<i>295</i>&nbsp;    protected class InternalRequest {
+<i>296</i>&nbsp;        final Request request;
+<i>297</i>&nbsp;        final String concreteIndex;
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;        InternalRequest(Request request, String concreteIndex) {
+<i>300</i>&nbsp;            this.request = request;
+<i>301</i>&nbsp;            this.concreteIndex = concreteIndex;
+<i>302</i>&nbsp;        }
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;        public Request request() {
+<i>305</i>&nbsp;            return request;
+<i>306</i>&nbsp;        }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;        public String concreteIndex() {
+<i>309</i>&nbsp;            return concreteIndex;
+<i>310</i>&nbsp;        }
+<i>311</i>&nbsp;    }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;    protected String getExecutor(Request request, ShardId shardId) {
+<b class="nc"><i>314</i>&nbsp;        return executor;</b>
+<i>315</i>&nbsp;    }
+<i>316</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

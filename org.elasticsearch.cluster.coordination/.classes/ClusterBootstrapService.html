@@ -1,0 +1,338 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ClusterBootstrapService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.coordination</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ClusterBootstrapService (org.elasticsearch.cluster.coordination)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ClusterBootstrapService</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    91.7%
+  </span>
+  <span class="absValue">
+    (11/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (62/ 93)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.cluster.coordination;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>26</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>27</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>31</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>32</i>&nbsp;import org.elasticsearch.discovery.DiscoveryModule;
+<i>33</i>&nbsp;import org.elasticsearch.node.Node;
+<i>34</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool.Names;
+<i>35</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.util.ArrayList;
+<i>38</i>&nbsp;import java.util.Collections;
+<i>39</i>&nbsp;import java.util.HashSet;
+<i>40</i>&nbsp;import java.util.LinkedHashSet;
+<i>41</i>&nbsp;import java.util.List;
+<i>42</i>&nbsp;import java.util.Set;
+<i>43</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>44</i>&nbsp;import java.util.function.BooleanSupplier;
+<i>45</i>&nbsp;import java.util.function.Consumer;
+<i>46</i>&nbsp;import java.util.function.Function;
+<i>47</i>&nbsp;import java.util.function.Supplier;
+<i>48</i>&nbsp;import java.util.stream.Collectors;
+<i>49</i>&nbsp;import java.util.stream.Stream;
+<i>50</i>&nbsp;import java.util.stream.StreamSupport;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;import static java.util.Collections.emptyList;
+<i>53</i>&nbsp;import static java.util.Collections.unmodifiableSet;
+<i>54</i>&nbsp;import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+<i>55</i>&nbsp;import static org.elasticsearch.discovery.DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING;
+<i>56</i>&nbsp;import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+<i>57</i>&nbsp;import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+<i>58</i>&nbsp;
+<b class="fc"><i>59</i>&nbsp;public class ClusterBootstrapService {</b>
+<i>60</i>&nbsp;
+<b class="fc"><i>61</i>&nbsp;    public static final Setting&lt;List&lt;String&gt;&gt; INITIAL_MASTER_NODES_SETTING =</b>
+<b class="fc"><i>62</i>&nbsp;        Setting.listSetting(&quot;cluster.initial_master_nodes&quot;, emptyList(), Function.identity(), Property.NodeScope);</b>
+<i>63</i>&nbsp;
+<b class="fc"><i>64</i>&nbsp;    public static final Setting&lt;TimeValue&gt; UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING =</b>
+<b class="fc"><i>65</i>&nbsp;        Setting.timeSetting(&quot;discovery.unconfigured_bootstrap_timeout&quot;,</b>
+<b class="fc"><i>66</i>&nbsp;            TimeValue.timeValueSeconds(3), TimeValue.timeValueMillis(1), Property.NodeScope);</b>
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    static final String BOOTSTRAP_PLACEHOLDER_PREFIX = &quot;{bootstrap-placeholder}-&quot;;
+<i>69</i>&nbsp;
+<b class="fc"><i>70</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ClusterBootstrapService.class);</b>
+<i>71</i>&nbsp;    private final Set&lt;String&gt; bootstrapRequirements;
+<i>72</i>&nbsp;    @Nullable // null if discoveryIsConfigured()
+<i>73</i>&nbsp;    private final TimeValue unconfiguredBootstrapTimeout;
+<i>74</i>&nbsp;    private final TransportService transportService;
+<i>75</i>&nbsp;    private final Supplier&lt;Iterable&lt;DiscoveryNode&gt;&gt; discoveredNodesSupplier;
+<i>76</i>&nbsp;    private final BooleanSupplier isBootstrappedSupplier;
+<i>77</i>&nbsp;    private final Consumer&lt;VotingConfiguration&gt; votingConfigurationConsumer;
+<b class="fc"><i>78</i>&nbsp;    private final AtomicBoolean bootstrappingPermitted = new AtomicBoolean(true);</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    public ClusterBootstrapService(Settings settings, TransportService transportService,
+<i>81</i>&nbsp;                                   Supplier&lt;Iterable&lt;DiscoveryNode&gt;&gt; discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
+<b class="fc"><i>82</i>&nbsp;                                   Consumer&lt;VotingConfiguration&gt; votingConfigurationConsumer) {</b>
+<b class="fc"><i>83</i>&nbsp;        if (DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {</b>
+<b class="nc"><i>84</i>&nbsp;            if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {</b>
+<b class="nc"><i>85</i>&nbsp;                throw new IllegalArgumentException(&quot;setting [&quot; + INITIAL_MASTER_NODES_SETTING.getKey() +</b>
+<b class="nc"><i>86</i>&nbsp;                    &quot;] is not allowed when [&quot; + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + &quot;] is set to [&quot; +</b>
+<i>87</i>&nbsp;                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE + &quot;]&quot;);
+<i>88</i>&nbsp;            }
+<b class="nc"><i>89</i>&nbsp;            if (DiscoveryNode.isMasterNode(settings) == false) {</b>
+<b class="nc"><i>90</i>&nbsp;                throw new IllegalArgumentException(&quot;node with [&quot; + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + &quot;] set to [&quot; +</b>
+<i>91</i>&nbsp;                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE +  &quot;] must be master-eligible&quot;);
+<i>92</i>&nbsp;            }
+<b class="nc"><i>93</i>&nbsp;            bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));</b>
+<b class="nc"><i>94</i>&nbsp;            unconfiguredBootstrapTimeout = null;</b>
+<i>95</i>&nbsp;        } else {
+<b class="fc"><i>96</i>&nbsp;            final List&lt;String&gt; initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>97</i>&nbsp;            bootstrapRequirements = unmodifiableSet(new LinkedHashSet&lt;&gt;(initialMasterNodes));</b>
+<b class="fc"><i>98</i>&nbsp;            if (bootstrapRequirements.size() != initialMasterNodes.size()) {</b>
+<b class="nc"><i>99</i>&nbsp;                throw new IllegalArgumentException(</b>
+<b class="nc"><i>100</i>&nbsp;                    &quot;setting [&quot; + INITIAL_MASTER_NODES_SETTING.getKey() + &quot;] contains duplicates: &quot; + initialMasterNodes);</b>
+<i>101</i>&nbsp;            }
+<b class="fc"><i>102</i>&nbsp;            unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);</b>
+<i>103</i>&nbsp;        }
+<i>104</i>&nbsp;
+<b class="fc"><i>105</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>106</i>&nbsp;        this.discoveredNodesSupplier = discoveredNodesSupplier;</b>
+<b class="fc"><i>107</i>&nbsp;        this.isBootstrappedSupplier = isBootstrappedSupplier;</b>
+<b class="fc"><i>108</i>&nbsp;        this.votingConfigurationConsumer = votingConfigurationConsumer;</b>
+<b class="fc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    public static boolean discoveryIsConfigured(Settings settings) {
+<b class="fc"><i>112</i>&nbsp;        return Stream.of(DISCOVERY_SEED_PROVIDERS_SETTING, LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,</b>
+<i>113</i>&nbsp;            DISCOVERY_SEED_HOSTS_SETTING, LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+<b class="fc"><i>114</i>&nbsp;            INITIAL_MASTER_NODES_SETTING).anyMatch(s -&gt; s.exists(settings));</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    void onFoundPeersUpdated() {
+<b class="fc"><i>118</i>&nbsp;        final Set&lt;DiscoveryNode&gt; nodes = getDiscoveredNodes();</b>
+<b class="fc"><i>119</i>&nbsp;        if (bootstrappingPermitted.get() &amp;&amp; transportService.getLocalNode().isMasterNode() &amp;&amp; bootstrapRequirements.isEmpty() == false</b>
+<b class="fc"><i>120</i>&nbsp;            &amp;&amp; isBootstrappedSupplier.getAsBoolean() == false &amp;&amp; nodes.stream().noneMatch(Coordinator::isZen1Node)) {</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;            final Tuple&lt;Set&lt;DiscoveryNode&gt;,List&lt;String&gt;&gt; requirementMatchingResult;
+<i>123</i>&nbsp;            try {
+<b class="fc"><i>124</i>&nbsp;                requirementMatchingResult = checkRequirements(nodes);</b>
+<b class="nc"><i>125</i>&nbsp;            } catch (IllegalStateException e) {</b>
+<b class="nc"><i>126</i>&nbsp;                logger.warn(&quot;bootstrapping cancelled&quot;, e);</b>
+<b class="nc"><i>127</i>&nbsp;                bootstrappingPermitted.set(false);</b>
+<b class="nc"><i>128</i>&nbsp;                return;</b>
+<b class="fc"><i>129</i>&nbsp;            }</b>
+<i>130</i>&nbsp;
+<b class="fc"><i>131</i>&nbsp;            final Set&lt;DiscoveryNode&gt; nodesMatchingRequirements = requirementMatchingResult.v1();</b>
+<b class="fc"><i>132</i>&nbsp;            final List&lt;String&gt; unsatisfiedRequirements = requirementMatchingResult.v2();</b>
+<b class="fc"><i>133</i>&nbsp;            logger.trace(&quot;nodesMatchingRequirements={}, unsatisfiedRequirements={}, bootstrapRequirements={}&quot;,</b>
+<i>134</i>&nbsp;                nodesMatchingRequirements, unsatisfiedRequirements, bootstrapRequirements);
+<i>135</i>&nbsp;
+<b class="fc"><i>136</i>&nbsp;            if (nodesMatchingRequirements.contains(transportService.getLocalNode()) == false) {</b>
+<b class="nc"><i>137</i>&nbsp;                logger.info(&quot;skipping cluster bootstrapping as local node does not match bootstrap requirements: {}&quot;,</b>
+<i>138</i>&nbsp;                    bootstrapRequirements);
+<b class="nc"><i>139</i>&nbsp;                bootstrappingPermitted.set(false);</b>
+<b class="nc"><i>140</i>&nbsp;                return;</b>
+<i>141</i>&nbsp;            }
+<i>142</i>&nbsp;
+<b class="fc"><i>143</i>&nbsp;            if (nodesMatchingRequirements.size() * 2 &gt; bootstrapRequirements.size()) {</b>
+<b class="fc"><i>144</i>&nbsp;                startBootstrap(nodesMatchingRequirements, unsatisfiedRequirements);</b>
+<i>145</i>&nbsp;            }
+<i>146</i>&nbsp;        }
+<b class="fc"><i>147</i>&nbsp;    }</b>
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    void scheduleUnconfiguredBootstrap() {
+<b class="fc"><i>150</i>&nbsp;        if (unconfiguredBootstrapTimeout == null) {</b>
+<b class="fc"><i>151</i>&nbsp;            return;</b>
+<i>152</i>&nbsp;        }
+<i>153</i>&nbsp;
+<b class="nc"><i>154</i>&nbsp;        if (transportService.getLocalNode().isMasterNode() == false) {</b>
+<b class="nc"><i>155</i>&nbsp;            return;</b>
+<i>156</i>&nbsp;        }
+<i>157</i>&nbsp;
+<b class="nc"><i>158</i>&nbsp;        logger.info(&quot;no discovery configuration found, will perform best-effort cluster bootstrapping after [{}] &quot; +</b>
+<i>159</i>&nbsp;            &quot;unless existing master is discovered&quot;, unconfiguredBootstrapTimeout);
+<i>160</i>&nbsp;
+<b class="nc"><i>161</i>&nbsp;        transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.GENERIC, new Runnable() {</b>
+<i>162</i>&nbsp;            @Override
+<i>163</i>&nbsp;            public void run() {
+<i>164</i>&nbsp;                final Set&lt;DiscoveryNode&gt; discoveredNodes = getDiscoveredNodes();
+<i>165</i>&nbsp;                final List&lt;DiscoveryNode&gt; zen1Nodes = discoveredNodes.stream().filter(Coordinator::isZen1Node).collect(Collectors.toList());
+<i>166</i>&nbsp;                if (zen1Nodes.isEmpty()) {
+<i>167</i>&nbsp;                    logger.debug(&quot;performing best-effort cluster bootstrapping with {}&quot;, discoveredNodes);
+<i>168</i>&nbsp;                    startBootstrap(discoveredNodes, emptyList());
+<i>169</i>&nbsp;                } else {
+<i>170</i>&nbsp;                    logger.info(&quot;avoiding best-effort cluster bootstrapping due to discovery of pre-7.0 nodes {}&quot;, zen1Nodes);
+<i>171</i>&nbsp;                }
+<i>172</i>&nbsp;            }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;            @Override
+<i>175</i>&nbsp;            public String toString() {
+<i>176</i>&nbsp;                return &quot;unconfigured-discovery delayed bootstrap&quot;;
+<i>177</i>&nbsp;            }
+<i>178</i>&nbsp;        });
+<b class="nc"><i>179</i>&nbsp;    }</b>
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    private Set&lt;DiscoveryNode&gt; getDiscoveredNodes() {
+<b class="fc"><i>182</i>&nbsp;        return Stream.concat(Stream.of(transportService.getLocalNode()),</b>
+<b class="fc"><i>183</i>&nbsp;            StreamSupport.stream(discoveredNodesSupplier.get().spliterator(), false)).collect(Collectors.toSet());</b>
+<i>184</i>&nbsp;    }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;    private void startBootstrap(Set&lt;DiscoveryNode&gt; discoveryNodes, List&lt;String&gt; unsatisfiedRequirements) {
+<b class="fc"><i>187</i>&nbsp;        assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;</b>
+<b class="fc"><i>188</i>&nbsp;        assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;</b>
+<b class="fc"><i>189</i>&nbsp;        assert unsatisfiedRequirements.size() &lt; discoveryNodes.size() : discoveryNodes + &quot; smaller than &quot; + unsatisfiedRequirements;</b>
+<b class="fc"><i>190</i>&nbsp;        if (bootstrappingPermitted.compareAndSet(true, false)) {</b>
+<b class="fc"><i>191</i>&nbsp;            doBootstrap(new VotingConfiguration(Stream.concat(discoveryNodes.stream().map(DiscoveryNode::getId),</b>
+<b class="fc"><i>192</i>&nbsp;                unsatisfiedRequirements.stream().map(s -&gt; BOOTSTRAP_PLACEHOLDER_PREFIX + s))</b>
+<b class="fc"><i>193</i>&nbsp;                .collect(Collectors.toSet())));</b>
+<i>194</i>&nbsp;        }
+<b class="fc"><i>195</i>&nbsp;    }</b>
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    public static boolean isBootstrapPlaceholder(String nodeId) {
+<b class="nc"><i>198</i>&nbsp;        return nodeId.startsWith(BOOTSTRAP_PLACEHOLDER_PREFIX);</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    private void doBootstrap(VotingConfiguration votingConfiguration) {
+<b class="fc"><i>202</i>&nbsp;        assert transportService.getLocalNode().isMasterNode();</b>
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;        try {
+<b class="fc"><i>205</i>&nbsp;            votingConfigurationConsumer.accept(votingConfiguration);</b>
+<b class="nc"><i>206</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>207</i>&nbsp;            logger.warn(new ParameterizedMessage(&quot;exception when bootstrapping with {}, rescheduling&quot;, votingConfiguration), e);</b>
+<b class="nc"><i>208</i>&nbsp;            transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC,</b>
+<i>209</i>&nbsp;                new Runnable() {
+<i>210</i>&nbsp;                    @Override
+<i>211</i>&nbsp;                    public void run() {
+<i>212</i>&nbsp;                        doBootstrap(votingConfiguration);
+<i>213</i>&nbsp;                    }
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;                    @Override
+<i>216</i>&nbsp;                    public String toString() {
+<i>217</i>&nbsp;                        return &quot;retry of failed bootstrapping with &quot; + votingConfiguration;
+<i>218</i>&nbsp;                    }
+<i>219</i>&nbsp;                }
+<i>220</i>&nbsp;            );
+<b class="fc"><i>221</i>&nbsp;        }</b>
+<b class="fc"><i>222</i>&nbsp;    }</b>
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    private static boolean matchesRequirement(DiscoveryNode discoveryNode, String requirement) {
+<b class="fc"><i>225</i>&nbsp;        return discoveryNode.getName().equals(requirement)</b>
+<b class="nc"><i>226</i>&nbsp;            || discoveryNode.getAddress().toString().equals(requirement)</b>
+<b class="nc"><i>227</i>&nbsp;            || discoveryNode.getAddress().getAddress().equals(requirement);</b>
+<i>228</i>&nbsp;    }
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;    private Tuple&lt;Set&lt;DiscoveryNode&gt;,List&lt;String&gt;&gt; checkRequirements(Set&lt;DiscoveryNode&gt; nodes) {
+<b class="fc"><i>231</i>&nbsp;        final Set&lt;DiscoveryNode&gt; selectedNodes = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>232</i>&nbsp;        final List&lt;String&gt; unmatchedRequirements = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>233</i>&nbsp;        for (final String bootstrapRequirement : bootstrapRequirements) {</b>
+<b class="fc"><i>234</i>&nbsp;            final Set&lt;DiscoveryNode&gt; matchingNodes</b>
+<b class="fc"><i>235</i>&nbsp;                = nodes.stream().filter(n -&gt; matchesRequirement(n, bootstrapRequirement)).collect(Collectors.toSet());</b>
+<i>236</i>&nbsp;
+<b class="fc"><i>237</i>&nbsp;            if (matchingNodes.size() == 0) {</b>
+<b class="nc"><i>238</i>&nbsp;                unmatchedRequirements.add(bootstrapRequirement);</b>
+<i>239</i>&nbsp;            }
+<i>240</i>&nbsp;
+<b class="fc"><i>241</i>&nbsp;            if (matchingNodes.size() &gt; 1) {</b>
+<b class="nc"><i>242</i>&nbsp;                throw new IllegalStateException(&quot;requirement [&quot; + bootstrapRequirement + &quot;] matches multiple nodes: &quot; + matchingNodes);</b>
+<i>243</i>&nbsp;            }
+<i>244</i>&nbsp;
+<b class="fc"><i>245</i>&nbsp;            for (final DiscoveryNode matchingNode : matchingNodes) {</b>
+<b class="fc"><i>246</i>&nbsp;                if (selectedNodes.add(matchingNode) == false) {</b>
+<b class="nc"><i>247</i>&nbsp;                    throw new IllegalStateException(&quot;node [&quot; + matchingNode + &quot;] matches multiple requirements: &quot; +</b>
+<b class="nc"><i>248</i>&nbsp;                        bootstrapRequirements.stream().filter(r -&gt; matchesRequirement(matchingNode, r)).collect(Collectors.toList()));</b>
+<i>249</i>&nbsp;                }
+<b class="fc"><i>250</i>&nbsp;            }</b>
+<b class="fc"><i>251</i>&nbsp;        }</b>
+<i>252</i>&nbsp;
+<b class="fc"><i>253</i>&nbsp;        return Tuple.tuple(selectedNodes, unmatchedRequirements);</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

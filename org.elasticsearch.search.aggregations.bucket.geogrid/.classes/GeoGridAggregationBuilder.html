@@ -1,0 +1,281 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GeoGridAggregationBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.bucket.geogrid</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GeoGridAggregationBuilder (org.elasticsearch.search.aggregations.bucket.geogrid)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GeoGridAggregationBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 57)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.bucket.geogrid;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>23</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>29</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>30</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+<i>31</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactory;
+<i>32</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+<i>33</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValueType;
+<i>35</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSource;
+<i>36</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+<i>37</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+<i>38</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+<i>39</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+<i>40</i>&nbsp;import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import java.io.IOException;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Objects;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder&lt;ValuesSource.GeoPoint, GeoGridAggregationBuilder&gt;
+<i>47</i>&nbsp;        implements MultiBucketAggregationBuilder {
+<i>48</i>&nbsp;    /* recognized field names in JSON */
+<b class="nc"><i>49</i>&nbsp;    static final ParseField FIELD_PRECISION = new ParseField(&quot;precision&quot;);</b>
+<b class="nc"><i>50</i>&nbsp;    static final ParseField FIELD_SIZE = new ParseField(&quot;size&quot;);</b>
+<b class="nc"><i>51</i>&nbsp;    static final ParseField FIELD_SHARD_SIZE = new ParseField(&quot;shard_size&quot;);</b>
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    protected int precision;
+<i>54</i>&nbsp;    protected int requiredSize;
+<i>55</i>&nbsp;    protected int shardSize;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    @FunctionalInterface
+<i>58</i>&nbsp;    protected interface PrecisionParser {
+<i>59</i>&nbsp;        int parse(XContentParser parser) throws IOException;
+<i>60</i>&nbsp;    }
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    public static ObjectParser&lt;GeoGridAggregationBuilder, Void&gt; createParser(String name, PrecisionParser precisionParser) {
+<b class="nc"><i>63</i>&nbsp;        ObjectParser&lt;GeoGridAggregationBuilder, Void&gt; parser = new ObjectParser&lt;&gt;(name);</b>
+<b class="nc"><i>64</i>&nbsp;        ValuesSourceParserHelper.declareGeoFields(parser, false, false);</b>
+<b class="nc"><i>65</i>&nbsp;        parser.declareField((p, builder, context) -&gt; builder.precision(precisionParser.parse(p)), FIELD_PRECISION,</b>
+<i>66</i>&nbsp;            org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
+<b class="nc"><i>67</i>&nbsp;        parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);</b>
+<b class="nc"><i>68</i>&nbsp;        parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);</b>
+<b class="nc"><i>69</i>&nbsp;        return parser;</b>
+<i>70</i>&nbsp;    }
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    public GeoGridAggregationBuilder(String name) {
+<b class="nc"><i>73</i>&nbsp;        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);</b>
+<b class="nc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map&lt;String, Object&gt; metaData) {
+<b class="nc"><i>77</i>&nbsp;        super(clone, factoriesBuilder, metaData);</b>
+<b class="nc"><i>78</i>&nbsp;        this.precision = clone.precision;</b>
+<b class="nc"><i>79</i>&nbsp;        this.requiredSize = clone.requiredSize;</b>
+<b class="nc"><i>80</i>&nbsp;        this.shardSize = clone.shardSize;</b>
+<i>81</i>&nbsp;
+<b class="nc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    /**
+<i>85</i>&nbsp;     * Read from a stream.
+<i>86</i>&nbsp;     */
+<i>87</i>&nbsp;    public GeoGridAggregationBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>88</i>&nbsp;        super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);</b>
+<b class="nc"><i>89</i>&nbsp;        precision = in.readVInt();</b>
+<b class="nc"><i>90</i>&nbsp;        requiredSize = in.readVInt();</b>
+<b class="nc"><i>91</i>&nbsp;        shardSize = in.readVInt();</b>
+<b class="nc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    @Override
+<i>95</i>&nbsp;    protected void innerWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>96</i>&nbsp;        out.writeVInt(precision);</b>
+<b class="nc"><i>97</i>&nbsp;        out.writeVInt(requiredSize);</b>
+<b class="nc"><i>98</i>&nbsp;        out.writeVInt(shardSize);</b>
+<b class="nc"><i>99</i>&nbsp;    }</b>
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    /**
+<i>102</i>&nbsp;     * method to validate and set the precision value
+<i>103</i>&nbsp;     * @param precision the precision to set for the aggregation
+<i>104</i>&nbsp;     * @return the {@link GeoGridAggregationBuilder} builder
+<i>105</i>&nbsp;     */
+<i>106</i>&nbsp;    public abstract GeoGridAggregationBuilder precision(int precision);
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    /**
+<i>109</i>&nbsp;     * Creates a new instance of the {@link ValuesSourceAggregatorFactory}-derived class specific to the geo aggregation.
+<i>110</i>&nbsp;     */
+<i>111</i>&nbsp;    protected abstract ValuesSourceAggregatorFactory&lt;ValuesSource.GeoPoint&gt; createFactory(
+<i>112</i>&nbsp;        String name, ValuesSourceConfig&lt;ValuesSource.GeoPoint&gt; config, int precision, int requiredSize, int shardSize,
+<i>113</i>&nbsp;        QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder, Map&lt;String, Object&gt; metaData
+<i>114</i>&nbsp;    ) throws IOException;
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    public int precision() {
+<b class="nc"><i>117</i>&nbsp;        return precision;</b>
+<i>118</i>&nbsp;    }
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    public GeoGridAggregationBuilder size(int size) {
+<b class="nc"><i>121</i>&nbsp;        if (size &lt;= 0) {</b>
+<b class="nc"><i>122</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>123</i>&nbsp;                    &quot;[size] must be greater than 0. Found [&quot; + size + &quot;] in [&quot; + name + &quot;]&quot;);
+<i>124</i>&nbsp;        }
+<b class="nc"><i>125</i>&nbsp;        this.requiredSize = size;</b>
+<b class="nc"><i>126</i>&nbsp;        return this;</b>
+<i>127</i>&nbsp;    }
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    public int size() {
+<b class="nc"><i>130</i>&nbsp;        return requiredSize;</b>
+<i>131</i>&nbsp;    }
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    public GeoGridAggregationBuilder shardSize(int shardSize) {
+<b class="nc"><i>134</i>&nbsp;        if (shardSize &lt;= 0) {</b>
+<b class="nc"><i>135</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>136</i>&nbsp;                    &quot;[shardSize] must be greater than 0. Found [&quot; + shardSize + &quot;] in [&quot; + name + &quot;]&quot;);
+<i>137</i>&nbsp;            }
+<b class="nc"><i>138</i>&nbsp;        this.shardSize = shardSize;</b>
+<b class="nc"><i>139</i>&nbsp;        return this;</b>
+<i>140</i>&nbsp;        }
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;    public int shardSize() {
+<b class="nc"><i>143</i>&nbsp;        return shardSize;</b>
+<i>144</i>&nbsp;    }
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    @Override
+<i>147</i>&nbsp;    protected ValuesSourceAggregatorFactory&lt;ValuesSource.GeoPoint&gt; innerBuild(QueryShardContext queryShardContext,
+<i>148</i>&nbsp;                                                                                ValuesSourceConfig&lt;ValuesSource.GeoPoint&gt; config,
+<i>149</i>&nbsp;                                                                                AggregatorFactory parent, Builder subFactoriesBuilder)
+<i>150</i>&nbsp;                    throws IOException {
+<b class="nc"><i>151</i>&nbsp;        int shardSize = this.shardSize;</b>
+<i>152</i>&nbsp;
+<b class="nc"><i>153</i>&nbsp;        int requiredSize = this.requiredSize;</b>
+<i>154</i>&nbsp;
+<b class="nc"><i>155</i>&nbsp;        if (shardSize &lt; 0) {</b>
+<i>156</i>&nbsp;            // Use default heuristic to avoid any wrong-ranking caused by
+<i>157</i>&nbsp;            // distributed counting
+<b class="nc"><i>158</i>&nbsp;            shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize);</b>
+<i>159</i>&nbsp;        }
+<i>160</i>&nbsp;
+<b class="nc"><i>161</i>&nbsp;        if (requiredSize &lt;= 0 || shardSize &lt;= 0) {</b>
+<b class="nc"><i>162</i>&nbsp;            throw new ElasticsearchException(</b>
+<b class="nc"><i>163</i>&nbsp;                    &quot;parameters [required_size] and [shard_size] must be &gt; 0 in &quot; + getType() + &quot; aggregation [&quot; + name + &quot;].&quot;);</b>
+<i>164</i>&nbsp;        }
+<i>165</i>&nbsp;
+<b class="nc"><i>166</i>&nbsp;        if (shardSize &lt; requiredSize) {</b>
+<b class="nc"><i>167</i>&nbsp;            shardSize = requiredSize;</b>
+<i>168</i>&nbsp;        }
+<b class="nc"><i>169</i>&nbsp;        return createFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,</b>
+<i>170</i>&nbsp;                subFactoriesBuilder, metaData);
+<i>171</i>&nbsp;    }
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    @Override
+<i>174</i>&nbsp;    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>175</i>&nbsp;        builder.field(FIELD_PRECISION.getPreferredName(), precision);</b>
+<b class="nc"><i>176</i>&nbsp;        builder.field(FIELD_SIZE.getPreferredName(), requiredSize);</b>
+<b class="nc"><i>177</i>&nbsp;        if (shardSize &gt; -1) {</b>
+<b class="nc"><i>178</i>&nbsp;            builder.field(FIELD_SHARD_SIZE.getPreferredName(), shardSize);</b>
+<i>179</i>&nbsp;        }
+<b class="nc"><i>180</i>&nbsp;        return builder;</b>
+<i>181</i>&nbsp;    }
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    @Override
+<i>184</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>185</i>&nbsp;        if (this == obj) return true;</b>
+<b class="nc"><i>186</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) return false;</b>
+<b class="nc"><i>187</i>&nbsp;        if (super.equals(obj) == false) return false;</b>
+<b class="nc"><i>188</i>&nbsp;        GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;</b>
+<b class="nc"><i>189</i>&nbsp;        return precision == other.precision</b>
+<i>190</i>&nbsp;            &amp;&amp; requiredSize == other.requiredSize
+<i>191</i>&nbsp;            &amp;&amp; shardSize == other.shardSize;
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    @Override
+<i>195</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>196</i>&nbsp;        return Objects.hash(super.hashCode(), precision, requiredSize, shardSize);</b>
+<i>197</i>&nbsp;    }
+<i>198</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,296 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SyncedFlushResponse</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.admin.indices.flush</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SyncedFlushResponse (org.elasticsearch.action.admin.indices.flush)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SyncedFlushResponse</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 71)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.action.admin.indices.flush;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.action.ActionResponse;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>23</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>26</i>&nbsp;import org.elasticsearch.common.util.iterable.Iterables;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentFragment;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>29</i>&nbsp;import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
+<i>30</i>&nbsp;import org.elasticsearch.indices.flush.SyncedFlushService;
+<i>31</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.util.ArrayList;
+<i>35</i>&nbsp;import java.util.Collections;
+<i>36</i>&nbsp;import java.util.HashMap;
+<i>37</i>&nbsp;import java.util.List;
+<i>38</i>&nbsp;import java.util.Map;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import static java.util.Collections.unmodifiableMap;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;/**
+<i>43</i>&nbsp; * The result of performing a sync flush operation on all shards of multiple indices
+<i>44</i>&nbsp; */
+<i>45</i>&nbsp;public class SyncedFlushResponse extends ActionResponse implements ToXContentFragment {
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    private final Map&lt;String, List&lt;ShardsSyncedFlushResult&gt;&gt; shardsResultPerIndex;
+<i>48</i>&nbsp;    private final ShardCounts shardCounts;
+<i>49</i>&nbsp;
+<b class="nc"><i>50</i>&nbsp;    public SyncedFlushResponse(Map&lt;String, List&lt;ShardsSyncedFlushResult&gt;&gt; shardsResultPerIndex) {</b>
+<i>51</i>&nbsp;        // shardsResultPerIndex is never modified after it is passed to this
+<i>52</i>&nbsp;        // constructor so this is safe even though shardsResultPerIndex is a
+<i>53</i>&nbsp;        // ConcurrentHashMap
+<b class="nc"><i>54</i>&nbsp;        this.shardsResultPerIndex = unmodifiableMap(shardsResultPerIndex);</b>
+<b class="nc"><i>55</i>&nbsp;        this.shardCounts = calculateShardCounts(Iterables.flatten(shardsResultPerIndex.values()));</b>
+<b class="nc"><i>56</i>&nbsp;    }</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    public SyncedFlushResponse(StreamInput in) throws IOException {
+<b class="nc"><i>59</i>&nbsp;        super(in);</b>
+<b class="nc"><i>60</i>&nbsp;        shardCounts = new ShardCounts(in);</b>
+<b class="nc"><i>61</i>&nbsp;        Map&lt;String, List&lt;ShardsSyncedFlushResult&gt;&gt; tmpShardsResultPerIndex = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>62</i>&nbsp;        int numShardsResults = in.readInt();</b>
+<b class="nc"><i>63</i>&nbsp;        for (int i =0 ; i&lt; numShardsResults; i++) {</b>
+<b class="nc"><i>64</i>&nbsp;            String index = in.readString();</b>
+<b class="nc"><i>65</i>&nbsp;            List&lt;ShardsSyncedFlushResult&gt; shardsSyncedFlushResults = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>66</i>&nbsp;            int numShards = in.readInt();</b>
+<b class="nc"><i>67</i>&nbsp;            for (int j =0; j&lt; numShards; j++) {</b>
+<b class="nc"><i>68</i>&nbsp;                shardsSyncedFlushResults.add(new ShardsSyncedFlushResult(in));</b>
+<i>69</i>&nbsp;            }
+<b class="nc"><i>70</i>&nbsp;            tmpShardsResultPerIndex.put(index, shardsSyncedFlushResults);</b>
+<i>71</i>&nbsp;        }
+<b class="nc"><i>72</i>&nbsp;        shardsResultPerIndex = Collections.unmodifiableMap(tmpShardsResultPerIndex);</b>
+<b class="nc"><i>73</i>&nbsp;    }</b>
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * total number shards, including replicas, both assigned and unassigned
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    public int totalShards() {
+<b class="nc"><i>79</i>&nbsp;        return shardCounts.total;</b>
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * total number of shards for which the operation failed
+<i>84</i>&nbsp;     */
+<i>85</i>&nbsp;    public int failedShards() {
+<b class="nc"><i>86</i>&nbsp;        return shardCounts.failed;</b>
+<i>87</i>&nbsp;    }
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /**
+<i>90</i>&nbsp;     * total number of shards which were successfully sync-flushed
+<i>91</i>&nbsp;     */
+<i>92</i>&nbsp;    public int successfulShards() {
+<b class="nc"><i>93</i>&nbsp;        return shardCounts.successful;</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    public RestStatus restStatus() {
+<b class="nc"><i>97</i>&nbsp;        return failedShards() == 0 ? RestStatus.OK : RestStatus.CONFLICT;</b>
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    public Map&lt;String, List&lt;ShardsSyncedFlushResult&gt;&gt; getShardsResultPerIndex() {
+<b class="nc"><i>101</i>&nbsp;        return shardsResultPerIndex;</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    @Override
+<i>105</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>106</i>&nbsp;        builder.startObject(Fields._SHARDS);</b>
+<b class="nc"><i>107</i>&nbsp;        shardCounts.toXContent(builder, params);</b>
+<b class="nc"><i>108</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>109</i>&nbsp;        for (Map.Entry&lt;String, List&lt;ShardsSyncedFlushResult&gt;&gt; indexEntry : shardsResultPerIndex.entrySet()) {</b>
+<b class="nc"><i>110</i>&nbsp;            List&lt;ShardsSyncedFlushResult&gt; indexResult = indexEntry.getValue();</b>
+<b class="nc"><i>111</i>&nbsp;            builder.startObject(indexEntry.getKey());</b>
+<b class="nc"><i>112</i>&nbsp;            ShardCounts indexShardCounts = calculateShardCounts(indexResult);</b>
+<b class="nc"><i>113</i>&nbsp;            indexShardCounts.toXContent(builder, params);</b>
+<b class="nc"><i>114</i>&nbsp;            if (indexShardCounts.failed &gt; 0) {</b>
+<b class="nc"><i>115</i>&nbsp;                builder.startArray(Fields.FAILURES);</b>
+<b class="nc"><i>116</i>&nbsp;                for (ShardsSyncedFlushResult shardResults : indexResult) {</b>
+<b class="nc"><i>117</i>&nbsp;                    if (shardResults.failed()) {</b>
+<b class="nc"><i>118</i>&nbsp;                        builder.startObject();</b>
+<b class="nc"><i>119</i>&nbsp;                        builder.field(Fields.SHARD, shardResults.shardId().id());</b>
+<b class="nc"><i>120</i>&nbsp;                        builder.field(Fields.REASON, shardResults.failureReason());</b>
+<b class="nc"><i>121</i>&nbsp;                        builder.endObject();</b>
+<b class="nc"><i>122</i>&nbsp;                        continue;</b>
+<i>123</i>&nbsp;                    }
+<b class="nc"><i>124</i>&nbsp;                    Map&lt;ShardRouting, SyncedFlushService.ShardSyncedFlushResponse&gt; failedShards = shardResults.failedShards();</b>
+<b class="nc"><i>125</i>&nbsp;                    for (Map.Entry&lt;ShardRouting, SyncedFlushService.ShardSyncedFlushResponse&gt; shardEntry : failedShards.entrySet()) {</b>
+<b class="nc"><i>126</i>&nbsp;                        builder.startObject();</b>
+<b class="nc"><i>127</i>&nbsp;                        builder.field(Fields.SHARD, shardResults.shardId().id());</b>
+<b class="nc"><i>128</i>&nbsp;                        builder.field(Fields.REASON, shardEntry.getValue().failureReason());</b>
+<b class="nc"><i>129</i>&nbsp;                        builder.field(Fields.ROUTING, shardEntry.getKey());</b>
+<b class="nc"><i>130</i>&nbsp;                        builder.endObject();</b>
+<b class="nc"><i>131</i>&nbsp;                    }</b>
+<b class="nc"><i>132</i>&nbsp;                }</b>
+<b class="nc"><i>133</i>&nbsp;                builder.endArray();</b>
+<i>134</i>&nbsp;            }
+<b class="nc"><i>135</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>136</i>&nbsp;        }</b>
+<b class="nc"><i>137</i>&nbsp;        return builder;</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    static ShardCounts calculateShardCounts(Iterable&lt;ShardsSyncedFlushResult&gt; results) {
+<b class="nc"><i>141</i>&nbsp;        int total = 0, successful = 0, failed = 0;</b>
+<b class="nc"><i>142</i>&nbsp;        for (ShardsSyncedFlushResult result : results) {</b>
+<b class="nc"><i>143</i>&nbsp;            total += result.totalShards();</b>
+<b class="nc"><i>144</i>&nbsp;            successful += result.successfulShards();</b>
+<b class="nc"><i>145</i>&nbsp;            if (result.failed()) {</b>
+<i>146</i>&nbsp;                // treat all shard copies as failed
+<b class="nc"><i>147</i>&nbsp;                failed += result.totalShards();</b>
+<i>148</i>&nbsp;            } else {
+<i>149</i>&nbsp;                // some shards may have failed during the sync phase
+<b class="nc"><i>150</i>&nbsp;                failed += result.failedShards().size();</b>
+<i>151</i>&nbsp;            }
+<b class="nc"><i>152</i>&nbsp;        }</b>
+<b class="nc"><i>153</i>&nbsp;        return new ShardCounts(total, successful, failed);</b>
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    static final class ShardCounts implements ToXContentFragment, Writeable {
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;        public final int total;
+<i>159</i>&nbsp;        public final int successful;
+<i>160</i>&nbsp;        public final int failed;
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;        ShardCounts(int total, int successful, int failed) {
+<i>163</i>&nbsp;            this.total = total;
+<i>164</i>&nbsp;            this.successful = successful;
+<i>165</i>&nbsp;            this.failed = failed;
+<i>166</i>&nbsp;        }
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;        ShardCounts(StreamInput in) throws IOException {
+<i>169</i>&nbsp;            total = in.readInt();
+<i>170</i>&nbsp;            successful = in.readInt();
+<i>171</i>&nbsp;            failed = in.readInt();
+<i>172</i>&nbsp;        }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        @Override
+<i>175</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>176</i>&nbsp;            builder.field(Fields.TOTAL, total);
+<i>177</i>&nbsp;            builder.field(Fields.SUCCESSFUL, successful);
+<i>178</i>&nbsp;            builder.field(Fields.FAILED, failed);
+<i>179</i>&nbsp;            return builder;
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        @Override
+<i>183</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>184</i>&nbsp;            out.writeInt(total);
+<i>185</i>&nbsp;            out.writeInt(successful);
+<i>186</i>&nbsp;            out.writeInt(failed);
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    static final class Fields {
+<i>191</i>&nbsp;        static final String _SHARDS = &quot;_shards&quot;;
+<i>192</i>&nbsp;        static final String TOTAL = &quot;total&quot;;
+<i>193</i>&nbsp;        static final String SUCCESSFUL = &quot;successful&quot;;
+<i>194</i>&nbsp;        static final String FAILED = &quot;failed&quot;;
+<i>195</i>&nbsp;        static final String FAILURES = &quot;failures&quot;;
+<i>196</i>&nbsp;        static final String SHARD = &quot;shard&quot;;
+<i>197</i>&nbsp;        static final String ROUTING = &quot;routing&quot;;
+<i>198</i>&nbsp;        static final String REASON = &quot;reason&quot;;
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    @Override
+<i>202</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>203</i>&nbsp;        shardCounts.writeTo(out);</b>
+<b class="nc"><i>204</i>&nbsp;        out.writeInt(shardsResultPerIndex.size());</b>
+<b class="nc"><i>205</i>&nbsp;        for (Map.Entry&lt;String, List&lt;ShardsSyncedFlushResult&gt;&gt; entry : shardsResultPerIndex.entrySet()) {</b>
+<b class="nc"><i>206</i>&nbsp;            out.writeString(entry.getKey());</b>
+<b class="nc"><i>207</i>&nbsp;            out.writeInt(entry.getValue().size());</b>
+<b class="nc"><i>208</i>&nbsp;            for (ShardsSyncedFlushResult shardsSyncedFlushResult : entry.getValue()) {</b>
+<b class="nc"><i>209</i>&nbsp;                shardsSyncedFlushResult.writeTo(out);</b>
+<b class="nc"><i>210</i>&nbsp;            }</b>
+<b class="nc"><i>211</i>&nbsp;        }</b>
+<b class="nc"><i>212</i>&nbsp;    }</b>
+<i>213</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,2666 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InternalTestCluster</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.test</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InternalTestCluster (org.elasticsearch.test)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InternalTestCluster</td>
+<td class="coverageStat">
+  <span class="percent">
+    2.1%
+  </span>
+  <span class="absValue">
+    (3/ 141)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    1%
+  </span>
+  <span class="absValue">
+    (11/ 1079)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">InternalTestCluster$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 3)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">InternalTestCluster$NodeAndClient</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 124)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">InternalTestCluster$RestartCallback</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (1/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (1/ 6)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    2.4%
+  </span>
+  <span class="absValue">
+    (4/ 168)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    1%
+  </span>
+  <span class="absValue">
+    (12/ 1212)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.test;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import com.carrotsearch.hppc.ObjectLongMap;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.IntObjectCursor;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>24</i>&nbsp;import com.carrotsearch.randomizedtesting.RandomizedTest;
+<i>25</i>&nbsp;import com.carrotsearch.randomizedtesting.SeedUtils;
+<i>26</i>&nbsp;import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+<i>27</i>&nbsp;import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+<i>28</i>&nbsp;import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+<i>29</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>30</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>31</i>&nbsp;import org.apache.lucene.store.AlreadyClosedException;
+<i>32</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>33</i>&nbsp;import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+<i>34</i>&nbsp;import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+<i>35</i>&nbsp;import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+<i>36</i>&nbsp;import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+<i>37</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+<i>38</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+<i>39</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+<i>40</i>&nbsp;import org.elasticsearch.client.Client;
+<i>41</i>&nbsp;import org.elasticsearch.client.transport.TransportClient;
+<i>42</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>43</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>44</i>&nbsp;import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+<i>45</i>&nbsp;import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+<i>46</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>47</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>48</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+<i>49</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>50</i>&nbsp;import org.elasticsearch.cluster.routing.IndexRoutingTable;
+<i>51</i>&nbsp;import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+<i>52</i>&nbsp;import org.elasticsearch.cluster.routing.OperationRouting;
+<i>53</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>54</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+<i>55</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+<i>56</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>57</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>58</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>59</i>&nbsp;import org.elasticsearch.common.breaker.CircuitBreaker;
+<i>60</i>&nbsp;import org.elasticsearch.common.component.LifecycleListener;
+<i>61</i>&nbsp;import org.elasticsearch.common.io.FileSystemUtils;
+<i>62</i>&nbsp;import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+<i>63</i>&nbsp;import org.elasticsearch.common.lease.Releasables;
+<i>64</i>&nbsp;import org.elasticsearch.common.network.NetworkModule;
+<i>65</i>&nbsp;import org.elasticsearch.common.settings.MockSecureSettings;
+<i>66</i>&nbsp;import org.elasticsearch.common.settings.SecureSettings;
+<i>67</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>68</i>&nbsp;import org.elasticsearch.common.settings.Settings.Builder;
+<i>69</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>70</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeUnit;
+<i>71</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>72</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>73</i>&nbsp;import org.elasticsearch.common.util.PageCacheRecycler;
+<i>74</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>75</i>&nbsp;import org.elasticsearch.common.util.concurrent.ThreadContext;
+<i>76</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>77</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>78</i>&nbsp;import org.elasticsearch.discovery.zen.ElectMasterService;
+<i>79</i>&nbsp;import org.elasticsearch.discovery.zen.ZenDiscovery;
+<i>80</i>&nbsp;import org.elasticsearch.env.Environment;
+<i>81</i>&nbsp;import org.elasticsearch.env.NodeEnvironment;
+<i>82</i>&nbsp;import org.elasticsearch.env.ShardLockObtainFailedException;
+<i>83</i>&nbsp;import org.elasticsearch.http.HttpServerTransport;
+<i>84</i>&nbsp;import org.elasticsearch.index.Index;
+<i>85</i>&nbsp;import org.elasticsearch.index.IndexService;
+<i>86</i>&nbsp;import org.elasticsearch.index.engine.CommitStats;
+<i>87</i>&nbsp;import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
+<i>88</i>&nbsp;import org.elasticsearch.index.engine.Engine;
+<i>89</i>&nbsp;import org.elasticsearch.index.engine.EngineTestCase;
+<i>90</i>&nbsp;import org.elasticsearch.index.engine.InternalEngine;
+<i>91</i>&nbsp;import org.elasticsearch.index.seqno.SeqNoStats;
+<i>92</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>93</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>94</i>&nbsp;import org.elasticsearch.index.shard.IndexShardTestCase;
+<i>95</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>96</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>97</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>98</i>&nbsp;import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+<i>99</i>&nbsp;import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+<i>100</i>&nbsp;import org.elasticsearch.indices.recovery.RecoverySettings;
+<i>101</i>&nbsp;import org.elasticsearch.node.MockNode;
+<i>102</i>&nbsp;import org.elasticsearch.node.Node;
+<i>103</i>&nbsp;import org.elasticsearch.node.NodeService;
+<i>104</i>&nbsp;import org.elasticsearch.node.NodeValidationException;
+<i>105</i>&nbsp;import org.elasticsearch.plugins.Plugin;
+<i>106</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>107</i>&nbsp;import org.elasticsearch.search.SearchService;
+<i>108</i>&nbsp;import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+<i>109</i>&nbsp;import org.elasticsearch.test.transport.MockTransportService;
+<i>110</i>&nbsp;import org.elasticsearch.transport.MockTransportClient;
+<i>111</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>112</i>&nbsp;import org.elasticsearch.transport.TransportSettings;
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;import java.io.Closeable;
+<i>115</i>&nbsp;import java.io.IOException;
+<i>116</i>&nbsp;import java.io.UncheckedIOException;
+<i>117</i>&nbsp;import java.net.InetSocketAddress;
+<i>118</i>&nbsp;import java.nio.file.Files;
+<i>119</i>&nbsp;import java.nio.file.Path;
+<i>120</i>&nbsp;import java.util.ArrayList;
+<i>121</i>&nbsp;import java.util.Arrays;
+<i>122</i>&nbsp;import java.util.Collection;
+<i>123</i>&nbsp;import java.util.Collections;
+<i>124</i>&nbsp;import java.util.HashMap;
+<i>125</i>&nbsp;import java.util.HashSet;
+<i>126</i>&nbsp;import java.util.Iterator;
+<i>127</i>&nbsp;import java.util.List;
+<i>128</i>&nbsp;import java.util.Map;
+<i>129</i>&nbsp;import java.util.NavigableMap;
+<i>130</i>&nbsp;import java.util.Objects;
+<i>131</i>&nbsp;import java.util.Random;
+<i>132</i>&nbsp;import java.util.Set;
+<i>133</i>&nbsp;import java.util.TreeMap;
+<i>134</i>&nbsp;import java.util.concurrent.ExecutionException;
+<i>135</i>&nbsp;import java.util.concurrent.ExecutorService;
+<i>136</i>&nbsp;import java.util.concurrent.Future;
+<i>137</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>138</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>139</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>140</i>&nbsp;import java.util.function.Function;
+<i>141</i>&nbsp;import java.util.function.Predicate;
+<i>142</i>&nbsp;import java.util.stream.Collectors;
+<i>143</i>&nbsp;import java.util.stream.IntStream;
+<i>144</i>&nbsp;import java.util.stream.Stream;
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+<i>147</i>&nbsp;import static org.apache.lucene.util.LuceneTestCase.rarely;
+<i>148</i>&nbsp;import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+<i>149</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+<i>150</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+<i>151</i>&nbsp;import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+<i>152</i>&nbsp;import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+<i>153</i>&nbsp;import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
+<i>154</i>&nbsp;import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
+<i>155</i>&nbsp;import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
+<i>156</i>&nbsp;import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+<i>157</i>&nbsp;import static org.elasticsearch.test.ESTestCase.assertBusy;
+<i>158</i>&nbsp;import static org.elasticsearch.test.ESTestCase.getTestTransportType;
+<i>159</i>&nbsp;import static org.elasticsearch.test.ESTestCase.randomFrom;
+<i>160</i>&nbsp;import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+<i>161</i>&nbsp;import static org.hamcrest.Matchers.equalTo;
+<i>162</i>&nbsp;import static org.hamcrest.Matchers.greaterThan;
+<i>163</i>&nbsp;import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+<i>164</i>&nbsp;import static org.hamcrest.Matchers.not;
+<i>165</i>&nbsp;import static org.hamcrest.Matchers.nullValue;
+<i>166</i>&nbsp;import static org.junit.Assert.assertEquals;
+<i>167</i>&nbsp;import static org.junit.Assert.assertFalse;
+<i>168</i>&nbsp;import static org.junit.Assert.assertThat;
+<i>169</i>&nbsp;import static org.junit.Assert.assertTrue;
+<i>170</i>&nbsp;import static org.junit.Assert.fail;
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;/**
+<i>173</i>&nbsp; * InternalTestCluster manages a set of JVM private nodes and allows convenient access to them.
+<i>174</i>&nbsp; * The cluster supports randomized configuration such that nodes started in the cluster will
+<i>175</i>&nbsp; * automatically load asserting services tracking resources like file handles or open searchers.
+<i>176</i>&nbsp; * &lt;p&gt;
+<i>177</i>&nbsp; * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random, double)} and
+<i>178</i>&nbsp; * {@link #afterTest()} to initialize and reset the cluster in order to be more reproducible. The term &quot;more&quot; relates
+<i>179</i>&nbsp; * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
+<i>180</i>&nbsp; * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
+<i>181</i>&nbsp; * &lt;/p&gt;
+<i>182</i>&nbsp; */
+<b class="fc"><i>183</i>&nbsp;public final class InternalTestCluster extends TestCluster {</b>
+<i>184</i>&nbsp;
+<b class="nc"><i>185</i>&nbsp;    private final Logger logger = LogManager.getLogger(getClass());</b>
+<i>186</i>&nbsp;
+<b class="fc"><i>187</i>&nbsp;    private static final Predicate&lt;NodeAndClient&gt; DATA_NODE_PREDICATE =</b>
+<b class="nc"><i>188</i>&nbsp;        nodeAndClient -&gt; DiscoveryNode.isDataNode(nodeAndClient.node.settings());</b>
+<i>189</i>&nbsp;
+<b class="fc"><i>190</i>&nbsp;    private static final Predicate&lt;NodeAndClient&gt; NO_DATA_NO_MASTER_PREDICATE = nodeAndClient -&gt;</b>
+<b class="nc"><i>191</i>&nbsp;        DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false</b>
+<b class="nc"><i>192</i>&nbsp;            &amp;&amp; DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;</b>
+<i>193</i>&nbsp;
+<b class="fc"><i>194</i>&nbsp;    private static final Predicate&lt;NodeAndClient&gt; MASTER_NODE_PREDICATE =</b>
+<b class="nc"><i>195</i>&nbsp;        nodeAndClient -&gt; DiscoveryNode.isMasterNode(nodeAndClient.node.settings());</b>
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
+<i>198</i>&nbsp;    public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
+<b class="fc"><i>201</i>&nbsp;    static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;</b>
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    static final int DEFAULT_NUM_CLIENT_NODES = -1;
+<i>204</i>&nbsp;    static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
+<i>205</i>&nbsp;    static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;    /* Sorted map to make traverse order reproducible.
+<i>208</i>&nbsp;     * The map of nodes is never mutated so individual reads are safe without synchronization.
+<i>209</i>&nbsp;     * Updates are intended to follow a copy-on-write approach. */
+<b class="nc"><i>210</i>&nbsp;    private volatile NavigableMap&lt;String, NodeAndClient&gt; nodes = Collections.emptyNavigableMap();</b>
+<i>211</i>&nbsp;
+<b class="nc"><i>212</i>&nbsp;    private final Set&lt;Path&gt; dataDirToClean = new HashSet&lt;&gt;();</b>
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;    private final String clusterName;
+<i>215</i>&nbsp;
+<b class="nc"><i>216</i>&nbsp;    private final AtomicBoolean open = new AtomicBoolean(true);</b>
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    private final Settings defaultSettings;
+<i>219</i>&nbsp;
+<b class="nc"><i>220</i>&nbsp;    private final AtomicInteger nextNodeId = new AtomicInteger(0);</b>
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;    /* Each shared node has a node seed that is used to start up the node and get default settings
+<i>223</i>&nbsp;     * this is important if a node is randomly shut down in a test since the next test relies on a
+<i>224</i>&nbsp;     * fully shared cluster to be more reproducible */
+<i>225</i>&nbsp;    private final long[] sharedNodesSeeds;
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    // if set to 0, data nodes will also assume the master role
+<i>229</i>&nbsp;    private final int numSharedDedicatedMasterNodes;
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    private final int numSharedDataNodes;
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    private final int numSharedCoordOnlyNodes;
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;    private final NodeConfigurationSource nodeConfigurationSource;
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;    private final ExecutorService executor;
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    private final boolean autoManageMasterNodes;
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;    private final Collection&lt;Class&lt;? extends Plugin&gt;&gt; mockPlugins;
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    private final boolean forbidPrivateIndexSettings;
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;    private final int numDataPaths;
+<i>246</i>&nbsp;
+<i>247</i>&nbsp;    /**
+<i>248</i>&nbsp;     * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
+<i>249</i>&nbsp;     */
+<i>250</i>&nbsp;    private final String nodePrefix;
+<i>251</i>&nbsp;    private final Path baseDir;
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    private ServiceDisruptionScheme activeDisruptionScheme;
+<i>254</i>&nbsp;    private final Function&lt;Client, Client&gt; clientWrapper;
+<i>255</i>&nbsp;
+<b class="nc"><i>256</i>&nbsp;    private int bootstrapMasterNodeIndex = -1;</b>
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;    public InternalTestCluster(
+<i>259</i>&nbsp;            final long clusterSeed,
+<i>260</i>&nbsp;            final Path baseDir,
+<i>261</i>&nbsp;            final boolean randomlyAddDedicatedMasters,
+<i>262</i>&nbsp;            final boolean autoManageMasterNodes,
+<i>263</i>&nbsp;            final int minNumDataNodes,
+<i>264</i>&nbsp;            final int maxNumDataNodes,
+<i>265</i>&nbsp;            final String clusterName,
+<i>266</i>&nbsp;            final NodeConfigurationSource nodeConfigurationSource,
+<i>267</i>&nbsp;            final int numClientNodes,
+<i>268</i>&nbsp;            final String nodePrefix,
+<i>269</i>&nbsp;            final Collection&lt;Class&lt;? extends Plugin&gt;&gt; mockPlugins,
+<i>270</i>&nbsp;            final Function&lt;Client, Client&gt; clientWrapper) {
+<b class="nc"><i>271</i>&nbsp;        this(</b>
+<i>272</i>&nbsp;                clusterSeed,
+<i>273</i>&nbsp;                baseDir,
+<i>274</i>&nbsp;                randomlyAddDedicatedMasters,
+<i>275</i>&nbsp;                autoManageMasterNodes,
+<i>276</i>&nbsp;                minNumDataNodes,
+<i>277</i>&nbsp;                maxNumDataNodes,
+<i>278</i>&nbsp;                clusterName,
+<i>279</i>&nbsp;                nodeConfigurationSource,
+<i>280</i>&nbsp;                numClientNodes,
+<i>281</i>&nbsp;                nodePrefix,
+<i>282</i>&nbsp;                mockPlugins,
+<i>283</i>&nbsp;                clientWrapper,
+<i>284</i>&nbsp;                true);
+<b class="nc"><i>285</i>&nbsp;    }</b>
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;    public InternalTestCluster(
+<i>288</i>&nbsp;            final long clusterSeed,
+<i>289</i>&nbsp;            final Path baseDir,
+<i>290</i>&nbsp;            final boolean randomlyAddDedicatedMasters,
+<i>291</i>&nbsp;            final boolean autoManageMasterNodes,
+<i>292</i>&nbsp;            final int minNumDataNodes,
+<i>293</i>&nbsp;            final int maxNumDataNodes,
+<i>294</i>&nbsp;            final String clusterName,
+<i>295</i>&nbsp;            final NodeConfigurationSource nodeConfigurationSource,
+<i>296</i>&nbsp;            final int numClientNodes,
+<i>297</i>&nbsp;            final String nodePrefix,
+<i>298</i>&nbsp;            final Collection&lt;Class&lt;? extends Plugin&gt;&gt; mockPlugins,
+<i>299</i>&nbsp;            final Function&lt;Client, Client&gt; clientWrapper,
+<i>300</i>&nbsp;            final boolean forbidPrivateIndexSettings) {
+<b class="nc"><i>301</i>&nbsp;        super(clusterSeed);</b>
+<b class="nc"><i>302</i>&nbsp;        this.autoManageMasterNodes = autoManageMasterNodes;</b>
+<b class="nc"><i>303</i>&nbsp;        this.clientWrapper = clientWrapper;</b>
+<b class="nc"><i>304</i>&nbsp;        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;</b>
+<b class="nc"><i>305</i>&nbsp;        this.baseDir = baseDir;</b>
+<b class="nc"><i>306</i>&nbsp;        this.clusterName = clusterName;</b>
+<b class="nc"><i>307</i>&nbsp;        if (minNumDataNodes &lt; 0 || maxNumDataNodes &lt; 0) {</b>
+<b class="nc"><i>308</i>&nbsp;            throw new IllegalArgumentException(&quot;minimum and maximum number of data nodes must be &gt;= 0&quot;);</b>
+<i>309</i>&nbsp;        }
+<i>310</i>&nbsp;
+<b class="nc"><i>311</i>&nbsp;        if (maxNumDataNodes &lt; minNumDataNodes) {</b>
+<b class="nc"><i>312</i>&nbsp;            throw new IllegalArgumentException(&quot;maximum number of data nodes must be &gt;= minimum number of  data nodes&quot;);</b>
+<i>313</i>&nbsp;        }
+<i>314</i>&nbsp;
+<b class="nc"><i>315</i>&nbsp;        Random random = new Random(clusterSeed);</b>
+<i>316</i>&nbsp;
+<b class="nc"><i>317</i>&nbsp;        boolean useDedicatedMasterNodes = randomlyAddDedicatedMasters ? random.nextBoolean() : false;</b>
+<i>318</i>&nbsp;
+<b class="nc"><i>319</i>&nbsp;        this.numSharedDataNodes = RandomNumbers.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);</b>
+<b class="nc"><i>320</i>&nbsp;        assert this.numSharedDataNodes &gt;= 0;</b>
+<i>321</i>&nbsp;
+<b class="nc"><i>322</i>&nbsp;        if (numSharedDataNodes == 0) {</b>
+<b class="nc"><i>323</i>&nbsp;            this.numSharedCoordOnlyNodes = 0;</b>
+<b class="nc"><i>324</i>&nbsp;            this.numSharedDedicatedMasterNodes = 0;</b>
+<i>325</i>&nbsp;        } else {
+<b class="nc"><i>326</i>&nbsp;            if (useDedicatedMasterNodes) {</b>
+<b class="nc"><i>327</i>&nbsp;                if (random.nextBoolean()) {</b>
+<i>328</i>&nbsp;                    // use a dedicated master, but only low number to reduce overhead to tests
+<b class="nc"><i>329</i>&nbsp;                    this.numSharedDedicatedMasterNodes = DEFAULT_LOW_NUM_MASTER_NODES;</b>
+<i>330</i>&nbsp;                } else {
+<b class="nc"><i>331</i>&nbsp;                    this.numSharedDedicatedMasterNodes = DEFAULT_HIGH_NUM_MASTER_NODES;</b>
+<i>332</i>&nbsp;                }
+<i>333</i>&nbsp;            } else {
+<b class="nc"><i>334</i>&nbsp;                this.numSharedDedicatedMasterNodes = 0;</b>
+<i>335</i>&nbsp;            }
+<b class="nc"><i>336</i>&nbsp;            if (numClientNodes &lt; 0) {</b>
+<b class="nc"><i>337</i>&nbsp;                this.numSharedCoordOnlyNodes =  RandomNumbers.randomIntBetween(random,</b>
+<i>338</i>&nbsp;                        DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
+<i>339</i>&nbsp;            } else {
+<b class="nc"><i>340</i>&nbsp;                this.numSharedCoordOnlyNodes = numClientNodes;</b>
+<i>341</i>&nbsp;            }
+<i>342</i>&nbsp;        }
+<b class="nc"><i>343</i>&nbsp;        assert this.numSharedCoordOnlyNodes &gt;= 0;</b>
+<i>344</i>&nbsp;
+<b class="nc"><i>345</i>&nbsp;        this.nodePrefix = nodePrefix;</b>
+<i>346</i>&nbsp;
+<b class="nc"><i>347</i>&nbsp;        assert nodePrefix != null;</b>
+<i>348</i>&nbsp;
+<b class="nc"><i>349</i>&nbsp;        this.mockPlugins = mockPlugins;</b>
+<i>350</i>&nbsp;
+<b class="nc"><i>351</i>&nbsp;        sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];</b>
+<b class="nc"><i>352</i>&nbsp;        for (int i = 0; i &lt; sharedNodesSeeds.length; i++) {</b>
+<b class="nc"><i>353</i>&nbsp;            sharedNodesSeeds[i] = random.nextLong();</b>
+<i>354</i>&nbsp;        }
+<i>355</i>&nbsp;
+<b class="nc"><i>356</i>&nbsp;        logger.info(&quot;Setup InternalTestCluster [{}] with seed [{}] using [{}] dedicated masters, &quot; +</b>
+<i>357</i>&nbsp;                &quot;[{}] (data) nodes and [{}] coord only nodes (min_master_nodes are [{}])&quot;,
+<b class="nc"><i>358</i>&nbsp;            clusterName, SeedUtils.formatSeed(clusterSeed),</b>
+<b class="nc"><i>359</i>&nbsp;            numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes,</b>
+<b class="nc"><i>360</i>&nbsp;            autoManageMasterNodes ? &quot;auto-managed&quot; : &quot;manual&quot;);</b>
+<b class="nc"><i>361</i>&nbsp;        this.nodeConfigurationSource = nodeConfigurationSource;</b>
+<b class="nc"><i>362</i>&nbsp;        numDataPaths = random.nextInt(5) == 0 ? 2 + random.nextInt(3) : 1;</b>
+<b class="nc"><i>363</i>&nbsp;        Builder builder = Settings.builder();</b>
+<b class="nc"><i>364</i>&nbsp;        builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);</b>
+<b class="nc"><i>365</i>&nbsp;        builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve(&quot;repos&quot;));</b>
+<b class="nc"><i>366</i>&nbsp;        builder.put(TransportSettings.PORT.getKey(), 0);</b>
+<b class="nc"><i>367</i>&nbsp;        builder.put(&quot;http.port&quot;, 0);</b>
+<b class="nc"><i>368</i>&nbsp;        if (Strings.hasLength(System.getProperty(&quot;tests.es.logger.level&quot;))) {</b>
+<b class="nc"><i>369</i>&nbsp;            builder.put(&quot;logger.level&quot;, System.getProperty(&quot;tests.es.logger.level&quot;));</b>
+<i>370</i>&nbsp;        }
+<b class="nc"><i>371</i>&nbsp;        if (Strings.hasLength(System.getProperty(&quot;es.logger.prefix&quot;))) {</b>
+<b class="nc"><i>372</i>&nbsp;            builder.put(&quot;logger.prefix&quot;, System.getProperty(&quot;es.logger.prefix&quot;));</b>
+<i>373</i>&nbsp;        }
+<i>374</i>&nbsp;        // Default the watermarks to absurdly low to prevent the tests
+<i>375</i>&nbsp;        // from failing on nodes without enough disk space
+<b class="nc"><i>376</i>&nbsp;        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), &quot;1b&quot;);</b>
+<b class="nc"><i>377</i>&nbsp;        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), &quot;1b&quot;);</b>
+<b class="nc"><i>378</i>&nbsp;        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), &quot;1b&quot;);</b>
+<i>379</i>&nbsp;        // Some tests make use of scripting quite a bit, so increase the limit for integration tests
+<b class="nc"><i>380</i>&nbsp;        builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), &quot;1000/1m&quot;);</b>
+<b class="nc"><i>381</i>&nbsp;        builder.put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), random.nextBoolean());</b>
+<b class="nc"><i>382</i>&nbsp;        if (TEST_NIGHTLY) {</b>
+<b class="nc"><i>383</i>&nbsp;            builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),</b>
+<b class="nc"><i>384</i>&nbsp;                    RandomNumbers.randomIntBetween(random, 5, 10));</b>
+<b class="nc"><i>385</i>&nbsp;            builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),</b>
+<b class="nc"><i>386</i>&nbsp;                    RandomNumbers.randomIntBetween(random, 5, 10));</b>
+<b class="nc"><i>387</i>&nbsp;        } else if (random.nextInt(100) &lt;= 90) {</b>
+<b class="nc"><i>388</i>&nbsp;            builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),</b>
+<b class="nc"><i>389</i>&nbsp;                    RandomNumbers.randomIntBetween(random, 2, 5));</b>
+<b class="nc"><i>390</i>&nbsp;            builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),</b>
+<b class="nc"><i>391</i>&nbsp;                    RandomNumbers.randomIntBetween(random, 2, 5));</b>
+<i>392</i>&nbsp;        }
+<i>393</i>&nbsp;        // always reduce this - it can make tests really slow
+<b class="nc"><i>394</i>&nbsp;        builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(</b>
+<b class="nc"><i>395</i>&nbsp;                RandomNumbers.randomIntBetween(random, 20, 50)));</b>
+<b class="nc"><i>396</i>&nbsp;        builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(),</b>
+<b class="nc"><i>397</i>&nbsp;            RandomNumbers.randomIntBetween(random, 1, 5));</b>
+<b class="nc"><i>398</i>&nbsp;        defaultSettings = builder.build();</b>
+<b class="nc"><i>399</i>&nbsp;        executor = EsExecutors.newScaling(&quot;internal_test_cluster_executor&quot;, 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,</b>
+<b class="nc"><i>400</i>&nbsp;                EsExecutors.daemonThreadFactory(&quot;test_&quot; + clusterName), new ThreadContext(Settings.EMPTY));</b>
+<b class="nc"><i>401</i>&nbsp;    }</b>
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;    private static boolean usingZen1(Settings settings) {
+<b class="nc"><i>404</i>&nbsp;        return ZEN_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));</b>
+<i>405</i>&nbsp;    }
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;    /**
+<i>408</i>&nbsp;     * Sets {@link #bootstrapMasterNodeIndex} to the given value, see {@link #bootstrapMasterNodeWithSpecifiedIndex(List)}
+<i>409</i>&nbsp;     * for the description of how this field is used.
+<i>410</i>&nbsp;     * It&#39;s only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMasterNodes is false.
+<i>411</i>&nbsp;     */
+<i>412</i>&nbsp;    public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
+<b class="nc"><i>413</i>&nbsp;        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == -1</b>
+<i>414</i>&nbsp;            : &quot;bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was &quot; + bootstrapMasterNodeIndex;
+<b class="nc"><i>415</i>&nbsp;        this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;</b>
+<b class="nc"><i>416</i>&nbsp;    }</b>
+<i>417</i>&nbsp;
+<i>418</i>&nbsp;    @Override
+<i>419</i>&nbsp;    public String getClusterName() {
+<b class="nc"><i>420</i>&nbsp;        return clusterName;</b>
+<i>421</i>&nbsp;    }
+<i>422</i>&nbsp;
+<i>423</i>&nbsp;    /** returns true if the {@link ElectMasterService#DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING} setting is auto managed by this cluster */
+<i>424</i>&nbsp;    public boolean getAutoManageMinMasterNode() {
+<b class="nc"><i>425</i>&nbsp;        return autoManageMasterNodes;</b>
+<i>426</i>&nbsp;    }
+<i>427</i>&nbsp;
+<i>428</i>&nbsp;    public String[] getNodeNames() {
+<b class="nc"><i>429</i>&nbsp;        return nodes.keySet().toArray(Strings.EMPTY_ARRAY);</b>
+<i>430</i>&nbsp;    }
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;    private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
+<b class="nc"><i>433</i>&nbsp;        Builder builder = Settings.builder().put(defaultSettings)</b>
+<b class="nc"><i>434</i>&nbsp;            .put(getRandomNodeSettings(nodeSeed));</b>
+<b class="nc"><i>435</i>&nbsp;        Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);</b>
+<b class="nc"><i>436</i>&nbsp;        if (settings != null) {</b>
+<b class="nc"><i>437</i>&nbsp;            if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {</b>
+<b class="nc"><i>438</i>&nbsp;                throw new IllegalStateException(&quot;Tests must not set a &#39;&quot; + ClusterName.CLUSTER_NAME_SETTING.getKey()</b>
+<b class="nc"><i>439</i>&nbsp;                        + &quot;&#39; as a node setting set &#39;&quot; + ClusterName.CLUSTER_NAME_SETTING.getKey() + &quot;&#39;: [&quot;</b>
+<b class="nc"><i>440</i>&nbsp;                        + settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) + &quot;]&quot;);</b>
+<i>441</i>&nbsp;            }
+<b class="nc"><i>442</i>&nbsp;            builder.put(settings);</b>
+<i>443</i>&nbsp;        }
+<b class="nc"><i>444</i>&nbsp;        if (others != null) {</b>
+<b class="nc"><i>445</i>&nbsp;            builder.put(others);</b>
+<i>446</i>&nbsp;        }
+<b class="nc"><i>447</i>&nbsp;        builder.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName);</b>
+<b class="nc"><i>448</i>&nbsp;        return builder.build();</b>
+<i>449</i>&nbsp;    }
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;    public Collection&lt;Class&lt;? extends Plugin&gt;&gt; getPlugins() {
+<b class="nc"><i>452</i>&nbsp;        Set&lt;Class&lt;? extends Plugin&gt;&gt; plugins = new HashSet&lt;&gt;(nodeConfigurationSource.nodePlugins());</b>
+<b class="nc"><i>453</i>&nbsp;        plugins.addAll(mockPlugins);</b>
+<b class="nc"><i>454</i>&nbsp;        return plugins;</b>
+<i>455</i>&nbsp;    }
+<i>456</i>&nbsp;
+<i>457</i>&nbsp;    private static Settings getRandomNodeSettings(long seed) {
+<b class="nc"><i>458</i>&nbsp;        Random random = new Random(seed);</b>
+<b class="nc"><i>459</i>&nbsp;        Builder builder = Settings.builder();</b>
+<b class="nc"><i>460</i>&nbsp;        builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));</b>
+<b class="nc"><i>461</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>462</i>&nbsp;            builder.put(&quot;cache.recycler.page.type&quot;, RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));</b>
+<i>463</i>&nbsp;        }
+<b class="nc"><i>464</i>&nbsp;        if (random.nextInt(10) == 0) { // 10% of the nodes have a very frequent check interval</b>
+<b class="nc"><i>465</i>&nbsp;            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), timeValueMillis(10 + random.nextInt(2000)).getStringRep());</b>
+<b class="nc"><i>466</i>&nbsp;        } else if (random.nextInt(10) != 0) { // 90% of the time - 10% of the time we don&#39;t set anything</b>
+<b class="nc"><i>467</i>&nbsp;            builder.put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), timeValueSeconds(10 + random.nextInt(5 * 60)).getStringRep());</b>
+<i>468</i>&nbsp;        }
+<b class="nc"><i>469</i>&nbsp;        if (random.nextBoolean()) { // sometimes set a</b>
+<b class="nc"><i>470</i>&nbsp;            builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), timeValueSeconds(100 + random.nextInt(5 * 60)).getStringRep());</b>
+<i>471</i>&nbsp;        }
+<i>472</i>&nbsp;
+<b class="nc"><i>473</i>&nbsp;        builder.put(</b>
+<b class="nc"><i>474</i>&nbsp;            EsExecutors.NODE_PROCESSORS_SETTING.getKey(),</b>
+<b class="nc"><i>475</i>&nbsp;            1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors())));</b>
+<b class="nc"><i>476</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>477</i>&nbsp;            if (random.nextBoolean()) {</b>
+<b class="nc"><i>478</i>&nbsp;                builder.put(&quot;indices.fielddata.cache.size&quot;, 1 + random.nextInt(1000), ByteSizeUnit.MB);</b>
+<i>479</i>&nbsp;            }
+<i>480</i>&nbsp;        }
+<i>481</i>&nbsp;
+<i>482</i>&nbsp;        // randomize tcp settings
+<b class="nc"><i>483</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>484</i>&nbsp;            builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);</b>
+<b class="nc"><i>485</i>&nbsp;            builder.put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);</b>
+<b class="nc"><i>486</i>&nbsp;            builder.put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);</b>
+<i>487</i>&nbsp;        }
+<i>488</i>&nbsp;
+<b class="nc"><i>489</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>490</i>&nbsp;            builder.put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(),</b>
+<b class="nc"><i>491</i>&nbsp;                    timeValueSeconds(RandomNumbers.randomIntBetween(random, 10, 30)).getStringRep());</b>
+<b class="nc"><i>492</i>&nbsp;            builder.put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(),</b>
+<b class="nc"><i>493</i>&nbsp;                    RandomNumbers.randomIntBetween(random, 1, 10));</b>
+<i>494</i>&nbsp;        }
+<i>495</i>&nbsp;
+<i>496</i>&nbsp;        // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
+<i>497</i>&nbsp;        // turn it off for these tests.
+<b class="nc"><i>498</i>&nbsp;        builder.put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false);</b>
+<i>499</i>&nbsp;
+<b class="nc"><i>500</i>&nbsp;        if (random.nextInt(10) == 0) {</b>
+<b class="nc"><i>501</i>&nbsp;            builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), &quot;noop&quot;);</b>
+<b class="nc"><i>502</i>&nbsp;            builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), &quot;noop&quot;);</b>
+<i>503</i>&nbsp;        }
+<i>504</i>&nbsp;
+<b class="nc"><i>505</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>506</i>&nbsp;            if (random.nextInt(10) == 0) { // do something crazy slow here</b>
+<b class="nc"><i>507</i>&nbsp;                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),</b>
+<b class="nc"><i>508</i>&nbsp;                        new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));</b>
+<i>509</i>&nbsp;            } else {
+<b class="nc"><i>510</i>&nbsp;                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),</b>
+<b class="nc"><i>511</i>&nbsp;                        new ByteSizeValue(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));</b>
+<i>512</i>&nbsp;            }
+<i>513</i>&nbsp;        }
+<i>514</i>&nbsp;
+<b class="nc"><i>515</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>516</i>&nbsp;            builder.put(TransportSettings.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + &quot;ms&quot;);</b>
+<i>517</i>&nbsp;        }
+<i>518</i>&nbsp;
+<b class="nc"><i>519</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>520</i>&nbsp;            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), RandomNumbers.randomIntBetween(random, 0, 2000));</b>
+<i>521</i>&nbsp;        }
+<b class="nc"><i>522</i>&nbsp;        if (random.nextBoolean()) {</b>
+<b class="nc"><i>523</i>&nbsp;            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(),</b>
+<b class="nc"><i>524</i>&nbsp;                    timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());</b>
+<i>525</i>&nbsp;        }
+<i>526</i>&nbsp;
+<b class="nc"><i>527</i>&nbsp;        return builder.build();</b>
+<i>528</i>&nbsp;    }
+<i>529</i>&nbsp;
+<i>530</i>&nbsp;    public static String clusterName(String prefix, long clusterSeed) {
+<b class="fc"><i>531</i>&nbsp;        StringBuilder builder = new StringBuilder(prefix);</b>
+<b class="fc"><i>532</i>&nbsp;        builder.append(&quot;-TEST_WORKER_VM=[&quot;).append(ESTestCase.TEST_WORKER_VM_ID).append(&#39;]&#39;);</b>
+<b class="fc"><i>533</i>&nbsp;        builder.append(&quot;-CLUSTER_SEED=[&quot;).append(clusterSeed).append(&#39;]&#39;);</b>
+<i>534</i>&nbsp;        // if multiple maven task run on a single host we better have an identifier that doesn&#39;t rely on input params
+<b class="fc"><i>535</i>&nbsp;        builder.append(&quot;-HASH=[&quot;).append(SeedUtils.formatSeed(System.nanoTime())).append(&#39;]&#39;);</b>
+<b class="fc"><i>536</i>&nbsp;        return builder.toString();</b>
+<i>537</i>&nbsp;    }
+<i>538</i>&nbsp;
+<i>539</i>&nbsp;    private void ensureOpen() {
+<b class="nc"><i>540</i>&nbsp;        if (!open.get()) {</b>
+<b class="nc"><i>541</i>&nbsp;            throw new RuntimeException(&quot;Cluster is already closed&quot;);</b>
+<i>542</i>&nbsp;        }
+<b class="nc"><i>543</i>&nbsp;    }</b>
+<i>544</i>&nbsp;
+<i>545</i>&nbsp;    private NodeAndClient getOrBuildRandomNode() {
+<b class="nc"><i>546</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>547</i>&nbsp;        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient();</b>
+<b class="nc"><i>548</i>&nbsp;        if (randomNodeAndClient != null) {</b>
+<b class="nc"><i>549</i>&nbsp;            return randomNodeAndClient;</b>
+<i>550</i>&nbsp;        }
+<b class="nc"><i>551</i>&nbsp;        final Runnable onTransportServiceStarted = () -&gt; {}; // do not create unicast host file for this one node.</b>
+<i>552</i>&nbsp;
+<b class="nc"><i>553</i>&nbsp;        final int nodeId = nextNodeId.getAndIncrement();</b>
+<b class="nc"><i>554</i>&nbsp;        final Settings settings = getNodeSettings(nodeId, random.nextLong(), Settings.EMPTY, 1);</b>
+<b class="nc"><i>555</i>&nbsp;        final Settings nodeSettings = Settings.builder()</b>
+<b class="nc"><i>556</i>&nbsp;                .putList(INITIAL_MASTER_NODES_SETTING.getKey(), Node.NODE_NAME_SETTING.get(settings))</b>
+<b class="nc"><i>557</i>&nbsp;                .put(settings)</b>
+<b class="nc"><i>558</i>&nbsp;                .build();</b>
+<b class="nc"><i>559</i>&nbsp;        final NodeAndClient buildNode = buildNode(nodeId, nodeSettings, false, onTransportServiceStarted);</b>
+<b class="nc"><i>560</i>&nbsp;        assert nodes.isEmpty();</b>
+<b class="nc"><i>561</i>&nbsp;        buildNode.startNode();</b>
+<b class="nc"><i>562</i>&nbsp;        publishNode(buildNode);</b>
+<b class="nc"><i>563</i>&nbsp;        return buildNode;</b>
+<i>564</i>&nbsp;    }
+<i>565</i>&nbsp;
+<i>566</i>&nbsp;    private NodeAndClient getRandomNodeAndClient() {
+<b class="nc"><i>567</i>&nbsp;        return getRandomNodeAndClient(nc -&gt; true);</b>
+<i>568</i>&nbsp;    }
+<i>569</i>&nbsp;
+<i>570</i>&nbsp;    private synchronized NodeAndClient getRandomNodeAndClient(Predicate&lt;NodeAndClient&gt; predicate) {
+<b class="nc"><i>571</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>572</i>&nbsp;        List&lt;NodeAndClient&gt; values = nodes.values().stream().filter(predicate).collect(Collectors.toList());</b>
+<b class="nc"><i>573</i>&nbsp;        if (values.isEmpty() == false) {</b>
+<b class="nc"><i>574</i>&nbsp;            return randomFrom(random, values);</b>
+<i>575</i>&nbsp;        }
+<b class="nc"><i>576</i>&nbsp;        return null;</b>
+<i>577</i>&nbsp;    }
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;    /**
+<i>580</i>&nbsp;     * Ensures that at least &lt;code&gt;n&lt;/code&gt; data nodes are present in the cluster.
+<i>581</i>&nbsp;     * if more nodes than &lt;code&gt;n&lt;/code&gt; are present this method will not
+<i>582</i>&nbsp;     * stop any of the running nodes.
+<i>583</i>&nbsp;     */
+<i>584</i>&nbsp;    public synchronized void ensureAtLeastNumDataNodes(int n) {
+<b class="nc"><i>585</i>&nbsp;        int size = numDataNodes();</b>
+<b class="nc"><i>586</i>&nbsp;        if (size &lt; n) {</b>
+<b class="nc"><i>587</i>&nbsp;            logger.info(&quot;increasing cluster size from {} to {}&quot;, size, n);</b>
+<b class="nc"><i>588</i>&nbsp;            if (numSharedDedicatedMasterNodes &gt; 0) {</b>
+<b class="nc"><i>589</i>&nbsp;                startDataOnlyNodes(n - size);</b>
+<i>590</i>&nbsp;            } else {
+<b class="nc"><i>591</i>&nbsp;                startNodes(n - size);</b>
+<i>592</i>&nbsp;            }
+<b class="nc"><i>593</i>&nbsp;            validateClusterFormed();</b>
+<i>594</i>&nbsp;        }
+<b class="nc"><i>595</i>&nbsp;    }</b>
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;    /**
+<i>598</i>&nbsp;     * Ensures that at most &lt;code&gt;n&lt;/code&gt; are up and running.
+<i>599</i>&nbsp;     * If less nodes that &lt;code&gt;n&lt;/code&gt; are running this method
+<i>600</i>&nbsp;     * will not start any additional nodes.
+<i>601</i>&nbsp;     */
+<i>602</i>&nbsp;    public synchronized void ensureAtMostNumDataNodes(int n) throws IOException {
+<b class="nc"><i>603</i>&nbsp;        int size = numDataNodes();</b>
+<b class="nc"><i>604</i>&nbsp;        if (size &lt;= n) {</b>
+<b class="nc"><i>605</i>&nbsp;            return;</b>
+<i>606</i>&nbsp;        }
+<i>607</i>&nbsp;        // prevent killing the master if possible and client nodes
+<b class="nc"><i>608</i>&nbsp;        final Stream&lt;NodeAndClient&gt; collection = n == 0</b>
+<b class="nc"><i>609</i>&nbsp;                ? nodes.values().stream()</b>
+<b class="nc"><i>610</i>&nbsp;                : nodes.values().stream()</b>
+<b class="nc"><i>611</i>&nbsp;                        .filter(DATA_NODE_PREDICATE.and(new NodeNamePredicate(getMasterName()).negate()));</b>
+<b class="nc"><i>612</i>&nbsp;        final Iterator&lt;NodeAndClient&gt; values = collection.iterator();</b>
+<i>613</i>&nbsp;
+<b class="nc"><i>614</i>&nbsp;        logger.info(&quot;changing cluster size from {} data nodes to {}&quot;, size, n);</b>
+<b class="nc"><i>615</i>&nbsp;        Set&lt;NodeAndClient&gt; nodesToRemove = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>616</i>&nbsp;        int numNodesAndClients = 0;</b>
+<b class="nc"><i>617</i>&nbsp;        while (values.hasNext() &amp;&amp; numNodesAndClients++ &lt; size - n) {</b>
+<b class="nc"><i>618</i>&nbsp;            NodeAndClient next = values.next();</b>
+<b class="nc"><i>619</i>&nbsp;            nodesToRemove.add(next);</b>
+<b class="nc"><i>620</i>&nbsp;        }</b>
+<i>621</i>&nbsp;
+<b class="nc"><i>622</i>&nbsp;        stopNodesAndClients(nodesToRemove);</b>
+<b class="nc"><i>623</i>&nbsp;        if (!nodesToRemove.isEmpty() &amp;&amp; size() &gt; 0) {</b>
+<b class="nc"><i>624</i>&nbsp;            validateClusterFormed();</b>
+<i>625</i>&nbsp;        }
+<b class="nc"><i>626</i>&nbsp;    }</b>
+<i>627</i>&nbsp;
+<i>628</i>&nbsp;    private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings, final int defaultMinMasterNodes) {
+<b class="nc"><i>629</i>&nbsp;        final Settings settings = getSettings(nodeId, seed, extraSettings);</b>
+<i>630</i>&nbsp;
+<b class="nc"><i>631</i>&nbsp;        final String name = buildNodeName(nodeId, settings);</b>
+<i>632</i>&nbsp;
+<b class="nc"><i>633</i>&nbsp;        final Settings.Builder updatedSettings = Settings.builder();</b>
+<i>634</i>&nbsp;
+<b class="nc"><i>635</i>&nbsp;        updatedSettings.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);</b>
+<i>636</i>&nbsp;
+<b class="nc"><i>637</i>&nbsp;        if (numDataPaths &gt; 1) {</b>
+<b class="nc"><i>638</i>&nbsp;            updatedSettings.putList(Environment.PATH_DATA_SETTING.getKey(), IntStream.range(0, numDataPaths).mapToObj(i -&gt;</b>
+<b class="nc"><i>639</i>&nbsp;                baseDir.resolve(name).resolve(&quot;d&quot; + i).toString()).collect(Collectors.toList()));</b>
+<i>640</i>&nbsp;        } else {
+<b class="nc"><i>641</i>&nbsp;            updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));</b>
+<i>642</i>&nbsp;        }
+<i>643</i>&nbsp;
+<b class="nc"><i>644</i>&nbsp;        updatedSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve(name + &quot;-shared&quot;));</b>
+<i>645</i>&nbsp;
+<i>646</i>&nbsp;        // allow overriding the above
+<b class="nc"><i>647</i>&nbsp;        updatedSettings.put(settings);</b>
+<i>648</i>&nbsp;        // force certain settings
+<b class="nc"><i>649</i>&nbsp;        updatedSettings.put(&quot;node.name&quot;, name);</b>
+<b class="nc"><i>650</i>&nbsp;        updatedSettings.put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);</b>
+<i>651</i>&nbsp;
+<b class="nc"><i>652</i>&nbsp;        final String discoveryType = DISCOVERY_TYPE_SETTING.get(updatedSettings.build());</b>
+<b class="nc"><i>653</i>&nbsp;        final boolean usingSingleNodeDiscovery = discoveryType.equals(&quot;single-node&quot;);</b>
+<b class="nc"><i>654</i>&nbsp;        final boolean usingZen1 = usingZen1(updatedSettings.build());</b>
+<b class="nc"><i>655</i>&nbsp;        if (usingSingleNodeDiscovery == false) {</b>
+<b class="nc"><i>656</i>&nbsp;            if (autoManageMasterNodes) {</b>
+<b class="nc"><i>657</i>&nbsp;                assertThat(&quot;min master nodes may not be set when master nodes are auto managed&quot;,</b>
+<b class="nc"><i>658</i>&nbsp;                    updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()), nullValue());</b>
+<b class="nc"><i>659</i>&nbsp;                assertThat(&quot;if master nodes are automatically managed then nodes must complete a join cycle when starting&quot;,</b>
+<b class="nc"><i>660</i>&nbsp;                    updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()), nullValue());</b>
+<i>661</i>&nbsp;
+<b class="nc"><i>662</i>&nbsp;                if (usingZen1) {</b>
+<b class="nc"><i>663</i>&nbsp;                    updatedSettings</b>
+<i>664</i>&nbsp;                        // don&#39;t wait too long not to slow down tests
+<b class="nc"><i>665</i>&nbsp;                        .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), &quot;5s&quot;)</b>
+<b class="nc"><i>666</i>&nbsp;                        .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);</b>
+<i>667</i>&nbsp;                }
+<i>668</i>&nbsp;            } else {
+<b class="nc"><i>669</i>&nbsp;                if (usingZen1) {</b>
+<b class="nc"><i>670</i>&nbsp;                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + &quot; must be configured&quot;,</b>
+<b class="nc"><i>671</i>&nbsp;                        updatedSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()), not(nullValue()));</b>
+<i>672</i>&nbsp;                }
+<i>673</i>&nbsp;            }
+<i>674</i>&nbsp;        }
+<i>675</i>&nbsp;
+<b class="nc"><i>676</i>&nbsp;        return updatedSettings.build();</b>
+<i>677</i>&nbsp;    }
+<i>678</i>&nbsp;
+<i>679</i>&nbsp;    /**
+<i>680</i>&nbsp;     * builds a new node
+<i>681</i>&nbsp;     *
+<i>682</i>&nbsp;     * @param nodeId                    node ordinal
+<i>683</i>&nbsp;     * @param settings                  the settings to use
+<i>684</i>&nbsp;     * @param reuseExisting             if a node with the same name is already part of {@link #nodes}, no new node will be built and
+<i>685</i>&nbsp;     *                                  the method will return the existing one
+<i>686</i>&nbsp;     * @param onTransportServiceStarted callback to run when transport service is started
+<i>687</i>&nbsp;     */
+<i>688</i>&nbsp;    private synchronized NodeAndClient buildNode(int nodeId, Settings settings,
+<i>689</i>&nbsp;                                    boolean reuseExisting, Runnable onTransportServiceStarted) {
+<b class="nc"><i>690</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>691</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>692</i>&nbsp;        Collection&lt;Class&lt;? extends Plugin&gt;&gt; plugins = getPlugins();</b>
+<b class="nc"><i>693</i>&nbsp;        String name = settings.get(&quot;node.name&quot;);</b>
+<i>694</i>&nbsp;
+<b class="nc"><i>695</i>&nbsp;        final NodeAndClient nodeAndClient = nodes.get(name);</b>
+<b class="nc"><i>696</i>&nbsp;        if (reuseExisting &amp;&amp; nodeAndClient != null) {</b>
+<b class="nc"><i>697</i>&nbsp;            onTransportServiceStarted.run(); // reusing an existing node implies its transport service already started</b>
+<b class="nc"><i>698</i>&nbsp;            return nodeAndClient;</b>
+<i>699</i>&nbsp;        }
+<b class="nc"><i>700</i>&nbsp;        assert reuseExisting == true || nodeAndClient == null : &quot;node name [&quot; + name + &quot;] already exists but not allowed to use it&quot;;</b>
+<i>701</i>&nbsp;
+<b class="nc"><i>702</i>&nbsp;        SecureSettings secureSettings = Settings.builder().put(settings).getSecureSettings();</b>
+<b class="nc"><i>703</i>&nbsp;        if (secureSettings instanceof MockSecureSettings) {</b>
+<i>704</i>&nbsp;            // we clone this here since in the case of a node restart we might need it again
+<b class="nc"><i>705</i>&nbsp;            secureSettings = ((MockSecureSettings) secureSettings).clone();</b>
+<i>706</i>&nbsp;        }
+<b class="nc"><i>707</i>&nbsp;        MockNode node = new MockNode(</b>
+<i>708</i>&nbsp;                settings,
+<i>709</i>&nbsp;                plugins,
+<b class="nc"><i>710</i>&nbsp;                nodeConfigurationSource.nodeConfigPath(nodeId),</b>
+<i>711</i>&nbsp;                forbidPrivateIndexSettings);
+<b class="nc"><i>712</i>&nbsp;        node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {</b>
+<i>713</i>&nbsp;            @Override
+<i>714</i>&nbsp;            public void afterStart() {
+<b class="nc"><i>715</i>&nbsp;                onTransportServiceStarted.run();</b>
+<b class="nc"><i>716</i>&nbsp;            }</b>
+<i>717</i>&nbsp;        });
+<i>718</i>&nbsp;        try {
+<b class="nc"><i>719</i>&nbsp;            IOUtils.close(secureSettings);</b>
+<b class="nc"><i>720</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>721</i>&nbsp;            throw new UncheckedIOException(e);</b>
+<b class="nc"><i>722</i>&nbsp;        }</b>
+<b class="nc"><i>723</i>&nbsp;        return new NodeAndClient(name, node, settings, nodeId);</b>
+<i>724</i>&nbsp;    }
+<i>725</i>&nbsp;
+<i>726</i>&nbsp;    private String getNodePrefix(Settings settings) {
+<b class="nc"><i>727</i>&nbsp;        return nodePrefix + getRoleSuffix(settings);</b>
+<i>728</i>&nbsp;    }
+<i>729</i>&nbsp;
+<i>730</i>&nbsp;    private String buildNodeName(int id, Settings settings) {
+<b class="nc"><i>731</i>&nbsp;        return getNodePrefix(settings) + id;</b>
+<i>732</i>&nbsp;    }
+<i>733</i>&nbsp;
+<i>734</i>&nbsp;    /**
+<i>735</i>&nbsp;     * returns a suffix string based on the node role. If no explicit role is defined, the suffix will be empty
+<i>736</i>&nbsp;     */
+<i>737</i>&nbsp;    private static String getRoleSuffix(Settings settings) {
+<b class="nc"><i>738</i>&nbsp;        String suffix = &quot;&quot;;</b>
+<b class="nc"><i>739</i>&nbsp;        if (Node.NODE_MASTER_SETTING.exists(settings) &amp;&amp; Node.NODE_MASTER_SETTING.get(settings)) {</b>
+<b class="nc"><i>740</i>&nbsp;            suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();</b>
+<i>741</i>&nbsp;        }
+<b class="nc"><i>742</i>&nbsp;        if (Node.NODE_DATA_SETTING.exists(settings) &amp;&amp; Node.NODE_DATA_SETTING.get(settings)) {</b>
+<b class="nc"><i>743</i>&nbsp;            suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();</b>
+<i>744</i>&nbsp;        }
+<b class="nc"><i>745</i>&nbsp;        if (Node.NODE_MASTER_SETTING.exists(settings) &amp;&amp; Node.NODE_MASTER_SETTING.get(settings) == false &amp;&amp;</b>
+<b class="nc"><i>746</i>&nbsp;            Node.NODE_DATA_SETTING.exists(settings) &amp;&amp; Node.NODE_DATA_SETTING.get(settings) == false</b>
+<i>747</i>&nbsp;            ) {
+<b class="nc"><i>748</i>&nbsp;            suffix = suffix + &quot;c&quot;;</b>
+<i>749</i>&nbsp;        }
+<b class="nc"><i>750</i>&nbsp;        return suffix;</b>
+<i>751</i>&nbsp;    }
+<i>752</i>&nbsp;
+<i>753</i>&nbsp;    @Override
+<i>754</i>&nbsp;    public synchronized Client client() {
+<b class="nc"><i>755</i>&nbsp;        ensureOpen();</b>
+<i>756</i>&nbsp;        /* Randomly return a client to one of the nodes in the cluster */
+<b class="nc"><i>757</i>&nbsp;        return getOrBuildRandomNode().client(random);</b>
+<i>758</i>&nbsp;    }
+<i>759</i>&nbsp;
+<i>760</i>&nbsp;    /**
+<i>761</i>&nbsp;     * Returns a node client to a data node in the cluster.
+<i>762</i>&nbsp;     * Note: use this with care tests should not rely on a certain nodes client.
+<i>763</i>&nbsp;     */
+<i>764</i>&nbsp;    public Client dataNodeClient() {
+<i>765</i>&nbsp;        /* Randomly return a client to one of the nodes in the cluster */
+<b class="nc"><i>766</i>&nbsp;        return getRandomNodeAndClient(DATA_NODE_PREDICATE).client(random);</b>
+<i>767</i>&nbsp;    }
+<i>768</i>&nbsp;
+<i>769</i>&nbsp;    /**
+<i>770</i>&nbsp;     * Returns a node client to the current master node.
+<i>771</i>&nbsp;     * Note: use this with care tests should not rely on a certain nodes client.
+<i>772</i>&nbsp;     */
+<i>773</i>&nbsp;    public Client masterClient() {
+<b class="nc"><i>774</i>&nbsp;        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()));</b>
+<b class="nc"><i>775</i>&nbsp;        if (randomNodeAndClient != null) {</b>
+<b class="nc"><i>776</i>&nbsp;            return randomNodeAndClient.nodeClient(); // ensure node client master is requested</b>
+<i>777</i>&nbsp;        }
+<b class="nc"><i>778</i>&nbsp;        throw new AssertionError(&quot;No master client found&quot;);</b>
+<i>779</i>&nbsp;    }
+<i>780</i>&nbsp;
+<i>781</i>&nbsp;    /**
+<i>782</i>&nbsp;     * Returns a node client to random node but not the master. This method will fail if no non-master client is available.
+<i>783</i>&nbsp;     */
+<i>784</i>&nbsp;    public Client nonMasterClient() {
+<b class="nc"><i>785</i>&nbsp;        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());</b>
+<b class="nc"><i>786</i>&nbsp;        if (randomNodeAndClient != null) {</b>
+<b class="nc"><i>787</i>&nbsp;            return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested</b>
+<i>788</i>&nbsp;        }
+<b class="nc"><i>789</i>&nbsp;        throw new AssertionError(&quot;No non-master client found&quot;);</b>
+<i>790</i>&nbsp;    }
+<i>791</i>&nbsp;
+<i>792</i>&nbsp;    /**
+<i>793</i>&nbsp;     * Returns a client to a coordinating only node
+<i>794</i>&nbsp;     */
+<i>795</i>&nbsp;    public synchronized Client coordOnlyNodeClient() {
+<b class="nc"><i>796</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>797</i>&nbsp;        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE);</b>
+<b class="nc"><i>798</i>&nbsp;        if (randomNodeAndClient != null) {</b>
+<b class="nc"><i>799</i>&nbsp;            return randomNodeAndClient.client(random);</b>
+<i>800</i>&nbsp;        }
+<b class="nc"><i>801</i>&nbsp;        int nodeId = nextNodeId.getAndIncrement();</b>
+<b class="nc"><i>802</i>&nbsp;        Settings settings = getSettings(nodeId, random.nextLong(), Settings.EMPTY);</b>
+<b class="nc"><i>803</i>&nbsp;        startCoordinatingOnlyNode(settings);</b>
+<b class="nc"><i>804</i>&nbsp;        return getRandomNodeAndClient(NO_DATA_NO_MASTER_PREDICATE).client(random);</b>
+<i>805</i>&nbsp;    }
+<i>806</i>&nbsp;
+<i>807</i>&nbsp;    public synchronized String startCoordinatingOnlyNode(Settings settings) {
+<b class="nc"><i>808</i>&nbsp;        ensureOpen(); // currently unused</b>
+<b class="nc"><i>809</i>&nbsp;        Builder builder = Settings.builder().put(settings).put(Node.NODE_MASTER_SETTING.getKey(), false)</b>
+<b class="nc"><i>810</i>&nbsp;            .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);</b>
+<b class="nc"><i>811</i>&nbsp;        return startNode(builder);</b>
+<i>812</i>&nbsp;    }
+<i>813</i>&nbsp;
+<i>814</i>&nbsp;    /**
+<i>815</i>&nbsp;     * Returns a transport client
+<i>816</i>&nbsp;     */
+<i>817</i>&nbsp;    public synchronized Client transportClient() {
+<i>818</i>&nbsp;        // randomly return a transport client going to one of the nodes in the cluster
+<b class="nc"><i>819</i>&nbsp;        return getOrBuildRandomNode().transportClient();</b>
+<i>820</i>&nbsp;    }
+<i>821</i>&nbsp;
+<i>822</i>&nbsp;    /**
+<i>823</i>&nbsp;     * Returns a node client to a given node.
+<i>824</i>&nbsp;     */
+<i>825</i>&nbsp;    public Client client(String nodeName) {
+<b class="nc"><i>826</i>&nbsp;        NodeAndClient nodeAndClient = nodes.get(nodeName);</b>
+<b class="nc"><i>827</i>&nbsp;        if (nodeAndClient != null) {</b>
+<b class="nc"><i>828</i>&nbsp;            return nodeAndClient.client(random);</b>
+<i>829</i>&nbsp;        }
+<b class="nc"><i>830</i>&nbsp;        throw new AssertionError(&quot;No node found with name: [&quot; + nodeName + &quot;]&quot;);</b>
+<i>831</i>&nbsp;    }
+<i>832</i>&nbsp;
+<i>833</i>&nbsp;
+<i>834</i>&nbsp;    /**
+<i>835</i>&nbsp;     * Returns a &quot;smart&quot; node client to a random node in the cluster
+<i>836</i>&nbsp;     */
+<i>837</i>&nbsp;    public Client smartClient() {
+<b class="nc"><i>838</i>&nbsp;        NodeAndClient randomNodeAndClient = getRandomNodeAndClient();</b>
+<b class="nc"><i>839</i>&nbsp;        if (randomNodeAndClient != null) {</b>
+<b class="nc"><i>840</i>&nbsp;            return randomNodeAndClient.nodeClient();</b>
+<i>841</i>&nbsp;        }
+<b class="nc"><i>842</i>&nbsp;        throw new AssertionError(&quot;No smart client found&quot;);</b>
+<i>843</i>&nbsp;    }
+<i>844</i>&nbsp;
+<i>845</i>&nbsp;    @Override
+<i>846</i>&nbsp;    public synchronized void close() throws IOException {
+<b class="nc"><i>847</i>&nbsp;        if (this.open.compareAndSet(true, false)) {</b>
+<b class="nc"><i>848</i>&nbsp;            if (activeDisruptionScheme != null) {</b>
+<b class="nc"><i>849</i>&nbsp;                activeDisruptionScheme.testClusterClosed();</b>
+<b class="nc"><i>850</i>&nbsp;                activeDisruptionScheme = null;</b>
+<i>851</i>&nbsp;            }
+<i>852</i>&nbsp;            try {
+<b class="nc"><i>853</i>&nbsp;                IOUtils.close(nodes.values());</b>
+<i>854</i>&nbsp;            } finally {
+<b class="nc"><i>855</i>&nbsp;                nodes = Collections.emptyNavigableMap();</b>
+<b class="nc"><i>856</i>&nbsp;                executor.shutdownNow();</b>
+<b class="nc"><i>857</i>&nbsp;            }</b>
+<i>858</i>&nbsp;        }
+<b class="nc"><i>859</i>&nbsp;    }</b>
+<i>860</i>&nbsp;
+<i>861</i>&nbsp;    public static final int REMOVED_MINIMUM_MASTER_NODES = Integer.MAX_VALUE;
+<i>862</i>&nbsp;
+<b class="nc"><i>863</i>&nbsp;    private final class NodeAndClient implements Closeable {</b>
+<i>864</i>&nbsp;        private MockNode node;
+<i>865</i>&nbsp;        private final Settings originalNodeSettings;
+<i>866</i>&nbsp;        private Client nodeClient;
+<i>867</i>&nbsp;        private Client transportClient;
+<b class="nc"><i>868</i>&nbsp;        private final AtomicBoolean closed = new AtomicBoolean(false);</b>
+<i>869</i>&nbsp;        private final String name;
+<i>870</i>&nbsp;        private final int nodeAndClientId;
+<i>871</i>&nbsp;
+<b class="nc"><i>872</i>&nbsp;        NodeAndClient(String name, MockNode node, Settings originalNodeSettings, int nodeAndClientId) {</b>
+<b class="nc"><i>873</i>&nbsp;            this.node = node;</b>
+<b class="nc"><i>874</i>&nbsp;            this.name = name;</b>
+<b class="nc"><i>875</i>&nbsp;            this.originalNodeSettings = originalNodeSettings;</b>
+<b class="nc"><i>876</i>&nbsp;            this.nodeAndClientId = nodeAndClientId;</b>
+<b class="nc"><i>877</i>&nbsp;            markNodeDataDirsAsNotEligibleForWipe(node);</b>
+<b class="nc"><i>878</i>&nbsp;        }</b>
+<i>879</i>&nbsp;
+<i>880</i>&nbsp;        Node node() {
+<b class="nc"><i>881</i>&nbsp;            if (closed.get()) {</b>
+<b class="nc"><i>882</i>&nbsp;                throw new RuntimeException(&quot;already closed&quot;);</b>
+<i>883</i>&nbsp;            }
+<b class="nc"><i>884</i>&nbsp;            return node;</b>
+<i>885</i>&nbsp;        }
+<i>886</i>&nbsp;
+<i>887</i>&nbsp;        public int nodeAndClientId() {
+<b class="nc"><i>888</i>&nbsp;            return nodeAndClientId;</b>
+<i>889</i>&nbsp;        }
+<i>890</i>&nbsp;
+<i>891</i>&nbsp;        public String getName() {
+<b class="nc"><i>892</i>&nbsp;            return name;</b>
+<i>893</i>&nbsp;        }
+<i>894</i>&nbsp;
+<i>895</i>&nbsp;        public boolean isMasterEligible() {
+<b class="nc"><i>896</i>&nbsp;            return Node.NODE_MASTER_SETTING.get(node.settings());</b>
+<i>897</i>&nbsp;        }
+<i>898</i>&nbsp;
+<i>899</i>&nbsp;        Client client(Random random) {
+<b class="nc"><i>900</i>&nbsp;            double nextDouble = random.nextDouble();</b>
+<b class="nc"><i>901</i>&nbsp;            if (nextDouble &lt; transportClientRatio) {</b>
+<b class="nc"><i>902</i>&nbsp;                if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>903</i>&nbsp;                    logger.trace(&quot;Using transport client for node [{}] sniff: [{}]&quot;, node.settings().get(&quot;node.name&quot;), false);</b>
+<i>904</i>&nbsp;                }
+<b class="nc"><i>905</i>&nbsp;                return getOrBuildTransportClient();</b>
+<i>906</i>&nbsp;            } else {
+<b class="nc"><i>907</i>&nbsp;                return getOrBuildNodeClient();</b>
+<i>908</i>&nbsp;            }
+<i>909</i>&nbsp;        }
+<i>910</i>&nbsp;
+<i>911</i>&nbsp;        Client nodeClient() {
+<b class="nc"><i>912</i>&nbsp;            if (closed.get()) {</b>
+<b class="nc"><i>913</i>&nbsp;                throw new RuntimeException(&quot;already closed&quot;);</b>
+<i>914</i>&nbsp;            }
+<b class="nc"><i>915</i>&nbsp;            return getOrBuildNodeClient();</b>
+<i>916</i>&nbsp;        }
+<i>917</i>&nbsp;
+<i>918</i>&nbsp;        Client transportClient() {
+<b class="nc"><i>919</i>&nbsp;            if (closed.get()) {</b>
+<b class="nc"><i>920</i>&nbsp;                throw new RuntimeException(&quot;already closed&quot;);</b>
+<i>921</i>&nbsp;            }
+<b class="nc"><i>922</i>&nbsp;            return getOrBuildTransportClient();</b>
+<i>923</i>&nbsp;        }
+<i>924</i>&nbsp;
+<i>925</i>&nbsp;        private Client getOrBuildNodeClient() {
+<b class="nc"><i>926</i>&nbsp;            synchronized (InternalTestCluster.this) {</b>
+<b class="nc"><i>927</i>&nbsp;                if (closed.get()) {</b>
+<b class="nc"><i>928</i>&nbsp;                    throw new RuntimeException(&quot;already closed&quot;);</b>
+<i>929</i>&nbsp;                }
+<b class="nc"><i>930</i>&nbsp;                if (nodeClient == null) {</b>
+<b class="nc"><i>931</i>&nbsp;                    nodeClient = node.client();</b>
+<i>932</i>&nbsp;                }
+<b class="nc"><i>933</i>&nbsp;                return clientWrapper.apply(nodeClient);</b>
+<b class="nc"><i>934</i>&nbsp;            }</b>
+<i>935</i>&nbsp;        }
+<i>936</i>&nbsp;
+<i>937</i>&nbsp;        private Client getOrBuildTransportClient() {
+<b class="nc"><i>938</i>&nbsp;            synchronized (InternalTestCluster.this) {</b>
+<b class="nc"><i>939</i>&nbsp;                if (closed.get()) {</b>
+<b class="nc"><i>940</i>&nbsp;                    throw new RuntimeException(&quot;already closed&quot;);</b>
+<i>941</i>&nbsp;                }
+<b class="nc"><i>942</i>&nbsp;                if (transportClient == null) {</b>
+<i>943</i>&nbsp;                    /* don&#39;t sniff client for now - doesn&#39;t work will all tests
+<i>944</i>&nbsp;                     * since it might throw NoNodeAvailableException if nodes are
+<i>945</i>&nbsp;                     * shut down. we first need support of transportClientRatio
+<i>946</i>&nbsp;                     * as annotations or so */
+<b class="nc"><i>947</i>&nbsp;                    transportClient = new TransportClientFactory(nodeConfigurationSource.transportClientSettings(),</b>
+<b class="nc"><i>948</i>&nbsp;                        baseDir, nodeConfigurationSource.transportClientPlugins()).client(node, clusterName);</b>
+<i>949</i>&nbsp;                }
+<b class="nc"><i>950</i>&nbsp;                return clientWrapper.apply(transportClient);</b>
+<b class="nc"><i>951</i>&nbsp;            }</b>
+<i>952</i>&nbsp;        }
+<i>953</i>&nbsp;
+<i>954</i>&nbsp;        void resetClient() {
+<b class="nc"><i>955</i>&nbsp;            if (closed.get() == false) {</b>
+<b class="nc"><i>956</i>&nbsp;                Releasables.close(nodeClient, transportClient);</b>
+<b class="nc"><i>957</i>&nbsp;                nodeClient = null;</b>
+<b class="nc"><i>958</i>&nbsp;                transportClient = null;</b>
+<i>959</i>&nbsp;            }
+<b class="nc"><i>960</i>&nbsp;        }</b>
+<i>961</i>&nbsp;
+<i>962</i>&nbsp;        void startNode() {
+<b class="nc"><i>963</i>&nbsp;            boolean success = false;</b>
+<i>964</i>&nbsp;            try {
+<b class="nc"><i>965</i>&nbsp;                node.start();</b>
+<b class="nc"><i>966</i>&nbsp;                success = true;</b>
+<b class="nc"><i>967</i>&nbsp;            } catch (NodeValidationException e) {</b>
+<b class="nc"><i>968</i>&nbsp;                throw new RuntimeException(e);</b>
+<i>969</i>&nbsp;            } finally {
+<b class="nc"><i>970</i>&nbsp;                if (success == false) {</b>
+<b class="nc"><i>971</i>&nbsp;                    IOUtils.closeWhileHandlingException(node);</b>
+<i>972</i>&nbsp;                }
+<b class="nc"><i>973</i>&nbsp;            }</b>
+<b class="nc"><i>974</i>&nbsp;        }</b>
+<i>975</i>&nbsp;
+<i>976</i>&nbsp;        /**
+<i>977</i>&nbsp;         * closes the node and prepares it to be restarted
+<i>978</i>&nbsp;         */
+<i>979</i>&nbsp;        Settings closeForRestart(RestartCallback callback, int minMasterNodes) throws Exception {
+<b class="nc"><i>980</i>&nbsp;            assert callback != null;</b>
+<b class="nc"><i>981</i>&nbsp;            close();</b>
+<b class="nc"><i>982</i>&nbsp;            removeNode(this);</b>
+<b class="nc"><i>983</i>&nbsp;            Settings callbackSettings = callback.onNodeStopped(name);</b>
+<b class="nc"><i>984</i>&nbsp;            assert callbackSettings != null;</b>
+<b class="nc"><i>985</i>&nbsp;            Settings.Builder newSettings = Settings.builder();</b>
+<b class="nc"><i>986</i>&nbsp;            newSettings.put(callbackSettings);</b>
+<b class="nc"><i>987</i>&nbsp;            if (minMasterNodes &gt;= 0) {</b>
+<b class="nc"><i>988</i>&nbsp;                if (usingZen1(newSettings.build())) {</b>
+<b class="nc"><i>989</i>&nbsp;                    assertFalse(&quot;min master nodes is auto managed&quot;, DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(newSettings.build()));</b>
+<b class="nc"><i>990</i>&nbsp;                    newSettings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes);</b>
+<i>991</i>&nbsp;                }
+<b class="nc"><i>992</i>&nbsp;                if (INITIAL_MASTER_NODES_SETTING.exists(callbackSettings) == false) {</b>
+<b class="nc"><i>993</i>&nbsp;                    newSettings.putList(INITIAL_MASTER_NODES_SETTING.getKey());</b>
+<i>994</i>&nbsp;                }
+<i>995</i>&nbsp;            }
+<i>996</i>&nbsp;            // delete data folders now, before we start other nodes that may claim it
+<b class="nc"><i>997</i>&nbsp;            clearDataIfNeeded(callback);</b>
+<b class="nc"><i>998</i>&nbsp;            return newSettings.build();</b>
+<i>999</i>&nbsp;        }
+<i>1000</i>&nbsp;
+<i>1001</i>&nbsp;        private void clearDataIfNeeded(RestartCallback callback) throws IOException {
+<b class="nc"><i>1002</i>&nbsp;            if (callback.clearData(name)) {</b>
+<b class="nc"><i>1003</i>&nbsp;                NodeEnvironment nodeEnv = node.getNodeEnvironment();</b>
+<b class="nc"><i>1004</i>&nbsp;                if (nodeEnv.hasNodeFile()) {</b>
+<b class="nc"><i>1005</i>&nbsp;                    final Path[] locations = nodeEnv.nodeDataPaths();</b>
+<b class="nc"><i>1006</i>&nbsp;                    logger.debug(&quot;removing node data paths: [{}]&quot;, Arrays.toString(locations));</b>
+<b class="nc"><i>1007</i>&nbsp;                    IOUtils.rm(locations);</b>
+<i>1008</i>&nbsp;                }
+<i>1009</i>&nbsp;            }
+<b class="nc"><i>1010</i>&nbsp;        }</b>
+<i>1011</i>&nbsp;
+<i>1012</i>&nbsp;        private void recreateNode(final Settings newSettings, final Runnable onTransportServiceStarted) {
+<b class="nc"><i>1013</i>&nbsp;            if (closed.get() == false) {</b>
+<b class="nc"><i>1014</i>&nbsp;                throw new IllegalStateException(&quot;node &quot; + name + &quot; should be closed before recreating it&quot;);</b>
+<i>1015</i>&nbsp;            }
+<i>1016</i>&nbsp;            // use a new seed to make sure we generate a fresh new node id if the data folder has been wiped
+<b class="nc"><i>1017</i>&nbsp;            final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;</b>
+<b class="nc"><i>1018</i>&nbsp;            Settings finalSettings = Settings.builder()</b>
+<b class="nc"><i>1019</i>&nbsp;                    .put(originalNodeSettings)</b>
+<b class="nc"><i>1020</i>&nbsp;                    .put(newSettings)</b>
+<b class="nc"><i>1021</i>&nbsp;                    .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)</b>
+<b class="nc"><i>1022</i>&nbsp;                    .build();</b>
+<b class="nc"><i>1023</i>&nbsp;            if (usingZen1(finalSettings)) {</b>
+<b class="nc"><i>1024</i>&nbsp;                if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {</b>
+<b class="nc"><i>1025</i>&nbsp;                    throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +</b>
+<i>1026</i>&nbsp;                        &quot; is not configured after restart of [&quot; + name + &quot;]&quot;);
+<i>1027</i>&nbsp;                }
+<i>1028</i>&nbsp;            } else {
+<b class="nc"><i>1029</i>&nbsp;                if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings)) {</b>
+<i>1030</i>&nbsp;                    // simulating an upgrade from Zen1 to Zen2, but there&#39;s no way to remove a setting when restarting a node, so
+<i>1031</i>&nbsp;                    // you have to set it to REMOVED_MINIMUM_MASTER_NODES (== Integer.MAX_VALUE) to indicate its removal:
+<b class="nc"><i>1032</i>&nbsp;                    assertTrue(DISCOVERY_TYPE_SETTING.exists(finalSettings));</b>
+<b class="nc"><i>1033</i>&nbsp;                    assertThat(DISCOVERY_TYPE_SETTING.get(finalSettings), equalTo(ZEN2_DISCOVERY_TYPE));</b>
+<b class="nc"><i>1034</i>&nbsp;                    assertThat(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(finalSettings), equalTo(REMOVED_MINIMUM_MASTER_NODES));</b>
+<i>1035</i>&nbsp;
+<b class="nc"><i>1036</i>&nbsp;                    final Builder builder = Settings.builder().put(finalSettings);</b>
+<b class="nc"><i>1037</i>&nbsp;                    builder.remove(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey());</b>
+<b class="nc"><i>1038</i>&nbsp;                    finalSettings = builder.build();</b>
+<i>1039</i>&nbsp;                }
+<i>1040</i>&nbsp;            }
+<b class="nc"><i>1041</i>&nbsp;            Collection&lt;Class&lt;? extends Plugin&gt;&gt; plugins = node.getClasspathPlugins();</b>
+<b class="nc"><i>1042</i>&nbsp;            node = new MockNode(finalSettings, plugins);</b>
+<b class="nc"><i>1043</i>&nbsp;            node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {</b>
+<i>1044</i>&nbsp;                @Override
+<i>1045</i>&nbsp;                public void afterStart() {
+<i>1046</i>&nbsp;                    onTransportServiceStarted.run();
+<i>1047</i>&nbsp;                }
+<i>1048</i>&nbsp;            });
+<b class="nc"><i>1049</i>&nbsp;            closed.set(false);</b>
+<b class="nc"><i>1050</i>&nbsp;            markNodeDataDirsAsNotEligibleForWipe(node);</b>
+<b class="nc"><i>1051</i>&nbsp;        }</b>
+<i>1052</i>&nbsp;
+<i>1053</i>&nbsp;        @Override
+<i>1054</i>&nbsp;        public void close() throws IOException {
+<b class="nc"><i>1055</i>&nbsp;            assert Thread.holdsLock(InternalTestCluster.this);</b>
+<i>1056</i>&nbsp;            try {
+<b class="nc"><i>1057</i>&nbsp;                resetClient();</b>
+<i>1058</i>&nbsp;            } finally {
+<b class="nc"><i>1059</i>&nbsp;                closed.set(true);</b>
+<b class="nc"><i>1060</i>&nbsp;                markNodeDataDirsAsPendingForWipe(node);</b>
+<b class="nc"><i>1061</i>&nbsp;                node.close();</b>
+<i>1062</i>&nbsp;                try {
+<b class="nc"><i>1063</i>&nbsp;                    if (node.awaitClose(10, TimeUnit.SECONDS) == false) {</b>
+<b class="nc"><i>1064</i>&nbsp;                        throw new IOException(&quot;Node didn&#39;t close within 10 seconds.&quot;);</b>
+<i>1065</i>&nbsp;                    }
+<b class="nc"><i>1066</i>&nbsp;                } catch (InterruptedException e) {</b>
+<b class="nc"><i>1067</i>&nbsp;                    throw new AssertionError(&quot;Interruption while waiting for the node to close&quot;, e);</b>
+<b class="nc"><i>1068</i>&nbsp;                }</b>
+<b class="nc"><i>1069</i>&nbsp;            }</b>
+<b class="nc"><i>1070</i>&nbsp;        }</b>
+<i>1071</i>&nbsp;
+<i>1072</i>&nbsp;        private void markNodeDataDirsAsPendingForWipe(Node node) {
+<b class="nc"><i>1073</i>&nbsp;            assert Thread.holdsLock(InternalTestCluster.this);</b>
+<b class="nc"><i>1074</i>&nbsp;            NodeEnvironment nodeEnv = node.getNodeEnvironment();</b>
+<b class="nc"><i>1075</i>&nbsp;            if (nodeEnv.hasNodeFile()) {</b>
+<b class="nc"><i>1076</i>&nbsp;                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));</b>
+<i>1077</i>&nbsp;            }
+<b class="nc"><i>1078</i>&nbsp;        }</b>
+<i>1079</i>&nbsp;
+<i>1080</i>&nbsp;        private void markNodeDataDirsAsNotEligibleForWipe(Node node) {
+<b class="nc"><i>1081</i>&nbsp;            assert Thread.holdsLock(InternalTestCluster.this);</b>
+<b class="nc"><i>1082</i>&nbsp;            NodeEnvironment nodeEnv = node.getNodeEnvironment();</b>
+<b class="nc"><i>1083</i>&nbsp;            if (nodeEnv.hasNodeFile()) {</b>
+<b class="nc"><i>1084</i>&nbsp;                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));</b>
+<i>1085</i>&nbsp;            }
+<b class="nc"><i>1086</i>&nbsp;        }</b>
+<i>1087</i>&nbsp;    }
+<i>1088</i>&nbsp;
+<i>1089</i>&nbsp;    public static final String TRANSPORT_CLIENT_PREFIX = &quot;transport_client_&quot;;
+<i>1090</i>&nbsp;
+<i>1091</i>&nbsp;    private static class TransportClientFactory {
+<i>1092</i>&nbsp;        private final Settings settings;
+<i>1093</i>&nbsp;        private final Path baseDir;
+<i>1094</i>&nbsp;        private final Collection&lt;Class&lt;? extends Plugin&gt;&gt; plugins;
+<i>1095</i>&nbsp;
+<i>1096</i>&nbsp;        TransportClientFactory(Settings settings, Path baseDir, Collection&lt;Class&lt;? extends Plugin&gt;&gt; plugins) {
+<i>1097</i>&nbsp;            this.settings = settings != null ? settings : Settings.EMPTY;
+<i>1098</i>&nbsp;            this.baseDir = baseDir;
+<i>1099</i>&nbsp;            this.plugins = plugins;
+<i>1100</i>&nbsp;        }
+<i>1101</i>&nbsp;
+<i>1102</i>&nbsp;        public Client client(Node node, String clusterName) {
+<i>1103</i>&nbsp;            TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
+<i>1104</i>&nbsp;            Settings nodeSettings = node.settings();
+<i>1105</i>&nbsp;            Builder builder = Settings.builder()
+<i>1106</i>&nbsp;                .put(&quot;client.transport.nodes_sampler_interval&quot;, &quot;1s&quot;)
+<i>1107</i>&nbsp;                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir)
+<i>1108</i>&nbsp;                .put(&quot;node.name&quot;, TRANSPORT_CLIENT_PREFIX + node.settings().get(&quot;node.name&quot;))
+<i>1109</i>&nbsp;                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put(&quot;client.transport.sniff&quot;, false)
+<i>1110</i>&nbsp;                .put(&quot;logger.prefix&quot;, nodeSettings.get(&quot;logger.prefix&quot;, &quot;&quot;))
+<i>1111</i>&nbsp;                .put(&quot;logger.level&quot;, nodeSettings.get(&quot;logger.level&quot;, &quot;INFO&quot;))
+<i>1112</i>&nbsp;                .put(settings);
+<i>1113</i>&nbsp;            if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
+<i>1114</i>&nbsp;                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.TRANSPORT_TYPE_SETTING.get(settings));
+<i>1115</i>&nbsp;            } else {
+<i>1116</i>&nbsp;                builder.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), getTestTransportType());
+<i>1117</i>&nbsp;            }
+<i>1118</i>&nbsp;            TransportClient client = new MockTransportClient(builder.build(), plugins);
+<i>1119</i>&nbsp;            client.addTransportAddress(addr);
+<i>1120</i>&nbsp;            return client;
+<i>1121</i>&nbsp;        }
+<i>1122</i>&nbsp;    }
+<i>1123</i>&nbsp;
+<i>1124</i>&nbsp;    @Override
+<i>1125</i>&nbsp;    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
+<b class="nc"><i>1126</i>&nbsp;        super.beforeTest(random, transportClientRatio);</b>
+<b class="nc"><i>1127</i>&nbsp;        reset(true);</b>
+<b class="nc"><i>1128</i>&nbsp;    }</b>
+<i>1129</i>&nbsp;
+<i>1130</i>&nbsp;    private synchronized void reset(boolean wipeData) throws IOException {
+<i>1131</i>&nbsp;        // clear all rules for mock transport services
+<b class="nc"><i>1132</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1133</i>&nbsp;            TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);</b>
+<b class="nc"><i>1134</i>&nbsp;            if (transportService instanceof MockTransportService) {</b>
+<b class="nc"><i>1135</i>&nbsp;                final MockTransportService mockTransportService = (MockTransportService) transportService;</b>
+<b class="nc"><i>1136</i>&nbsp;                mockTransportService.clearAllRules();</b>
+<i>1137</i>&nbsp;            }
+<b class="nc"><i>1138</i>&nbsp;        }</b>
+<b class="nc"><i>1139</i>&nbsp;        randomlyResetClients();</b>
+<b class="nc"><i>1140</i>&nbsp;        final int newSize = sharedNodesSeeds.length;</b>
+<b class="nc"><i>1141</i>&nbsp;        if (nextNodeId.get() == newSize &amp;&amp; nodes.size() == newSize) {</b>
+<b class="nc"><i>1142</i>&nbsp;            if (wipeData) {</b>
+<b class="nc"><i>1143</i>&nbsp;                wipePendingDataDirectories();</b>
+<i>1144</i>&nbsp;            }
+<b class="nc"><i>1145</i>&nbsp;            if (nodes.size() &gt; 0 &amp;&amp; autoManageMasterNodes) {</b>
+<b class="nc"><i>1146</i>&nbsp;                updateMinMasterNodes(getMasterNodesCount());</b>
+<i>1147</i>&nbsp;            }
+<b class="nc"><i>1148</i>&nbsp;            logger.debug(&quot;Cluster hasn&#39;t changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]&quot;,</b>
+<b class="nc"><i>1149</i>&nbsp;                    nodes.keySet(), nextNodeId.get(), newSize);</b>
+<b class="nc"><i>1150</i>&nbsp;            return;</b>
+<i>1151</i>&nbsp;        }
+<b class="nc"><i>1152</i>&nbsp;        logger.debug(&quot;Cluster is NOT consistent - restarting shared nodes - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]&quot;,</b>
+<b class="nc"><i>1153</i>&nbsp;                nodes.keySet(), nextNodeId.get(), newSize);</b>
+<i>1154</i>&nbsp;
+<i>1155</i>&nbsp;        // trash all nodes with id &gt;= sharedNodesSeeds.length - they are non shared
+<b class="nc"><i>1156</i>&nbsp;        final List&lt;NodeAndClient&gt; toClose = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1157</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1158</i>&nbsp;            if (nodeAndClient.nodeAndClientId() &gt;= sharedNodesSeeds.length) {</b>
+<b class="nc"><i>1159</i>&nbsp;                logger.debug(&quot;Close Node [{}] not shared&quot;, nodeAndClient.name);</b>
+<b class="nc"><i>1160</i>&nbsp;                toClose.add(nodeAndClient);</b>
+<i>1161</i>&nbsp;            }
+<b class="nc"><i>1162</i>&nbsp;        }</b>
+<b class="nc"><i>1163</i>&nbsp;        stopNodesAndClients(toClose);</b>
+<i>1164</i>&nbsp;
+<i>1165</i>&nbsp;        // clean up what the nodes left that is unused
+<b class="nc"><i>1166</i>&nbsp;        if (wipeData) {</b>
+<b class="nc"><i>1167</i>&nbsp;            wipePendingDataDirectories();</b>
+<i>1168</i>&nbsp;        }
+<i>1169</i>&nbsp;
+<b class="nc"><i>1170</i>&nbsp;        assertTrue(&quot;expected at least one master-eligible node left in &quot; + nodes,</b>
+<b class="nc"><i>1171</i>&nbsp;            nodes.isEmpty() || nodes.values().stream().anyMatch(NodeAndClient::isMasterEligible));</b>
+<i>1172</i>&nbsp;
+<b class="nc"><i>1173</i>&nbsp;        final int prevNodeCount = nodes.size();</b>
+<i>1174</i>&nbsp;
+<i>1175</i>&nbsp;        // start any missing node
+<b class="nc"><i>1176</i>&nbsp;        assert newSize == numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes;</b>
+<b class="nc"><i>1177</i>&nbsp;        final int numberOfMasterNodes = numSharedDedicatedMasterNodes &gt; 0 ? numSharedDedicatedMasterNodes : numSharedDataNodes;</b>
+<b class="nc"><i>1178</i>&nbsp;        final int defaultMinMasterNodes = (numberOfMasterNodes / 2) + 1;</b>
+<b class="nc"><i>1179</i>&nbsp;        final List&lt;NodeAndClient&gt; toStartAndPublish = new ArrayList&lt;&gt;(); // we want to start nodes in one go</b>
+<b class="nc"><i>1180</i>&nbsp;        final Runnable onTransportServiceStarted = () -&gt; rebuildUnicastHostFiles(toStartAndPublish);</b>
+<i>1181</i>&nbsp;
+<b class="nc"><i>1182</i>&nbsp;        final List&lt;Settings&gt; settings = new ArrayList&lt;&gt;();</b>
+<i>1183</i>&nbsp;
+<b class="nc"><i>1184</i>&nbsp;        for (int i = 0; i &lt; numSharedDedicatedMasterNodes; i++) {</b>
+<b class="nc"><i>1185</i>&nbsp;            final Settings.Builder extraSettings = Settings.builder();</b>
+<b class="nc"><i>1186</i>&nbsp;            extraSettings.put(Node.NODE_MASTER_SETTING.getKey(), true);</b>
+<b class="nc"><i>1187</i>&nbsp;            extraSettings.put(Node.NODE_DATA_SETTING.getKey(), false);</b>
+<b class="nc"><i>1188</i>&nbsp;            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));</b>
+<i>1189</i>&nbsp;        }
+<b class="nc"><i>1190</i>&nbsp;        for (int i = numSharedDedicatedMasterNodes; i &lt; numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {</b>
+<b class="nc"><i>1191</i>&nbsp;            final Settings.Builder extraSettings = Settings.builder();</b>
+<b class="nc"><i>1192</i>&nbsp;            if (numSharedDedicatedMasterNodes &gt; 0) {</b>
+<i>1193</i>&nbsp;                // if we don&#39;t have dedicated master nodes, keep things default
+<b class="nc"><i>1194</i>&nbsp;                extraSettings.put(Node.NODE_MASTER_SETTING.getKey(), false).build();</b>
+<b class="nc"><i>1195</i>&nbsp;                extraSettings.put(Node.NODE_DATA_SETTING.getKey(), true).build();</b>
+<i>1196</i>&nbsp;            }
+<b class="nc"><i>1197</i>&nbsp;            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));</b>
+<i>1198</i>&nbsp;        }
+<b class="nc"><i>1199</i>&nbsp;        for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;</b>
+<b class="nc"><i>1200</i>&nbsp;             i &lt; numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {</b>
+<b class="nc"><i>1201</i>&nbsp;            final Builder extraSettings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false)</b>
+<b class="nc"><i>1202</i>&nbsp;                .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_INGEST_SETTING.getKey(), false);</b>
+<b class="nc"><i>1203</i>&nbsp;            settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));</b>
+<i>1204</i>&nbsp;        }
+<i>1205</i>&nbsp;
+<b class="nc"><i>1206</i>&nbsp;        int autoBootstrapMasterNodeIndex = -1;</b>
+<b class="nc"><i>1207</i>&nbsp;        final List&lt;String&gt; masterNodeNames = settings.stream()</b>
+<b class="nc"><i>1208</i>&nbsp;                .filter(Node.NODE_MASTER_SETTING::get)</b>
+<b class="nc"><i>1209</i>&nbsp;                .map(Node.NODE_NAME_SETTING::get)</b>
+<b class="nc"><i>1210</i>&nbsp;                .collect(Collectors.toList());</b>
+<i>1211</i>&nbsp;
+<b class="nc"><i>1212</i>&nbsp;        if (prevNodeCount == 0 &amp;&amp; autoManageMasterNodes) {</b>
+<b class="nc"><i>1213</i>&nbsp;            if (numSharedDedicatedMasterNodes &gt; 0) {</b>
+<b class="nc"><i>1214</i>&nbsp;                autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);</b>
+<b class="nc"><i>1215</i>&nbsp;            } else if (numSharedDataNodes &gt; 0) {</b>
+<b class="nc"><i>1216</i>&nbsp;                autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);</b>
+<i>1217</i>&nbsp;            }
+<i>1218</i>&nbsp;        }
+<i>1219</i>&nbsp;
+<b class="nc"><i>1220</i>&nbsp;        final List&lt;Settings&gt; updatedSettings = bootstrapMasterNodeWithSpecifiedIndex(settings);</b>
+<i>1221</i>&nbsp;
+<b class="nc"><i>1222</i>&nbsp;        for (int i = 0; i &lt; numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {</b>
+<b class="nc"><i>1223</i>&nbsp;            Settings nodeSettings = updatedSettings.get(i);</b>
+<b class="nc"><i>1224</i>&nbsp;            if (i == autoBootstrapMasterNodeIndex) {</b>
+<b class="nc"><i>1225</i>&nbsp;                nodeSettings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames).put(nodeSettings).build();</b>
+<i>1226</i>&nbsp;            }
+<b class="nc"><i>1227</i>&nbsp;            final NodeAndClient nodeAndClient = buildNode(i, nodeSettings, true, onTransportServiceStarted);</b>
+<b class="nc"><i>1228</i>&nbsp;            toStartAndPublish.add(nodeAndClient);</b>
+<i>1229</i>&nbsp;        }
+<i>1230</i>&nbsp;
+<b class="nc"><i>1231</i>&nbsp;        startAndPublishNodesAndClients(toStartAndPublish);</b>
+<i>1232</i>&nbsp;
+<b class="nc"><i>1233</i>&nbsp;        nextNodeId.set(newSize);</b>
+<b class="nc"><i>1234</i>&nbsp;        assert size() == newSize;</b>
+<b class="nc"><i>1235</i>&nbsp;        if (autoManageMasterNodes &amp;&amp; newSize &gt; 0) {</b>
+<b class="nc"><i>1236</i>&nbsp;            validateClusterFormed();</b>
+<i>1237</i>&nbsp;        }
+<b class="nc"><i>1238</i>&nbsp;        logger.debug(&quot;Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]&quot;,</b>
+<b class="nc"><i>1239</i>&nbsp;                nodes.keySet(), nextNodeId.get(), newSize);</b>
+<b class="nc"><i>1240</i>&nbsp;    }</b>
+<i>1241</i>&nbsp;
+<i>1242</i>&nbsp;    /** ensure a cluster is formed with all published nodes. */
+<i>1243</i>&nbsp;    public synchronized void validateClusterFormed() {
+<b class="nc"><i>1244</i>&nbsp;        final Set&lt;DiscoveryNode&gt; expectedNodes = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>1245</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1246</i>&nbsp;            expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());</b>
+<b class="nc"><i>1247</i>&nbsp;        }</b>
+<b class="nc"><i>1248</i>&nbsp;        logger.trace(&quot;validating cluster formed, expecting {}&quot;, expectedNodes);</b>
+<i>1249</i>&nbsp;
+<i>1250</i>&nbsp;        try {
+<b class="nc"><i>1251</i>&nbsp;            assertBusy(() -&gt; {</b>
+<b class="nc"><i>1252</i>&nbsp;                final List&lt;ClusterState&gt; states = nodes.values().stream()</b>
+<b class="nc"><i>1253</i>&nbsp;                    .map(node -&gt; getInstanceFromNode(ClusterService.class, node.node()))</b>
+<b class="nc"><i>1254</i>&nbsp;                    .map(ClusterService::state)</b>
+<b class="nc"><i>1255</i>&nbsp;                    .collect(Collectors.toList());</b>
+<b class="nc"><i>1256</i>&nbsp;                final String debugString = &quot;, expected nodes: &quot; + expectedNodes + &quot; and actual cluster states &quot; + states;</b>
+<i>1257</i>&nbsp;                // all nodes have a master
+<b class="nc"><i>1258</i>&nbsp;                assertTrue(&quot;Missing master&quot; + debugString, states.stream().allMatch(cs -&gt; cs.nodes().getMasterNodeId() != null));</b>
+<i>1259</i>&nbsp;                // all nodes have the same master (in same term)
+<b class="nc"><i>1260</i>&nbsp;                assertEquals(&quot;Not all masters in same term&quot; + debugString, 1,</b>
+<b class="nc"><i>1261</i>&nbsp;                    states.stream().mapToLong(ClusterState::term).distinct().count());</b>
+<i>1262</i>&nbsp;                // all nodes know about all other nodes
+<b class="nc"><i>1263</i>&nbsp;                states.forEach(cs -&gt; {</b>
+<b class="nc"><i>1264</i>&nbsp;                    DiscoveryNodes discoveryNodes = cs.nodes();</b>
+<b class="nc"><i>1265</i>&nbsp;                    assertEquals(&quot;Node size mismatch&quot; + debugString, expectedNodes.size(), discoveryNodes.getSize());</b>
+<b class="nc"><i>1266</i>&nbsp;                    for (DiscoveryNode expectedNode : expectedNodes) {</b>
+<b class="nc"><i>1267</i>&nbsp;                        assertTrue(&quot;Expected node to exist: &quot; + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));</b>
+<b class="nc"><i>1268</i>&nbsp;                    }</b>
+<b class="nc"><i>1269</i>&nbsp;                });</b>
+<b class="nc"><i>1270</i>&nbsp;            }, 30, TimeUnit.SECONDS);</b>
+<b class="nc"><i>1271</i>&nbsp;        } catch (AssertionError ae) {</b>
+<b class="nc"><i>1272</i>&nbsp;            throw new IllegalStateException(&quot;cluster failed to form&quot;, ae);</b>
+<b class="nc"><i>1273</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>1274</i>&nbsp;            throw new IllegalStateException(e);</b>
+<b class="nc"><i>1275</i>&nbsp;        }</b>
+<b class="nc"><i>1276</i>&nbsp;    }</b>
+<i>1277</i>&nbsp;
+<i>1278</i>&nbsp;    @Override
+<i>1279</i>&nbsp;    public synchronized void afterTest() {
+<b class="nc"><i>1280</i>&nbsp;        wipePendingDataDirectories();</b>
+<b class="nc"><i>1281</i>&nbsp;        randomlyResetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */</b>
+<b class="nc"><i>1282</i>&nbsp;    }</b>
+<i>1283</i>&nbsp;
+<i>1284</i>&nbsp;    @Override
+<i>1285</i>&nbsp;    public void beforeIndexDeletion() throws Exception {
+<i>1286</i>&nbsp;        // Check that the operations counter on index shard has reached 0.
+<i>1287</i>&nbsp;        // The assumption here is that after a test there are no ongoing write operations.
+<i>1288</i>&nbsp;        // test that have ongoing write operations after the test (for example because ttl is used
+<i>1289</i>&nbsp;        // and not all docs have been purged after the test) and inherit from
+<i>1290</i>&nbsp;        // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
+<b class="nc"><i>1291</i>&nbsp;        assertNoPendingIndexOperations();</b>
+<i>1292</i>&nbsp;        //check that shards that have same sync id also contain same number of documents
+<b class="nc"><i>1293</i>&nbsp;        assertSameSyncIdSameDocs();</b>
+<b class="nc"><i>1294</i>&nbsp;        assertOpenTranslogReferences();</b>
+<b class="nc"><i>1295</i>&nbsp;        assertNoSnapshottedIndexCommit();</b>
+<b class="nc"><i>1296</i>&nbsp;    }</b>
+<i>1297</i>&nbsp;
+<i>1298</i>&nbsp;    private void assertSameSyncIdSameDocs() {
+<b class="nc"><i>1299</i>&nbsp;        Map&lt;String, Long&gt; docsOnShards = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>1300</i>&nbsp;        final Collection&lt;NodeAndClient&gt; nodesAndClients = nodes.values();</b>
+<b class="nc"><i>1301</i>&nbsp;        for (NodeAndClient nodeAndClient : nodesAndClients) {</b>
+<b class="nc"><i>1302</i>&nbsp;            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);</b>
+<b class="nc"><i>1303</i>&nbsp;            for (IndexService indexService : indexServices) {</b>
+<b class="nc"><i>1304</i>&nbsp;                for (IndexShard indexShard : indexService) {</b>
+<i>1305</i>&nbsp;                    try {
+<b class="nc"><i>1306</i>&nbsp;                        CommitStats commitStats = indexShard.commitStats();</b>
+<b class="nc"><i>1307</i>&nbsp;                        String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);</b>
+<b class="nc"><i>1308</i>&nbsp;                        if (syncId != null) {</b>
+<b class="nc"><i>1309</i>&nbsp;                            long liveDocsOnShard = commitStats.getNumDocs();</b>
+<b class="nc"><i>1310</i>&nbsp;                            if (docsOnShards.get(syncId) != null) {</b>
+<b class="nc"><i>1311</i>&nbsp;                                assertThat(&quot;sync id is equal but number of docs does not match on node &quot;</b>
+<b class="nc"><i>1312</i>&nbsp;                                    + nodeAndClient.name + &quot;. expected &quot; + docsOnShards.get(syncId) + &quot; but got &quot;</b>
+<b class="nc"><i>1313</i>&nbsp;                                    + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));</b>
+<i>1314</i>&nbsp;                            } else {
+<b class="nc"><i>1315</i>&nbsp;                                docsOnShards.put(syncId, liveDocsOnShard);</b>
+<i>1316</i>&nbsp;                            }
+<i>1317</i>&nbsp;                        }
+<b class="nc"><i>1318</i>&nbsp;                    } catch (AlreadyClosedException e) {</b>
+<i>1319</i>&nbsp;                        // the engine is closed or if the shard is recovering
+<b class="nc"><i>1320</i>&nbsp;                    }</b>
+<b class="nc"><i>1321</i>&nbsp;                }</b>
+<b class="nc"><i>1322</i>&nbsp;            }</b>
+<b class="nc"><i>1323</i>&nbsp;        }</b>
+<b class="nc"><i>1324</i>&nbsp;    }</b>
+<i>1325</i>&nbsp;
+<i>1326</i>&nbsp;    private void assertNoPendingIndexOperations() throws Exception {
+<b class="nc"><i>1327</i>&nbsp;        assertBusy(() -&gt; {</b>
+<b class="nc"><i>1328</i>&nbsp;            for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1329</i>&nbsp;                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);</b>
+<b class="nc"><i>1330</i>&nbsp;                for (IndexService indexService : indexServices) {</b>
+<b class="nc"><i>1331</i>&nbsp;                    for (IndexShard indexShard : indexService) {</b>
+<b class="nc"><i>1332</i>&nbsp;                        List&lt;String&gt; operations = indexShard.getActiveOperations();</b>
+<b class="nc"><i>1333</i>&nbsp;                        if (operations.size() &gt; 0) {</b>
+<b class="nc"><i>1334</i>&nbsp;                            throw new AssertionError(</b>
+<b class="nc"><i>1335</i>&nbsp;                                &quot;shard &quot; + indexShard.shardId() + &quot; on node [&quot; + nodeAndClient.name + &quot;] has pending operations:\n --&gt; &quot; +</b>
+<b class="nc"><i>1336</i>&nbsp;                                    String.join(&quot;\n --&gt; &quot;, operations)</b>
+<i>1337</i>&nbsp;                            );
+<i>1338</i>&nbsp;                        }
+<b class="nc"><i>1339</i>&nbsp;                    }</b>
+<b class="nc"><i>1340</i>&nbsp;                }</b>
+<b class="nc"><i>1341</i>&nbsp;            }</b>
+<b class="nc"><i>1342</i>&nbsp;        }, 60, TimeUnit.SECONDS);</b>
+<b class="nc"><i>1343</i>&nbsp;    }</b>
+<i>1344</i>&nbsp;
+<i>1345</i>&nbsp;    private void assertOpenTranslogReferences() throws Exception {
+<b class="nc"><i>1346</i>&nbsp;        assertBusy(() -&gt; {</b>
+<b class="nc"><i>1347</i>&nbsp;            for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1348</i>&nbsp;                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);</b>
+<b class="nc"><i>1349</i>&nbsp;                for (IndexService indexService : indexServices) {</b>
+<b class="nc"><i>1350</i>&nbsp;                    for (IndexShard indexShard : indexService) {</b>
+<i>1351</i>&nbsp;                        try {
+<b class="nc"><i>1352</i>&nbsp;                            if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {</b>
+<b class="nc"><i>1353</i>&nbsp;                                IndexShardTestCase.getTranslog(indexShard).getDeletionPolicy().assertNoOpenTranslogRefs();</b>
+<i>1354</i>&nbsp;                            }
+<b class="nc"><i>1355</i>&nbsp;                        } catch (AlreadyClosedException ok) {</b>
+<i>1356</i>&nbsp;                            // all good
+<b class="nc"><i>1357</i>&nbsp;                        }</b>
+<b class="nc"><i>1358</i>&nbsp;                    }</b>
+<b class="nc"><i>1359</i>&nbsp;                }</b>
+<b class="nc"><i>1360</i>&nbsp;            }</b>
+<b class="nc"><i>1361</i>&nbsp;        }, 60, TimeUnit.SECONDS);</b>
+<b class="nc"><i>1362</i>&nbsp;    }</b>
+<i>1363</i>&nbsp;
+<i>1364</i>&nbsp;    private void assertNoSnapshottedIndexCommit() throws Exception {
+<b class="nc"><i>1365</i>&nbsp;        assertBusy(() -&gt; {</b>
+<b class="nc"><i>1366</i>&nbsp;            for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1367</i>&nbsp;                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);</b>
+<b class="nc"><i>1368</i>&nbsp;                for (IndexService indexService : indexServices) {</b>
+<b class="nc"><i>1369</i>&nbsp;                    for (IndexShard indexShard : indexService) {</b>
+<i>1370</i>&nbsp;                        try {
+<b class="nc"><i>1371</i>&nbsp;                            Engine engine = IndexShardTestCase.getEngine(indexShard);</b>
+<b class="nc"><i>1372</i>&nbsp;                            if (engine instanceof InternalEngine) {</b>
+<b class="nc"><i>1373</i>&nbsp;                                assertFalse(indexShard.routingEntry().toString() + &quot; has unreleased snapshotted index commits&quot;,</b>
+<b class="nc"><i>1374</i>&nbsp;                                    EngineTestCase.hasSnapshottedCommits(engine));</b>
+<i>1375</i>&nbsp;                            }
+<b class="nc"><i>1376</i>&nbsp;                        } catch (AlreadyClosedException ignored) {</b>
+<i>1377</i>&nbsp;
+<b class="nc"><i>1378</i>&nbsp;                        }</b>
+<b class="nc"><i>1379</i>&nbsp;                    }</b>
+<b class="nc"><i>1380</i>&nbsp;                }</b>
+<b class="nc"><i>1381</i>&nbsp;            }</b>
+<b class="nc"><i>1382</i>&nbsp;        }, 60, TimeUnit.SECONDS);</b>
+<b class="nc"><i>1383</i>&nbsp;    }</b>
+<i>1384</i>&nbsp;
+<i>1385</i>&nbsp;    /**
+<i>1386</i>&nbsp;     * Asserts that the document history in Lucene index is consistent with Translog&#39;s on every index shard of the cluster.
+<i>1387</i>&nbsp;     * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
+<i>1388</i>&nbsp;     */
+<i>1389</i>&nbsp;    public void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
+<b class="nc"><i>1390</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1391</i>&nbsp;            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);</b>
+<b class="nc"><i>1392</i>&nbsp;            for (IndexService indexService : indexServices) {</b>
+<b class="nc"><i>1393</i>&nbsp;                for (IndexShard indexShard : indexService) {</b>
+<i>1394</i>&nbsp;                    try {
+<b class="nc"><i>1395</i>&nbsp;                        IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);</b>
+<b class="nc"><i>1396</i>&nbsp;                    } catch (AlreadyClosedException ignored) {</b>
+<i>1397</i>&nbsp;                        // shard is closed
+<b class="nc"><i>1398</i>&nbsp;                    }</b>
+<b class="nc"><i>1399</i>&nbsp;                }</b>
+<b class="nc"><i>1400</i>&nbsp;            }</b>
+<b class="nc"><i>1401</i>&nbsp;        }</b>
+<b class="nc"><i>1402</i>&nbsp;    }</b>
+<i>1403</i>&nbsp;
+<i>1404</i>&nbsp;    private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
+<b class="nc"><i>1405</i>&nbsp;        if (shardRouting == null || shardRouting.assignedToNode() == false) {</b>
+<b class="nc"><i>1406</i>&nbsp;            return null;</b>
+<i>1407</i>&nbsp;        }
+<b class="nc"><i>1408</i>&nbsp;        final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());</b>
+<b class="nc"><i>1409</i>&nbsp;        if (assignedNode == null) {</b>
+<b class="nc"><i>1410</i>&nbsp;            return null;</b>
+<i>1411</i>&nbsp;        }
+<b class="nc"><i>1412</i>&nbsp;        return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());</b>
+<i>1413</i>&nbsp;    }
+<i>1414</i>&nbsp;
+<i>1415</i>&nbsp;    public void assertSeqNos() throws Exception {
+<b class="nc"><i>1416</i>&nbsp;        assertBusy(() -&gt; {</b>
+<b class="nc"><i>1417</i>&nbsp;            final ClusterState state = clusterService().state();</b>
+<b class="nc"><i>1418</i>&nbsp;            for (ObjectObjectCursor&lt;String, IndexRoutingTable&gt; indexRoutingTable : state.routingTable().indicesRouting()) {</b>
+<b class="nc"><i>1419</i>&nbsp;                for (IntObjectCursor&lt;IndexShardRoutingTable&gt; indexShardRoutingTable : indexRoutingTable.value.shards()) {</b>
+<b class="nc"><i>1420</i>&nbsp;                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();</b>
+<b class="nc"><i>1421</i>&nbsp;                    final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);</b>
+<b class="nc"><i>1422</i>&nbsp;                    if (primaryShard == null) {</b>
+<b class="nc"><i>1423</i>&nbsp;                        continue; //just ignore - shard movement</b>
+<i>1424</i>&nbsp;                    }
+<i>1425</i>&nbsp;                    final SeqNoStats primarySeqNoStats;
+<i>1426</i>&nbsp;                    final ObjectLongMap&lt;String&gt; syncGlobalCheckpoints;
+<i>1427</i>&nbsp;                    try {
+<b class="nc"><i>1428</i>&nbsp;                        primarySeqNoStats = primaryShard.seqNoStats();</b>
+<b class="nc"><i>1429</i>&nbsp;                        syncGlobalCheckpoints = primaryShard.getInSyncGlobalCheckpoints();</b>
+<b class="nc"><i>1430</i>&nbsp;                    } catch (AlreadyClosedException ex) {</b>
+<b class="nc"><i>1431</i>&nbsp;                        continue; // shard is closed - just ignore</b>
+<b class="nc"><i>1432</i>&nbsp;                    }</b>
+<b class="nc"><i>1433</i>&nbsp;                    assertThat(primaryShardRouting + &quot; should have set the global checkpoint&quot;,</b>
+<b class="nc"><i>1434</i>&nbsp;                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));</b>
+<b class="nc"><i>1435</i>&nbsp;                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {</b>
+<b class="nc"><i>1436</i>&nbsp;                        final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);</b>
+<b class="nc"><i>1437</i>&nbsp;                        if (replicaShard == null) {</b>
+<b class="nc"><i>1438</i>&nbsp;                            continue; //just ignore - shard movement</b>
+<i>1439</i>&nbsp;                        }
+<i>1440</i>&nbsp;                        final SeqNoStats seqNoStats;
+<i>1441</i>&nbsp;                        try {
+<b class="nc"><i>1442</i>&nbsp;                            seqNoStats = replicaShard.seqNoStats();</b>
+<b class="nc"><i>1443</i>&nbsp;                        } catch (AlreadyClosedException e) {</b>
+<b class="nc"><i>1444</i>&nbsp;                            continue; // shard is closed - just ignore</b>
+<b class="nc"><i>1445</i>&nbsp;                        }</b>
+<b class="nc"><i>1446</i>&nbsp;                        assertThat(replicaShardRouting + &quot; seq_no_stats mismatch&quot;, seqNoStats, equalTo(primarySeqNoStats));</b>
+<i>1447</i>&nbsp;                        // the local knowledge on the primary of the global checkpoint equals the global checkpoint on the shard
+<b class="nc"><i>1448</i>&nbsp;                        assertThat(replicaShardRouting + &quot; global checkpoint syncs mismatch&quot;, seqNoStats.getGlobalCheckpoint(),</b>
+<b class="nc"><i>1449</i>&nbsp;                            equalTo(syncGlobalCheckpoints.get(replicaShardRouting.allocationId().getId())));</b>
+<b class="nc"><i>1450</i>&nbsp;                    }</b>
+<b class="nc"><i>1451</i>&nbsp;                }</b>
+<b class="nc"><i>1452</i>&nbsp;            }</b>
+<b class="nc"><i>1453</i>&nbsp;        }, 30, TimeUnit.SECONDS);</b>
+<b class="nc"><i>1454</i>&nbsp;    }</b>
+<i>1455</i>&nbsp;
+<i>1456</i>&nbsp;    /**
+<i>1457</i>&nbsp;     * Asserts that all shards with the same shardId should have document Ids.
+<i>1458</i>&nbsp;     */
+<i>1459</i>&nbsp;    public void assertSameDocIdsOnShards() throws Exception {
+<b class="nc"><i>1460</i>&nbsp;        assertBusy(() -&gt; {</b>
+<b class="nc"><i>1461</i>&nbsp;            ClusterState state = client().admin().cluster().prepareState().get().getState();</b>
+<b class="nc"><i>1462</i>&nbsp;            for (ObjectObjectCursor&lt;String, IndexRoutingTable&gt; indexRoutingTable : state.routingTable().indicesRouting()) {</b>
+<b class="nc"><i>1463</i>&nbsp;                for (IntObjectCursor&lt;IndexShardRoutingTable&gt; indexShardRoutingTable : indexRoutingTable.value.shards()) {</b>
+<b class="nc"><i>1464</i>&nbsp;                    ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();</b>
+<b class="nc"><i>1465</i>&nbsp;                    IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);</b>
+<b class="nc"><i>1466</i>&nbsp;                    if (primaryShard == null) {</b>
+<b class="nc"><i>1467</i>&nbsp;                        continue;</b>
+<i>1468</i>&nbsp;                    }
+<i>1469</i>&nbsp;                    final List&lt;DocIdSeqNoAndSource&gt; docsOnPrimary;
+<i>1470</i>&nbsp;                    try {
+<b class="nc"><i>1471</i>&nbsp;                        docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);</b>
+<b class="nc"><i>1472</i>&nbsp;                    } catch (AlreadyClosedException ex) {</b>
+<b class="nc"><i>1473</i>&nbsp;                        continue;</b>
+<b class="nc"><i>1474</i>&nbsp;                    }</b>
+<b class="nc"><i>1475</i>&nbsp;                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {</b>
+<b class="nc"><i>1476</i>&nbsp;                        IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);</b>
+<b class="nc"><i>1477</i>&nbsp;                        if (replicaShard == null) {</b>
+<b class="nc"><i>1478</i>&nbsp;                            continue;</b>
+<i>1479</i>&nbsp;                        }
+<i>1480</i>&nbsp;                        final List&lt;DocIdSeqNoAndSource&gt; docsOnReplica;
+<i>1481</i>&nbsp;                        try {
+<b class="nc"><i>1482</i>&nbsp;                            docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);</b>
+<b class="nc"><i>1483</i>&nbsp;                        } catch (AlreadyClosedException ex) {</b>
+<b class="nc"><i>1484</i>&nbsp;                            continue;</b>
+<b class="nc"><i>1485</i>&nbsp;                        }</b>
+<b class="nc"><i>1486</i>&nbsp;                        assertThat(&quot;out of sync shards: primary=[&quot; + primaryShardRouting + &quot;] num_docs_on_primary=[&quot; + docsOnPrimary.size()</b>
+<b class="nc"><i>1487</i>&nbsp;                                + &quot;] vs replica=[&quot; + replicaShardRouting + &quot;] num_docs_on_replica=[&quot; + docsOnReplica.size() + &quot;]&quot;,</b>
+<b class="nc"><i>1488</i>&nbsp;                            docsOnReplica, equalTo(docsOnPrimary));</b>
+<b class="nc"><i>1489</i>&nbsp;                    }</b>
+<b class="nc"><i>1490</i>&nbsp;                }</b>
+<b class="nc"><i>1491</i>&nbsp;            }</b>
+<b class="nc"><i>1492</i>&nbsp;        });</b>
+<b class="nc"><i>1493</i>&nbsp;    }</b>
+<i>1494</i>&nbsp;
+<i>1495</i>&nbsp;    private void randomlyResetClients() {
+<b class="nc"><i>1496</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<i>1497</i>&nbsp;        // only reset the clients on nightly tests, it causes heavy load...
+<b class="nc"><i>1498</i>&nbsp;        if (RandomizedTest.isNightly() &amp;&amp; rarely(random)) {</b>
+<b class="nc"><i>1499</i>&nbsp;            final Collection&lt;NodeAndClient&gt; nodesAndClients = nodes.values();</b>
+<b class="nc"><i>1500</i>&nbsp;            for (NodeAndClient nodeAndClient : nodesAndClients) {</b>
+<b class="nc"><i>1501</i>&nbsp;                nodeAndClient.resetClient();</b>
+<b class="nc"><i>1502</i>&nbsp;            }</b>
+<i>1503</i>&nbsp;        }
+<b class="nc"><i>1504</i>&nbsp;    }</b>
+<i>1505</i>&nbsp;
+<i>1506</i>&nbsp;    public synchronized void wipePendingDataDirectories() {
+<b class="nc"><i>1507</i>&nbsp;        if (!dataDirToClean.isEmpty()) {</b>
+<i>1508</i>&nbsp;            try {
+<b class="nc"><i>1509</i>&nbsp;                for (Path path : dataDirToClean) {</b>
+<i>1510</i>&nbsp;                    try {
+<b class="nc"><i>1511</i>&nbsp;                        FileSystemUtils.deleteSubDirectories(path);</b>
+<b class="nc"><i>1512</i>&nbsp;                        logger.info(&quot;Successfully wiped data directory for node location: {}&quot;, path);</b>
+<b class="nc"><i>1513</i>&nbsp;                    } catch (IOException e) {</b>
+<b class="nc"><i>1514</i>&nbsp;                        logger.info(&quot;Failed to wipe data directory for node location: {}&quot;, path);</b>
+<b class="nc"><i>1515</i>&nbsp;                    }</b>
+<b class="nc"><i>1516</i>&nbsp;                }</b>
+<i>1517</i>&nbsp;            } finally {
+<b class="nc"><i>1518</i>&nbsp;                dataDirToClean.clear();</b>
+<b class="nc"><i>1519</i>&nbsp;            }</b>
+<i>1520</i>&nbsp;        }
+<b class="nc"><i>1521</i>&nbsp;    }</b>
+<i>1522</i>&nbsp;
+<i>1523</i>&nbsp;    /**
+<i>1524</i>&nbsp;     * Returns a reference to a random node&#39;s {@link ClusterService}
+<i>1525</i>&nbsp;     */
+<i>1526</i>&nbsp;    public ClusterService clusterService() {
+<b class="nc"><i>1527</i>&nbsp;        return clusterService(null);</b>
+<i>1528</i>&nbsp;    }
+<i>1529</i>&nbsp;
+<i>1530</i>&nbsp;    /**
+<i>1531</i>&nbsp;     * Returns a reference to a node&#39;s {@link ClusterService}. If the given node is null, a random node will be selected.
+<i>1532</i>&nbsp;     */
+<i>1533</i>&nbsp;    public ClusterService clusterService(@Nullable String node) {
+<b class="nc"><i>1534</i>&nbsp;        return getInstance(ClusterService.class, node);</b>
+<i>1535</i>&nbsp;    }
+<i>1536</i>&nbsp;
+<i>1537</i>&nbsp;    /**
+<i>1538</i>&nbsp;     * Returns an Iterable to all instances for the given class &amp;gt;T&amp;lt; across all nodes in the cluster.
+<i>1539</i>&nbsp;     */
+<i>1540</i>&nbsp;    public &lt;T&gt; Iterable&lt;T&gt; getInstances(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1541</i>&nbsp;        return nodes.values().stream().map(node -&gt; getInstanceFromNode(clazz, node.node)).collect(Collectors.toList());</b>
+<i>1542</i>&nbsp;    }
+<i>1543</i>&nbsp;
+<i>1544</i>&nbsp;    /**
+<i>1545</i>&nbsp;     * Returns an Iterable to all instances for the given class &amp;gt;T&amp;lt; across all data nodes in the cluster.
+<i>1546</i>&nbsp;     */
+<i>1547</i>&nbsp;    public &lt;T&gt; Iterable&lt;T&gt; getDataNodeInstances(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1548</i>&nbsp;        return getInstances(clazz, DATA_NODE_PREDICATE);</b>
+<i>1549</i>&nbsp;    }
+<i>1550</i>&nbsp;
+<i>1551</i>&nbsp;    public synchronized &lt;T&gt; T getCurrentMasterNodeInstance(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1552</i>&nbsp;        return getInstance(clazz, new NodeNamePredicate(getMasterName()));</b>
+<i>1553</i>&nbsp;    }
+<i>1554</i>&nbsp;
+<i>1555</i>&nbsp;    /**
+<i>1556</i>&nbsp;     * Returns an Iterable to all instances for the given class &amp;gt;T&amp;lt; across all data and master nodes
+<i>1557</i>&nbsp;     * in the cluster.
+<i>1558</i>&nbsp;     */
+<i>1559</i>&nbsp;    public &lt;T&gt; Iterable&lt;T&gt; getDataOrMasterNodeInstances(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1560</i>&nbsp;        return getInstances(clazz, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE));</b>
+<i>1561</i>&nbsp;    }
+<i>1562</i>&nbsp;
+<i>1563</i>&nbsp;    private &lt;T&gt; Iterable&lt;T&gt; getInstances(Class&lt;T&gt; clazz, Predicate&lt;NodeAndClient&gt; predicate) {
+<b class="nc"><i>1564</i>&nbsp;        Iterable&lt;NodeAndClient&gt; filteredNodes = nodes.values().stream().filter(predicate)::iterator;</b>
+<b class="nc"><i>1565</i>&nbsp;        List&lt;T&gt; instances = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1566</i>&nbsp;        for (NodeAndClient nodeAndClient : filteredNodes) {</b>
+<b class="nc"><i>1567</i>&nbsp;            instances.add(getInstanceFromNode(clazz, nodeAndClient.node));</b>
+<b class="nc"><i>1568</i>&nbsp;        }</b>
+<b class="nc"><i>1569</i>&nbsp;        return instances;</b>
+<i>1570</i>&nbsp;    }
+<i>1571</i>&nbsp;
+<i>1572</i>&nbsp;    /**
+<i>1573</i>&nbsp;     * Returns a reference to the given nodes instances of the given class &amp;gt;T&amp;lt;
+<i>1574</i>&nbsp;     */
+<i>1575</i>&nbsp;    public &lt;T&gt; T getInstance(Class&lt;T&gt; clazz, final String node) {
+<b class="nc"><i>1576</i>&nbsp;        return getInstance(clazz, nc -&gt; node == null || node.equals(nc.name));</b>
+<i>1577</i>&nbsp;    }
+<i>1578</i>&nbsp;
+<i>1579</i>&nbsp;    public &lt;T&gt; T getDataNodeInstance(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1580</i>&nbsp;        return getInstance(clazz, DATA_NODE_PREDICATE);</b>
+<i>1581</i>&nbsp;    }
+<i>1582</i>&nbsp;
+<i>1583</i>&nbsp;    public &lt;T&gt; T getMasterNodeInstance(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1584</i>&nbsp;        return getInstance(clazz, MASTER_NODE_PREDICATE);</b>
+<i>1585</i>&nbsp;    }
+<i>1586</i>&nbsp;
+<i>1587</i>&nbsp;    private synchronized &lt;T&gt; T getInstance(Class&lt;T&gt; clazz, Predicate&lt;NodeAndClient&gt; predicate) {
+<b class="nc"><i>1588</i>&nbsp;        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);</b>
+<b class="nc"><i>1589</i>&nbsp;        assert randomNodeAndClient != null;</b>
+<b class="nc"><i>1590</i>&nbsp;        return getInstanceFromNode(clazz, randomNodeAndClient.node);</b>
+<i>1591</i>&nbsp;    }
+<i>1592</i>&nbsp;
+<i>1593</i>&nbsp;    /**
+<i>1594</i>&nbsp;     * Returns a reference to a random nodes instances of the given class &amp;gt;T&amp;lt;
+<i>1595</i>&nbsp;     */
+<i>1596</i>&nbsp;    public &lt;T&gt; T getInstance(Class&lt;T&gt; clazz) {
+<b class="nc"><i>1597</i>&nbsp;        return getInstance(clazz, nc -&gt; true);</b>
+<i>1598</i>&nbsp;    }
+<i>1599</i>&nbsp;
+<i>1600</i>&nbsp;    private static &lt;T&gt; T getInstanceFromNode(Class&lt;T&gt; clazz, Node node) {
+<b class="nc"><i>1601</i>&nbsp;        return node.injector().getInstance(clazz);</b>
+<i>1602</i>&nbsp;    }
+<i>1603</i>&nbsp;
+<i>1604</i>&nbsp;    public Settings dataPathSettings(String node) {
+<b class="nc"><i>1605</i>&nbsp;        return nodes.values().stream().filter(nc -&gt; nc.name.equals(node)).findFirst().get().node().settings()</b>
+<b class="nc"><i>1606</i>&nbsp;            .filter(key -&gt;</b>
+<b class="nc"><i>1607</i>&nbsp;                key.equals(Environment.PATH_DATA_SETTING.getKey()) ||  key.equals(Environment.PATH_SHARED_DATA_SETTING.getKey()));</b>
+<i>1608</i>&nbsp;    }
+<i>1609</i>&nbsp;
+<i>1610</i>&nbsp;    @Override
+<i>1611</i>&nbsp;    public int size() {
+<b class="nc"><i>1612</i>&nbsp;        return nodes.size();</b>
+<i>1613</i>&nbsp;    }
+<i>1614</i>&nbsp;
+<i>1615</i>&nbsp;    @Override
+<i>1616</i>&nbsp;    public InetSocketAddress[] httpAddresses() {
+<b class="nc"><i>1617</i>&nbsp;        List&lt;InetSocketAddress&gt; addresses = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1618</i>&nbsp;        for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {</b>
+<b class="nc"><i>1619</i>&nbsp;            addresses.add(httpServerTransport.boundAddress().publishAddress().address());</b>
+<b class="nc"><i>1620</i>&nbsp;        }</b>
+<b class="nc"><i>1621</i>&nbsp;        return addresses.toArray(new InetSocketAddress[addresses.size()]);</b>
+<i>1622</i>&nbsp;    }
+<i>1623</i>&nbsp;
+<i>1624</i>&nbsp;    /**
+<i>1625</i>&nbsp;     * Stops a random data node in the cluster. Returns true if a node was found to stop, false otherwise.
+<i>1626</i>&nbsp;     */
+<i>1627</i>&nbsp;    public synchronized boolean stopRandomDataNode() throws IOException {
+<b class="nc"><i>1628</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>1629</i>&nbsp;        NodeAndClient nodeAndClient = getRandomNodeAndClient(DATA_NODE_PREDICATE);</b>
+<b class="nc"><i>1630</i>&nbsp;        if (nodeAndClient != null) {</b>
+<b class="nc"><i>1631</i>&nbsp;            logger.info(&quot;Closing random node [{}] &quot;, nodeAndClient.name);</b>
+<b class="nc"><i>1632</i>&nbsp;            stopNodesAndClient(nodeAndClient);</b>
+<b class="nc"><i>1633</i>&nbsp;            return true;</b>
+<i>1634</i>&nbsp;        }
+<b class="nc"><i>1635</i>&nbsp;        return false;</b>
+<i>1636</i>&nbsp;    }
+<i>1637</i>&nbsp;
+<i>1638</i>&nbsp;    /**
+<i>1639</i>&nbsp;     * Stops a random node in the cluster that applies to the given filter or non if the non of the nodes applies to the
+<i>1640</i>&nbsp;     * filter.
+<i>1641</i>&nbsp;     */
+<i>1642</i>&nbsp;    public synchronized void stopRandomNode(final Predicate&lt;Settings&gt; filter) throws IOException {
+<b class="nc"><i>1643</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>1644</i>&nbsp;        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -&gt; filter.test(nc.node.settings()));</b>
+<b class="nc"><i>1645</i>&nbsp;        if (nodeAndClient != null) {</b>
+<b class="nc"><i>1646</i>&nbsp;            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) &amp;&amp; nodeAndClient.nodeAndClientId() &lt; sharedNodesSeeds.length</b>
+<b class="nc"><i>1647</i>&nbsp;                &amp;&amp; nodeAndClient.isMasterEligible()</b>
+<i>1648</i>&nbsp;                &amp;&amp; autoManageMasterNodes
+<b class="nc"><i>1649</i>&nbsp;                &amp;&amp; nodes.values().stream()</b>
+<b class="nc"><i>1650</i>&nbsp;                        .filter(NodeAndClient::isMasterEligible)</b>
+<b class="nc"><i>1651</i>&nbsp;                        .filter(n -&gt; n.nodeAndClientId() &lt; sharedNodesSeeds.length)</b>
+<b class="nc"><i>1652</i>&nbsp;                        .count() == 1) {</b>
+<b class="nc"><i>1653</i>&nbsp;                throw new AssertionError(&quot;Tried to stop the only master eligible shared node&quot;);</b>
+<i>1654</i>&nbsp;            }
+<b class="nc"><i>1655</i>&nbsp;            logger.info(&quot;Closing filtered random node [{}] &quot;, nodeAndClient.name);</b>
+<b class="nc"><i>1656</i>&nbsp;            stopNodesAndClient(nodeAndClient);</b>
+<i>1657</i>&nbsp;        }
+<b class="nc"><i>1658</i>&nbsp;    }</b>
+<i>1659</i>&nbsp;
+<i>1660</i>&nbsp;    /**
+<i>1661</i>&nbsp;     * Stops the current master node forcefully
+<i>1662</i>&nbsp;     */
+<i>1663</i>&nbsp;    public synchronized void stopCurrentMasterNode() throws IOException {
+<b class="nc"><i>1664</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>1665</i>&nbsp;        assert size() &gt; 0;</b>
+<b class="nc"><i>1666</i>&nbsp;        String masterNodeName = getMasterName();</b>
+<b class="nc"><i>1667</i>&nbsp;        final NodeAndClient masterNode = nodes.get(masterNodeName);</b>
+<b class="nc"><i>1668</i>&nbsp;        assert masterNode != null;</b>
+<b class="nc"><i>1669</i>&nbsp;        logger.info(&quot;Closing master node [{}] &quot;, masterNodeName);</b>
+<b class="nc"><i>1670</i>&nbsp;        stopNodesAndClient(masterNode);</b>
+<b class="nc"><i>1671</i>&nbsp;    }</b>
+<i>1672</i>&nbsp;
+<i>1673</i>&nbsp;    /**
+<i>1674</i>&nbsp;     * Stops any of the current nodes but not the master node.
+<i>1675</i>&nbsp;     */
+<i>1676</i>&nbsp;    public synchronized void stopRandomNonMasterNode() throws IOException {
+<b class="nc"><i>1677</i>&nbsp;        NodeAndClient nodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());</b>
+<b class="nc"><i>1678</i>&nbsp;        if (nodeAndClient != null) {</b>
+<b class="nc"><i>1679</i>&nbsp;            logger.info(&quot;Closing random non master node [{}] current master [{}] &quot;, nodeAndClient.name, getMasterName());</b>
+<b class="nc"><i>1680</i>&nbsp;            stopNodesAndClient(nodeAndClient);</b>
+<i>1681</i>&nbsp;        }
+<b class="nc"><i>1682</i>&nbsp;    }</b>
+<i>1683</i>&nbsp;
+<i>1684</i>&nbsp;    private synchronized void startAndPublishNodesAndClients(List&lt;NodeAndClient&gt; nodeAndClients) {
+<b class="nc"><i>1685</i>&nbsp;        if (nodeAndClients.size() &gt; 0) {</b>
+<b class="nc"><i>1686</i>&nbsp;            final int newMasters = (int) nodeAndClients.stream().filter(NodeAndClient::isMasterEligible)</b>
+<b class="nc"><i>1687</i>&nbsp;                .filter(nac -&gt; nodes.containsKey(nac.name) == false) // filter out old masters</b>
+<b class="nc"><i>1688</i>&nbsp;                .count();</b>
+<b class="nc"><i>1689</i>&nbsp;            final int currentMasters = getMasterNodesCount();</b>
+<b class="nc"><i>1690</i>&nbsp;            if (autoManageMasterNodes &amp;&amp; currentMasters &gt; 0 &amp;&amp; newMasters &gt; 0 &amp;&amp;</b>
+<b class="nc"><i>1691</i>&nbsp;                getMinMasterNodes(currentMasters + newMasters) &lt;= currentMasters) {</b>
+<i>1692</i>&nbsp;                // if we&#39;re adding too many master-eligible nodes at once, we can&#39;t update the min master setting before adding the nodes.
+<b class="nc"><i>1693</i>&nbsp;                updateMinMasterNodes(currentMasters + newMasters);</b>
+<i>1694</i>&nbsp;            }
+<b class="nc"><i>1695</i>&nbsp;            rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start</b>
+<b class="nc"><i>1696</i>&nbsp;            List&lt;Future&lt;?&gt;&gt; futures = nodeAndClients.stream().map(node -&gt; executor.submit(node::startNode)).collect(Collectors.toList());</b>
+<i>1697</i>&nbsp;
+<i>1698</i>&nbsp;            try {
+<b class="nc"><i>1699</i>&nbsp;                for (Future&lt;?&gt; future : futures) {</b>
+<b class="nc"><i>1700</i>&nbsp;                    future.get();</b>
+<b class="nc"><i>1701</i>&nbsp;                }</b>
+<b class="nc"><i>1702</i>&nbsp;            } catch (InterruptedException e) {</b>
+<b class="nc"><i>1703</i>&nbsp;                throw new AssertionError(&quot;interrupted while starting nodes&quot;, e);</b>
+<b class="nc"><i>1704</i>&nbsp;            } catch (ExecutionException e) {</b>
+<b class="nc"><i>1705</i>&nbsp;                throw new RuntimeException(&quot;failed to start nodes&quot;, e);</b>
+<b class="nc"><i>1706</i>&nbsp;            }</b>
+<b class="nc"><i>1707</i>&nbsp;            nodeAndClients.forEach(this::publishNode);</b>
+<i>1708</i>&nbsp;
+<b class="nc"><i>1709</i>&nbsp;            if (autoManageMasterNodes &amp;&amp; currentMasters &gt; 0 &amp;&amp; newMasters &gt; 0 &amp;&amp;</b>
+<b class="nc"><i>1710</i>&nbsp;                getMinMasterNodes(currentMasters + newMasters) &gt; currentMasters) {</b>
+<i>1711</i>&nbsp;                // update once masters have joined
+<b class="nc"><i>1712</i>&nbsp;                validateClusterFormed();</b>
+<b class="nc"><i>1713</i>&nbsp;                updateMinMasterNodes(currentMasters + newMasters);</b>
+<i>1714</i>&nbsp;            }
+<i>1715</i>&nbsp;        }
+<b class="nc"><i>1716</i>&nbsp;    }</b>
+<i>1717</i>&nbsp;
+<b class="nc"><i>1718</i>&nbsp;    private final Object discoveryFileMutex = new Object();</b>
+<i>1719</i>&nbsp;
+<i>1720</i>&nbsp;    private void rebuildUnicastHostFiles(List&lt;NodeAndClient&gt; newNodes) {
+<i>1721</i>&nbsp;        // cannot be a synchronized method since it&#39;s called on other threads from within synchronized startAndPublishNodesAndClients()
+<b class="nc"><i>1722</i>&nbsp;        synchronized (discoveryFileMutex) {</b>
+<i>1723</i>&nbsp;            try {
+<b class="nc"><i>1724</i>&nbsp;                final Collection&lt;NodeAndClient&gt; currentNodes = nodes.values();</b>
+<b class="nc"><i>1725</i>&nbsp;                Stream&lt;NodeAndClient&gt; unicastHosts = Stream.concat(currentNodes.stream(), newNodes.stream());</b>
+<b class="nc"><i>1726</i>&nbsp;                List&lt;String&gt; discoveryFileContents = unicastHosts.map(</b>
+<b class="nc"><i>1727</i>&nbsp;                    nac -&gt; nac.node.injector().getInstance(TransportService.class)</b>
+<b class="nc"><i>1728</i>&nbsp;                ).filter(Objects::nonNull)</b>
+<b class="nc"><i>1729</i>&nbsp;                    .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)</b>
+<b class="nc"><i>1730</i>&nbsp;                    .map(n -&gt; n.getAddress().toString())</b>
+<b class="nc"><i>1731</i>&nbsp;                    .distinct().collect(Collectors.toList());</b>
+<b class="nc"><i>1732</i>&nbsp;                Set&lt;Path&gt; configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())</b>
+<b class="nc"><i>1733</i>&nbsp;                    .map(nac -&gt; nac.node.getEnvironment().configFile()).collect(Collectors.toSet());</b>
+<b class="nc"><i>1734</i>&nbsp;                logger.debug(&quot;configuring discovery with {} at {}&quot;, discoveryFileContents, configPaths);</b>
+<b class="nc"><i>1735</i>&nbsp;                for (final Path configPath : configPaths) {</b>
+<b class="nc"><i>1736</i>&nbsp;                    Files.createDirectories(configPath);</b>
+<b class="nc"><i>1737</i>&nbsp;                    Files.write(configPath.resolve(UNICAST_HOSTS_FILE), discoveryFileContents);</b>
+<b class="nc"><i>1738</i>&nbsp;                }</b>
+<b class="nc"><i>1739</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>1740</i>&nbsp;                throw new AssertionError(&quot;failed to configure file-based discovery&quot;, e);</b>
+<b class="nc"><i>1741</i>&nbsp;            }</b>
+<b class="nc"><i>1742</i>&nbsp;        }</b>
+<b class="nc"><i>1743</i>&nbsp;    }</b>
+<i>1744</i>&nbsp;
+<i>1745</i>&nbsp;    private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
+<b class="nc"><i>1746</i>&nbsp;        stopNodesAndClients(Collections.singleton(nodeAndClient));</b>
+<b class="nc"><i>1747</i>&nbsp;    }</b>
+<i>1748</i>&nbsp;
+<i>1749</i>&nbsp;    private synchronized void stopNodesAndClients(Collection&lt;NodeAndClient&gt; nodeAndClients) throws IOException {
+<b class="nc"><i>1750</i>&nbsp;        final Set&lt;String&gt; excludedNodeIds = excludeMasters(nodeAndClients);</b>
+<i>1751</i>&nbsp;
+<b class="nc"><i>1752</i>&nbsp;        for (NodeAndClient nodeAndClient: nodeAndClients) {</b>
+<b class="nc"><i>1753</i>&nbsp;            removeDisruptionSchemeFromNode(nodeAndClient);</b>
+<b class="nc"><i>1754</i>&nbsp;            final NodeAndClient previous = removeNode(nodeAndClient);</b>
+<b class="nc"><i>1755</i>&nbsp;            assert previous == nodeAndClient;</b>
+<b class="nc"><i>1756</i>&nbsp;            nodeAndClient.close();</b>
+<b class="nc"><i>1757</i>&nbsp;        }</b>
+<i>1758</i>&nbsp;
+<b class="nc"><i>1759</i>&nbsp;        removeExclusions(excludedNodeIds);</b>
+<b class="nc"><i>1760</i>&nbsp;    }</b>
+<i>1761</i>&nbsp;
+<i>1762</i>&nbsp;    /**
+<i>1763</i>&nbsp;     * Restarts a random data node in the cluster
+<i>1764</i>&nbsp;     */
+<i>1765</i>&nbsp;    public void restartRandomDataNode() throws Exception {
+<b class="nc"><i>1766</i>&nbsp;        restartRandomDataNode(EMPTY_CALLBACK);</b>
+<b class="nc"><i>1767</i>&nbsp;    }</b>
+<i>1768</i>&nbsp;
+<i>1769</i>&nbsp;    /**
+<i>1770</i>&nbsp;     * Restarts a random data node in the cluster and calls the callback during restart.
+<i>1771</i>&nbsp;     */
+<i>1772</i>&nbsp;    public synchronized void restartRandomDataNode(RestartCallback callback) throws Exception {
+<b class="nc"><i>1773</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>1774</i>&nbsp;        NodeAndClient nodeAndClient = getRandomNodeAndClient(InternalTestCluster.DATA_NODE_PREDICATE);</b>
+<b class="nc"><i>1775</i>&nbsp;        if (nodeAndClient != null) {</b>
+<b class="nc"><i>1776</i>&nbsp;            restartNode(nodeAndClient, callback);</b>
+<i>1777</i>&nbsp;        }
+<b class="nc"><i>1778</i>&nbsp;    }</b>
+<i>1779</i>&nbsp;
+<i>1780</i>&nbsp;    /**
+<i>1781</i>&nbsp;     * Restarts a node and calls the callback during restart.
+<i>1782</i>&nbsp;     */
+<i>1783</i>&nbsp;    public synchronized void restartNode(String nodeName, RestartCallback callback) throws Exception {
+<b class="nc"><i>1784</i>&nbsp;        ensureOpen();</b>
+<b class="nc"><i>1785</i>&nbsp;        NodeAndClient nodeAndClient = nodes.get(nodeName);</b>
+<b class="nc"><i>1786</i>&nbsp;        if (nodeAndClient != null) {</b>
+<b class="nc"><i>1787</i>&nbsp;            restartNode(nodeAndClient, callback);</b>
+<i>1788</i>&nbsp;        }
+<b class="nc"><i>1789</i>&nbsp;    }</b>
+<i>1790</i>&nbsp;
+<b class="fc"><i>1791</i>&nbsp;    public static final RestartCallback EMPTY_CALLBACK = new RestartCallback();</b>
+<i>1792</i>&nbsp;
+<i>1793</i>&nbsp;    /**
+<i>1794</i>&nbsp;     * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
+<i>1795</i>&nbsp;     */
+<i>1796</i>&nbsp;    public void fullRestart() throws Exception {
+<b class="nc"><i>1797</i>&nbsp;        fullRestart(EMPTY_CALLBACK);</b>
+<b class="nc"><i>1798</i>&nbsp;    }</b>
+<i>1799</i>&nbsp;
+<i>1800</i>&nbsp;    /**
+<i>1801</i>&nbsp;     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
+<i>1802</i>&nbsp;     */
+<i>1803</i>&nbsp;    public synchronized void rollingRestart(RestartCallback callback) throws Exception {
+<b class="nc"><i>1804</i>&nbsp;        int numNodesRestarted = 0;</b>
+<b class="nc"><i>1805</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1806</i>&nbsp;            callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());</b>
+<b class="nc"><i>1807</i>&nbsp;            restartNode(nodeAndClient, callback);</b>
+<b class="nc"><i>1808</i>&nbsp;        }</b>
+<b class="nc"><i>1809</i>&nbsp;    }</b>
+<i>1810</i>&nbsp;
+<i>1811</i>&nbsp;    private void restartNode(NodeAndClient nodeAndClient, RestartCallback callback) throws Exception {
+<b class="nc"><i>1812</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>1813</i>&nbsp;        logger.info(&quot;Restarting node [{}] &quot;, nodeAndClient.name);</b>
+<i>1814</i>&nbsp;
+<b class="nc"><i>1815</i>&nbsp;        if (activeDisruptionScheme != null) {</b>
+<b class="nc"><i>1816</i>&nbsp;            activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);</b>
+<i>1817</i>&nbsp;        }
+<i>1818</i>&nbsp;
+<b class="nc"><i>1819</i>&nbsp;        Set&lt;String&gt; excludedNodeIds = excludeMasters(Collections.singleton(nodeAndClient));</b>
+<i>1820</i>&nbsp;
+<b class="nc"><i>1821</i>&nbsp;        final Settings newSettings = nodeAndClient.closeForRestart(callback,</b>
+<b class="nc"><i>1822</i>&nbsp;                autoManageMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1);</b>
+<i>1823</i>&nbsp;
+<b class="nc"><i>1824</i>&nbsp;        removeExclusions(excludedNodeIds);</b>
+<i>1825</i>&nbsp;
+<b class="nc"><i>1826</i>&nbsp;        nodeAndClient.recreateNode(newSettings, () -&gt; rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));</b>
+<b class="nc"><i>1827</i>&nbsp;        nodeAndClient.startNode();</b>
+<b class="nc"><i>1828</i>&nbsp;        publishNode(nodeAndClient);</b>
+<i>1829</i>&nbsp;
+<b class="nc"><i>1830</i>&nbsp;        if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {</b>
+<i>1831</i>&nbsp;            // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
+<b class="nc"><i>1832</i>&nbsp;            validateClusterFormed();</b>
+<i>1833</i>&nbsp;        }
+<i>1834</i>&nbsp;
+<b class="nc"><i>1835</i>&nbsp;        if (excludedNodeIds.isEmpty() == false) {</b>
+<b class="nc"><i>1836</i>&nbsp;            updateMinMasterNodes(getMasterNodesCount());</b>
+<i>1837</i>&nbsp;        }
+<b class="nc"><i>1838</i>&nbsp;    }</b>
+<i>1839</i>&nbsp;
+<i>1840</i>&nbsp;    private NodeAndClient removeNode(NodeAndClient nodeAndClient) {
+<b class="nc"><i>1841</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>1842</i>&nbsp;        final NavigableMap&lt;String, NodeAndClient&gt; newNodes = new TreeMap&lt;&gt;(nodes);</b>
+<b class="nc"><i>1843</i>&nbsp;        final NodeAndClient previous = newNodes.remove(nodeAndClient.name);</b>
+<b class="nc"><i>1844</i>&nbsp;        nodes = Collections.unmodifiableNavigableMap(newNodes);</b>
+<b class="nc"><i>1845</i>&nbsp;        return previous;</b>
+<i>1846</i>&nbsp;    }
+<i>1847</i>&nbsp;
+<i>1848</i>&nbsp;    private Set&lt;String&gt; excludeMasters(Collection&lt;NodeAndClient&gt; nodeAndClients) {
+<b class="nc"><i>1849</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>1850</i>&nbsp;        final Set&lt;String&gt; excludedNodeIds = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>1851</i>&nbsp;        if (autoManageMasterNodes &amp;&amp; nodeAndClients.size() &gt; 0) {</b>
+<i>1852</i>&nbsp;
+<b class="nc"><i>1853</i>&nbsp;            final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();</b>
+<b class="nc"><i>1854</i>&nbsp;            final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();</b>
+<i>1855</i>&nbsp;
+<b class="nc"><i>1856</i>&nbsp;            assert stoppingMasters &lt;= currentMasters : currentMasters + &quot; &lt; &quot; + stoppingMasters;</b>
+<b class="nc"><i>1857</i>&nbsp;            if (stoppingMasters != currentMasters &amp;&amp; stoppingMasters &gt; 0) {</b>
+<i>1858</i>&nbsp;                // If stopping few enough master-nodes that there&#39;s still a majority left, there is no need to withdraw their votes first.
+<i>1859</i>&nbsp;                // However, we do not yet have a way to be sure there&#39;s a majority left, because the voting configuration may not yet have
+<i>1860</i>&nbsp;                // been updated when the previous nodes shut down, so we must always explicitly withdraw votes.
+<i>1861</i>&nbsp;                // TODO add cluster health API to check that voting configuration is optimal so this isn&#39;t always needed
+<b class="nc"><i>1862</i>&nbsp;                nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).map(NodeAndClient::getName).forEach(excludedNodeIds::add);</b>
+<b class="nc"><i>1863</i>&nbsp;                assert excludedNodeIds.size() == stoppingMasters;</b>
+<i>1864</i>&nbsp;
+<b class="nc"><i>1865</i>&nbsp;                logger.info(&quot;adding voting config exclusions {} prior to restart/shutdown&quot;, excludedNodeIds);</b>
+<i>1866</i>&nbsp;                try {
+<b class="nc"><i>1867</i>&nbsp;                    client().execute(AddVotingConfigExclusionsAction.INSTANCE,</b>
+<b class="nc"><i>1868</i>&nbsp;                            new AddVotingConfigExclusionsRequest(excludedNodeIds.toArray(Strings.EMPTY_ARRAY))).get();</b>
+<b class="nc"><i>1869</i>&nbsp;                } catch (InterruptedException | ExecutionException e) {</b>
+<b class="nc"><i>1870</i>&nbsp;                    throw new AssertionError(&quot;unexpected&quot;, e);</b>
+<b class="nc"><i>1871</i>&nbsp;                }</b>
+<i>1872</i>&nbsp;            }
+<i>1873</i>&nbsp;
+<b class="nc"><i>1874</i>&nbsp;            if (stoppingMasters &gt; 0) {</b>
+<b class="nc"><i>1875</i>&nbsp;                updateMinMasterNodes(getMasterNodesCount() - Math.toIntExact(stoppingMasters));</b>
+<i>1876</i>&nbsp;            }
+<i>1877</i>&nbsp;        }
+<b class="nc"><i>1878</i>&nbsp;        return excludedNodeIds;</b>
+<i>1879</i>&nbsp;    }
+<i>1880</i>&nbsp;
+<i>1881</i>&nbsp;    private void removeExclusions(Set&lt;String&gt; excludedNodeIds) {
+<b class="nc"><i>1882</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>1883</i>&nbsp;        if (excludedNodeIds.isEmpty() == false) {</b>
+<b class="nc"><i>1884</i>&nbsp;            logger.info(&quot;removing voting config exclusions for {} after restart/shutdown&quot;, excludedNodeIds);</b>
+<i>1885</i>&nbsp;            try {
+<b class="nc"><i>1886</i>&nbsp;                Client client = getRandomNodeAndClient(node -&gt; excludedNodeIds.contains(node.name) == false).client(random);</b>
+<b class="nc"><i>1887</i>&nbsp;                client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();</b>
+<b class="nc"><i>1888</i>&nbsp;            } catch (InterruptedException | ExecutionException e) {</b>
+<b class="nc"><i>1889</i>&nbsp;                throw new AssertionError(&quot;unexpected&quot;, e);</b>
+<b class="nc"><i>1890</i>&nbsp;            }</b>
+<i>1891</i>&nbsp;        }
+<b class="nc"><i>1892</i>&nbsp;    }</b>
+<i>1893</i>&nbsp;
+<i>1894</i>&nbsp;    /**
+<i>1895</i>&nbsp;     * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
+<i>1896</i>&nbsp;     */
+<i>1897</i>&nbsp;    public synchronized void fullRestart(RestartCallback callback) throws Exception {
+<b class="nc"><i>1898</i>&nbsp;        int numNodesRestarted = 0;</b>
+<b class="nc"><i>1899</i>&nbsp;        final Settings[] newNodeSettings = new Settings[nextNodeId.get()];</b>
+<b class="nc"><i>1900</i>&nbsp;        Map&lt;Set&lt;DiscoveryNodeRole&gt;, List&lt;NodeAndClient&gt;&gt; nodesByRoles = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>1901</i>&nbsp;        Set[] rolesOrderedByOriginalStartupOrder = new Set[nextNodeId.get()];</b>
+<b class="nc"><i>1902</i>&nbsp;        final int minMasterNodes = autoManageMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1;</b>
+<b class="nc"><i>1903</i>&nbsp;        final int nodeCount = nodes.size();</b>
+<b class="nc"><i>1904</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>1905</i>&nbsp;            callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());</b>
+<b class="nc"><i>1906</i>&nbsp;            logger.info(&quot;Stopping and resetting node [{}] &quot;, nodeAndClient.name);</b>
+<b class="nc"><i>1907</i>&nbsp;            if (activeDisruptionScheme != null) {</b>
+<b class="nc"><i>1908</i>&nbsp;                activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);</b>
+<i>1909</i>&nbsp;            }
+<b class="nc"><i>1910</i>&nbsp;            DiscoveryNode discoveryNode = getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode();</b>
+<b class="nc"><i>1911</i>&nbsp;            final Settings newSettings = nodeAndClient.closeForRestart(callback, minMasterNodes);</b>
+<b class="nc"><i>1912</i>&nbsp;            newNodeSettings[nodeAndClient.nodeAndClientId()] = newSettings;</b>
+<b class="nc"><i>1913</i>&nbsp;            rolesOrderedByOriginalStartupOrder[nodeAndClient.nodeAndClientId()] = discoveryNode.getRoles();</b>
+<b class="nc"><i>1914</i>&nbsp;            nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -&gt; new ArrayList&lt;&gt;()).add(nodeAndClient);</b>
+<b class="nc"><i>1915</i>&nbsp;        }</b>
+<i>1916</i>&nbsp;
+<b class="nc"><i>1917</i>&nbsp;        callback.onAllNodesStopped();</b>
+<i>1918</i>&nbsp;
+<b class="nc"><i>1919</i>&nbsp;        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodeCount;</b>
+<i>1920</i>&nbsp;
+<i>1921</i>&nbsp;        // randomize start up order, but making sure that:
+<i>1922</i>&nbsp;        // 1) A data folder that was assigned to a data node will stay so
+<i>1923</i>&nbsp;        // 2) Data nodes will get the same node lock ordinal range, so custom index paths (where the ordinal is used)
+<i>1924</i>&nbsp;        //    will still belong to data nodes
+<b class="nc"><i>1925</i>&nbsp;        for (List&lt;NodeAndClient&gt; sameRoleNodes : nodesByRoles.values()) {</b>
+<b class="nc"><i>1926</i>&nbsp;            Collections.shuffle(sameRoleNodes, random);</b>
+<b class="nc"><i>1927</i>&nbsp;        }</b>
+<b class="nc"><i>1928</i>&nbsp;        final List&lt;NodeAndClient&gt; startUpOrder = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1929</i>&nbsp;        for (Set roles : rolesOrderedByOriginalStartupOrder) {</b>
+<b class="nc"><i>1930</i>&nbsp;            if (roles == null) {</b>
+<i>1931</i>&nbsp;                // if some nodes were stopped, we want have a role for that ordinal
+<b class="nc"><i>1932</i>&nbsp;                continue;</b>
+<i>1933</i>&nbsp;            }
+<b class="nc"><i>1934</i>&nbsp;            final List&lt;NodeAndClient&gt; nodesByRole = nodesByRoles.get(roles);</b>
+<b class="nc"><i>1935</i>&nbsp;            startUpOrder.add(nodesByRole.remove(0));</b>
+<i>1936</i>&nbsp;        }
+<b class="nc"><i>1937</i>&nbsp;        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == 0;</b>
+<i>1938</i>&nbsp;
+<b class="nc"><i>1939</i>&nbsp;        for (NodeAndClient nodeAndClient : startUpOrder) {</b>
+<b class="nc"><i>1940</i>&nbsp;            logger.info(&quot;creating node [{}] &quot;, nodeAndClient.name);</b>
+<b class="nc"><i>1941</i>&nbsp;            nodeAndClient.recreateNode(newNodeSettings[nodeAndClient.nodeAndClientId()], () -&gt; rebuildUnicastHostFiles(startUpOrder));</b>
+<b class="nc"><i>1942</i>&nbsp;        }</b>
+<i>1943</i>&nbsp;
+<b class="nc"><i>1944</i>&nbsp;        startAndPublishNodesAndClients(startUpOrder);</b>
+<i>1945</i>&nbsp;
+<b class="nc"><i>1946</i>&nbsp;        if (callback.validateClusterForming()) {</b>
+<b class="nc"><i>1947</i>&nbsp;            validateClusterFormed();</b>
+<i>1948</i>&nbsp;        }
+<b class="nc"><i>1949</i>&nbsp;    }</b>
+<i>1950</i>&nbsp;
+<i>1951</i>&nbsp;    /**
+<i>1952</i>&nbsp;     * Returns the name of the current master node in the cluster.
+<i>1953</i>&nbsp;     */
+<i>1954</i>&nbsp;    public String getMasterName() {
+<b class="nc"><i>1955</i>&nbsp;        return getMasterName(null);</b>
+<i>1956</i>&nbsp;    }
+<i>1957</i>&nbsp;
+<i>1958</i>&nbsp;    /**
+<i>1959</i>&nbsp;     * Returns the name of the current master node in the cluster and executes the request via the node specified
+<i>1960</i>&nbsp;     * in the viaNode parameter. If viaNode isn&#39;t specified a random node will be picked to the send the request to.
+<i>1961</i>&nbsp;     */
+<i>1962</i>&nbsp;    public String getMasterName(@Nullable String viaNode) {
+<i>1963</i>&nbsp;        try {
+<b class="nc"><i>1964</i>&nbsp;            Client client = viaNode != null ? client(viaNode) : client();</b>
+<b class="nc"><i>1965</i>&nbsp;            return client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName();</b>
+<b class="nc"><i>1966</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>1967</i>&nbsp;            logger.warn(&quot;Can&#39;t fetch cluster state&quot;, e);</b>
+<b class="nc"><i>1968</i>&nbsp;            throw new RuntimeException(&quot;Can&#39;t get master node &quot; + e.getMessage(), e);</b>
+<i>1969</i>&nbsp;        }
+<i>1970</i>&nbsp;    }
+<i>1971</i>&nbsp;
+<i>1972</i>&nbsp;    synchronized Set&lt;String&gt; allDataNodesButN(int count) {
+<b class="nc"><i>1973</i>&nbsp;        final int numNodes = numDataNodes() - count;</b>
+<b class="nc"><i>1974</i>&nbsp;        assert size() &gt;= numNodes;</b>
+<b class="nc"><i>1975</i>&nbsp;        Map&lt;String, NodeAndClient&gt; dataNodes =</b>
+<i>1976</i>&nbsp;            nodes
+<b class="nc"><i>1977</i>&nbsp;                .entrySet()</b>
+<b class="nc"><i>1978</i>&nbsp;                .stream()</b>
+<b class="nc"><i>1979</i>&nbsp;                .filter(entry -&gt; DATA_NODE_PREDICATE.test(entry.getValue()))</b>
+<b class="nc"><i>1980</i>&nbsp;                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));</b>
+<b class="nc"><i>1981</i>&nbsp;        final HashSet&lt;String&gt; set = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>1982</i>&nbsp;        final Iterator&lt;String&gt; iterator = dataNodes.keySet().iterator();</b>
+<b class="nc"><i>1983</i>&nbsp;        for (int i = 0; i &lt; numNodes; i++) {</b>
+<b class="nc"><i>1984</i>&nbsp;            assert iterator.hasNext();</b>
+<b class="nc"><i>1985</i>&nbsp;            set.add(iterator.next());</b>
+<i>1986</i>&nbsp;        }
+<b class="nc"><i>1987</i>&nbsp;        return set;</b>
+<i>1988</i>&nbsp;    }
+<i>1989</i>&nbsp;
+<i>1990</i>&nbsp;    /**
+<i>1991</i>&nbsp;     * Returns a set of nodes that have at least one shard of the given index.
+<i>1992</i>&nbsp;     */
+<i>1993</i>&nbsp;    public synchronized Set&lt;String&gt; nodesInclude(String index) {
+<b class="nc"><i>1994</i>&nbsp;        if (clusterService().state().routingTable().hasIndex(index)) {</b>
+<b class="nc"><i>1995</i>&nbsp;            List&lt;ShardRouting&gt; allShards = clusterService().state().routingTable().allShards(index);</b>
+<b class="nc"><i>1996</i>&nbsp;            DiscoveryNodes discoveryNodes = clusterService().state().getNodes();</b>
+<b class="nc"><i>1997</i>&nbsp;            Set&lt;String&gt; nodes = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>1998</i>&nbsp;            for (ShardRouting shardRouting : allShards) {</b>
+<b class="nc"><i>1999</i>&nbsp;                if (shardRouting.assignedToNode()) {</b>
+<b class="nc"><i>2000</i>&nbsp;                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());</b>
+<b class="nc"><i>2001</i>&nbsp;                    nodes.add(discoveryNode.getName());</b>
+<i>2002</i>&nbsp;                }
+<b class="nc"><i>2003</i>&nbsp;            }</b>
+<b class="nc"><i>2004</i>&nbsp;            return nodes;</b>
+<i>2005</i>&nbsp;        }
+<b class="nc"><i>2006</i>&nbsp;        return Collections.emptySet();</b>
+<i>2007</i>&nbsp;    }
+<i>2008</i>&nbsp;
+<i>2009</i>&nbsp;    /**
+<i>2010</i>&nbsp;     * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
+<i>2011</i>&nbsp;     * with the names of all existing and new master-eligible nodes.
+<i>2012</i>&nbsp;     * Indexing starts from 0.
+<i>2013</i>&nbsp;     * If {@link #bootstrapMasterNodeIndex} is -1 (default), this method does nothing.
+<i>2014</i>&nbsp;     */
+<i>2015</i>&nbsp;    private List&lt;Settings&gt; bootstrapMasterNodeWithSpecifiedIndex(List&lt;Settings&gt; allNodesSettings) {
+<b class="nc"><i>2016</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>2017</i>&nbsp;        if (bootstrapMasterNodeIndex == -1) { // fast-path</b>
+<b class="nc"><i>2018</i>&nbsp;            return allNodesSettings;</b>
+<i>2019</i>&nbsp;        }
+<i>2020</i>&nbsp;
+<b class="nc"><i>2021</i>&nbsp;        int currentNodeId = numMasterNodes() - 1;</b>
+<b class="nc"><i>2022</i>&nbsp;        List&lt;Settings&gt; newSettings = new ArrayList&lt;&gt;();</b>
+<i>2023</i>&nbsp;
+<b class="nc"><i>2024</i>&nbsp;        for (Settings settings : allNodesSettings) {</b>
+<b class="nc"><i>2025</i>&nbsp;            if (Node.NODE_MASTER_SETTING.get(settings) == false) {</b>
+<b class="nc"><i>2026</i>&nbsp;                newSettings.add(settings);</b>
+<i>2027</i>&nbsp;            } else {
+<b class="nc"><i>2028</i>&nbsp;                currentNodeId++;</b>
+<b class="nc"><i>2029</i>&nbsp;                if (currentNodeId != bootstrapMasterNodeIndex) {</b>
+<b class="nc"><i>2030</i>&nbsp;                    newSettings.add(settings);</b>
+<i>2031</i>&nbsp;                } else {
+<b class="nc"><i>2032</i>&nbsp;                    List&lt;String&gt; nodeNames = new ArrayList&lt;&gt;();</b>
+<i>2033</i>&nbsp;
+<b class="nc"><i>2034</i>&nbsp;                    for (Settings nodeSettings : getDataOrMasterNodeInstances(Settings.class)) {</b>
+<b class="nc"><i>2035</i>&nbsp;                        if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {</b>
+<b class="nc"><i>2036</i>&nbsp;                            nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));</b>
+<i>2037</i>&nbsp;                        }
+<b class="nc"><i>2038</i>&nbsp;                    }</b>
+<i>2039</i>&nbsp;
+<b class="nc"><i>2040</i>&nbsp;                    for (Settings nodeSettings : allNodesSettings) {</b>
+<b class="nc"><i>2041</i>&nbsp;                        if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {</b>
+<b class="nc"><i>2042</i>&nbsp;                            nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));</b>
+<i>2043</i>&nbsp;                        }
+<b class="nc"><i>2044</i>&nbsp;                    }</b>
+<i>2045</i>&nbsp;
+<b class="nc"><i>2046</i>&nbsp;                    newSettings.add(Settings.builder().put(settings)</b>
+<b class="nc"><i>2047</i>&nbsp;                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)</b>
+<b class="nc"><i>2048</i>&nbsp;                            .build());</b>
+<i>2049</i>&nbsp;
+<b class="nc"><i>2050</i>&nbsp;                    setBootstrapMasterNodeIndex(-1);</b>
+<i>2051</i>&nbsp;                }
+<i>2052</i>&nbsp;            }
+<b class="nc"><i>2053</i>&nbsp;        }</b>
+<i>2054</i>&nbsp;
+<b class="nc"><i>2055</i>&nbsp;        return newSettings;</b>
+<i>2056</i>&nbsp;    }
+<i>2057</i>&nbsp;
+<i>2058</i>&nbsp;    /**
+<i>2059</i>&nbsp;     * Starts a node with default settings and returns its name.
+<i>2060</i>&nbsp;     */
+<i>2061</i>&nbsp;    public String startNode() {
+<b class="nc"><i>2062</i>&nbsp;        return startNode(Settings.EMPTY);</b>
+<i>2063</i>&nbsp;    }
+<i>2064</i>&nbsp;
+<i>2065</i>&nbsp;    /**
+<i>2066</i>&nbsp;     * Starts a node with the given settings builder and returns its name.
+<i>2067</i>&nbsp;     */
+<i>2068</i>&nbsp;    public String startNode(Settings.Builder settings) {
+<b class="nc"><i>2069</i>&nbsp;        return startNode(settings.build());</b>
+<i>2070</i>&nbsp;    }
+<i>2071</i>&nbsp;
+<i>2072</i>&nbsp;    /**
+<i>2073</i>&nbsp;     * Starts a node with the given settings and returns its name.
+<i>2074</i>&nbsp;     */
+<i>2075</i>&nbsp;    public String startNode(Settings settings) {
+<b class="nc"><i>2076</i>&nbsp;        return startNodes(settings).get(0);</b>
+<i>2077</i>&nbsp;    }
+<i>2078</i>&nbsp;
+<i>2079</i>&nbsp;    /**
+<i>2080</i>&nbsp;     * Starts multiple nodes with default settings and returns their names
+<i>2081</i>&nbsp;     */
+<i>2082</i>&nbsp;    public List&lt;String&gt; startNodes(int numOfNodes) {
+<b class="nc"><i>2083</i>&nbsp;        return startNodes(numOfNodes, Settings.EMPTY);</b>
+<i>2084</i>&nbsp;    }
+<i>2085</i>&nbsp;
+<i>2086</i>&nbsp;    /**
+<i>2087</i>&nbsp;     * Starts multiple nodes with the given settings and returns their names
+<i>2088</i>&nbsp;     */
+<i>2089</i>&nbsp;    public List&lt;String&gt; startNodes(int numOfNodes, Settings settings) {
+<b class="nc"><i>2090</i>&nbsp;        return startNodes(Collections.nCopies(numOfNodes, settings).toArray(new Settings[0]));</b>
+<i>2091</i>&nbsp;    }
+<i>2092</i>&nbsp;
+<i>2093</i>&nbsp;    /**
+<i>2094</i>&nbsp;     * Starts multiple nodes with the given settings and returns their names
+<i>2095</i>&nbsp;     */
+<i>2096</i>&nbsp;    public synchronized List&lt;String&gt; startNodes(Settings... extraSettings) {
+<b class="nc"><i>2097</i>&nbsp;        final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(Node.NODE_MASTER_SETTING::get).count());</b>
+<i>2098</i>&nbsp;        final int defaultMinMasterNodes;
+<b class="nc"><i>2099</i>&nbsp;        if (autoManageMasterNodes) {</b>
+<b class="nc"><i>2100</i>&nbsp;            defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + newMasterCount);</b>
+<i>2101</i>&nbsp;        } else {
+<b class="nc"><i>2102</i>&nbsp;            defaultMinMasterNodes = -1;</b>
+<i>2103</i>&nbsp;        }
+<b class="nc"><i>2104</i>&nbsp;        final List&lt;NodeAndClient&gt; nodes = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>2105</i>&nbsp;        final int prevMasterCount = getMasterNodesCount();</b>
+<i>2106</i>&nbsp;        int autoBootstrapMasterNodeIndex =
+<b class="nc"><i>2107</i>&nbsp;                prevMasterCount == 0 &amp;&amp; autoManageMasterNodes &amp;&amp; newMasterCount &gt; 0 &amp;&amp; Arrays.stream(extraSettings)</b>
+<b class="nc"><i>2108</i>&nbsp;            .allMatch(s -&gt; Node.NODE_MASTER_SETTING.get(s) == false</b>
+<b class="nc"><i>2109</i>&nbsp;                || ZEN2_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(s)))</b>
+<b class="nc"><i>2110</i>&nbsp;            ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;</b>
+<i>2111</i>&nbsp;
+<b class="nc"><i>2112</i>&nbsp;        final int numOfNodes = extraSettings.length;</b>
+<b class="nc"><i>2113</i>&nbsp;        final int firstNodeId = nextNodeId.getAndIncrement();</b>
+<b class="nc"><i>2114</i>&nbsp;        final List&lt;Settings&gt; settings = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>2115</i>&nbsp;        for (int i = 0; i &lt; numOfNodes; i++) {</b>
+<b class="nc"><i>2116</i>&nbsp;            settings.add(getNodeSettings(firstNodeId + i, random.nextLong(), extraSettings[i], defaultMinMasterNodes));</b>
+<i>2117</i>&nbsp;        }
+<b class="nc"><i>2118</i>&nbsp;        nextNodeId.set(firstNodeId + numOfNodes);</b>
+<i>2119</i>&nbsp;
+<b class="nc"><i>2120</i>&nbsp;        final List&lt;String&gt; initialMasterNodes = settings.stream()</b>
+<b class="nc"><i>2121</i>&nbsp;                .filter(Node.NODE_MASTER_SETTING::get)</b>
+<b class="nc"><i>2122</i>&nbsp;                .map(Node.NODE_NAME_SETTING::get)</b>
+<b class="nc"><i>2123</i>&nbsp;                .collect(Collectors.toList());</b>
+<i>2124</i>&nbsp;
+<b class="nc"><i>2125</i>&nbsp;        final List&lt;Settings&gt; updatedSettings = bootstrapMasterNodeWithSpecifiedIndex(settings);</b>
+<i>2126</i>&nbsp;
+<b class="nc"><i>2127</i>&nbsp;        for (int i = 0; i &lt; numOfNodes; i++) {</b>
+<b class="nc"><i>2128</i>&nbsp;            final Settings nodeSettings = updatedSettings.get(i);</b>
+<b class="nc"><i>2129</i>&nbsp;            final Builder builder = Settings.builder();</b>
+<b class="nc"><i>2130</i>&nbsp;            if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {</b>
+<b class="nc"><i>2131</i>&nbsp;                if (autoBootstrapMasterNodeIndex == 0) {</b>
+<b class="nc"><i>2132</i>&nbsp;                    builder.putList(INITIAL_MASTER_NODES_SETTING.getKey(), initialMasterNodes);</b>
+<i>2133</i>&nbsp;                }
+<b class="nc"><i>2134</i>&nbsp;                autoBootstrapMasterNodeIndex -= 1;</b>
+<i>2135</i>&nbsp;            }
+<i>2136</i>&nbsp;
+<b class="nc"><i>2137</i>&nbsp;            final NodeAndClient nodeAndClient =</b>
+<b class="nc"><i>2138</i>&nbsp;                    buildNode(firstNodeId + i, builder.put(nodeSettings).build(), false, () -&gt; rebuildUnicastHostFiles(nodes));</b>
+<b class="nc"><i>2139</i>&nbsp;            nodes.add(nodeAndClient);</b>
+<i>2140</i>&nbsp;        }
+<b class="nc"><i>2141</i>&nbsp;        startAndPublishNodesAndClients(nodes);</b>
+<b class="nc"><i>2142</i>&nbsp;        if (autoManageMasterNodes) {</b>
+<b class="nc"><i>2143</i>&nbsp;            validateClusterFormed();</b>
+<i>2144</i>&nbsp;        }
+<b class="nc"><i>2145</i>&nbsp;        return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());</b>
+<i>2146</i>&nbsp;    }
+<i>2147</i>&nbsp;
+<i>2148</i>&nbsp;    public List&lt;String&gt; startMasterOnlyNodes(int numNodes) {
+<b class="nc"><i>2149</i>&nbsp;        return startMasterOnlyNodes(numNodes, Settings.EMPTY);</b>
+<i>2150</i>&nbsp;    }
+<i>2151</i>&nbsp;
+<i>2152</i>&nbsp;    public List&lt;String&gt; startMasterOnlyNodes(int numNodes, Settings settings) {
+<b class="nc"><i>2153</i>&nbsp;        Settings settings1 = Settings.builder()</b>
+<b class="nc"><i>2154</i>&nbsp;                .put(settings)</b>
+<b class="nc"><i>2155</i>&nbsp;                .put(Node.NODE_MASTER_SETTING.getKey(), true)</b>
+<b class="nc"><i>2156</i>&nbsp;                .put(Node.NODE_DATA_SETTING.getKey(), false)</b>
+<b class="nc"><i>2157</i>&nbsp;                .build();</b>
+<b class="nc"><i>2158</i>&nbsp;        return startNodes(numNodes, settings1);</b>
+<i>2159</i>&nbsp;    }
+<i>2160</i>&nbsp;
+<i>2161</i>&nbsp;    public List&lt;String&gt; startDataOnlyNodes(int numNodes) {
+<b class="nc"><i>2162</i>&nbsp;        return startNodes(</b>
+<i>2163</i>&nbsp;            numNodes,
+<b class="nc"><i>2164</i>&nbsp;            Settings.builder().put(Settings.EMPTY).put(Node.NODE_MASTER_SETTING.getKey(), false)</b>
+<b class="nc"><i>2165</i>&nbsp;                .put(Node.NODE_DATA_SETTING.getKey(), true).build());</b>
+<i>2166</i>&nbsp;    }
+<i>2167</i>&nbsp;
+<i>2168</i>&nbsp;    /**
+<i>2169</i>&nbsp;     * updates the min master nodes setting in the current running cluster.
+<i>2170</i>&nbsp;     *
+<i>2171</i>&nbsp;     * @param eligibleMasterNodeCount the number of master eligible nodes to use as basis for the min master node setting
+<i>2172</i>&nbsp;     */
+<i>2173</i>&nbsp;    private void updateMinMasterNodes(int eligibleMasterNodeCount) {
+<b class="nc"><i>2174</i>&nbsp;        assert autoManageMasterNodes;</b>
+<b class="nc"><i>2175</i>&nbsp;        final int minMasterNodes = getMinMasterNodes(eligibleMasterNodeCount);</b>
+<b class="nc"><i>2176</i>&nbsp;        if (getMasterNodesCount() &gt; 0) {</b>
+<i>2177</i>&nbsp;            // there should be at least one master to update
+<b class="nc"><i>2178</i>&nbsp;            logger.debug(&quot;updating min_master_nodes to [{}]&quot;, minMasterNodes);</b>
+<i>2179</i>&nbsp;            try {
+<b class="nc"><i>2180</i>&nbsp;                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(</b>
+<b class="nc"><i>2181</i>&nbsp;                    Settings.builder().put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minMasterNodes)</b>
+<i>2182</i>&nbsp;                ));
+<b class="nc"><i>2183</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>2184</i>&nbsp;                throw new ElasticsearchException(&quot;failed to update minimum master node to [{}] (current masters [{}])&quot;, e,</b>
+<b class="nc"><i>2185</i>&nbsp;                    minMasterNodes, getMasterNodesCount());</b>
+<b class="nc"><i>2186</i>&nbsp;            }</b>
+<i>2187</i>&nbsp;        }
+<b class="nc"><i>2188</i>&nbsp;    }</b>
+<i>2189</i>&nbsp;
+<i>2190</i>&nbsp;    /** calculates a min master nodes value based on the given number of master nodes */
+<i>2191</i>&nbsp;    private static int getMinMasterNodes(int eligibleMasterNodes) {
+<b class="nc"><i>2192</i>&nbsp;        return eligibleMasterNodes / 2 + 1;</b>
+<i>2193</i>&nbsp;    }
+<i>2194</i>&nbsp;
+<i>2195</i>&nbsp;    private int getMasterNodesCount() {
+<b class="nc"><i>2196</i>&nbsp;        return (int) nodes.values().stream().filter(n -&gt; Node.NODE_MASTER_SETTING.get(n.node().settings())).count();</b>
+<i>2197</i>&nbsp;    }
+<i>2198</i>&nbsp;
+<i>2199</i>&nbsp;    public String startMasterOnlyNode() {
+<b class="nc"><i>2200</i>&nbsp;        return startMasterOnlyNode(Settings.EMPTY);</b>
+<i>2201</i>&nbsp;    }
+<i>2202</i>&nbsp;
+<i>2203</i>&nbsp;    public String startMasterOnlyNode(Settings settings) {
+<b class="nc"><i>2204</i>&nbsp;        Settings settings1 = Settings.builder()</b>
+<b class="nc"><i>2205</i>&nbsp;                .put(settings)</b>
+<b class="nc"><i>2206</i>&nbsp;                .put(Node.NODE_MASTER_SETTING.getKey(), true)</b>
+<b class="nc"><i>2207</i>&nbsp;                .put(Node.NODE_DATA_SETTING.getKey(), false)</b>
+<b class="nc"><i>2208</i>&nbsp;                .put(Node.NODE_INGEST_SETTING.getKey(), false)</b>
+<b class="nc"><i>2209</i>&nbsp;                .build();</b>
+<b class="nc"><i>2210</i>&nbsp;        return startNode(settings1);</b>
+<i>2211</i>&nbsp;    }
+<i>2212</i>&nbsp;
+<i>2213</i>&nbsp;    public String startDataOnlyNode() {
+<b class="nc"><i>2214</i>&nbsp;        return startDataOnlyNode(Settings.EMPTY);</b>
+<i>2215</i>&nbsp;    }
+<i>2216</i>&nbsp;
+<i>2217</i>&nbsp;    public String startDataOnlyNode(Settings settings) {
+<b class="nc"><i>2218</i>&nbsp;        Settings settings1 = Settings.builder()</b>
+<b class="nc"><i>2219</i>&nbsp;                .put(settings)</b>
+<b class="nc"><i>2220</i>&nbsp;                .put(Node.NODE_MASTER_SETTING.getKey(), false)</b>
+<b class="nc"><i>2221</i>&nbsp;                .put(Node.NODE_DATA_SETTING.getKey(), true)</b>
+<b class="nc"><i>2222</i>&nbsp;                .build();</b>
+<b class="nc"><i>2223</i>&nbsp;        return startNode(settings1);</b>
+<i>2224</i>&nbsp;    }
+<i>2225</i>&nbsp;
+<i>2226</i>&nbsp;    private synchronized void publishNode(NodeAndClient nodeAndClient) {
+<b class="nc"><i>2227</i>&nbsp;        assert !nodeAndClient.node().isClosed();</b>
+<b class="nc"><i>2228</i>&nbsp;        final NavigableMap&lt;String, NodeAndClient&gt; newNodes = new TreeMap&lt;&gt;(nodes);</b>
+<b class="nc"><i>2229</i>&nbsp;        newNodes.put(nodeAndClient.name, nodeAndClient);</b>
+<b class="nc"><i>2230</i>&nbsp;        nodes = Collections.unmodifiableNavigableMap(newNodes);</b>
+<b class="nc"><i>2231</i>&nbsp;        applyDisruptionSchemeToNode(nodeAndClient);</b>
+<b class="nc"><i>2232</i>&nbsp;    }</b>
+<i>2233</i>&nbsp;
+<i>2234</i>&nbsp;    public void closeNonSharedNodes(boolean wipeData) throws IOException {
+<b class="nc"><i>2235</i>&nbsp;        reset(wipeData);</b>
+<b class="nc"><i>2236</i>&nbsp;    }</b>
+<i>2237</i>&nbsp;
+<i>2238</i>&nbsp;    @Override
+<i>2239</i>&nbsp;    public int numDataNodes() {
+<b class="nc"><i>2240</i>&nbsp;        return dataNodeAndClients().size();</b>
+<i>2241</i>&nbsp;    }
+<i>2242</i>&nbsp;
+<i>2243</i>&nbsp;    @Override
+<i>2244</i>&nbsp;    public int numDataAndMasterNodes() {
+<b class="nc"><i>2245</i>&nbsp;        return filterNodes(nodes, DATA_NODE_PREDICATE.or(MASTER_NODE_PREDICATE)).size();</b>
+<i>2246</i>&nbsp;    }
+<i>2247</i>&nbsp;
+<i>2248</i>&nbsp;    public int numMasterNodes() {
+<b class="nc"><i>2249</i>&nbsp;      return filterNodes(nodes, NodeAndClient::isMasterEligible).size();</b>
+<i>2250</i>&nbsp;    }
+<i>2251</i>&nbsp;
+<i>2252</i>&nbsp;    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+<b class="nc"><i>2253</i>&nbsp;        assert activeDisruptionScheme == null :</b>
+<i>2254</i>&nbsp;            &quot;there is already and active disruption [&quot; + activeDisruptionScheme + &quot;]. call clearDisruptionScheme first&quot;;
+<b class="nc"><i>2255</i>&nbsp;        scheme.applyToCluster(this);</b>
+<b class="nc"><i>2256</i>&nbsp;        activeDisruptionScheme = scheme;</b>
+<b class="nc"><i>2257</i>&nbsp;    }</b>
+<i>2258</i>&nbsp;
+<i>2259</i>&nbsp;    public void clearDisruptionScheme() {
+<b class="nc"><i>2260</i>&nbsp;        clearDisruptionScheme(true);</b>
+<b class="nc"><i>2261</i>&nbsp;    }</b>
+<i>2262</i>&nbsp;
+<i>2263</i>&nbsp;    // synchronized to prevent concurrently modifying the cluster.
+<i>2264</i>&nbsp;    public synchronized void clearDisruptionScheme(boolean ensureHealthyCluster) {
+<b class="nc"><i>2265</i>&nbsp;        if (activeDisruptionScheme != null) {</b>
+<b class="nc"><i>2266</i>&nbsp;            TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();</b>
+<b class="nc"><i>2267</i>&nbsp;            logger.info(&quot;Clearing active scheme {}, expected healing time {}&quot;, activeDisruptionScheme, expectedHealingTime);</b>
+<b class="nc"><i>2268</i>&nbsp;            if (ensureHealthyCluster) {</b>
+<b class="nc"><i>2269</i>&nbsp;                activeDisruptionScheme.removeAndEnsureHealthy(this);</b>
+<i>2270</i>&nbsp;            } else {
+<b class="nc"><i>2271</i>&nbsp;                activeDisruptionScheme.removeFromCluster(this);</b>
+<i>2272</i>&nbsp;            }
+<i>2273</i>&nbsp;        }
+<b class="nc"><i>2274</i>&nbsp;        activeDisruptionScheme = null;</b>
+<b class="nc"><i>2275</i>&nbsp;    }</b>
+<i>2276</i>&nbsp;
+<i>2277</i>&nbsp;    private void applyDisruptionSchemeToNode(NodeAndClient nodeAndClient) {
+<b class="nc"><i>2278</i>&nbsp;        if (activeDisruptionScheme != null) {</b>
+<b class="nc"><i>2279</i>&nbsp;            assert nodes.containsKey(nodeAndClient.name);</b>
+<b class="nc"><i>2280</i>&nbsp;            activeDisruptionScheme.applyToNode(nodeAndClient.name, this);</b>
+<i>2281</i>&nbsp;        }
+<b class="nc"><i>2282</i>&nbsp;    }</b>
+<i>2283</i>&nbsp;
+<i>2284</i>&nbsp;    private void removeDisruptionSchemeFromNode(NodeAndClient nodeAndClient) {
+<b class="nc"><i>2285</i>&nbsp;        if (activeDisruptionScheme != null) {</b>
+<b class="nc"><i>2286</i>&nbsp;            assert nodes.containsKey(nodeAndClient.name);</b>
+<b class="nc"><i>2287</i>&nbsp;            activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);</b>
+<i>2288</i>&nbsp;        }
+<b class="nc"><i>2289</i>&nbsp;    }</b>
+<i>2290</i>&nbsp;
+<i>2291</i>&nbsp;    private Collection&lt;NodeAndClient&gt; dataNodeAndClients() {
+<b class="nc"><i>2292</i>&nbsp;        return filterNodes(nodes, DATA_NODE_PREDICATE);</b>
+<i>2293</i>&nbsp;    }
+<i>2294</i>&nbsp;
+<i>2295</i>&nbsp;    private static Collection&lt;NodeAndClient&gt; filterNodes(Map&lt;String, InternalTestCluster.NodeAndClient&gt; map,
+<i>2296</i>&nbsp;            Predicate&lt;NodeAndClient&gt; predicate) {
+<b class="nc"><i>2297</i>&nbsp;        return map</b>
+<b class="nc"><i>2298</i>&nbsp;            .values()</b>
+<b class="nc"><i>2299</i>&nbsp;            .stream()</b>
+<b class="nc"><i>2300</i>&nbsp;            .filter(predicate)</b>
+<b class="nc"><i>2301</i>&nbsp;            .collect(Collectors.toCollection(ArrayList::new));</b>
+<i>2302</i>&nbsp;    }
+<i>2303</i>&nbsp;
+<i>2304</i>&nbsp;    private static final class NodeNamePredicate implements Predicate&lt;NodeAndClient&gt; {
+<i>2305</i>&nbsp;        private final String nodeName;
+<i>2306</i>&nbsp;
+<i>2307</i>&nbsp;        NodeNamePredicate(String nodeName) {
+<i>2308</i>&nbsp;            this.nodeName = nodeName;
+<i>2309</i>&nbsp;        }
+<i>2310</i>&nbsp;
+<i>2311</i>&nbsp;        @Override
+<i>2312</i>&nbsp;        public boolean test(NodeAndClient nodeAndClient) {
+<i>2313</i>&nbsp;            return nodeName.equals(nodeAndClient.getName());
+<i>2314</i>&nbsp;        }
+<i>2315</i>&nbsp;    }
+<i>2316</i>&nbsp;
+<i>2317</i>&nbsp;    synchronized String routingKeyForShard(Index index, int shard, Random random) {
+<b class="nc"><i>2318</i>&nbsp;        assertThat(shard, greaterThanOrEqualTo(0));</b>
+<b class="nc"><i>2319</i>&nbsp;        assertThat(shard, greaterThanOrEqualTo(0));</b>
+<b class="nc"><i>2320</i>&nbsp;        for (NodeAndClient n : nodes.values()) {</b>
+<b class="nc"><i>2321</i>&nbsp;            Node node = n.node;</b>
+<b class="nc"><i>2322</i>&nbsp;            IndicesService indicesService = getInstanceFromNode(IndicesService.class, node);</b>
+<b class="nc"><i>2323</i>&nbsp;            ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);</b>
+<b class="nc"><i>2324</i>&nbsp;            IndexService indexService = indicesService.indexService(index);</b>
+<b class="nc"><i>2325</i>&nbsp;            if (indexService != null) {</b>
+<b class="nc"><i>2326</i>&nbsp;                assertThat(indexService.getIndexSettings().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1),</b>
+<b class="nc"><i>2327</i>&nbsp;                        greaterThan(shard));</b>
+<b class="nc"><i>2328</i>&nbsp;                OperationRouting operationRouting = clusterService.operationRouting();</b>
+<i>2329</i>&nbsp;                while (true) {
+<b class="nc"><i>2330</i>&nbsp;                    String routing = RandomStrings.randomAsciiOfLength(random, 10);</b>
+<b class="nc"><i>2331</i>&nbsp;                    final int targetShard = operationRouting</b>
+<b class="nc"><i>2332</i>&nbsp;                            .indexShards(clusterService.state(), index.getName(), null, routing)</b>
+<b class="nc"><i>2333</i>&nbsp;                            .shardId().getId();</b>
+<b class="nc"><i>2334</i>&nbsp;                    if (shard == targetShard) {</b>
+<b class="nc"><i>2335</i>&nbsp;                        return routing;</b>
+<i>2336</i>&nbsp;                    }
+<b class="nc"><i>2337</i>&nbsp;                }</b>
+<i>2338</i>&nbsp;            }
+<b class="nc"><i>2339</i>&nbsp;        }</b>
+<b class="nc"><i>2340</i>&nbsp;        fail(&quot;Could not find a node that holds &quot; + index);</b>
+<b class="nc"><i>2341</i>&nbsp;        return null;</b>
+<i>2342</i>&nbsp;    }
+<i>2343</i>&nbsp;
+<i>2344</i>&nbsp;    @Override
+<i>2345</i>&nbsp;    public Iterable&lt;Client&gt; getClients() {
+<b class="nc"><i>2346</i>&nbsp;        return () -&gt; {</b>
+<b class="nc"><i>2347</i>&nbsp;            ensureOpen();</b>
+<b class="nc"><i>2348</i>&nbsp;            final Iterator&lt;NodeAndClient&gt; iterator = nodes.values().iterator();</b>
+<b class="nc"><i>2349</i>&nbsp;            return new Iterator&lt;Client&gt;() {</b>
+<i>2350</i>&nbsp;
+<i>2351</i>&nbsp;                @Override
+<i>2352</i>&nbsp;                public boolean hasNext() {
+<i>2353</i>&nbsp;                    return iterator.hasNext();
+<i>2354</i>&nbsp;                }
+<i>2355</i>&nbsp;
+<i>2356</i>&nbsp;                @Override
+<i>2357</i>&nbsp;                public Client next() {
+<i>2358</i>&nbsp;                    return iterator.next().client(random);
+<i>2359</i>&nbsp;                }
+<i>2360</i>&nbsp;
+<i>2361</i>&nbsp;                @Override
+<i>2362</i>&nbsp;                public void remove() {
+<i>2363</i>&nbsp;                    throw new UnsupportedOperationException(&quot;&quot;);
+<i>2364</i>&nbsp;                }
+<i>2365</i>&nbsp;
+<i>2366</i>&nbsp;            };
+<i>2367</i>&nbsp;        };
+<i>2368</i>&nbsp;    }
+<i>2369</i>&nbsp;
+<i>2370</i>&nbsp;    @Override
+<i>2371</i>&nbsp;    public NamedWriteableRegistry getNamedWriteableRegistry() {
+<b class="nc"><i>2372</i>&nbsp;        return getInstance(NamedWriteableRegistry.class);</b>
+<i>2373</i>&nbsp;    }
+<i>2374</i>&nbsp;
+<i>2375</i>&nbsp;    /**
+<i>2376</i>&nbsp;     * Returns a predicate that only accepts settings of nodes with one of the given names.
+<i>2377</i>&nbsp;     */
+<i>2378</i>&nbsp;    public static Predicate&lt;Settings&gt; nameFilter(String... nodeNames) {
+<b class="nc"><i>2379</i>&nbsp;        final Set&lt;String&gt; nodes = Sets.newHashSet(nodeNames);</b>
+<b class="nc"><i>2380</i>&nbsp;        return settings -&gt; nodes.contains(settings.get(&quot;node.name&quot;));</b>
+<i>2381</i>&nbsp;    }
+<i>2382</i>&nbsp;
+<i>2383</i>&nbsp;    /**
+<i>2384</i>&nbsp;     * An abstract class that is called during {@link #rollingRestart(InternalTestCluster.RestartCallback)}
+<i>2385</i>&nbsp;     * and / or {@link #fullRestart(InternalTestCluster.RestartCallback)} to execute actions at certain
+<i>2386</i>&nbsp;     * stages of the restart.
+<i>2387</i>&nbsp;     */
+<b class="fc"><i>2388</i>&nbsp;    public static class RestartCallback {</b>
+<i>2389</i>&nbsp;
+<i>2390</i>&nbsp;        /**
+<i>2391</i>&nbsp;         * Executed once the give node name has been stopped.
+<i>2392</i>&nbsp;         */
+<i>2393</i>&nbsp;        public Settings onNodeStopped(String nodeName) throws Exception {
+<b class="nc"><i>2394</i>&nbsp;            return Settings.EMPTY;</b>
+<i>2395</i>&nbsp;        }
+<i>2396</i>&nbsp;
+<i>2397</i>&nbsp;        public void onAllNodesStopped() throws Exception {
+<b class="nc"><i>2398</i>&nbsp;        }</b>
+<i>2399</i>&nbsp;
+<i>2400</i>&nbsp;        /**
+<i>2401</i>&nbsp;         * Executed for each node before the {@code n + 1} node is restarted. The given client is
+<i>2402</i>&nbsp;         * an active client to the node that will be restarted next.
+<i>2403</i>&nbsp;         */
+<i>2404</i>&nbsp;        public void doAfterNodes(int n, Client client) throws Exception {
+<b class="nc"><i>2405</i>&nbsp;        }</b>
+<i>2406</i>&nbsp;
+<i>2407</i>&nbsp;        /**
+<i>2408</i>&nbsp;         * If this returns &lt;code&gt;true&lt;/code&gt; all data for the node with the given node name will be cleared including
+<i>2409</i>&nbsp;         * gateways and all index data. Returns &lt;code&gt;false&lt;/code&gt; by default.
+<i>2410</i>&nbsp;         */
+<i>2411</i>&nbsp;        public boolean clearData(String nodeName) {
+<b class="nc"><i>2412</i>&nbsp;            return false;</b>
+<i>2413</i>&nbsp;        }
+<i>2414</i>&nbsp;
+<i>2415</i>&nbsp;        /** returns true if the restart should also validate the cluster has reformed */
+<b class="nc"><i>2416</i>&nbsp;        public boolean validateClusterForming() { return true; }</b>
+<i>2417</i>&nbsp;    }
+<i>2418</i>&nbsp;
+<i>2419</i>&nbsp;    public Settings getDefaultSettings() {
+<b class="nc"><i>2420</i>&nbsp;        return defaultSettings;</b>
+<i>2421</i>&nbsp;    }
+<i>2422</i>&nbsp;
+<i>2423</i>&nbsp;    @Override
+<i>2424</i>&nbsp;    public void ensureEstimatedStats() {
+<b class="nc"><i>2425</i>&nbsp;        if (size() &gt; 0) {</b>
+<i>2426</i>&nbsp;            // Checks that the breakers have been reset without incurring a
+<i>2427</i>&nbsp;            // network request, because a network request can increment one
+<i>2428</i>&nbsp;            // of the breakers
+<b class="nc"><i>2429</i>&nbsp;            for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>2430</i>&nbsp;                final IndicesFieldDataCache fdCache =</b>
+<b class="nc"><i>2431</i>&nbsp;                        getInstanceFromNode(IndicesService.class, nodeAndClient.node).getIndicesFieldDataCache();</b>
+<i>2432</i>&nbsp;                // Clean up the cache, ensuring that entries&#39; listeners have been called
+<b class="nc"><i>2433</i>&nbsp;                fdCache.getCache().refresh();</b>
+<i>2434</i>&nbsp;
+<b class="nc"><i>2435</i>&nbsp;                final String name = nodeAndClient.name;</b>
+<b class="nc"><i>2436</i>&nbsp;                final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);</b>
+<b class="nc"><i>2437</i>&nbsp;                CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);</b>
+<b class="nc"><i>2438</i>&nbsp;                assertThat(&quot;Fielddata breaker not reset to 0 on node: &quot; + name, fdBreaker.getUsed(), equalTo(0L));</b>
+<i>2439</i>&nbsp;
+<i>2440</i>&nbsp;                try {
+<b class="nc"><i>2441</i>&nbsp;                    assertBusy(() -&gt; {</b>
+<b class="nc"><i>2442</i>&nbsp;                        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);</b>
+<b class="nc"><i>2443</i>&nbsp;                        assertThat(&quot;Accounting breaker not reset to 0 on node: &quot; + name + &quot;, are there still Lucene indices around?&quot;,</b>
+<b class="nc"><i>2444</i>&nbsp;                            acctBreaker.getUsed(), equalTo(0L));</b>
+<b class="nc"><i>2445</i>&nbsp;                    });</b>
+<b class="nc"><i>2446</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>2447</i>&nbsp;                    throw new AssertionError(&quot;Exception during check for accounting breaker reset to 0&quot;, e);</b>
+<b class="nc"><i>2448</i>&nbsp;                }</b>
+<i>2449</i>&nbsp;
+<i>2450</i>&nbsp;                // Anything that uses transport or HTTP can increase the
+<i>2451</i>&nbsp;                // request breaker (because they use bigarrays), because of
+<i>2452</i>&nbsp;                // that the breaker can sometimes be incremented from ping
+<i>2453</i>&nbsp;                // requests from other clusters because Jenkins is running
+<i>2454</i>&nbsp;                // multiple ES testing jobs in parallel on the same machine.
+<i>2455</i>&nbsp;                // To combat this we check whether the breaker has reached 0
+<i>2456</i>&nbsp;                // in an assertBusy loop, so it will try for 10 seconds and
+<i>2457</i>&nbsp;                // fail if it never reached 0
+<i>2458</i>&nbsp;                try {
+<b class="nc"><i>2459</i>&nbsp;                    assertBusy(() -&gt; {</b>
+<b class="nc"><i>2460</i>&nbsp;                        CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);</b>
+<b class="nc"><i>2461</i>&nbsp;                        assertThat(&quot;Request breaker not reset to 0 on node: &quot; + name, reqBreaker.getUsed(), equalTo(0L));</b>
+<b class="nc"><i>2462</i>&nbsp;                    });</b>
+<b class="nc"><i>2463</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>2464</i>&nbsp;                    throw new AssertionError(&quot;Exception during check for request breaker reset to 0&quot;, e);</b>
+<b class="nc"><i>2465</i>&nbsp;                }</b>
+<i>2466</i>&nbsp;
+<b class="nc"><i>2467</i>&nbsp;                NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);</b>
+<b class="nc"><i>2468</i>&nbsp;                CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);</b>
+<b class="nc"><i>2469</i>&nbsp;                NodeStats stats = nodeService.stats(flags,</b>
+<i>2470</i>&nbsp;                        false, false, false, false, false, false, false, false, false, false, false, false);
+<b class="nc"><i>2471</i>&nbsp;                assertThat(&quot;Fielddata size must be 0 on node: &quot; + stats.getNode(),</b>
+<b class="nc"><i>2472</i>&nbsp;                        stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));</b>
+<b class="nc"><i>2473</i>&nbsp;                assertThat(&quot;Query cache size must be 0 on node: &quot; + stats.getNode(),</b>
+<b class="nc"><i>2474</i>&nbsp;                        stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));</b>
+<b class="nc"><i>2475</i>&nbsp;                assertThat(&quot;FixedBitSet cache size must be 0 on node: &quot; + stats.getNode(),</b>
+<b class="nc"><i>2476</i>&nbsp;                        stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));</b>
+<b class="nc"><i>2477</i>&nbsp;            }</b>
+<i>2478</i>&nbsp;        }
+<b class="nc"><i>2479</i>&nbsp;    }</b>
+<i>2480</i>&nbsp;
+<i>2481</i>&nbsp;    @Override
+<i>2482</i>&nbsp;    public synchronized void assertAfterTest() throws IOException {
+<b class="nc"><i>2483</i>&nbsp;        super.assertAfterTest();</b>
+<b class="nc"><i>2484</i>&nbsp;        assertRequestsFinished();</b>
+<b class="nc"><i>2485</i>&nbsp;        for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>2486</i>&nbsp;            NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();</b>
+<b class="nc"><i>2487</i>&nbsp;            Set&lt;ShardId&gt; shardIds = env.lockedShards();</b>
+<b class="nc"><i>2488</i>&nbsp;            for (ShardId id : shardIds) {</b>
+<i>2489</i>&nbsp;                try {
+<b class="nc"><i>2490</i>&nbsp;                    env.shardLock(id, &quot;InternalTestCluster assert after test&quot;, TimeUnit.SECONDS.toMillis(5)).close();</b>
+<b class="nc"><i>2491</i>&nbsp;                } catch (ShardLockObtainFailedException ex) {</b>
+<b class="nc"><i>2492</i>&nbsp;                    fail(&quot;Shard &quot; + id + &quot; is still locked after 5 sec waiting&quot;);</b>
+<b class="nc"><i>2493</i>&nbsp;                }</b>
+<b class="nc"><i>2494</i>&nbsp;            }</b>
+<b class="nc"><i>2495</i>&nbsp;        }</b>
+<b class="nc"><i>2496</i>&nbsp;    }</b>
+<i>2497</i>&nbsp;
+<i>2498</i>&nbsp;    private void assertRequestsFinished() {
+<b class="nc"><i>2499</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>2500</i>&nbsp;        if (size() &gt; 0) {</b>
+<b class="nc"><i>2501</i>&nbsp;            for (NodeAndClient nodeAndClient : nodes.values()) {</b>
+<b class="nc"><i>2502</i>&nbsp;                CircuitBreaker inFlightRequestsBreaker = getInstance(CircuitBreakerService.class, nodeAndClient.name)</b>
+<b class="nc"><i>2503</i>&nbsp;                    .getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);</b>
+<i>2504</i>&nbsp;                try {
+<i>2505</i>&nbsp;                    // see #ensureEstimatedStats()
+<b class="nc"><i>2506</i>&nbsp;                    assertBusy(() -&gt; {</b>
+<i>2507</i>&nbsp;                        // ensure that our size accounting on transport level is reset properly
+<b class="nc"><i>2508</i>&nbsp;                        long bytesUsed = inFlightRequestsBreaker.getUsed();</b>
+<b class="nc"><i>2509</i>&nbsp;                        assertThat(&quot;All incoming requests on node [&quot; + nodeAndClient.name + &quot;] should have finished. Expected 0 but got &quot; +</b>
+<b class="nc"><i>2510</i>&nbsp;                            bytesUsed, bytesUsed, equalTo(0L));</b>
+<b class="nc"><i>2511</i>&nbsp;                    });</b>
+<b class="nc"><i>2512</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>2513</i>&nbsp;                    logger.error(&quot;Could not assert finished requests within timeout&quot;, e);</b>
+<b class="nc"><i>2514</i>&nbsp;                    fail(&quot;Could not assert finished requests within timeout on node [&quot; + nodeAndClient.name + &quot;]&quot;);</b>
+<b class="nc"><i>2515</i>&nbsp;                }</b>
+<b class="nc"><i>2516</i>&nbsp;            }</b>
+<i>2517</i>&nbsp;        }
+<b class="nc"><i>2518</i>&nbsp;    }</b>
+<i>2519</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

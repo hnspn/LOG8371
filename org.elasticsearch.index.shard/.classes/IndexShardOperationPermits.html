@@ -1,0 +1,439 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexShardOperationPermits</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.shard</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexShardOperationPermits (org.elasticsearch.index.shard)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexShardOperationPermits</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    21.1%
+  </span>
+  <span class="absValue">
+    (4/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.8%
+  </span>
+  <span class="absValue">
+    (12/ 102)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.shard;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.Assertions;
+<i>23</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionRunnable;
+<i>26</i>&nbsp;import org.elasticsearch.action.support.ContextPreservingActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.common.CheckedRunnable;
+<i>28</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>29</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>30</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>31</i>&nbsp;import org.elasticsearch.common.util.concurrent.RunOnce;
+<i>32</i>&nbsp;import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+<i>33</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>34</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;import java.io.Closeable;
+<i>37</i>&nbsp;import java.util.ArrayList;
+<i>38</i>&nbsp;import java.util.Collections;
+<i>39</i>&nbsp;import java.util.List;
+<i>40</i>&nbsp;import java.util.Map;
+<i>41</i>&nbsp;import java.util.concurrent.ConcurrentHashMap;
+<i>42</i>&nbsp;import java.util.concurrent.Semaphore;
+<i>43</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>44</i>&nbsp;import java.util.concurrent.TimeoutException;
+<i>45</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>46</i>&nbsp;import java.util.function.Supplier;
+<i>47</i>&nbsp;import java.util.stream.Collectors;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * Tracks shard operation permits. Each operation on the shard obtains a permit. When we need to block operations (e.g., to transition
+<i>51</i>&nbsp; * between terms) we immediately delay all operations to a queue, obtain all available permits, and wait for outstanding operations to drain
+<i>52</i>&nbsp; * and return their permits. Delayed operations will acquire permits and be completed after the operation that blocked all operations has
+<i>53</i>&nbsp; * completed.
+<i>54</i>&nbsp; */
+<b class="fc"><i>55</i>&nbsp;final class IndexShardOperationPermits implements Closeable {</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    private final ShardId shardId;
+<i>58</i>&nbsp;    private final ThreadPool threadPool;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    static final int TOTAL_PERMITS = Integer.MAX_VALUE;
+<b class="fc"><i>61</i>&nbsp;    final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true); // fair to ensure a blocking thread is not starved</b>
+<b class="fc"><i>62</i>&nbsp;    private final List&lt;DelayedOperation&gt; delayedOperations = new ArrayList&lt;&gt;(); // operations that are delayed</b>
+<i>63</i>&nbsp;    private volatile boolean closed;
+<i>64</i>&nbsp;    private int queuedBlockOperations; // does not need to be volatile as all accesses are done under a lock on this
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    // only valid when assertions are enabled. Key is AtomicBoolean associated with each permit to ensure close once semantics.
+<i>67</i>&nbsp;    // Value is a tuple, with a some debug information supplied by the caller and a stack trace of the acquiring thread
+<i>68</i>&nbsp;    private final Map&lt;AtomicBoolean, Tuple&lt;String, StackTraceElement[]&gt;&gt; issuedPermits;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    /**
+<i>71</i>&nbsp;     * Construct operation permits for the specified shards.
+<i>72</i>&nbsp;     *
+<i>73</i>&nbsp;     * @param shardId    the shard
+<i>74</i>&nbsp;     * @param threadPool the thread pool (used to execute delayed operations)
+<i>75</i>&nbsp;     */
+<b class="fc"><i>76</i>&nbsp;    IndexShardOperationPermits(final ShardId shardId, final ThreadPool threadPool) {</b>
+<b class="fc"><i>77</i>&nbsp;        this.shardId = shardId;</b>
+<b class="fc"><i>78</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>79</i>&nbsp;        if (Assertions.ENABLED) {</b>
+<b class="fc"><i>80</i>&nbsp;            issuedPermits = new ConcurrentHashMap&lt;&gt;();</b>
+<i>81</i>&nbsp;        } else {
+<b class="nc"><i>82</i>&nbsp;            issuedPermits = null;</b>
+<i>83</i>&nbsp;        }
+<b class="fc"><i>84</i>&nbsp;    }</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    @Override
+<i>87</i>&nbsp;    public void close() {
+<b class="fc"><i>88</i>&nbsp;        closed = true;</b>
+<b class="fc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * Wait for in-flight operations to finish and executes {@code onBlocked} under the guarantee that no new operations are started. Queues
+<i>93</i>&nbsp;     * operations that are occurring in the meanwhile and runs them once {@code onBlocked} has executed.
+<i>94</i>&nbsp;     *
+<i>95</i>&nbsp;     * @param timeout   the maximum time to wait for the in-flight operations block
+<i>96</i>&nbsp;     * @param timeUnit  the time unit of the {@code timeout} argument
+<i>97</i>&nbsp;     * @param onBlocked the action to run once the block has been acquired
+<i>98</i>&nbsp;     * @param &lt;E&gt;       the type of checked exception thrown by {@code onBlocked}
+<i>99</i>&nbsp;     * @throws InterruptedException      if calling thread is interrupted
+<i>100</i>&nbsp;     * @throws TimeoutException          if timed out waiting for in-flight operations to finish
+<i>101</i>&nbsp;     * @throws IndexShardClosedException if operation permit has been closed
+<i>102</i>&nbsp;     */
+<i>103</i>&nbsp;    &lt;E extends Exception&gt; void blockOperations(
+<i>104</i>&nbsp;            final long timeout,
+<i>105</i>&nbsp;            final TimeUnit timeUnit,
+<i>106</i>&nbsp;            final CheckedRunnable&lt;E&gt; onBlocked) throws InterruptedException, TimeoutException, E {
+<b class="nc"><i>107</i>&nbsp;        delayOperations();</b>
+<b class="nc"><i>108</i>&nbsp;        try (Releasable ignored = acquireAll(timeout, timeUnit)) {</b>
+<b class="nc"><i>109</i>&nbsp;            onBlocked.run();</b>
+<b class="nc"><i>110</i>&nbsp;        } finally {</b>
+<b class="nc"><i>111</i>&nbsp;            releaseDelayedOperations();</b>
+<b class="nc"><i>112</i>&nbsp;        }</b>
+<b class="nc"><i>113</i>&nbsp;    }</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    /**
+<i>116</i>&nbsp;     * Immediately delays operations and on another thread waits for in-flight operations to finish and then acquires all permits. When all
+<i>117</i>&nbsp;     * permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are started. Delayed
+<i>118</i>&nbsp;     * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
+<i>119</i>&nbsp;     * {@code onFailure} handler will be invoked after delayed operations are released.
+<i>120</i>&nbsp;     *
+<i>121</i>&nbsp;     * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
+<i>122</i>&nbsp;     * @param timeout    the maximum time to wait for the in-flight operations block
+<i>123</i>&nbsp;     * @param timeUnit   the time unit of the {@code timeout} argument
+<i>124</i>&nbsp;     */
+<i>125</i>&nbsp;    public void asyncBlockOperations(final ActionListener&lt;Releasable&gt; onAcquired, final long timeout, final TimeUnit timeUnit)  {
+<b class="nc"><i>126</i>&nbsp;        delayOperations();</b>
+<b class="nc"><i>127</i>&nbsp;        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;            final RunOnce released = new RunOnce(() -&gt; releaseDelayedOperations());
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;            @Override
+<i>132</i>&nbsp;            public void onFailure(final Exception e) {
+<i>133</i>&nbsp;                try {
+<i>134</i>&nbsp;                    released.run(); // resume delayed operations as soon as possible
+<i>135</i>&nbsp;                } finally {
+<i>136</i>&nbsp;                    onAcquired.onFailure(e);
+<i>137</i>&nbsp;                }
+<i>138</i>&nbsp;            }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;            @Override
+<i>141</i>&nbsp;            protected void doRun() throws Exception {
+<i>142</i>&nbsp;                final Releasable releasable = acquireAll(timeout, timeUnit);
+<i>143</i>&nbsp;                onAcquired.onResponse(() -&gt; {
+<i>144</i>&nbsp;                    try {
+<i>145</i>&nbsp;                        releasable.close();
+<i>146</i>&nbsp;                    } finally {
+<i>147</i>&nbsp;                        released.run();
+<i>148</i>&nbsp;                    }
+<i>149</i>&nbsp;                });
+<i>150</i>&nbsp;            }
+<i>151</i>&nbsp;        });
+<b class="nc"><i>152</i>&nbsp;    }</b>
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    private void delayOperations() {
+<b class="nc"><i>155</i>&nbsp;        if (closed) {</b>
+<b class="nc"><i>156</i>&nbsp;            throw new IndexShardClosedException(shardId);</b>
+<i>157</i>&nbsp;        }
+<b class="nc"><i>158</i>&nbsp;        synchronized (this) {</b>
+<b class="nc"><i>159</i>&nbsp;            assert queuedBlockOperations &gt; 0 || delayedOperations.isEmpty();</b>
+<b class="nc"><i>160</i>&nbsp;            queuedBlockOperations++;</b>
+<b class="nc"><i>161</i>&nbsp;        }</b>
+<b class="nc"><i>162</i>&nbsp;    }</b>
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    private Releasable acquireAll(final long timeout, final TimeUnit timeUnit) throws InterruptedException, TimeoutException {
+<b class="nc"><i>165</i>&nbsp;        if (Assertions.ENABLED) {</b>
+<i>166</i>&nbsp;            // since delayed is not volatile, we have to synchronize even here for visibility
+<b class="nc"><i>167</i>&nbsp;            synchronized (this) {</b>
+<b class="nc"><i>168</i>&nbsp;                assert queuedBlockOperations &gt; 0;</b>
+<b class="nc"><i>169</i>&nbsp;            }</b>
+<i>170</i>&nbsp;        }
+<b class="nc"><i>171</i>&nbsp;        if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {</b>
+<b class="nc"><i>172</i>&nbsp;            final RunOnce release = new RunOnce(() -&gt; {</b>
+<b class="nc"><i>173</i>&nbsp;                assert semaphore.availablePermits() == 0;</b>
+<b class="nc"><i>174</i>&nbsp;                semaphore.release(TOTAL_PERMITS);</b>
+<b class="nc"><i>175</i>&nbsp;            });</b>
+<b class="nc"><i>176</i>&nbsp;            return release::run;</b>
+<i>177</i>&nbsp;        } else {
+<b class="nc"><i>178</i>&nbsp;            throw new TimeoutException(&quot;timeout while blocking operations&quot;);</b>
+<i>179</i>&nbsp;        }
+<i>180</i>&nbsp;    }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;    private void releaseDelayedOperations() {
+<i>183</i>&nbsp;        final List&lt;DelayedOperation&gt; queuedActions;
+<b class="nc"><i>184</i>&nbsp;        synchronized (this) {</b>
+<b class="nc"><i>185</i>&nbsp;            assert queuedBlockOperations &gt; 0;</b>
+<b class="nc"><i>186</i>&nbsp;            queuedBlockOperations--;</b>
+<b class="nc"><i>187</i>&nbsp;            if (queuedBlockOperations == 0) {</b>
+<b class="nc"><i>188</i>&nbsp;                queuedActions = new ArrayList&lt;&gt;(delayedOperations);</b>
+<b class="nc"><i>189</i>&nbsp;                delayedOperations.clear();</b>
+<i>190</i>&nbsp;            } else {
+<b class="nc"><i>191</i>&nbsp;                queuedActions = Collections.emptyList();</b>
+<i>192</i>&nbsp;            }
+<b class="nc"><i>193</i>&nbsp;        }</b>
+<b class="nc"><i>194</i>&nbsp;        if (!queuedActions.isEmpty()) {</b>
+<i>195</i>&nbsp;            /*
+<i>196</i>&nbsp;             * Try acquiring permits on fresh thread (for two reasons):
+<i>197</i>&nbsp;             *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
+<i>198</i>&nbsp;             *     interruptions are bad here as permit acquisition will throw an interrupted exception which will be swallowed by
+<i>199</i>&nbsp;             *     the threaded action listener if the queue of the thread pool on which it submits is full
+<i>200</i>&nbsp;             *   - if a permit is acquired and the queue of the thread pool which the threaded action listener uses is full, the
+<i>201</i>&nbsp;             *     onFailure handler is executed on the calling thread; this should not be the recovery thread as it would delay the
+<i>202</i>&nbsp;             *     recovery
+<i>203</i>&nbsp;             */
+<b class="nc"><i>204</i>&nbsp;            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -&gt; {</b>
+<b class="nc"><i>205</i>&nbsp;                for (DelayedOperation queuedAction : queuedActions) {</b>
+<b class="nc"><i>206</i>&nbsp;                    acquire(queuedAction.listener, null, false, queuedAction.debugInfo, queuedAction.stackTrace);</b>
+<b class="nc"><i>207</i>&nbsp;                }</b>
+<b class="nc"><i>208</i>&nbsp;            });</b>
+<i>209</i>&nbsp;        }
+<b class="nc"><i>210</i>&nbsp;    }</b>
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    /**
+<i>213</i>&nbsp;     * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
+<i>214</i>&nbsp;     * {@link ActionListener} will be called on the calling thread. During calls of
+<i>215</i>&nbsp;     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed.
+<i>216</i>&nbsp;     * The {@link ActionListener#onResponse(Object)} method will then be called using the provided executor once operations are no
+<i>217</i>&nbsp;     * longer blocked. Note that the executor will not be used for {@link ActionListener#onFailure(Exception)} calls. Those will run
+<i>218</i>&nbsp;     * directly on the calling thread, which in case of delays, will be a generic thread. Callers should thus make sure
+<i>219</i>&nbsp;     * that the {@link ActionListener#onFailure(Exception)} method provided here only contains lightweight operations.
+<i>220</i>&nbsp;     *
+<i>221</i>&nbsp;     * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
+<i>222</i>&nbsp;     * @param executorOnDelay executor to use for the possibly delayed {@link ActionListener#onResponse(Object)} call
+<i>223</i>&nbsp;     * @param forceExecution  whether the runnable should force its execution in case it gets rejected
+<i>224</i>&nbsp;     * @param debugInfo       an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+<i>225</i>&nbsp;     *                        the tracing will capture the supplied object&#39;s {@link Object#toString()} value. Otherwise the object
+<i>226</i>&nbsp;     *                        isn&#39;t used
+<i>227</i>&nbsp;     *
+<i>228</i>&nbsp;     */
+<i>229</i>&nbsp;    public void acquire(final ActionListener&lt;Releasable&gt; onAcquired, final String executorOnDelay, final boolean forceExecution,
+<i>230</i>&nbsp;                        final Object debugInfo) {
+<i>231</i>&nbsp;        final StackTraceElement[] stackTrace;
+<b class="nc"><i>232</i>&nbsp;        if (Assertions.ENABLED) {</b>
+<b class="nc"><i>233</i>&nbsp;            stackTrace = Thread.currentThread().getStackTrace();</b>
+<i>234</i>&nbsp;        } else {
+<b class="nc"><i>235</i>&nbsp;            stackTrace = null;</b>
+<i>236</i>&nbsp;        }
+<b class="nc"><i>237</i>&nbsp;        acquire(onAcquired, executorOnDelay, forceExecution, debugInfo, stackTrace);</b>
+<b class="nc"><i>238</i>&nbsp;    }</b>
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;    private void acquire(final ActionListener&lt;Releasable&gt; onAcquired, final String executorOnDelay, final boolean forceExecution,
+<i>241</i>&nbsp;                        final Object debugInfo, final StackTraceElement[] stackTrace) {
+<b class="nc"><i>242</i>&nbsp;        if (closed) {</b>
+<b class="nc"><i>243</i>&nbsp;            onAcquired.onFailure(new IndexShardClosedException(shardId));</b>
+<b class="nc"><i>244</i>&nbsp;            return;</b>
+<i>245</i>&nbsp;        }
+<i>246</i>&nbsp;        final Releasable releasable;
+<i>247</i>&nbsp;        try {
+<b class="nc"><i>248</i>&nbsp;            synchronized (this) {</b>
+<b class="nc"><i>249</i>&nbsp;                if (queuedBlockOperations &gt; 0) {</b>
+<b class="nc"><i>250</i>&nbsp;                    final Supplier&lt;StoredContext&gt; contextSupplier = threadPool.getThreadContext().newRestorableContext(false);</b>
+<i>251</i>&nbsp;                    final ActionListener&lt;Releasable&gt; wrappedListener;
+<b class="nc"><i>252</i>&nbsp;                    if (executorOnDelay != null) {</b>
+<b class="nc"><i>253</i>&nbsp;                        wrappedListener = ActionListener.delegateFailure(new ContextPreservingActionListener&lt;&gt;(contextSupplier, onAcquired),</b>
+<b class="nc"><i>254</i>&nbsp;                            (l, r) -&gt; threadPool.executor(executorOnDelay).execute(new ActionRunnable&lt;Releasable&gt;(l) {</b>
+<i>255</i>&nbsp;                                @Override
+<i>256</i>&nbsp;                                public boolean isForceExecution() {
+<i>257</i>&nbsp;                                    return forceExecution;
+<i>258</i>&nbsp;                                }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;                                @Override
+<i>261</i>&nbsp;                                protected void doRun() {
+<i>262</i>&nbsp;                                    listener.onResponse(r);
+<i>263</i>&nbsp;                                }
+<i>264</i>&nbsp;
+<i>265</i>&nbsp;                                @Override
+<i>266</i>&nbsp;                                public void onRejection(Exception e) {
+<i>267</i>&nbsp;                                    IOUtils.closeWhileHandlingException(r);
+<i>268</i>&nbsp;                                    super.onRejection(e);
+<i>269</i>&nbsp;                                }
+<i>270</i>&nbsp;                            }));
+<i>271</i>&nbsp;                    } else {
+<b class="nc"><i>272</i>&nbsp;                        wrappedListener = new ContextPreservingActionListener&lt;&gt;(contextSupplier, onAcquired);</b>
+<i>273</i>&nbsp;                    }
+<b class="nc"><i>274</i>&nbsp;                    delayedOperations.add(new DelayedOperation(wrappedListener, debugInfo, stackTrace));</b>
+<b class="nc"><i>275</i>&nbsp;                    return;</b>
+<i>276</i>&nbsp;                } else {
+<b class="nc"><i>277</i>&nbsp;                    releasable = acquire(debugInfo, stackTrace);</b>
+<i>278</i>&nbsp;                }
+<b class="nc"><i>279</i>&nbsp;            }</b>
+<b class="nc"><i>280</i>&nbsp;        } catch (final InterruptedException e) {</b>
+<b class="nc"><i>281</i>&nbsp;            onAcquired.onFailure(e);</b>
+<b class="nc"><i>282</i>&nbsp;            return;</b>
+<b class="nc"><i>283</i>&nbsp;        }</b>
+<i>284</i>&nbsp;        // execute this outside the synchronized block!
+<b class="nc"><i>285</i>&nbsp;        onAcquired.onResponse(releasable);</b>
+<b class="nc"><i>286</i>&nbsp;    }</b>
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    private Releasable acquire(Object debugInfo, StackTraceElement[] stackTrace) throws InterruptedException {
+<b class="nc"><i>289</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="nc"><i>290</i>&nbsp;        if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the un-timed tryAcquire methods do not honor the fairness setting</b>
+<b class="nc"><i>291</i>&nbsp;            final AtomicBoolean closed = new AtomicBoolean();</b>
+<b class="nc"><i>292</i>&nbsp;            final Releasable releasable = () -&gt; {</b>
+<b class="nc"><i>293</i>&nbsp;                if (closed.compareAndSet(false, true)) {</b>
+<b class="nc"><i>294</i>&nbsp;                    if (Assertions.ENABLED) {</b>
+<b class="nc"><i>295</i>&nbsp;                        Tuple&lt;String, StackTraceElement[]&gt; existing = issuedPermits.remove(closed);</b>
+<b class="nc"><i>296</i>&nbsp;                        assert existing != null;</b>
+<i>297</i>&nbsp;                    }
+<b class="nc"><i>298</i>&nbsp;                    semaphore.release(1);</b>
+<i>299</i>&nbsp;                }
+<b class="nc"><i>300</i>&nbsp;            };</b>
+<b class="nc"><i>301</i>&nbsp;            if (Assertions.ENABLED) {</b>
+<b class="nc"><i>302</i>&nbsp;                issuedPermits.put(closed, new Tuple&lt;&gt;(debugInfo.toString(), stackTrace));</b>
+<i>303</i>&nbsp;            }
+<b class="nc"><i>304</i>&nbsp;            return releasable;</b>
+<i>305</i>&nbsp;        } else {
+<i>306</i>&nbsp;            // this should never happen, if it does something is deeply wrong
+<b class="nc"><i>307</i>&nbsp;            throw new IllegalStateException(&quot;failed to obtain permit but operations are not delayed&quot;);</b>
+<i>308</i>&nbsp;        }
+<i>309</i>&nbsp;    }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;    /**
+<i>312</i>&nbsp;     * Obtain the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} if all permits are held.
+<i>313</i>&nbsp;     *
+<i>314</i>&nbsp;     * @return the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} when all permits are held.
+<i>315</i>&nbsp;     */
+<i>316</i>&nbsp;    int getActiveOperationsCount() {
+<b class="nc"><i>317</i>&nbsp;        int availablePermits = semaphore.availablePermits();</b>
+<b class="nc"><i>318</i>&nbsp;        if (availablePermits == 0) {</b>
+<b class="nc"><i>319</i>&nbsp;            return IndexShard.OPERATIONS_BLOCKED; // This occurs when blockOperations() has acquired all the permits.</b>
+<i>320</i>&nbsp;        } else {
+<b class="nc"><i>321</i>&nbsp;            return TOTAL_PERMITS - availablePermits;</b>
+<i>322</i>&nbsp;        }
+<i>323</i>&nbsp;    }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;
+<i>326</i>&nbsp;    synchronized boolean isBlocked() {
+<b class="fc"><i>327</i>&nbsp;        return queuedBlockOperations &gt; 0;</b>
+<i>328</i>&nbsp;    }
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;    /**
+<i>331</i>&nbsp;     * @return a list of describing each permit that wasn&#39;t released yet. The description consist of the debugInfo supplied
+<i>332</i>&nbsp;     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
+<i>333</i>&nbsp;     */
+<i>334</i>&nbsp;    List&lt;String&gt; getActiveOperations() {
+<b class="nc"><i>335</i>&nbsp;        return issuedPermits.values().stream().map(</b>
+<b class="nc"><i>336</i>&nbsp;            t -&gt; t.v1() + &quot;\n&quot; + ExceptionsHelper.formatStackTrace(t.v2()))</b>
+<b class="nc"><i>337</i>&nbsp;            .collect(Collectors.toList());</b>
+<i>338</i>&nbsp;    }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    private static class DelayedOperation {
+<i>341</i>&nbsp;        private final ActionListener&lt;Releasable&gt; listener;
+<i>342</i>&nbsp;        private final String debugInfo;
+<i>343</i>&nbsp;        private final StackTraceElement[] stackTrace;
+<i>344</i>&nbsp;
+<i>345</i>&nbsp;        private DelayedOperation(ActionListener&lt;Releasable&gt; listener, Object debugInfo, StackTraceElement[] stackTrace) {
+<i>346</i>&nbsp;            this.listener = listener;
+<i>347</i>&nbsp;            if (Assertions.ENABLED) {
+<i>348</i>&nbsp;                this.debugInfo = &quot;[delayed] &quot; + debugInfo;
+<i>349</i>&nbsp;                this.stackTrace = stackTrace;
+<i>350</i>&nbsp;            } else {
+<i>351</i>&nbsp;                this.debugInfo = null;
+<i>352</i>&nbsp;                this.stackTrace = null;
+<i>353</i>&nbsp;            }
+<i>354</i>&nbsp;        }
+<i>355</i>&nbsp;    }
+<i>356</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

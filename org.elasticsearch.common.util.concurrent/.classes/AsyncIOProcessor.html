@@ -1,0 +1,225 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AsyncIOProcessor</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util.concurrent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AsyncIOProcessor (org.elasticsearch.common.util.concurrent)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AsyncIOProcessor</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    14.3%
+  </span>
+  <span class="absValue">
+    (1/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.5%
+  </span>
+  <span class="absValue">
+    (6/ 52)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.common.util.concurrent;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>22</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.io.IOException;
+<i>25</i>&nbsp;import java.util.ArrayList;
+<i>26</i>&nbsp;import java.util.List;
+<i>27</i>&nbsp;import java.util.Objects;
+<i>28</i>&nbsp;import java.util.concurrent.ArrayBlockingQueue;
+<i>29</i>&nbsp;import java.util.concurrent.Semaphore;
+<i>30</i>&nbsp;import java.util.function.Consumer;
+<i>31</i>&nbsp;import java.util.function.Supplier;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;/**
+<i>34</i>&nbsp; * This async IO processor allows to batch IO operations and have a single writer processing the write operations.
+<i>35</i>&nbsp; * This can be used to ensure that threads can continue with other work while the actual IO operation is still processed
+<i>36</i>&nbsp; * by a single worker. A worker in this context can be any caller of the {@link #put(Object, Consumer)} method since it will
+<i>37</i>&nbsp; * hijack a worker if nobody else is currently processing queued items. If the internal queue has reached it&#39;s capacity incoming threads
+<i>38</i>&nbsp; * might be blocked until other items are processed
+<i>39</i>&nbsp; */
+<i>40</i>&nbsp;public abstract class AsyncIOProcessor&lt;Item&gt; {
+<i>41</i>&nbsp;    private final Logger logger;
+<i>42</i>&nbsp;    private final ArrayBlockingQueue&lt;Tuple&lt;Item, Consumer&lt;Exception&gt;&gt;&gt; queue;
+<i>43</i>&nbsp;    private final ThreadContext threadContext;
+<b class="fc"><i>44</i>&nbsp;    private final Semaphore promiseSemaphore = new Semaphore(1);</b>
+<i>45</i>&nbsp;
+<b class="fc"><i>46</i>&nbsp;    protected AsyncIOProcessor(Logger logger, int queueSize, ThreadContext threadContext) {</b>
+<b class="fc"><i>47</i>&nbsp;        this.logger = logger;</b>
+<b class="fc"><i>48</i>&nbsp;        this.queue = new ArrayBlockingQueue&lt;&gt;(queueSize);</b>
+<b class="fc"><i>49</i>&nbsp;        this.threadContext = threadContext;</b>
+<b class="fc"><i>50</i>&nbsp;    }</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    /**
+<i>53</i>&nbsp;     * Adds the given item to the queue. The listener is notified once the item is processed
+<i>54</i>&nbsp;     */
+<i>55</i>&nbsp;    public final void put(Item item, Consumer&lt;Exception&gt; listener) {
+<b class="nc"><i>56</i>&nbsp;        Objects.requireNonNull(item, &quot;item must not be null&quot;);</b>
+<b class="nc"><i>57</i>&nbsp;        Objects.requireNonNull(listener, &quot;listener must not be null&quot;);</b>
+<i>58</i>&nbsp;        // the algorithm here tires to reduce the load on each individual caller.
+<i>59</i>&nbsp;        // we try to have only one caller that processes pending items to disc while others just add to the queue but
+<i>60</i>&nbsp;        // at the same time never overload the node by pushing too many items into the queue.
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;        // we first try make a promise that we are responsible for the processing
+<b class="nc"><i>63</i>&nbsp;        final boolean promised = promiseSemaphore.tryAcquire();</b>
+<b class="nc"><i>64</i>&nbsp;        if (promised == false) {</b>
+<i>65</i>&nbsp;            // in this case we are not responsible and can just block until there is space
+<i>66</i>&nbsp;            try {
+<b class="nc"><i>67</i>&nbsp;                queue.put(new Tuple&lt;&gt;(item, preserveContext(listener)));</b>
+<b class="nc"><i>68</i>&nbsp;            } catch (InterruptedException e) {</b>
+<b class="nc"><i>69</i>&nbsp;                Thread.currentThread().interrupt();</b>
+<b class="nc"><i>70</i>&nbsp;                listener.accept(e);</b>
+<b class="nc"><i>71</i>&nbsp;            }</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;        // here we have to try to make the promise again otherwise there is a race when a thread puts an entry without making the promise
+<i>75</i>&nbsp;        // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
+<b class="nc"><i>76</i>&nbsp;        if (promised || promiseSemaphore.tryAcquire()) {</b>
+<b class="nc"><i>77</i>&nbsp;            final List&lt;Tuple&lt;Item, Consumer&lt;Exception&gt;&gt;&gt; candidates = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>78</i>&nbsp;            if (promised) {</b>
+<i>79</i>&nbsp;                // we are responsible for processing we don&#39;t need to add the tuple to the queue we can just add it to the candidates
+<i>80</i>&nbsp;                // no need to preserve context for listener since it runs in current thread.
+<b class="nc"><i>81</i>&nbsp;                candidates.add(new Tuple&lt;&gt;(item, listener));</b>
+<i>82</i>&nbsp;            }
+<i>83</i>&nbsp;            // since we made the promise to process we gotta do it here at least once
+<b class="nc"><i>84</i>&nbsp;            drainAndProcessAndRelease(candidates);</b>
+<b class="nc"><i>85</i>&nbsp;            while (queue.isEmpty() == false &amp;&amp; promiseSemaphore.tryAcquire()) {</b>
+<i>86</i>&nbsp;                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
+<b class="nc"><i>87</i>&nbsp;                drainAndProcessAndRelease(candidates);</b>
+<i>88</i>&nbsp;            }
+<i>89</i>&nbsp;        }
+<b class="nc"><i>90</i>&nbsp;    }</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    private void drainAndProcessAndRelease(List&lt;Tuple&lt;Item, Consumer&lt;Exception&gt;&gt;&gt; candidates) {
+<i>93</i>&nbsp;        Exception exception;
+<i>94</i>&nbsp;        try {
+<b class="nc"><i>95</i>&nbsp;            queue.drainTo(candidates);</b>
+<b class="nc"><i>96</i>&nbsp;            exception = processList(candidates);</b>
+<i>97</i>&nbsp;        } finally {
+<b class="nc"><i>98</i>&nbsp;            promiseSemaphore.release();</b>
+<b class="nc"><i>99</i>&nbsp;        }</b>
+<b class="nc"><i>100</i>&nbsp;        notifyList(candidates, exception);</b>
+<b class="nc"><i>101</i>&nbsp;        candidates.clear();</b>
+<b class="nc"><i>102</i>&nbsp;    }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    private Exception processList(List&lt;Tuple&lt;Item, Consumer&lt;Exception&gt;&gt;&gt; candidates) {
+<b class="nc"><i>105</i>&nbsp;        Exception exception = null;</b>
+<b class="nc"><i>106</i>&nbsp;        if (candidates.isEmpty() == false) {</b>
+<i>107</i>&nbsp;            try {
+<b class="nc"><i>108</i>&nbsp;                write(candidates);</b>
+<b class="nc"><i>109</i>&nbsp;            } catch (Exception ex) { // if this fails we are in deep shit - fail the request</b>
+<b class="nc"><i>110</i>&nbsp;                logger.debug(&quot;failed to write candidates&quot;, ex);</b>
+<i>111</i>&nbsp;                // this exception is passed to all listeners - we don&#39;t retry. if this doesn&#39;t work we are in deep shit
+<b class="nc"><i>112</i>&nbsp;                exception = ex;</b>
+<b class="nc"><i>113</i>&nbsp;            }</b>
+<i>114</i>&nbsp;        }
+<b class="nc"><i>115</i>&nbsp;        return exception;</b>
+<i>116</i>&nbsp;    }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    private void notifyList(List&lt;Tuple&lt;Item, Consumer&lt;Exception&gt;&gt;&gt; candidates, Exception exception) {
+<b class="nc"><i>119</i>&nbsp;        for (Tuple&lt;Item, Consumer&lt;Exception&gt;&gt; tuple : candidates) {</b>
+<b class="nc"><i>120</i>&nbsp;            Consumer&lt;Exception&gt; consumer = tuple.v2();</b>
+<i>121</i>&nbsp;            try {
+<b class="nc"><i>122</i>&nbsp;                consumer.accept(exception);</b>
+<b class="nc"><i>123</i>&nbsp;            } catch (Exception ex) {</b>
+<b class="nc"><i>124</i>&nbsp;                logger.warn(&quot;failed to notify callback&quot;, ex);</b>
+<b class="nc"><i>125</i>&nbsp;            }</b>
+<b class="nc"><i>126</i>&nbsp;        }</b>
+<b class="nc"><i>127</i>&nbsp;    }</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    private Consumer&lt;Exception&gt; preserveContext(Consumer&lt;Exception&gt; consumer) {
+<b class="nc"><i>130</i>&nbsp;        Supplier&lt;ThreadContext.StoredContext&gt; restorableContext = threadContext.newRestorableContext(false);</b>
+<b class="nc"><i>131</i>&nbsp;        return e -&gt; {</b>
+<b class="nc"><i>132</i>&nbsp;            try (ThreadContext.StoredContext ignore = restorableContext.get()) {</b>
+<b class="nc"><i>133</i>&nbsp;                consumer.accept(e);</b>
+<b class="nc"><i>134</i>&nbsp;            }</b>
+<b class="nc"><i>135</i>&nbsp;        };</b>
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * Writes or processes the items out or to disk.
+<i>140</i>&nbsp;     */
+<i>141</i>&nbsp;    protected abstract void write(List&lt;Tuple&lt;Item, Consumer&lt;Exception&gt;&gt;&gt; candidates) throws IOException;
+<i>142</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

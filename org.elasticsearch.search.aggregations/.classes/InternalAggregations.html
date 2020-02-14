@@ -1,0 +1,225 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InternalAggregations</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InternalAggregations (org.elasticsearch.search.aggregations)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InternalAggregations</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    88.9%
+  </span>
+  <span class="absValue">
+    (8/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    81.6%
+  </span>
+  <span class="absValue">
+    (40/ 49)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.search.aggregations;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.Version;
+<i>22</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>23</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>25</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+<i>26</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+<i>27</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.io.IOException;
+<i>30</i>&nbsp;import java.util.ArrayList;
+<i>31</i>&nbsp;import java.util.Collections;
+<i>32</i>&nbsp;import java.util.Comparator;
+<i>33</i>&nbsp;import java.util.HashMap;
+<i>34</i>&nbsp;import java.util.List;
+<i>35</i>&nbsp;import java.util.Map;
+<i>36</i>&nbsp;import java.util.Objects;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;/**
+<i>39</i>&nbsp; * An internal implementation of {@link Aggregations}.
+<i>40</i>&nbsp; */
+<i>41</i>&nbsp;public final class InternalAggregations extends Aggregations implements Writeable {
+<i>42</i>&nbsp;
+<b class="fc"><i>43</i>&nbsp;    public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());</b>
+<i>44</i>&nbsp;
+<b class="fc"><i>45</i>&nbsp;    private static final Comparator&lt;InternalAggregation&gt; INTERNAL_AGG_COMPARATOR = (agg1, agg2) -&gt; {</b>
+<b class="fc"><i>46</i>&nbsp;        if (agg1.isMapped() == agg2.isMapped()) {</b>
+<b class="fc"><i>47</i>&nbsp;            return 0;</b>
+<b class="nc"><i>48</i>&nbsp;        } else if (agg1.isMapped() &amp;&amp; agg2.isMapped() == false) {</b>
+<b class="nc"><i>49</i>&nbsp;            return -1;</b>
+<i>50</i>&nbsp;        } else {
+<b class="nc"><i>51</i>&nbsp;            return 1;</b>
+<i>52</i>&nbsp;        }
+<i>53</i>&nbsp;    };
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    private final List&lt;SiblingPipelineAggregator&gt; topLevelPipelineAggregators;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    /**
+<i>58</i>&nbsp;     * Constructs a new aggregation.
+<i>59</i>&nbsp;     */
+<i>60</i>&nbsp;    public InternalAggregations(List&lt;InternalAggregation&gt; aggregations) {
+<b class="fc"><i>61</i>&nbsp;        super(aggregations);</b>
+<b class="fc"><i>62</i>&nbsp;        this.topLevelPipelineAggregators = Collections.emptyList();</b>
+<b class="fc"><i>63</i>&nbsp;    }</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    /**
+<i>66</i>&nbsp;     * Constructs a new aggregation providing its {@link InternalAggregation}s and {@link SiblingPipelineAggregator}s
+<i>67</i>&nbsp;     */
+<i>68</i>&nbsp;    public InternalAggregations(List&lt;InternalAggregation&gt; aggregations, List&lt;SiblingPipelineAggregator&gt; topLevelPipelineAggregators) {
+<b class="fc"><i>69</i>&nbsp;        super(aggregations);</b>
+<b class="fc"><i>70</i>&nbsp;        this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);</b>
+<b class="fc"><i>71</i>&nbsp;    }</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    public InternalAggregations(StreamInput in) throws IOException {
+<b class="fc"><i>74</i>&nbsp;        super(in.readList(stream -&gt; in.readNamedWriteable(InternalAggregation.class)));</b>
+<b class="fc"><i>75</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {</b>
+<b class="fc"><i>76</i>&nbsp;            this.topLevelPipelineAggregators = in.readList(</b>
+<b class="nc"><i>77</i>&nbsp;                stream -&gt; (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));</b>
+<i>78</i>&nbsp;        } else {
+<b class="nc"><i>79</i>&nbsp;            this.topLevelPipelineAggregators = Collections.emptyList();</b>
+<i>80</i>&nbsp;        }
+<b class="fc"><i>81</i>&nbsp;    }</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    @Override
+<i>84</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>85</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>86</i>&nbsp;        out.writeNamedWriteableList((List&lt;InternalAggregation&gt;)aggregations);</b>
+<b class="fc"><i>87</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {</b>
+<b class="fc"><i>88</i>&nbsp;            out.writeNamedWriteableList(topLevelPipelineAggregators);</b>
+<i>89</i>&nbsp;        }
+<b class="fc"><i>90</i>&nbsp;    }</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    /**
+<i>93</i>&nbsp;     * Returns the top-level pipeline aggregators.
+<i>94</i>&nbsp;     * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
+<i>95</i>&nbsp;     * become part of the list of {@link InternalAggregation}s.
+<i>96</i>&nbsp;     */
+<i>97</i>&nbsp;    public List&lt;SiblingPipelineAggregator&gt; getTopLevelPipelineAggregators() {
+<b class="fc"><i>98</i>&nbsp;        return topLevelPipelineAggregators;</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    /**
+<i>102</i>&nbsp;     * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
+<i>103</i>&nbsp;     * {@link InternalAggregations} object found in the list.
+<i>104</i>&nbsp;     * Note that top-level pipeline aggregators are reduced only as part of the final reduction phase, otherwise they are left untouched.
+<i>105</i>&nbsp;     */
+<i>106</i>&nbsp;    public static InternalAggregations reduce(List&lt;InternalAggregations&gt; aggregationsList, ReduceContext context) {
+<b class="fc"><i>107</i>&nbsp;        if (aggregationsList.isEmpty()) {</b>
+<b class="nc"><i>108</i>&nbsp;            return null;</b>
+<i>109</i>&nbsp;        }
+<b class="fc"><i>110</i>&nbsp;        List&lt;SiblingPipelineAggregator&gt; topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;        // first we collect all aggregations of the same type and list them together
+<b class="fc"><i>113</i>&nbsp;        Map&lt;String, List&lt;InternalAggregation&gt;&gt; aggByName = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>114</i>&nbsp;        for (InternalAggregations aggregations : aggregationsList) {</b>
+<b class="fc"><i>115</i>&nbsp;            for (Aggregation aggregation : aggregations.aggregations) {</b>
+<b class="fc"><i>116</i>&nbsp;                List&lt;InternalAggregation&gt; aggs = aggByName.computeIfAbsent(</b>
+<b class="fc"><i>117</i>&nbsp;                        aggregation.getName(), k -&gt; new ArrayList&lt;&gt;(aggregationsList.size()));</b>
+<b class="fc"><i>118</i>&nbsp;                aggs.add((InternalAggregation)aggregation);</b>
+<b class="fc"><i>119</i>&nbsp;            }</b>
+<b class="fc"><i>120</i>&nbsp;        }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;        // now we can use the first aggregation of each list to handle the reduce of its list
+<b class="fc"><i>123</i>&nbsp;        List&lt;InternalAggregation&gt; reducedAggregations = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>124</i>&nbsp;        for (Map.Entry&lt;String, List&lt;InternalAggregation&gt;&gt; entry : aggByName.entrySet()) {</b>
+<b class="fc"><i>125</i>&nbsp;            List&lt;InternalAggregation&gt; aggregations = entry.getValue();</b>
+<i>126</i>&nbsp;            // Sort aggregations so that unmapped aggs come last in the list
+<i>127</i>&nbsp;            // If all aggs are unmapped, the agg that leads the reduction will just return itself
+<b class="fc"><i>128</i>&nbsp;            aggregations.sort(INTERNAL_AGG_COMPARATOR);</b>
+<b class="fc"><i>129</i>&nbsp;            InternalAggregation first = aggregations.get(0); // the list can&#39;t be empty as it&#39;s created on demand</b>
+<b class="fc"><i>130</i>&nbsp;            reducedAggregations.add(first.reduce(aggregations, context));</b>
+<b class="fc"><i>131</i>&nbsp;        }</b>
+<i>132</i>&nbsp;
+<b class="fc"><i>133</i>&nbsp;        if (context.isFinalReduce()) {</b>
+<b class="fc"><i>134</i>&nbsp;            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {</b>
+<b class="nc"><i>135</i>&nbsp;                InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(reducedAggregations), context);</b>
+<b class="nc"><i>136</i>&nbsp;                reducedAggregations.add(newAgg);</b>
+<b class="nc"><i>137</i>&nbsp;            }</b>
+<b class="fc"><i>138</i>&nbsp;            return new InternalAggregations(reducedAggregations);</b>
+<i>139</i>&nbsp;        }
+<b class="fc"><i>140</i>&nbsp;        return new InternalAggregations(reducedAggregations, topLevelPipelineAggregators);</b>
+<i>141</i>&nbsp;    }
+<i>142</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

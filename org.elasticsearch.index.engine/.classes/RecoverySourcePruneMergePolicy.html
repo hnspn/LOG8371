@@ -1,0 +1,375 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RecoverySourcePruneMergePolicy</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RecoverySourcePruneMergePolicy (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RecoverySourcePruneMergePolicy</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 16)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.engine;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.codecs.DocValuesProducer;
+<i>23</i>&nbsp;import org.apache.lucene.codecs.StoredFieldsReader;
+<i>24</i>&nbsp;import org.apache.lucene.index.BinaryDocValues;
+<i>25</i>&nbsp;import org.apache.lucene.index.CodecReader;
+<i>26</i>&nbsp;import org.apache.lucene.index.FieldInfo;
+<i>27</i>&nbsp;import org.apache.lucene.index.FilterCodecReader;
+<i>28</i>&nbsp;import org.apache.lucene.index.FilterNumericDocValues;
+<i>29</i>&nbsp;import org.apache.lucene.index.MergePolicy;
+<i>30</i>&nbsp;import org.apache.lucene.index.NumericDocValues;
+<i>31</i>&nbsp;import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+<i>32</i>&nbsp;import org.apache.lucene.index.SortedDocValues;
+<i>33</i>&nbsp;import org.apache.lucene.index.SortedNumericDocValues;
+<i>34</i>&nbsp;import org.apache.lucene.index.SortedSetDocValues;
+<i>35</i>&nbsp;import org.apache.lucene.index.StoredFieldVisitor;
+<i>36</i>&nbsp;import org.apache.lucene.search.ConjunctionDISI;
+<i>37</i>&nbsp;import org.apache.lucene.search.DocIdSetIterator;
+<i>38</i>&nbsp;import org.apache.lucene.search.IndexSearcher;
+<i>39</i>&nbsp;import org.apache.lucene.search.Query;
+<i>40</i>&nbsp;import org.apache.lucene.search.ScoreMode;
+<i>41</i>&nbsp;import org.apache.lucene.search.Scorer;
+<i>42</i>&nbsp;import org.apache.lucene.search.Weight;
+<i>43</i>&nbsp;import org.apache.lucene.util.BitSet;
+<i>44</i>&nbsp;import org.apache.lucene.util.BitSetIterator;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.io.IOException;
+<i>47</i>&nbsp;import java.util.Arrays;
+<i>48</i>&nbsp;import java.util.function.Supplier;
+<i>49</i>&nbsp;
+<b class="nc"><i>50</i>&nbsp;final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {</b>
+<i>51</i>&nbsp;    RecoverySourcePruneMergePolicy(String recoverySourceField, Supplier&lt;Query&gt; retainSourceQuerySupplier, MergePolicy in) {
+<b class="nc"><i>52</i>&nbsp;        super(in, toWrap -&gt; new OneMerge(toWrap.segments) {</b>
+<i>53</i>&nbsp;            @Override
+<i>54</i>&nbsp;            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+<i>55</i>&nbsp;                CodecReader wrapped = toWrap.wrapForMerge(reader);
+<i>56</i>&nbsp;                return wrapReader(recoverySourceField, wrapped, retainSourceQuerySupplier);
+<i>57</i>&nbsp;            }
+<i>58</i>&nbsp;        });
+<b class="nc"><i>59</i>&nbsp;    }</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    private static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier&lt;Query&gt; retainSourceQuerySupplier)
+<i>62</i>&nbsp;        throws IOException {
+<b class="nc"><i>63</i>&nbsp;        NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);</b>
+<b class="nc"><i>64</i>&nbsp;        if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {</b>
+<b class="nc"><i>65</i>&nbsp;            return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.</b>
+<i>66</i>&nbsp;        }
+<b class="nc"><i>67</i>&nbsp;        IndexSearcher s = new IndexSearcher(reader);</b>
+<b class="nc"><i>68</i>&nbsp;        s.setQueryCache(null);</b>
+<b class="nc"><i>69</i>&nbsp;        Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);</b>
+<b class="nc"><i>70</i>&nbsp;        Scorer scorer = weight.scorer(reader.getContext());</b>
+<b class="nc"><i>71</i>&nbsp;        if (scorer != null) {</b>
+<b class="nc"><i>72</i>&nbsp;            BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), reader.maxDoc());</b>
+<i>73</i>&nbsp;            // calculating the cardinality is significantly cheaper than skipping all bulk-merging we might do
+<i>74</i>&nbsp;            // if retentions are high we keep most of it
+<b class="nc"><i>75</i>&nbsp;            if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {</b>
+<b class="nc"><i>76</i>&nbsp;                return reader; // keep all source</b>
+<i>77</i>&nbsp;            }
+<b class="nc"><i>78</i>&nbsp;            return new SourcePruningFilterCodecReader(recoverySourceField, reader, recoverySourceToKeep);</b>
+<i>79</i>&nbsp;        } else {
+<b class="nc"><i>80</i>&nbsp;            return new SourcePruningFilterCodecReader(recoverySourceField, reader, null);</b>
+<i>81</i>&nbsp;        }
+<i>82</i>&nbsp;    }
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    private static class SourcePruningFilterCodecReader extends FilterCodecReader {
+<i>85</i>&nbsp;        private final BitSet recoverySourceToKeep;
+<i>86</i>&nbsp;        private final String recoverySourceField;
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;        SourcePruningFilterCodecReader(String recoverySourceField, CodecReader reader, BitSet recoverySourceToKeep) {
+<i>89</i>&nbsp;            super(reader);
+<i>90</i>&nbsp;            this.recoverySourceField = recoverySourceField;
+<i>91</i>&nbsp;            this.recoverySourceToKeep = recoverySourceToKeep;
+<i>92</i>&nbsp;        }
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;        @Override
+<i>95</i>&nbsp;        public DocValuesProducer getDocValuesReader() {
+<i>96</i>&nbsp;            DocValuesProducer docValuesReader = super.getDocValuesReader();
+<i>97</i>&nbsp;            return new FilterDocValuesProducer(docValuesReader) {
+<i>98</i>&nbsp;                @Override
+<i>99</i>&nbsp;                public NumericDocValues getNumeric(FieldInfo field) throws IOException {
+<i>100</i>&nbsp;                    NumericDocValues numeric = super.getNumeric(field);
+<i>101</i>&nbsp;                    if (recoverySourceField.equals(field.name)) {
+<i>102</i>&nbsp;                        assert numeric != null : recoverySourceField + &quot; must have numeric DV but was null&quot;;
+<i>103</i>&nbsp;                        final DocIdSetIterator intersection;
+<i>104</i>&nbsp;                        if (recoverySourceToKeep == null) {
+<i>105</i>&nbsp;                            // we can&#39;t return null here lucenes DocIdMerger expects an instance
+<i>106</i>&nbsp;                            intersection = DocIdSetIterator.empty();
+<i>107</i>&nbsp;                        } else {
+<i>108</i>&nbsp;                            intersection = ConjunctionDISI.intersectIterators(Arrays.asList(numeric,
+<i>109</i>&nbsp;                                new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length())));
+<i>110</i>&nbsp;                        }
+<i>111</i>&nbsp;                        return new FilterNumericDocValues(numeric) {
+<i>112</i>&nbsp;                            @Override
+<i>113</i>&nbsp;                            public int nextDoc() throws IOException {
+<i>114</i>&nbsp;                                return intersection.nextDoc();
+<i>115</i>&nbsp;                            }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;                            @Override
+<i>118</i>&nbsp;                            public int advance(int target) {
+<i>119</i>&nbsp;                                throw new UnsupportedOperationException();
+<i>120</i>&nbsp;                            }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;                            @Override
+<i>123</i>&nbsp;                            public boolean advanceExact(int target) {
+<i>124</i>&nbsp;                                throw new UnsupportedOperationException();
+<i>125</i>&nbsp;                            }
+<i>126</i>&nbsp;                        };
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;                    }
+<i>129</i>&nbsp;                    return numeric;
+<i>130</i>&nbsp;                }
+<i>131</i>&nbsp;            };
+<i>132</i>&nbsp;        }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;        @Override
+<i>135</i>&nbsp;        public StoredFieldsReader getFieldsReader() {
+<i>136</i>&nbsp;            StoredFieldsReader fieldsReader = super.getFieldsReader();
+<i>137</i>&nbsp;            return new FilterStoredFieldsReader(fieldsReader) {
+<i>138</i>&nbsp;                @Override
+<i>139</i>&nbsp;                public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
+<i>140</i>&nbsp;                    if (recoverySourceToKeep != null &amp;&amp; recoverySourceToKeep.get(docID)) {
+<i>141</i>&nbsp;                        super.visitDocument(docID, visitor);
+<i>142</i>&nbsp;                    } else {
+<i>143</i>&nbsp;                        super.visitDocument(docID, new FilterStoredFieldVisitor(visitor) {
+<i>144</i>&nbsp;                            @Override
+<i>145</i>&nbsp;                            public Status needsField(FieldInfo fieldInfo) throws IOException {
+<i>146</i>&nbsp;                                if (recoverySourceField.equals(fieldInfo.name)) {
+<i>147</i>&nbsp;                                    return Status.NO;
+<i>148</i>&nbsp;                                }
+<i>149</i>&nbsp;                                return super.needsField(fieldInfo);
+<i>150</i>&nbsp;                            }
+<i>151</i>&nbsp;                        });
+<i>152</i>&nbsp;                    }
+<i>153</i>&nbsp;                }
+<i>154</i>&nbsp;            };
+<i>155</i>&nbsp;        }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;        @Override
+<i>158</i>&nbsp;        public CacheHelper getCoreCacheHelper() {
+<i>159</i>&nbsp;            return null;
+<i>160</i>&nbsp;        }
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;        @Override
+<i>163</i>&nbsp;        public CacheHelper getReaderCacheHelper() {
+<i>164</i>&nbsp;            return null;
+<i>165</i>&nbsp;        }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;        private static class FilterDocValuesProducer extends DocValuesProducer {
+<i>168</i>&nbsp;            private final DocValuesProducer in;
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;            FilterDocValuesProducer(DocValuesProducer in) {
+<i>171</i>&nbsp;                this.in = in;
+<i>172</i>&nbsp;            }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;            @Override
+<i>175</i>&nbsp;            public NumericDocValues getNumeric(FieldInfo field) throws IOException {
+<i>176</i>&nbsp;                return in.getNumeric(field);
+<i>177</i>&nbsp;            }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;            @Override
+<i>180</i>&nbsp;            public BinaryDocValues getBinary(FieldInfo field) throws IOException {
+<i>181</i>&nbsp;                return in.getBinary(field);
+<i>182</i>&nbsp;            }
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;            @Override
+<i>185</i>&nbsp;            public SortedDocValues getSorted(FieldInfo field) throws IOException {
+<i>186</i>&nbsp;                return in.getSorted(field);
+<i>187</i>&nbsp;            }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;            @Override
+<i>190</i>&nbsp;            public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
+<i>191</i>&nbsp;                return in.getSortedNumeric(field);
+<i>192</i>&nbsp;            }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;            @Override
+<i>195</i>&nbsp;            public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
+<i>196</i>&nbsp;                return in.getSortedSet(field);
+<i>197</i>&nbsp;            }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;            @Override
+<i>200</i>&nbsp;            public void checkIntegrity() throws IOException {
+<i>201</i>&nbsp;                in.checkIntegrity();
+<i>202</i>&nbsp;            }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;            @Override
+<i>205</i>&nbsp;            public void close() throws IOException {
+<i>206</i>&nbsp;                in.close();
+<i>207</i>&nbsp;            }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;            @Override
+<i>210</i>&nbsp;            public long ramBytesUsed() {
+<i>211</i>&nbsp;                return in.ramBytesUsed();
+<i>212</i>&nbsp;            }
+<i>213</i>&nbsp;        }
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;        private static class FilterStoredFieldsReader extends StoredFieldsReader {
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;            private final StoredFieldsReader fieldsReader;
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;            FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
+<i>220</i>&nbsp;                this.fieldsReader = fieldsReader;
+<i>221</i>&nbsp;            }
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;            @Override
+<i>224</i>&nbsp;            public long ramBytesUsed() {
+<i>225</i>&nbsp;                return fieldsReader.ramBytesUsed();
+<i>226</i>&nbsp;            }
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;            @Override
+<i>229</i>&nbsp;            public void close() throws IOException {
+<i>230</i>&nbsp;                fieldsReader.close();
+<i>231</i>&nbsp;            }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;            @Override
+<i>234</i>&nbsp;            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
+<i>235</i>&nbsp;                fieldsReader.visitDocument(docID, visitor);
+<i>236</i>&nbsp;            }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;            @Override
+<i>239</i>&nbsp;            public StoredFieldsReader clone() {
+<i>240</i>&nbsp;                return fieldsReader.clone();
+<i>241</i>&nbsp;            }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;            @Override
+<i>244</i>&nbsp;            public void checkIntegrity() throws IOException {
+<i>245</i>&nbsp;                fieldsReader.checkIntegrity();
+<i>246</i>&nbsp;            }
+<i>247</i>&nbsp;        }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;        private static class FilterStoredFieldVisitor extends StoredFieldVisitor {
+<i>250</i>&nbsp;            private final StoredFieldVisitor visitor;
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;            FilterStoredFieldVisitor(StoredFieldVisitor visitor) {
+<i>253</i>&nbsp;                this.visitor = visitor;
+<i>254</i>&nbsp;            }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;            @Override
+<i>257</i>&nbsp;            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+<i>258</i>&nbsp;                visitor.binaryField(fieldInfo, value);
+<i>259</i>&nbsp;            }
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;            @Override
+<i>262</i>&nbsp;            public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+<i>263</i>&nbsp;                visitor.stringField(fieldInfo, value);
+<i>264</i>&nbsp;            }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;            @Override
+<i>267</i>&nbsp;            public void intField(FieldInfo fieldInfo, int value) throws IOException {
+<i>268</i>&nbsp;                visitor.intField(fieldInfo, value);
+<i>269</i>&nbsp;            }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;            @Override
+<i>272</i>&nbsp;            public void longField(FieldInfo fieldInfo, long value) throws IOException {
+<i>273</i>&nbsp;                visitor.longField(fieldInfo, value);
+<i>274</i>&nbsp;            }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;            @Override
+<i>277</i>&nbsp;            public void floatField(FieldInfo fieldInfo, float value) throws IOException {
+<i>278</i>&nbsp;                visitor.floatField(fieldInfo, value);
+<i>279</i>&nbsp;            }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;            @Override
+<i>282</i>&nbsp;            public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
+<i>283</i>&nbsp;                visitor.doubleField(fieldInfo, value);
+<i>284</i>&nbsp;            }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;            @Override
+<i>287</i>&nbsp;            public Status needsField(FieldInfo fieldInfo) throws IOException {
+<i>288</i>&nbsp;                return visitor.needsField(fieldInfo);
+<i>289</i>&nbsp;            }
+<i>290</i>&nbsp;        }
+<i>291</i>&nbsp;    }
+<i>292</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

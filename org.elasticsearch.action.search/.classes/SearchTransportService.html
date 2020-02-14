@@ -1,0 +1,588 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SearchTransportService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SearchTransportService (org.elasticsearch.action.search)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SearchTransportService</td>
+<td class="coverageStat">
+  <span class="percent">
+    9.4%
+  </span>
+  <span class="absValue">
+    (3/ 32)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    29.6%
+  </span>
+  <span class="absValue">
+    (29/ 98)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">SearchTransportService$ScrollFreeContextRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 12)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">SearchTransportService$SearchFreeContextRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 17)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">SearchTransportService$SearchFreeContextResponse</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    6.4%
+  </span>
+  <span class="absValue">
+    (3/ 47)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    21.3%
+  </span>
+  <span class="absValue">
+    (29/ 136)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListenerResponseHandler;
+<i>24</i>&nbsp;import org.elasticsearch.action.IndicesRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.OriginalIndices;
+<i>26</i>&nbsp;import org.elasticsearch.action.support.ChannelActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.IndicesOptions;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>29</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>32</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>33</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>34</i>&nbsp;import org.elasticsearch.search.SearchPhaseResult;
+<i>35</i>&nbsp;import org.elasticsearch.search.SearchService;
+<i>36</i>&nbsp;import org.elasticsearch.search.dfs.DfsSearchResult;
+<i>37</i>&nbsp;import org.elasticsearch.search.fetch.FetchSearchResult;
+<i>38</i>&nbsp;import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+<i>39</i>&nbsp;import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+<i>40</i>&nbsp;import org.elasticsearch.search.fetch.ShardFetchRequest;
+<i>41</i>&nbsp;import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+<i>42</i>&nbsp;import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+<i>43</i>&nbsp;import org.elasticsearch.search.internal.ShardSearchRequest;
+<i>44</i>&nbsp;import org.elasticsearch.search.query.QuerySearchRequest;
+<i>45</i>&nbsp;import org.elasticsearch.search.query.QuerySearchResult;
+<i>46</i>&nbsp;import org.elasticsearch.search.query.ScrollQuerySearchResult;
+<i>47</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>48</i>&nbsp;import org.elasticsearch.transport.RemoteClusterService;
+<i>49</i>&nbsp;import org.elasticsearch.transport.Transport;
+<i>50</i>&nbsp;import org.elasticsearch.transport.TransportActionProxy;
+<i>51</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>52</i>&nbsp;import org.elasticsearch.transport.TransportRequest;
+<i>53</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions;
+<i>54</i>&nbsp;import org.elasticsearch.transport.TransportResponse;
+<i>55</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;import java.io.IOException;
+<i>58</i>&nbsp;import java.io.UncheckedIOException;
+<i>59</i>&nbsp;import java.util.HashMap;
+<i>60</i>&nbsp;import java.util.Map;
+<i>61</i>&nbsp;import java.util.function.BiFunction;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;/**
+<i>64</i>&nbsp; * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
+<i>65</i>&nbsp; * transport.
+<i>66</i>&nbsp; */
+<i>67</i>&nbsp;public class SearchTransportService {
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = &quot;indices:data/read/search[free_context/scroll]&quot;;
+<i>70</i>&nbsp;    public static final String FREE_CONTEXT_ACTION_NAME = &quot;indices:data/read/search[free_context]&quot;;
+<i>71</i>&nbsp;    public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = &quot;indices:data/read/search[clear_scroll_contexts]&quot;;
+<i>72</i>&nbsp;    public static final String DFS_ACTION_NAME = &quot;indices:data/read/search[phase/dfs]&quot;;
+<i>73</i>&nbsp;    public static final String QUERY_ACTION_NAME = &quot;indices:data/read/search[phase/query]&quot;;
+<i>74</i>&nbsp;    public static final String QUERY_ID_ACTION_NAME = &quot;indices:data/read/search[phase/query/id]&quot;;
+<i>75</i>&nbsp;    public static final String QUERY_SCROLL_ACTION_NAME = &quot;indices:data/read/search[phase/query/scroll]&quot;;
+<i>76</i>&nbsp;    public static final String QUERY_FETCH_SCROLL_ACTION_NAME = &quot;indices:data/read/search[phase/query+fetch/scroll]&quot;;
+<i>77</i>&nbsp;    public static final String FETCH_ID_SCROLL_ACTION_NAME = &quot;indices:data/read/search[phase/fetch/id/scroll]&quot;;
+<i>78</i>&nbsp;    public static final String FETCH_ID_ACTION_NAME = &quot;indices:data/read/search[phase/fetch/id]&quot;;
+<i>79</i>&nbsp;    public static final String QUERY_CAN_MATCH_NAME = &quot;indices:data/read/search[can_match]&quot;;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    private final TransportService transportService;
+<i>82</i>&nbsp;    private final BiFunction&lt;Transport.Connection, SearchActionListener, ActionListener&gt; responseWrapper;
+<b class="fc"><i>83</i>&nbsp;    private final Map&lt;String, Long&gt; clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    public SearchTransportService(TransportService transportService,
+<b class="fc"><i>86</i>&nbsp;                                  BiFunction&lt;Transport.Connection, SearchActionListener, ActionListener&gt; responseWrapper) {</b>
+<b class="fc"><i>87</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>88</i>&nbsp;        this.responseWrapper = responseWrapper;</b>
+<b class="fc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
+<b class="nc"><i>92</i>&nbsp;        transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),</b>
+<i>93</i>&nbsp;            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler&lt;&gt;(new ActionListener&lt;SearchFreeContextResponse&gt;() {
+<i>94</i>&nbsp;                @Override
+<i>95</i>&nbsp;                public void onResponse(SearchFreeContextResponse response) {
+<i>96</i>&nbsp;                    // no need to respond if it was freed or not
+<i>97</i>&nbsp;                }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;                @Override
+<i>100</i>&nbsp;                public void onFailure(Exception e) {
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;                }
+<i>103</i>&nbsp;            }, SearchFreeContextResponse::new));
+<b class="nc"><i>104</i>&nbsp;    }</b>
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener&lt;SearchFreeContextResponse&gt; listener) {
+<b class="nc"><i>107</i>&nbsp;        transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),</b>
+<i>108</i>&nbsp;            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler&lt;&gt;(listener, SearchFreeContextResponse::new));
+<b class="nc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    public void sendCanMatch(Transport.Connection connection, final ShardSearchRequest request, SearchTask task, final
+<i>112</i>&nbsp;                            ActionListener&lt;SearchService.CanMatchResponse&gt; listener) {
+<b class="nc"><i>113</i>&nbsp;        transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,</b>
+<i>114</i>&nbsp;            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler&lt;&gt;(listener, SearchService.CanMatchResponse::new));
+<b class="nc"><i>115</i>&nbsp;    }</b>
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener&lt;TransportResponse&gt; listener) {
+<b class="nc"><i>118</i>&nbsp;        transportService.sendRequest(connection, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,</b>
+<b class="nc"><i>119</i>&nbsp;            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler&lt;&gt;(listener, (in) -&gt; TransportResponse.Empty.INSTANCE));</b>
+<b class="nc"><i>120</i>&nbsp;    }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    public void sendExecuteDfs(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
+<i>123</i>&nbsp;                               final SearchActionListener&lt;DfsSearchResult&gt; listener) {
+<b class="nc"><i>124</i>&nbsp;        transportService.sendChildRequest(connection, DFS_ACTION_NAME, request, task,</b>
+<b class="nc"><i>125</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(listener, DfsSearchResult::new, clientConnections, connection.getNode().getId()));</b>
+<b class="nc"><i>126</i>&nbsp;    }</b>
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    public void sendExecuteQuery(Transport.Connection connection, final ShardSearchRequest request, SearchTask task,
+<i>129</i>&nbsp;                                 final SearchActionListener&lt;SearchPhaseResult&gt; listener) {
+<i>130</i>&nbsp;        // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
+<i>131</i>&nbsp;        // this used to be the QUERY_AND_FETCH which doesn&#39;t exist anymore.
+<b class="nc"><i>132</i>&nbsp;        final boolean fetchDocuments = request.numberOfShards() == 1;</b>
+<b class="nc"><i>133</i>&nbsp;        Writeable.Reader&lt;SearchPhaseResult&gt; reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;</b>
+<i>134</i>&nbsp;
+<b class="nc"><i>135</i>&nbsp;        final ActionListener handler = responseWrapper.apply(connection, listener);</b>
+<b class="nc"><i>136</i>&nbsp;        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,</b>
+<b class="nc"><i>137</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(handler, reader, clientConnections, connection.getNode().getId()));</b>
+<b class="nc"><i>138</i>&nbsp;    }</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
+<i>141</i>&nbsp;                                 final SearchActionListener&lt;QuerySearchResult&gt; listener) {
+<b class="nc"><i>142</i>&nbsp;        transportService.sendChildRequest(connection, QUERY_ID_ACTION_NAME, request, task,</b>
+<b class="nc"><i>143</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId()));</b>
+<b class="nc"><i>144</i>&nbsp;    }</b>
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    public void sendExecuteScrollQuery(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
+<i>147</i>&nbsp;                                       final SearchActionListener&lt;ScrollQuerySearchResult&gt; listener) {
+<b class="nc"><i>148</i>&nbsp;        transportService.sendChildRequest(connection, QUERY_SCROLL_ACTION_NAME, request, task,</b>
+<b class="nc"><i>149</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(listener, ScrollQuerySearchResult::new, clientConnections, connection.getNode().getId()));</b>
+<b class="nc"><i>150</i>&nbsp;    }</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
+<i>153</i>&nbsp;                                       final SearchActionListener&lt;ScrollQueryFetchSearchResult&gt; listener) {
+<b class="nc"><i>154</i>&nbsp;        transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,</b>
+<i>155</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(listener, ScrollQueryFetchSearchResult::new, clientConnections,
+<b class="nc"><i>156</i>&nbsp;                    connection.getNode().getId()));</b>
+<b class="nc"><i>157</i>&nbsp;    }</b>
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
+<i>160</i>&nbsp;                                 final SearchActionListener&lt;FetchSearchResult&gt; listener) {
+<b class="nc"><i>161</i>&nbsp;        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);</b>
+<b class="nc"><i>162</i>&nbsp;    }</b>
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
+<i>165</i>&nbsp;                                       final SearchActionListener&lt;FetchSearchResult&gt; listener) {
+<b class="nc"><i>166</i>&nbsp;        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);</b>
+<b class="nc"><i>167</i>&nbsp;    }</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
+<i>170</i>&nbsp;                                  final SearchActionListener&lt;FetchSearchResult&gt; listener) {
+<b class="nc"><i>171</i>&nbsp;        transportService.sendChildRequest(connection, action, request, task,</b>
+<b class="nc"><i>172</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId()));</b>
+<b class="nc"><i>173</i>&nbsp;    }</b>
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;    /**
+<i>176</i>&nbsp;     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing).
+<i>177</i>&nbsp;     */
+<i>178</i>&nbsp;    void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task,
+<i>179</i>&nbsp;                                final ActionListener&lt;MultiSearchResponse&gt; listener) {
+<b class="nc"><i>180</i>&nbsp;        final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());</b>
+<b class="nc"><i>181</i>&nbsp;        transportService.sendChildRequest(connection, MultiSearchAction.NAME, request, task,</b>
+<b class="nc"><i>182</i>&nbsp;                new ConnectionCountingHandler&lt;&gt;(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId()));</b>
+<b class="nc"><i>183</i>&nbsp;    }</b>
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    public RemoteClusterService getRemoteClusterService() {
+<b class="fc"><i>186</i>&nbsp;        return transportService.getRemoteClusterService();</b>
+<i>187</i>&nbsp;    }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    /**
+<i>190</i>&nbsp;     * Return a map of nodeId to pending number of search requests.
+<i>191</i>&nbsp;     * This is a snapshot of the current pending search and not a live map.
+<i>192</i>&nbsp;     */
+<i>193</i>&nbsp;    public Map&lt;String, Long&gt; getPendingSearchRequests() {
+<b class="nc"><i>194</i>&nbsp;        return new HashMap&lt;&gt;(clientConnections);</b>
+<i>195</i>&nbsp;    }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    static class ScrollFreeContextRequest extends TransportRequest {
+<i>198</i>&nbsp;        private long id;
+<i>199</i>&nbsp;
+<b class="nc"><i>200</i>&nbsp;        ScrollFreeContextRequest() {</b>
+<b class="nc"><i>201</i>&nbsp;        }</b>
+<i>202</i>&nbsp;
+<b class="nc"><i>203</i>&nbsp;        ScrollFreeContextRequest(long id) {</b>
+<b class="nc"><i>204</i>&nbsp;            this.id = id;</b>
+<b class="nc"><i>205</i>&nbsp;        }</b>
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;        ScrollFreeContextRequest(StreamInput in) throws IOException {
+<b class="nc"><i>208</i>&nbsp;            super(in);</b>
+<b class="nc"><i>209</i>&nbsp;            id = in.readLong();</b>
+<b class="nc"><i>210</i>&nbsp;        }</b>
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        @Override
+<i>213</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>214</i>&nbsp;            super.writeTo(out);</b>
+<b class="nc"><i>215</i>&nbsp;            out.writeLong(id);</b>
+<b class="nc"><i>216</i>&nbsp;        }</b>
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;        public long id() {
+<b class="nc"><i>219</i>&nbsp;            return this.id;</b>
+<i>220</i>&nbsp;        }
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;        }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
+<i>225</i>&nbsp;        private OriginalIndices originalIndices;
+<i>226</i>&nbsp;
+<b class="nc"><i>227</i>&nbsp;        SearchFreeContextRequest() {</b>
+<b class="nc"><i>228</i>&nbsp;        }</b>
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;        SearchFreeContextRequest(OriginalIndices originalIndices, long id) {
+<b class="nc"><i>231</i>&nbsp;            super(id);</b>
+<b class="nc"><i>232</i>&nbsp;            this.originalIndices = originalIndices;</b>
+<b class="nc"><i>233</i>&nbsp;        }</b>
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;        SearchFreeContextRequest(StreamInput in) throws IOException {
+<b class="nc"><i>236</i>&nbsp;            super(in);</b>
+<b class="nc"><i>237</i>&nbsp;            originalIndices = OriginalIndices.readOriginalIndices(in);</b>
+<b class="nc"><i>238</i>&nbsp;        }</b>
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;        @Override
+<i>241</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>242</i>&nbsp;            super.writeTo(out);</b>
+<b class="nc"><i>243</i>&nbsp;            OriginalIndices.writeOriginalIndices(originalIndices, out);</b>
+<b class="nc"><i>244</i>&nbsp;        }</b>
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;        @Override
+<i>247</i>&nbsp;        public String[] indices() {
+<b class="nc"><i>248</i>&nbsp;            if (originalIndices == null) {</b>
+<b class="nc"><i>249</i>&nbsp;                return null;</b>
+<i>250</i>&nbsp;            }
+<b class="nc"><i>251</i>&nbsp;            return originalIndices.indices();</b>
+<i>252</i>&nbsp;        }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;        @Override
+<i>255</i>&nbsp;        public IndicesOptions indicesOptions() {
+<b class="nc"><i>256</i>&nbsp;            if (originalIndices == null) {</b>
+<b class="nc"><i>257</i>&nbsp;                return null;</b>
+<i>258</i>&nbsp;            }
+<b class="nc"><i>259</i>&nbsp;            return originalIndices.indicesOptions();</b>
+<i>260</i>&nbsp;        }
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;        }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    public static class SearchFreeContextResponse extends TransportResponse {
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;        private boolean freed;
+<i>267</i>&nbsp;
+<b class="nc"><i>268</i>&nbsp;        SearchFreeContextResponse(StreamInput in) throws IOException {</b>
+<b class="nc"><i>269</i>&nbsp;            freed = in.readBoolean();</b>
+<b class="nc"><i>270</i>&nbsp;        }</b>
+<i>271</i>&nbsp;
+<b class="nc"><i>272</i>&nbsp;        SearchFreeContextResponse(boolean freed) {</b>
+<b class="nc"><i>273</i>&nbsp;            this.freed = freed;</b>
+<b class="nc"><i>274</i>&nbsp;        }</b>
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;        public boolean isFreed() {
+<b class="nc"><i>277</i>&nbsp;            return freed;</b>
+<i>278</i>&nbsp;        }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;        @Override
+<i>281</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>282</i>&nbsp;            out.writeBoolean(freed);</b>
+<b class="nc"><i>283</i>&nbsp;        }</b>
+<i>284</i>&nbsp;    }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+<b class="fc"><i>287</i>&nbsp;        transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ScrollFreeContextRequest::new,</b>
+<i>288</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>289</i>&nbsp;                boolean freed = searchService.freeContext(request.id());</b>
+<b class="nc"><i>290</i>&nbsp;                channel.sendResponse(new SearchFreeContextResponse(freed));</b>
+<b class="nc"><i>291</i>&nbsp;        });</b>
+<b class="fc"><i>292</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, SearchFreeContextResponse::new);</b>
+<b class="fc"><i>293</i>&nbsp;        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, ThreadPool.Names.SAME, SearchFreeContextRequest::new,</b>
+<i>294</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>295</i>&nbsp;                boolean freed = searchService.freeContext(request.id());</b>
+<b class="nc"><i>296</i>&nbsp;                channel.sendResponse(new SearchFreeContextResponse(freed));</b>
+<b class="nc"><i>297</i>&nbsp;        });</b>
+<b class="fc"><i>298</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);</b>
+<b class="fc"><i>299</i>&nbsp;        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ThreadPool.Names.SAME,</b>
+<i>300</i>&nbsp;            TransportRequest.Empty::new,
+<i>301</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>302</i>&nbsp;                searchService.freeAllScrollContexts();</b>
+<b class="nc"><i>303</i>&nbsp;                channel.sendResponse(TransportResponse.Empty.INSTANCE);</b>
+<b class="nc"><i>304</i>&nbsp;        });</b>
+<b class="fc"><i>305</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,</b>
+<b class="nc"><i>306</i>&nbsp;            (in) -&gt; TransportResponse.Empty.INSTANCE);</b>
+<i>307</i>&nbsp;
+<b class="fc"><i>308</i>&nbsp;        transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,</b>
+<i>309</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>310</i>&nbsp;                searchService.executeDfsPhase(request, (SearchTask) task, new ActionListener&lt;SearchPhaseResult&gt;() {</b>
+<i>311</i>&nbsp;                    @Override
+<i>312</i>&nbsp;                    public void onResponse(SearchPhaseResult searchPhaseResult) {
+<i>313</i>&nbsp;                        try {
+<i>314</i>&nbsp;                            channel.sendResponse(searchPhaseResult);
+<i>315</i>&nbsp;                        } catch (IOException e) {
+<i>316</i>&nbsp;                            throw new UncheckedIOException(e);
+<i>317</i>&nbsp;                        }
+<i>318</i>&nbsp;                    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;                    @Override
+<i>321</i>&nbsp;                    public void onFailure(Exception e) {
+<i>322</i>&nbsp;                        try {
+<i>323</i>&nbsp;                            channel.sendResponse(e);
+<i>324</i>&nbsp;                        } catch (IOException e1) {
+<i>325</i>&nbsp;                            throw new UncheckedIOException(e1);
+<i>326</i>&nbsp;                        }
+<i>327</i>&nbsp;                    }
+<i>328</i>&nbsp;                });
+<b class="nc"><i>329</i>&nbsp;            });</b>
+<b class="fc"><i>330</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);</b>
+<i>331</i>&nbsp;
+<b class="fc"><i>332</i>&nbsp;        transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,</b>
+<i>333</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>334</i>&nbsp;                searchService.executeQueryPhase(request, (SearchTask) task, new ChannelActionListener&lt;&gt;(</b>
+<i>335</i>&nbsp;                    channel, QUERY_ACTION_NAME, request));
+<b class="nc"><i>336</i>&nbsp;            });</b>
+<b class="fc"><i>337</i>&nbsp;        TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,</b>
+<b class="nc"><i>338</i>&nbsp;            (request) -&gt; ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);</b>
+<i>339</i>&nbsp;
+<b class="fc"><i>340</i>&nbsp;        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SAME, QuerySearchRequest::new,</b>
+<i>341</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>342</i>&nbsp;                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener&lt;&gt;(channel, QUERY_ID_ACTION_NAME,</b>
+<i>343</i>&nbsp;                    request));
+<b class="nc"><i>344</i>&nbsp;            });</b>
+<b class="fc"><i>345</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);</b>
+<i>346</i>&nbsp;
+<b class="fc"><i>347</i>&nbsp;        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,</b>
+<i>348</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>349</i>&nbsp;                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener&lt;&gt;(channel, QUERY_SCROLL_ACTION_NAME,</b>
+<i>350</i>&nbsp;                 request));
+<b class="nc"><i>351</i>&nbsp;            });</b>
+<b class="fc"><i>352</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);</b>
+<i>353</i>&nbsp;
+<b class="fc"><i>354</i>&nbsp;        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,</b>
+<i>355</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>356</i>&nbsp;                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener&lt;&gt;(channel,</b>
+<i>357</i>&nbsp;                    QUERY_FETCH_SCROLL_ACTION_NAME, request));
+<b class="nc"><i>358</i>&nbsp;            });</b>
+<b class="fc"><i>359</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);</b>
+<i>360</i>&nbsp;
+<b class="fc"><i>361</i>&nbsp;        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ShardFetchRequest::new,</b>
+<i>362</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>363</i>&nbsp;                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener&lt;&gt;(channel,</b>
+<i>364</i>&nbsp;                    FETCH_ID_SCROLL_ACTION_NAME, request));
+<b class="nc"><i>365</i>&nbsp;            });</b>
+<b class="fc"><i>366</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);</b>
+<i>367</i>&nbsp;
+<b class="fc"><i>368</i>&nbsp;        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SAME, true, true, ShardFetchSearchRequest::new,</b>
+<i>369</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>370</i>&nbsp;                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener&lt;&gt;(channel, FETCH_ID_ACTION_NAME,</b>
+<i>371</i>&nbsp;                    request));
+<b class="nc"><i>372</i>&nbsp;            });</b>
+<b class="fc"><i>373</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);</b>
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;        // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
+<b class="fc"><i>376</i>&nbsp;        transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,</b>
+<i>377</i>&nbsp;            (request, channel, task) -&gt; {
+<b class="nc"><i>378</i>&nbsp;                searchService.canMatch(request, new ChannelActionListener&lt;&gt;(channel, QUERY_CAN_MATCH_NAME, request));</b>
+<b class="nc"><i>379</i>&nbsp;            });</b>
+<b class="fc"><i>380</i>&nbsp;        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);</b>
+<b class="fc"><i>381</i>&nbsp;    }</b>
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;
+<i>384</i>&nbsp;    /**
+<i>385</i>&nbsp;     * Returns a connection to the given node on the provided cluster. If the cluster alias is &lt;code&gt;null&lt;/code&gt; the node will be resolved
+<i>386</i>&nbsp;     * against the local cluster.
+<i>387</i>&nbsp;     * @param clusterAlias the cluster alias the node should be resolved against
+<i>388</i>&nbsp;     * @param node the node to resolve
+<i>389</i>&nbsp;     * @return a connection to the given node belonging to the cluster with the provided alias.
+<i>390</i>&nbsp;     */
+<i>391</i>&nbsp;    Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
+<b class="nc"><i>392</i>&nbsp;        if (clusterAlias == null) {</b>
+<b class="nc"><i>393</i>&nbsp;            return transportService.getConnection(node);</b>
+<i>394</i>&nbsp;        } else {
+<b class="nc"><i>395</i>&nbsp;            return transportService.getRemoteClusterService().getConnection(node, clusterAlias);</b>
+<i>396</i>&nbsp;        }
+<i>397</i>&nbsp;    }
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    final class ConnectionCountingHandler&lt;Response extends TransportResponse&gt; extends ActionListenerResponseHandler&lt;Response&gt; {
+<i>400</i>&nbsp;        private final Map&lt;String, Long&gt; clientConnections;
+<i>401</i>&nbsp;        private final String nodeId;
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;        ConnectionCountingHandler(final ActionListener&lt;? super Response&gt; listener, final Writeable.Reader&lt;Response&gt; responseReader,
+<i>404</i>&nbsp;                                  final Map&lt;String, Long&gt; clientConnections, final String nodeId) {
+<i>405</i>&nbsp;            super(listener, responseReader);
+<i>406</i>&nbsp;            this.clientConnections = clientConnections;
+<i>407</i>&nbsp;            this.nodeId = nodeId;
+<i>408</i>&nbsp;            // Increment the number of connections for this node by one
+<i>409</i>&nbsp;            clientConnections.compute(nodeId, (id, conns) -&gt; conns == null ? 1 : conns + 1);
+<i>410</i>&nbsp;        }
+<i>411</i>&nbsp;
+<i>412</i>&nbsp;        @Override
+<i>413</i>&nbsp;        public void handleResponse(Response response) {
+<i>414</i>&nbsp;            super.handleResponse(response);
+<i>415</i>&nbsp;            // Decrement the number of connections or remove it entirely if there are no more connections
+<i>416</i>&nbsp;            // We need to remove the entry here so we don&#39;t leak when nodes go away forever
+<i>417</i>&nbsp;            assert assertNodePresent();
+<i>418</i>&nbsp;            clientConnections.computeIfPresent(nodeId, (id, conns) -&gt; conns.longValue() == 1 ? null : conns - 1);
+<i>419</i>&nbsp;        }
+<i>420</i>&nbsp;
+<i>421</i>&nbsp;        @Override
+<i>422</i>&nbsp;        public void handleException(TransportException e) {
+<i>423</i>&nbsp;            super.handleException(e);
+<i>424</i>&nbsp;            // Decrement the number of connections or remove it entirely if there are no more connections
+<i>425</i>&nbsp;            // We need to remove the entry here so we don&#39;t leak when nodes go away forever
+<i>426</i>&nbsp;            assert assertNodePresent();
+<i>427</i>&nbsp;            clientConnections.computeIfPresent(nodeId, (id, conns) -&gt; conns.longValue() == 1 ? null : conns - 1);
+<i>428</i>&nbsp;        }
+<i>429</i>&nbsp;
+<i>430</i>&nbsp;        private boolean assertNodePresent() {
+<i>431</i>&nbsp;            clientConnections.compute(nodeId, (id, conns) -&gt; {
+<i>432</i>&nbsp;                assert conns != null : &quot;number of connections for &quot; + id + &quot; is null, but should be an integer&quot;;
+<i>433</i>&nbsp;                assert conns &gt;= 1 : &quot;number of connections for &quot; + id + &quot; should be &gt;= 1 but was &quot; + conns;
+<i>434</i>&nbsp;                return conns;
+<i>435</i>&nbsp;            });
+<i>436</i>&nbsp;            // Always return true, there is additional asserting here, the boolean is just so this
+<i>437</i>&nbsp;            // can be skipped when assertions are not enabled
+<i>438</i>&nbsp;            return true;
+<i>439</i>&nbsp;        }
+<i>440</i>&nbsp;    }
+<i>441</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

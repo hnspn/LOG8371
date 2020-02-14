@@ -1,0 +1,835 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ElasticsearchAssertions</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.test.hamcrest</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ElasticsearchAssertions (org.elasticsearch.test.hamcrest)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ElasticsearchAssertions</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    6.7%
+  </span>
+  <span class="absValue">
+    (5/ 75)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    10.7%
+  </span>
+  <span class="absValue">
+    (35/ 326)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.test.hamcrest;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.search.BooleanQuery;
+<i>22</i>&nbsp;import org.apache.lucene.search.DisjunctionMaxQuery;
+<i>23</i>&nbsp;import org.apache.lucene.search.Query;
+<i>24</i>&nbsp;import org.apache.lucene.search.TotalHits;
+<i>25</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>26</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>27</i>&nbsp;import org.elasticsearch.action.ActionFuture;
+<i>28</i>&nbsp;import org.elasticsearch.action.ActionRequestBuilder;
+<i>29</i>&nbsp;import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+<i>30</i>&nbsp;import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+<i>31</i>&nbsp;import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
+<i>32</i>&nbsp;import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+<i>33</i>&nbsp;import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+<i>35</i>&nbsp;import org.elasticsearch.action.bulk.BulkResponse;
+<i>36</i>&nbsp;import org.elasticsearch.action.get.GetResponse;
+<i>37</i>&nbsp;import org.elasticsearch.action.search.SearchPhaseExecutionException;
+<i>38</i>&nbsp;import org.elasticsearch.action.search.SearchRequestBuilder;
+<i>39</i>&nbsp;import org.elasticsearch.action.search.SearchResponse;
+<i>40</i>&nbsp;import org.elasticsearch.action.search.ShardSearchFailure;
+<i>41</i>&nbsp;import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+<i>42</i>&nbsp;import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+<i>43</i>&nbsp;import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+<i>44</i>&nbsp;import org.elasticsearch.action.support.master.AcknowledgedResponse;
+<i>45</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlock;
+<i>46</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockException;
+<i>47</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+<i>48</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>49</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>50</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>51</i>&nbsp;import org.elasticsearch.common.xcontent.DeprecationHandler;
+<i>52</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>53</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>54</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>55</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>56</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>57</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>58</i>&nbsp;import org.elasticsearch.search.SearchHit;
+<i>59</i>&nbsp;import org.elasticsearch.search.suggest.Suggest;
+<i>60</i>&nbsp;import org.elasticsearch.test.NotEqualMessageBuilder;
+<i>61</i>&nbsp;import org.hamcrest.CoreMatchers;
+<i>62</i>&nbsp;import org.hamcrest.Matcher;
+<i>63</i>&nbsp;import org.hamcrest.core.CombinableMatcher;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;import java.io.IOException;
+<i>66</i>&nbsp;import java.nio.file.Files;
+<i>67</i>&nbsp;import java.nio.file.Path;
+<i>68</i>&nbsp;import java.util.ArrayList;
+<i>69</i>&nbsp;import java.util.Arrays;
+<i>70</i>&nbsp;import java.util.HashSet;
+<i>71</i>&nbsp;import java.util.Iterator;
+<i>72</i>&nbsp;import java.util.List;
+<i>73</i>&nbsp;import java.util.Locale;
+<i>74</i>&nbsp;import java.util.Map;
+<i>75</i>&nbsp;import java.util.Set;
+<i>76</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>77</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>78</i>&nbsp;import java.util.function.Function;
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;import static org.hamcrest.CoreMatchers.equalTo;
+<i>81</i>&nbsp;import static org.hamcrest.CoreMatchers.is;
+<i>82</i>&nbsp;import static org.hamcrest.MatcherAssert.assertThat;
+<i>83</i>&nbsp;import static org.hamcrest.Matchers.greaterThan;
+<i>84</i>&nbsp;import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+<i>85</i>&nbsp;import static org.hamcrest.Matchers.hasItem;
+<i>86</i>&nbsp;import static org.hamcrest.Matchers.hasKey;
+<i>87</i>&nbsp;import static org.hamcrest.Matchers.instanceOf;
+<i>88</i>&nbsp;import static org.hamcrest.Matchers.not;
+<i>89</i>&nbsp;import static org.hamcrest.Matchers.notNullValue;
+<i>90</i>&nbsp;import static org.junit.Assert.assertArrayEquals;
+<i>91</i>&nbsp;import static org.junit.Assert.assertEquals;
+<i>92</i>&nbsp;import static org.junit.Assert.assertFalse;
+<i>93</i>&nbsp;import static org.junit.Assert.assertNotNull;
+<i>94</i>&nbsp;import static org.junit.Assert.assertTrue;
+<i>95</i>&nbsp;import static org.junit.Assert.fail;
+<i>96</i>&nbsp;
+<b class="nc"><i>97</i>&nbsp;public class ElasticsearchAssertions {</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    public static void assertAcked(AcknowledgedRequestBuilder&lt;?, ?, ?&gt; builder) {
+<b class="nc"><i>100</i>&nbsp;        assertAcked(builder.get());</b>
+<b class="nc"><i>101</i>&nbsp;    }</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    public static void assertNoTimeout(ClusterHealthRequestBuilder requestBuilder) {
+<b class="nc"><i>104</i>&nbsp;        assertNoTimeout(requestBuilder.get());</b>
+<b class="nc"><i>105</i>&nbsp;    }</b>
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    public static void assertNoTimeout(ClusterHealthResponse response) {
+<b class="nc"><i>108</i>&nbsp;        assertThat(&quot;ClusterHealthResponse has timed out - returned: [&quot; + response + &quot;]&quot;, response.isTimedOut(), is(false));</b>
+<b class="nc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    public static void assertAcked(AcknowledgedResponse response) {
+<b class="fc"><i>112</i>&nbsp;        assertThat(response.getClass().getSimpleName() + &quot; failed - not acked&quot;, response.isAcknowledged(), equalTo(true));</b>
+<b class="fc"><i>113</i>&nbsp;    }</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    public static void assertAcked(DeleteIndexRequestBuilder builder) {
+<b class="nc"><i>116</i>&nbsp;        assertAcked(builder.get());</b>
+<b class="nc"><i>117</i>&nbsp;    }</b>
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    /**
+<i>120</i>&nbsp;     * Assert that an index creation was fully acknowledged, meaning that both the index creation cluster
+<i>121</i>&nbsp;     * state update was successful and that the requisite number of shard copies were started before returning.
+<i>122</i>&nbsp;     */
+<i>123</i>&nbsp;    public static void assertAcked(CreateIndexResponse response) {
+<b class="fc"><i>124</i>&nbsp;        assertThat(response.getClass().getSimpleName() + &quot; failed - not acked&quot;, response.isAcknowledged(), equalTo(true));</b>
+<b class="fc"><i>125</i>&nbsp;        assertTrue(response.getClass().getSimpleName() + &quot; failed - index creation acked but not all shards were started&quot;,</b>
+<b class="fc"><i>126</i>&nbsp;            response.isShardsAcknowledged());</b>
+<b class="fc"><i>127</i>&nbsp;    }</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    /**
+<i>130</i>&nbsp;     * Executes the request and fails if the request has not been blocked.
+<i>131</i>&nbsp;     *
+<i>132</i>&nbsp;     * @param builder the request builder
+<i>133</i>&nbsp;     */
+<i>134</i>&nbsp;    public static void assertBlocked(ActionRequestBuilder builder) {
+<b class="nc"><i>135</i>&nbsp;        assertBlocked(builder, (ClusterBlock) null);</b>
+<b class="nc"><i>136</i>&nbsp;    }</b>
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * Checks that all shard requests of a replicated broadcast request failed due to a cluster block
+<i>140</i>&nbsp;     *
+<i>141</i>&nbsp;     * @param replicatedBroadcastResponse the response that should only contain failed shard responses
+<i>142</i>&nbsp;     *
+<i>143</i>&nbsp;     * */
+<i>144</i>&nbsp;    public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
+<b class="nc"><i>145</i>&nbsp;        assertThat(&quot;all shard requests should have failed&quot;,</b>
+<b class="nc"><i>146</i>&nbsp;                replicatedBroadcastResponse.getFailedShards(), equalTo(replicatedBroadcastResponse.getTotalShards()));</b>
+<b class="nc"><i>147</i>&nbsp;        for (DefaultShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {</b>
+<b class="nc"><i>148</i>&nbsp;            ClusterBlockException clusterBlockException =</b>
+<b class="nc"><i>149</i>&nbsp;                    (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);</b>
+<b class="nc"><i>150</i>&nbsp;            assertNotNull(&quot;expected the cause of failure to be a ClusterBlockException but got &quot; + exception.getCause().getMessage(),</b>
+<i>151</i>&nbsp;                    clusterBlockException);
+<b class="nc"><i>152</i>&nbsp;            assertThat(clusterBlockException.blocks().size(), greaterThan(0));</b>
+<b class="nc"><i>153</i>&nbsp;            assertThat(clusterBlockException.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));</b>
+<i>154</i>&nbsp;        }
+<b class="nc"><i>155</i>&nbsp;    }</b>
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
+<i>159</i>&nbsp;     *
+<i>160</i>&nbsp;     * @param builder the request builder
+<i>161</i>&nbsp;     * @param expectedBlockId the expected block id
+<i>162</i>&nbsp;     */
+<i>163</i>&nbsp;    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final Integer expectedBlockId) {
+<i>164</i>&nbsp;        try {
+<b class="nc"><i>165</i>&nbsp;            builder.get();</b>
+<b class="nc"><i>166</i>&nbsp;            fail(&quot;Request executed with success but a ClusterBlockException was expected&quot;);</b>
+<b class="nc"><i>167</i>&nbsp;        } catch (ClusterBlockException e) {</b>
+<b class="nc"><i>168</i>&nbsp;            assertThat(e.blocks().size(), greaterThan(0));</b>
+<b class="nc"><i>169</i>&nbsp;            assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));</b>
+<i>170</i>&nbsp;
+<b class="nc"><i>171</i>&nbsp;            if (expectedBlockId != null) {</b>
+<b class="nc"><i>172</i>&nbsp;                boolean found = false;</b>
+<b class="nc"><i>173</i>&nbsp;                for (ClusterBlock clusterBlock : e.blocks()) {</b>
+<b class="nc"><i>174</i>&nbsp;                    if (clusterBlock.id() == expectedBlockId) {</b>
+<b class="nc"><i>175</i>&nbsp;                        found = true;</b>
+<b class="nc"><i>176</i>&nbsp;                        break;</b>
+<i>177</i>&nbsp;                    }
+<b class="nc"><i>178</i>&nbsp;                }</b>
+<b class="nc"><i>179</i>&nbsp;                assertThat(&quot;Request should have been blocked by [&quot; + expectedBlockId + &quot;] instead of &quot; + e.blocks(), found, equalTo(true));</b>
+<i>180</i>&nbsp;            }
+<b class="nc"><i>181</i>&nbsp;        }</b>
+<b class="nc"><i>182</i>&nbsp;    }</b>
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    /**
+<i>185</i>&nbsp;     * Executes the request and fails if the request has not been blocked by a specific {@link ClusterBlock}.
+<i>186</i>&nbsp;     *
+<i>187</i>&nbsp;     * @param builder the request builder
+<i>188</i>&nbsp;     * @param expectedBlock the expected block
+<i>189</i>&nbsp;     */
+<i>190</i>&nbsp;    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final ClusterBlock expectedBlock) {
+<b class="nc"><i>191</i>&nbsp;        assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);</b>
+<b class="nc"><i>192</i>&nbsp;    }</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    public static String formatShardStatus(BroadcastResponse response) {
+<b class="nc"><i>195</i>&nbsp;        StringBuilder msg = new StringBuilder();</b>
+<b class="nc"><i>196</i>&nbsp;        msg.append(&quot; Total shards: &quot;).append(response.getTotalShards())</b>
+<b class="nc"><i>197</i>&nbsp;           .append(&quot; Successful shards: &quot;).append(response.getSuccessfulShards())</b>
+<b class="nc"><i>198</i>&nbsp;           .append(&quot; &amp; &quot;).append(response.getFailedShards()).append(&quot; shard failures:&quot;);</b>
+<b class="nc"><i>199</i>&nbsp;        for (DefaultShardOperationFailedException failure : response.getShardFailures()) {</b>
+<b class="nc"><i>200</i>&nbsp;            msg.append(&quot;\n &quot;).append(failure);</b>
+<i>201</i>&nbsp;        }
+<b class="nc"><i>202</i>&nbsp;        return msg.toString();</b>
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    public static String formatShardStatus(SearchResponse response) {
+<b class="nc"><i>206</i>&nbsp;        StringBuilder msg = new StringBuilder();</b>
+<b class="nc"><i>207</i>&nbsp;        msg.append(&quot; Total shards: &quot;).append(response.getTotalShards())</b>
+<b class="nc"><i>208</i>&nbsp;           .append(&quot; Successful shards: &quot;).append(response.getSuccessfulShards())</b>
+<b class="nc"><i>209</i>&nbsp;           .append(&quot; &amp; &quot;).append(response.getFailedShards()).append(&quot; shard failures:&quot;);</b>
+<b class="nc"><i>210</i>&nbsp;        for (ShardSearchFailure failure : response.getShardFailures()) {</b>
+<b class="nc"><i>211</i>&nbsp;            msg.append(&quot;\n &quot;).append(failure);</b>
+<i>212</i>&nbsp;        }
+<b class="nc"><i>213</i>&nbsp;        return msg.toString();</b>
+<i>214</i>&nbsp;    }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;    public static void assertNoSearchHits(SearchResponse searchResponse) {
+<b class="nc"><i>217</i>&nbsp;        assertEquals(0, searchResponse.getHits().getHits().length);</b>
+<b class="nc"><i>218</i>&nbsp;    }</b>
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;    public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
+<b class="nc"><i>221</i>&nbsp;        String shardStatus = formatShardStatus(searchResponse);</b>
+<i>222</i>&nbsp;
+<b class="nc"><i>223</i>&nbsp;        Set&lt;String&gt; idsSet = new HashSet&lt;&gt;(Arrays.asList(ids));</b>
+<b class="nc"><i>224</i>&nbsp;        for (SearchHit hit : searchResponse.getHits()) {</b>
+<b class="nc"><i>225</i>&nbsp;            assertThat(</b>
+<b class="nc"><i>226</i>&nbsp;                    &quot;id [&quot; + hit.getId() + &quot;] was found in search results but wasn&#39;t expected (type [&quot; + hit.getType()</b>
+<b class="nc"><i>227</i>&nbsp;                        + &quot;], index [&quot; + hit.getIndex() + &quot;])&quot; + shardStatus, idsSet.remove(hit.getId()),</b>
+<b class="nc"><i>228</i>&nbsp;                    equalTo(true));</b>
+<b class="nc"><i>229</i>&nbsp;        }</b>
+<b class="nc"><i>230</i>&nbsp;        assertThat(&quot;Some expected ids were not found in search results: &quot; + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + &quot;.&quot;</b>
+<b class="nc"><i>231</i>&nbsp;                + shardStatus, idsSet.size(), equalTo(0));</b>
+<b class="nc"><i>232</i>&nbsp;    }</b>
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
+<b class="nc"><i>235</i>&nbsp;        assertSearchResponse(searchResponse);</b>
+<b class="nc"><i>236</i>&nbsp;        SearchHit[] hits = searchResponse.getHits().getHits();</b>
+<b class="nc"><i>237</i>&nbsp;        assertEquals(sortValues.length, hits.length);</b>
+<b class="nc"><i>238</i>&nbsp;        for (int i = 0; i &lt; sortValues.length; ++i) {</b>
+<b class="nc"><i>239</i>&nbsp;            final Object[] hitsSortValues = hits[i].getSortValues();</b>
+<b class="nc"><i>240</i>&nbsp;            assertArrayEquals(&quot;Offset &quot; + Integer.toString(i) + &quot;, id &quot; + hits[i].getId(), sortValues[i], hitsSortValues);</b>
+<i>241</i>&nbsp;        }
+<b class="nc"><i>242</i>&nbsp;    }</b>
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;    public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
+<b class="nc"><i>245</i>&nbsp;        String shardStatus = formatShardStatus(searchResponse);</b>
+<b class="nc"><i>246</i>&nbsp;        assertThat(&quot;Expected different hit count. &quot; + shardStatus, searchResponse.getHits().getHits().length, equalTo(ids.length));</b>
+<b class="nc"><i>247</i>&nbsp;        for (int i = 0; i &lt; ids.length; i++) {</b>
+<b class="nc"><i>248</i>&nbsp;            SearchHit hit = searchResponse.getHits().getHits()[i];</b>
+<b class="nc"><i>249</i>&nbsp;            assertThat(&quot;Expected id: &quot; + ids[i] + &quot; at position &quot; + i + &quot; but wasn&#39;t.&quot; + shardStatus, hit.getId(), equalTo(ids[i]));</b>
+<i>250</i>&nbsp;        }
+<b class="nc"><i>251</i>&nbsp;    }</b>
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
+<b class="nc"><i>254</i>&nbsp;        final TotalHits totalHits = countResponse.getHits().getTotalHits();</b>
+<b class="nc"><i>255</i>&nbsp;        if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {</b>
+<b class="nc"><i>256</i>&nbsp;            fail(&quot;Count is &quot; + totalHits + &quot; but &quot; + expectedHitCount</b>
+<b class="nc"><i>257</i>&nbsp;                    + &quot; was expected. &quot; + formatShardStatus(countResponse));</b>
+<i>258</i>&nbsp;        }
+<b class="nc"><i>259</i>&nbsp;    }</b>
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    public static void assertExists(GetResponse response) {
+<b class="nc"><i>262</i>&nbsp;        String message = String.format(Locale.ROOT, &quot;Expected %s/%s/%s to exist, but does not&quot;,</b>
+<b class="nc"><i>263</i>&nbsp;                response.getIndex(), response.getType(), response.getId());</b>
+<b class="nc"><i>264</i>&nbsp;        assertThat(message, response.isExists(), is(true));</b>
+<b class="nc"><i>265</i>&nbsp;    }</b>
+<i>266</i>&nbsp;
+<i>267</i>&nbsp;    public static void assertFirstHit(SearchResponse searchResponse, Matcher&lt;SearchHit&gt; matcher) {
+<b class="nc"><i>268</i>&nbsp;        assertSearchHit(searchResponse, 1, matcher);</b>
+<b class="nc"><i>269</i>&nbsp;    }</b>
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;    public static void assertSecondHit(SearchResponse searchResponse, Matcher&lt;SearchHit&gt; matcher) {
+<b class="nc"><i>272</i>&nbsp;        assertSearchHit(searchResponse, 2, matcher);</b>
+<b class="nc"><i>273</i>&nbsp;    }</b>
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;    public static void assertThirdHit(SearchResponse searchResponse, Matcher&lt;SearchHit&gt; matcher) {
+<b class="nc"><i>276</i>&nbsp;        assertSearchHit(searchResponse, 3, matcher);</b>
+<b class="nc"><i>277</i>&nbsp;    }</b>
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;    public static void assertFourthHit(SearchResponse searchResponse, Matcher&lt;SearchHit&gt; matcher) {
+<b class="nc"><i>280</i>&nbsp;        assertSearchHit(searchResponse, 4, matcher);</b>
+<b class="nc"><i>281</i>&nbsp;    }</b>
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher&lt;SearchHit&gt; matcher) {
+<b class="nc"><i>284</i>&nbsp;        assertThat(number, greaterThan(0));</b>
+<b class="nc"><i>285</i>&nbsp;        assertThat(&quot;SearchHit number must be greater than 0&quot;, number, greaterThan(0));</b>
+<b class="nc"><i>286</i>&nbsp;        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) number));</b>
+<b class="nc"><i>287</i>&nbsp;        assertThat(searchResponse.getHits().getAt(number - 1), matcher);</b>
+<b class="nc"><i>288</i>&nbsp;    }</b>
+<i>289</i>&nbsp;
+<i>290</i>&nbsp;    public static void assertNoFailures(SearchResponse searchResponse) {
+<b class="nc"><i>291</i>&nbsp;        assertThat(&quot;Unexpected ShardFailures: &quot; + Arrays.toString(searchResponse.getShardFailures()),</b>
+<b class="nc"><i>292</i>&nbsp;                searchResponse.getShardFailures().length, equalTo(0));</b>
+<b class="nc"><i>293</i>&nbsp;    }</b>
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;    public static void assertFailures(SearchResponse searchResponse) {
+<b class="nc"><i>296</i>&nbsp;        assertThat(&quot;Expected at least one shard failure, got none&quot;,</b>
+<b class="nc"><i>297</i>&nbsp;                searchResponse.getShardFailures().length, greaterThan(0));</b>
+<b class="nc"><i>298</i>&nbsp;    }</b>
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    public static void assertNoFailures(BulkResponse response) {
+<b class="nc"><i>301</i>&nbsp;        assertThat(&quot;Unexpected ShardFailures: &quot; + response.buildFailureMessage(),</b>
+<b class="nc"><i>302</i>&nbsp;                response.hasFailures(), is(false));</b>
+<b class="nc"><i>303</i>&nbsp;    }</b>
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;    public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher&lt;String&gt; reasonMatcher) {
+<i>306</i>&nbsp;        //when the number for shards is randomized and we expect failures
+<i>307</i>&nbsp;        //we can either run into partial or total failures depending on the current number of shards
+<i>308</i>&nbsp;        try {
+<b class="nc"><i>309</i>&nbsp;            SearchResponse searchResponse = searchRequestBuilder.get();</b>
+<b class="nc"><i>310</i>&nbsp;            assertThat(&quot;Expected shard failures, got none&quot;, searchResponse.getShardFailures().length, greaterThan(0));</b>
+<b class="nc"><i>311</i>&nbsp;            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {</b>
+<b class="nc"><i>312</i>&nbsp;                assertThat(shardSearchFailure.status(), equalTo(restStatus));</b>
+<b class="nc"><i>313</i>&nbsp;                assertThat(shardSearchFailure.reason(), reasonMatcher);</b>
+<i>314</i>&nbsp;            }
+<b class="nc"><i>315</i>&nbsp;        } catch (SearchPhaseExecutionException e) {</b>
+<b class="nc"><i>316</i>&nbsp;            assertThat(e.status(), equalTo(restStatus));</b>
+<b class="nc"><i>317</i>&nbsp;            assertThat(e.toString(), reasonMatcher);</b>
+<b class="nc"><i>318</i>&nbsp;            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {</b>
+<b class="nc"><i>319</i>&nbsp;                assertThat(shardSearchFailure.status(), equalTo(restStatus));</b>
+<b class="nc"><i>320</i>&nbsp;                assertThat(shardSearchFailure.reason(), reasonMatcher);</b>
+<i>321</i>&nbsp;            }
+<b class="nc"><i>322</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>323</i>&nbsp;            fail(&quot;SearchPhaseExecutionException expected but got &quot; + e.getClass());</b>
+<b class="nc"><i>324</i>&nbsp;        }</b>
+<b class="nc"><i>325</i>&nbsp;    }</b>
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;    public static void assertNoFailures(BroadcastResponse response) {
+<b class="nc"><i>328</i>&nbsp;        assertThat(&quot;Unexpected ShardFailures: &quot; + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));</b>
+<b class="nc"><i>329</i>&nbsp;    }</b>
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;    public static void assertAllSuccessful(BroadcastResponse response) {
+<b class="nc"><i>332</i>&nbsp;        assertNoFailures(response);</b>
+<b class="nc"><i>333</i>&nbsp;        assertThat(&quot;Expected all shards successful&quot;,</b>
+<b class="nc"><i>334</i>&nbsp;                response.getSuccessfulShards(), equalTo(response.getTotalShards()));</b>
+<b class="nc"><i>335</i>&nbsp;    }</b>
+<i>336</i>&nbsp;
+<i>337</i>&nbsp;    public static void assertAllSuccessful(SearchResponse response) {
+<b class="nc"><i>338</i>&nbsp;        assertNoFailures(response);</b>
+<b class="nc"><i>339</i>&nbsp;        assertThat(&quot;Expected all shards successful&quot;,</b>
+<b class="nc"><i>340</i>&nbsp;                response.getSuccessfulShards(), equalTo(response.getTotalShards()));</b>
+<b class="nc"><i>341</i>&nbsp;    }</b>
+<i>342</i>&nbsp;
+<i>343</i>&nbsp;    public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher&lt;String&gt; matcher) {
+<b class="nc"><i>344</i>&nbsp;        assertHighlight(resp, hit, field, fragment, greaterThan(fragment), matcher);</b>
+<b class="nc"><i>345</i>&nbsp;    }</b>
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment,
+<i>348</i>&nbsp;            int totalFragments, Matcher&lt;String&gt; matcher) {
+<b class="nc"><i>349</i>&nbsp;        assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);</b>
+<b class="nc"><i>350</i>&nbsp;    }</b>
+<i>351</i>&nbsp;
+<i>352</i>&nbsp;    public static void assertHighlight(SearchHit hit, String field, int fragment, Matcher&lt;String&gt; matcher) {
+<b class="nc"><i>353</i>&nbsp;        assertHighlight(hit, field, fragment, greaterThan(fragment), matcher);</b>
+<b class="nc"><i>354</i>&nbsp;    }</b>
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;    public static void assertHighlight(SearchHit hit, String field, int fragment, int totalFragments, Matcher&lt;String&gt; matcher) {
+<b class="nc"><i>357</i>&nbsp;        assertHighlight(hit, field, fragment, equalTo(totalFragments), matcher);</b>
+<b class="nc"><i>358</i>&nbsp;    }</b>
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    private static void assertHighlight(SearchResponse resp, int hit, String field, int fragment,
+<i>361</i>&nbsp;            Matcher&lt;Integer&gt; fragmentsMatcher, Matcher&lt;String&gt; matcher) {
+<b class="nc"><i>362</i>&nbsp;        assertNoFailures(resp);</b>
+<b class="nc"><i>363</i>&nbsp;        assertThat(&quot;not enough hits&quot;, resp.getHits().getHits().length, greaterThan(hit));</b>
+<b class="nc"><i>364</i>&nbsp;        assertHighlight(resp.getHits().getHits()[hit], field, fragment, fragmentsMatcher, matcher);</b>
+<b class="nc"><i>365</i>&nbsp;    }</b>
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;    private static void assertHighlight(SearchHit hit, String field, int fragment,
+<i>368</i>&nbsp;            Matcher&lt;Integer&gt; fragmentsMatcher, Matcher&lt;String&gt; matcher) {
+<b class="nc"><i>369</i>&nbsp;        assertThat(hit.getHighlightFields(), hasKey(field));</b>
+<b class="nc"><i>370</i>&nbsp;        assertThat(hit.getHighlightFields().get(field).fragments().length, fragmentsMatcher);</b>
+<b class="nc"><i>371</i>&nbsp;        assertThat(hit.getHighlightFields().get(field).fragments()[fragment].string(), matcher);</b>
+<b class="nc"><i>372</i>&nbsp;    }</b>
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;    public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {
+<b class="nc"><i>375</i>&nbsp;        assertNoFailures(resp);</b>
+<b class="nc"><i>376</i>&nbsp;        assertThat(&quot;not enough hits&quot;, resp.getHits().getHits().length, greaterThan(hit));</b>
+<b class="nc"><i>377</i>&nbsp;        assertThat(resp.getHits().getHits()[hit].getHighlightFields(), not(hasKey(field)));</b>
+<b class="nc"><i>378</i>&nbsp;    }</b>
+<i>379</i>&nbsp;
+<i>380</i>&nbsp;    public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {
+<b class="nc"><i>381</i>&nbsp;        assertThat(searchSuggest, notNullValue());</b>
+<b class="nc"><i>382</i>&nbsp;        String msg = &quot;Suggest result: &quot; + searchSuggest.toString();</b>
+<b class="nc"><i>383</i>&nbsp;        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));</b>
+<b class="nc"><i>384</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));</b>
+<b class="nc"><i>385</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));</b>
+<b class="nc"><i>386</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), equalTo(size));</b>
+<b class="nc"><i>387</i>&nbsp;    }</b>
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;    public static void assertSuggestionPhraseCollateMatchExists(Suggest searchSuggest, String key, int numberOfPhraseExists) {
+<b class="nc"><i>390</i>&nbsp;        int counter = 0;</b>
+<b class="nc"><i>391</i>&nbsp;        assertThat(searchSuggest, notNullValue());</b>
+<b class="nc"><i>392</i>&nbsp;        String msg = &quot;Suggest result: &quot; + searchSuggest.toString();</b>
+<b class="nc"><i>393</i>&nbsp;        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));</b>
+<b class="nc"><i>394</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));</b>
+<i>395</i>&nbsp;
+<b class="nc"><i>396</i>&nbsp;        for (Suggest.Suggestion.Entry.Option option : searchSuggest.getSuggestion(key).getEntries().get(0).getOptions()) {</b>
+<b class="nc"><i>397</i>&nbsp;            if (option.collateMatch()) {</b>
+<b class="nc"><i>398</i>&nbsp;                counter++;</b>
+<i>399</i>&nbsp;            }
+<b class="nc"><i>400</i>&nbsp;        }</b>
+<i>401</i>&nbsp;
+<b class="nc"><i>402</i>&nbsp;        assertThat(counter, equalTo(numberOfPhraseExists));</b>
+<b class="nc"><i>403</i>&nbsp;    }</b>
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;    public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
+<b class="nc"><i>406</i>&nbsp;        assertThat(searchSuggest, notNullValue());</b>
+<b class="nc"><i>407</i>&nbsp;        String msg = &quot;Suggest result: &quot; + searchSuggest.toString();</b>
+<b class="nc"><i>408</i>&nbsp;        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));</b>
+<b class="nc"><i>409</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));</b>
+<b class="nc"><i>410</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));</b>
+<b class="nc"><i>411</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), greaterThan(ord));</b>
+<b class="nc"><i>412</i>&nbsp;        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));</b>
+<b class="nc"><i>413</i>&nbsp;    }</b>
+<i>414</i>&nbsp;
+<i>415</i>&nbsp;    /**
+<i>416</i>&nbsp;     * Assert suggestion returns exactly the provided text.
+<i>417</i>&nbsp;     */
+<i>418</i>&nbsp;    public static void assertSuggestion(Suggest searchSuggest, int entry, String key, String... text) {
+<b class="nc"><i>419</i>&nbsp;        assertSuggestion(searchSuggest, entry, key, text.length, text);</b>
+<b class="nc"><i>420</i>&nbsp;    }</b>
+<i>421</i>&nbsp;
+<i>422</i>&nbsp;    /**
+<i>423</i>&nbsp;     * Assert suggestion returns size suggestions and the first are the provided
+<i>424</i>&nbsp;     * text.
+<i>425</i>&nbsp;     */
+<i>426</i>&nbsp;    public static void assertSuggestion(Suggest searchSuggest, int entry, String key, int size, String... text) {
+<b class="nc"><i>427</i>&nbsp;        assertSuggestionSize(searchSuggest, entry, size, key);</b>
+<b class="nc"><i>428</i>&nbsp;        for (int i = 0; i &lt; text.length; i++) {</b>
+<b class="nc"><i>429</i>&nbsp;            assertSuggestion(searchSuggest, entry, i, key, text[i]);</b>
+<i>430</i>&nbsp;        }
+<b class="nc"><i>431</i>&nbsp;    }</b>
+<i>432</i>&nbsp;
+<i>433</i>&nbsp;    /**
+<i>434</i>&nbsp;     * Assert that an index template is missing
+<i>435</i>&nbsp;     */
+<i>436</i>&nbsp;    public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
+<b class="nc"><i>437</i>&nbsp;        List&lt;String&gt; templateNames = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>438</i>&nbsp;        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {</b>
+<b class="nc"><i>439</i>&nbsp;            templateNames.add(indexTemplateMetaData.name());</b>
+<b class="nc"><i>440</i>&nbsp;        }</b>
+<b class="nc"><i>441</i>&nbsp;        assertThat(templateNames, not(hasItem(name)));</b>
+<b class="nc"><i>442</i>&nbsp;    }</b>
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    /**
+<i>445</i>&nbsp;     * Assert that an index template exists
+<i>446</i>&nbsp;     */
+<i>447</i>&nbsp;    public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
+<b class="nc"><i>448</i>&nbsp;        List&lt;String&gt; templateNames = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>449</i>&nbsp;        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {</b>
+<b class="nc"><i>450</i>&nbsp;            templateNames.add(indexTemplateMetaData.name());</b>
+<b class="nc"><i>451</i>&nbsp;        }</b>
+<b class="nc"><i>452</i>&nbsp;        assertThat(templateNames, hasItem(name));</b>
+<b class="nc"><i>453</i>&nbsp;    }</b>
+<i>454</i>&nbsp;
+<i>455</i>&nbsp;    /**
+<i>456</i>&nbsp;     * Assert that aliases are missing
+<i>457</i>&nbsp;     */
+<i>458</i>&nbsp;    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
+<b class="nc"><i>459</i>&nbsp;        assertFalse(&quot;Aliases shouldn&#39;t exist&quot;, aliasesExistResponse.exists());</b>
+<b class="nc"><i>460</i>&nbsp;    }</b>
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;    /**
+<i>463</i>&nbsp;     * Assert that aliases exist
+<i>464</i>&nbsp;     */
+<i>465</i>&nbsp;    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
+<b class="nc"><i>466</i>&nbsp;        assertTrue(&quot;Aliases should exist&quot;, aliasesExistResponse.exists());</b>
+<b class="nc"><i>467</i>&nbsp;    }</b>
+<i>468</i>&nbsp;
+<i>469</i>&nbsp;    /*
+<i>470</i>&nbsp;     * matchers
+<i>471</i>&nbsp;     */
+<i>472</i>&nbsp;    public static Matcher&lt;SearchHit&gt; hasId(final String id) {
+<b class="nc"><i>473</i>&nbsp;        return new ElasticsearchMatchers.SearchHitHasIdMatcher(id);</b>
+<i>474</i>&nbsp;    }
+<i>475</i>&nbsp;
+<i>476</i>&nbsp;    public static Matcher&lt;SearchHit&gt; hasType(final String type) {
+<b class="nc"><i>477</i>&nbsp;        return new ElasticsearchMatchers.SearchHitHasTypeMatcher(type);</b>
+<i>478</i>&nbsp;    }
+<i>479</i>&nbsp;
+<i>480</i>&nbsp;    public static Matcher&lt;SearchHit&gt; hasIndex(final String index) {
+<b class="nc"><i>481</i>&nbsp;        return new ElasticsearchMatchers.SearchHitHasIndexMatcher(index);</b>
+<i>482</i>&nbsp;    }
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;    public static Matcher&lt;SearchHit&gt; hasScore(final float score) {
+<b class="nc"><i>485</i>&nbsp;        return new ElasticsearchMatchers.SearchHitHasScoreMatcher(score);</b>
+<i>486</i>&nbsp;    }
+<i>487</i>&nbsp;
+<i>488</i>&nbsp;    public static &lt;T, V&gt; CombinableMatcher&lt;T&gt; hasProperty(Function&lt;? super T, ? extends V&gt; property, Matcher&lt;V&gt; valueMatcher) {
+<b class="nc"><i>489</i>&nbsp;        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(property, valueMatcher);</b>
+<i>490</i>&nbsp;    }
+<i>491</i>&nbsp;
+<i>492</i>&nbsp;    public static Function&lt;SearchHit, Object&gt; fieldFromSource(String fieldName) {
+<b class="nc"><i>493</i>&nbsp;        return (response) -&gt;  response.getSourceAsMap().get(fieldName);</b>
+<i>494</i>&nbsp;    }
+<i>495</i>&nbsp;
+<i>496</i>&nbsp;    public static &lt;T extends Query&gt; T assertBooleanSubQuery(Query query, Class&lt;T&gt; subqueryType, int i) {
+<b class="nc"><i>497</i>&nbsp;        assertThat(query, instanceOf(BooleanQuery.class));</b>
+<b class="nc"><i>498</i>&nbsp;        BooleanQuery q = (BooleanQuery) query;</b>
+<b class="nc"><i>499</i>&nbsp;        assertThat(q.clauses().size(), greaterThan(i));</b>
+<b class="nc"><i>500</i>&nbsp;        assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));</b>
+<b class="nc"><i>501</i>&nbsp;        return subqueryType.cast(q.clauses().get(i).getQuery());</b>
+<i>502</i>&nbsp;    }
+<i>503</i>&nbsp;
+<i>504</i>&nbsp;    public static &lt;T extends Query&gt; T assertDisjunctionSubQuery(Query query, Class&lt;T&gt; subqueryType, int i) {
+<b class="nc"><i>505</i>&nbsp;        assertThat(query, instanceOf(DisjunctionMaxQuery.class));</b>
+<b class="nc"><i>506</i>&nbsp;        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;</b>
+<b class="nc"><i>507</i>&nbsp;        assertThat(q.getDisjuncts().size(), greaterThan(i));</b>
+<b class="nc"><i>508</i>&nbsp;        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));</b>
+<b class="nc"><i>509</i>&nbsp;        return subqueryType.cast(q.getDisjuncts().get(i));</b>
+<i>510</i>&nbsp;    }
+<i>511</i>&nbsp;
+<i>512</i>&nbsp;    /**
+<i>513</i>&nbsp;     * Run the request from a given builder and check that it throws an exception of the right type
+<i>514</i>&nbsp;     */
+<i>515</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionRequestBuilder&lt;?, ?&gt; builder, Class&lt;E&gt; exceptionClass) {
+<b class="nc"><i>516</i>&nbsp;        assertThrows(builder.execute(), exceptionClass);</b>
+<b class="nc"><i>517</i>&nbsp;    }</b>
+<i>518</i>&nbsp;
+<i>519</i>&nbsp;    /**
+<i>520</i>&nbsp;     * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link RestStatus}
+<i>521</i>&nbsp;     */
+<i>522</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionRequestBuilder&lt;?, ?&gt; builder, Class&lt;E&gt; exceptionClass, RestStatus status) {
+<b class="nc"><i>523</i>&nbsp;        assertThrows(builder.execute(), exceptionClass, status);</b>
+<b class="nc"><i>524</i>&nbsp;    }</b>
+<i>525</i>&nbsp;
+<i>526</i>&nbsp;    /**
+<i>527</i>&nbsp;     * Run the request from a given builder and check that it throws an exception of the right type
+<i>528</i>&nbsp;     *
+<i>529</i>&nbsp;     * @param extraInfo extra information to add to the failure message
+<i>530</i>&nbsp;     */
+<i>531</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionRequestBuilder&lt;?, ?&gt; builder, Class&lt;E&gt; exceptionClass, String extraInfo) {
+<b class="nc"><i>532</i>&nbsp;        assertThrows(builder.execute(), exceptionClass, extraInfo);</b>
+<b class="nc"><i>533</i>&nbsp;    }</b>
+<i>534</i>&nbsp;
+<i>535</i>&nbsp;    /**
+<i>536</i>&nbsp;     * Run future.actionGet() and check that it throws an exception of the right type
+<i>537</i>&nbsp;     */
+<i>538</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionFuture future, Class&lt;E&gt; exceptionClass) {
+<b class="nc"><i>539</i>&nbsp;        assertThrows(future, exceptionClass, null, null);</b>
+<b class="nc"><i>540</i>&nbsp;    }</b>
+<i>541</i>&nbsp;
+<i>542</i>&nbsp;    /**
+<i>543</i>&nbsp;     * Run future.actionGet() and check that it throws an exception of the right type, with a given {@link RestStatus}
+<i>544</i>&nbsp;     */
+<i>545</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionFuture future, Class&lt;E&gt; exceptionClass, RestStatus status) {
+<b class="nc"><i>546</i>&nbsp;        assertThrows(future, exceptionClass, status, null);</b>
+<b class="nc"><i>547</i>&nbsp;    }</b>
+<i>548</i>&nbsp;
+<i>549</i>&nbsp;    /**
+<i>550</i>&nbsp;     * Run future.actionGet() and check that it throws an exception of the right type
+<i>551</i>&nbsp;     *
+<i>552</i>&nbsp;     * @param extraInfo extra information to add to the failure message
+<i>553</i>&nbsp;     */
+<i>554</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionFuture future, Class&lt;E&gt; exceptionClass, String extraInfo) {
+<b class="nc"><i>555</i>&nbsp;        assertThrows(future, exceptionClass, null, extraInfo);</b>
+<b class="nc"><i>556</i>&nbsp;    }</b>
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;    /**
+<i>559</i>&nbsp;     * Run future.actionGet() and check that it throws an exception of the right type, optionally checking the exception&#39;s rest status
+<i>560</i>&nbsp;     *
+<i>561</i>&nbsp;     * @param exceptionClass expected exception class
+<i>562</i>&nbsp;     * @param status         {@link org.elasticsearch.rest.RestStatus} to check for. Can be null to disable the check
+<i>563</i>&nbsp;     * @param extraInfo      extra information to add to the failure message. Can be null.
+<i>564</i>&nbsp;     */
+<i>565</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionFuture future, Class&lt;E&gt; exceptionClass,
+<i>566</i>&nbsp;            @Nullable RestStatus status, @Nullable String extraInfo) {
+<b class="nc"><i>567</i>&nbsp;        boolean fail = false;</b>
+<b class="nc"><i>568</i>&nbsp;        extraInfo = extraInfo == null || extraInfo.isEmpty() ? &quot;&quot; : extraInfo + &quot;: &quot;;</b>
+<b class="nc"><i>569</i>&nbsp;        extraInfo += &quot;expected a &quot; + exceptionClass + &quot; exception to be thrown&quot;;</b>
+<i>570</i>&nbsp;
+<b class="nc"><i>571</i>&nbsp;        if (status != null) {</b>
+<b class="nc"><i>572</i>&nbsp;            extraInfo += &quot; with status [&quot; + status + &quot;]&quot;;</b>
+<i>573</i>&nbsp;        }
+<i>574</i>&nbsp;
+<i>575</i>&nbsp;        try {
+<b class="nc"><i>576</i>&nbsp;            future.actionGet();</b>
+<b class="nc"><i>577</i>&nbsp;            fail = true;</b>
+<i>578</i>&nbsp;
+<b class="nc"><i>579</i>&nbsp;        } catch (ElasticsearchException esException) {</b>
+<b class="nc"><i>580</i>&nbsp;            assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));</b>
+<b class="nc"><i>581</i>&nbsp;            if (status != null) {</b>
+<b class="nc"><i>582</i>&nbsp;                assertThat(extraInfo, ExceptionsHelper.status(esException), equalTo(status));</b>
+<i>583</i>&nbsp;            }
+<b class="nc"><i>584</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>585</i>&nbsp;            assertThat(extraInfo, e, instanceOf(exceptionClass));</b>
+<b class="nc"><i>586</i>&nbsp;            if (status != null) {</b>
+<b class="nc"><i>587</i>&nbsp;                assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));</b>
+<i>588</i>&nbsp;            }
+<b class="nc"><i>589</i>&nbsp;        }</b>
+<i>590</i>&nbsp;        // has to be outside catch clause to get a proper message
+<b class="nc"><i>591</i>&nbsp;        if (fail) {</b>
+<b class="nc"><i>592</i>&nbsp;            throw new AssertionError(extraInfo);</b>
+<i>593</i>&nbsp;        }
+<b class="nc"><i>594</i>&nbsp;    }</b>
+<i>595</i>&nbsp;
+<i>596</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionRequestBuilder&lt;?, ?&gt; builder, RestStatus status) {
+<b class="nc"><i>597</i>&nbsp;        assertThrows(builder.execute(), status);</b>
+<b class="nc"><i>598</i>&nbsp;    }</b>
+<i>599</i>&nbsp;
+<i>600</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionRequestBuilder&lt;?, ?&gt; builder, RestStatus status, String extraInfo) {
+<b class="nc"><i>601</i>&nbsp;        assertThrows(builder.execute(), status, extraInfo);</b>
+<b class="nc"><i>602</i>&nbsp;    }</b>
+<i>603</i>&nbsp;
+<i>604</i>&nbsp;    public static &lt;E extends Throwable&gt; void assertThrows(ActionFuture future, RestStatus status) {
+<b class="nc"><i>605</i>&nbsp;        assertThrows(future, status, null);</b>
+<b class="nc"><i>606</i>&nbsp;    }</b>
+<i>607</i>&nbsp;
+<i>608</i>&nbsp;    public static void assertThrows(ActionFuture future, RestStatus status, String extraInfo) {
+<b class="nc"><i>609</i>&nbsp;        boolean fail = false;</b>
+<b class="nc"><i>610</i>&nbsp;        extraInfo = extraInfo == null || extraInfo.isEmpty() ? &quot;&quot; : extraInfo + &quot;: &quot;;</b>
+<b class="nc"><i>611</i>&nbsp;        extraInfo += &quot;expected a &quot; + status + &quot; status exception to be thrown&quot;;</b>
+<i>612</i>&nbsp;
+<i>613</i>&nbsp;        try {
+<b class="nc"><i>614</i>&nbsp;            future.actionGet();</b>
+<b class="nc"><i>615</i>&nbsp;            fail = true;</b>
+<b class="nc"><i>616</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>617</i>&nbsp;            assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));</b>
+<b class="nc"><i>618</i>&nbsp;        }</b>
+<i>619</i>&nbsp;        // has to be outside catch clause to get a proper message
+<b class="nc"><i>620</i>&nbsp;        if (fail) {</b>
+<b class="nc"><i>621</i>&nbsp;            throw new AssertionError(extraInfo);</b>
+<i>622</i>&nbsp;        }
+<b class="nc"><i>623</i>&nbsp;    }</b>
+<i>624</i>&nbsp;
+<i>625</i>&nbsp;    /**
+<i>626</i>&nbsp;     * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
+<i>627</i>&nbsp;     * any of the shards threw an exception and if the response is serializable.
+<i>628</i>&nbsp;     */
+<i>629</i>&nbsp;    public static SearchResponse assertSearchResponse(SearchRequestBuilder request) {
+<b class="nc"><i>630</i>&nbsp;        return assertSearchResponse(request.get());</b>
+<i>631</i>&nbsp;    }
+<i>632</i>&nbsp;
+<i>633</i>&nbsp;    /**
+<i>634</i>&nbsp;     * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
+<i>635</i>&nbsp;     * any of the shards threw an exception and if the response is serializable.
+<i>636</i>&nbsp;     */
+<i>637</i>&nbsp;    public static SearchResponse assertSearchResponse(SearchResponse response) {
+<b class="nc"><i>638</i>&nbsp;        assertNoFailures(response);</b>
+<b class="nc"><i>639</i>&nbsp;        return response;</b>
+<i>640</i>&nbsp;    }
+<i>641</i>&nbsp;
+<i>642</i>&nbsp;    /**
+<i>643</i>&nbsp;     * Check if a file exists
+<i>644</i>&nbsp;     */
+<i>645</i>&nbsp;    public static void assertFileExists(Path file) {
+<b class="nc"><i>646</i>&nbsp;        assertThat(&quot;file/dir [&quot; + file + &quot;] should exist.&quot;, Files.exists(file), is(true));</b>
+<b class="nc"><i>647</i>&nbsp;    }</b>
+<i>648</i>&nbsp;
+<i>649</i>&nbsp;    /**
+<i>650</i>&nbsp;     * Check if a file does not exist
+<i>651</i>&nbsp;     */
+<i>652</i>&nbsp;    public static void assertFileNotExists(Path file) {
+<b class="nc"><i>653</i>&nbsp;        assertThat(&quot;file/dir [&quot; + file + &quot;] should not exist.&quot;, Files.exists(file), is(false));</b>
+<b class="nc"><i>654</i>&nbsp;    }</b>
+<i>655</i>&nbsp;
+<i>656</i>&nbsp;    /**
+<i>657</i>&nbsp;     * Asserts that the provided {@link BytesReference}s created through
+<i>658</i>&nbsp;     * {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
+<i>659</i>&nbsp;     * The comparison is done by parsing both into a map and comparing those two, so that keys ordering doesn&#39;t matter.
+<i>660</i>&nbsp;     * Also binary values (byte[]) are properly compared through arrays comparisons.
+<i>661</i>&nbsp;     */
+<i>662</i>&nbsp;    public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType)
+<i>663</i>&nbsp;            throws IOException {
+<i>664</i>&nbsp;        //we tried comparing byte per byte, but that didn&#39;t fly for a couple of reasons:
+<i>665</i>&nbsp;        //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
+<i>666</i>&nbsp;        //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
+<i>667</i>&nbsp;        //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+<b class="fc"><i>668</i>&nbsp;        Map&lt;String, Object&gt; actualMap = null;</b>
+<b class="fc"><i>669</i>&nbsp;        Map&lt;String, Object&gt; expectedMap = null;</b>
+<b class="fc"><i>670</i>&nbsp;        try (XContentParser actualParser = xContentType.xContent()</b>
+<b class="fc"><i>671</i>&nbsp;                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.streamInput())) {</b>
+<b class="fc"><i>672</i>&nbsp;            actualMap = actualParser.map();</b>
+<b class="fc"><i>673</i>&nbsp;            try (XContentParser expectedParser = xContentType.xContent()</b>
+<b class="fc"><i>674</i>&nbsp;                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.streamInput())) {</b>
+<b class="fc"><i>675</i>&nbsp;                expectedMap = expectedParser.map();</b>
+<i>676</i>&nbsp;                try {
+<b class="fc"><i>677</i>&nbsp;                    assertMapEquals(expectedMap, actualMap);</b>
+<b class="nc"><i>678</i>&nbsp;                } catch (AssertionError error) {</b>
+<b class="nc"><i>679</i>&nbsp;                    NotEqualMessageBuilder message = new NotEqualMessageBuilder();</b>
+<b class="nc"><i>680</i>&nbsp;                    message.compareMaps(actualMap, expectedMap);</b>
+<b class="nc"><i>681</i>&nbsp;                    throw new AssertionError(&quot;Error when comparing xContent.\n&quot; + message.toString(), error);</b>
+<b class="fc"><i>682</i>&nbsp;                }</b>
+<b class="fc"><i>683</i>&nbsp;            }</b>
+<b class="fc"><i>684</i>&nbsp;        }</b>
+<b class="fc"><i>685</i>&nbsp;    }</b>
+<i>686</i>&nbsp;
+<i>687</i>&nbsp;    /**
+<i>688</i>&nbsp;     * Wait for a latch to countdown and provide a useful error message if it does not
+<i>689</i>&nbsp;     * Often latches are called as &lt;code&gt;assertTrue(latch.await(1, TimeUnit.SECONDS));&lt;/code&gt;
+<i>690</i>&nbsp;     * In case of a failure this will just throw an assertion error without any further message
+<i>691</i>&nbsp;     *
+<i>692</i>&nbsp;     * @param latch    The latch to wait for
+<i>693</i>&nbsp;     * @param timeout  The value of the timeout
+<i>694</i>&nbsp;     * @param unit     The unit of the timeout
+<i>695</i>&nbsp;     * @throws InterruptedException An exception if the waiting is interrupted
+<i>696</i>&nbsp;     */
+<i>697</i>&nbsp;    public static void awaitLatch(CountDownLatch latch, long timeout, TimeUnit unit) throws InterruptedException {
+<b class="nc"><i>698</i>&nbsp;        TimeValue timeValue = new TimeValue(timeout, unit);</b>
+<b class="nc"><i>699</i>&nbsp;        String message = String.format(Locale.ROOT, &quot;expected latch to be counted down after %s, but was not&quot;, timeValue);</b>
+<b class="nc"><i>700</i>&nbsp;        boolean isCountedDown = latch.await(timeout, unit);</b>
+<b class="nc"><i>701</i>&nbsp;        assertThat(message, isCountedDown, is(true));</b>
+<b class="nc"><i>702</i>&nbsp;    }</b>
+<i>703</i>&nbsp;
+<i>704</i>&nbsp;    /**
+<i>705</i>&nbsp;     * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
+<i>706</i>&nbsp;     */
+<i>707</i>&nbsp;    private static void assertMapEquals(Map&lt;String, Object&gt; expected, Map&lt;String, Object&gt; actual) {
+<b class="fc"><i>708</i>&nbsp;        assertEquals(expected.size(), actual.size());</b>
+<b class="fc"><i>709</i>&nbsp;        for (Map.Entry&lt;String, Object&gt; expectedEntry : expected.entrySet()) {</b>
+<b class="fc"><i>710</i>&nbsp;            String expectedKey = expectedEntry.getKey();</b>
+<b class="fc"><i>711</i>&nbsp;            Object expectedValue = expectedEntry.getValue();</b>
+<b class="fc"><i>712</i>&nbsp;            if (expectedValue == null) {</b>
+<b class="nc"><i>713</i>&nbsp;                assertTrue(actual.get(expectedKey) == null &amp;&amp; actual.containsKey(expectedKey));</b>
+<i>714</i>&nbsp;            } else {
+<b class="fc"><i>715</i>&nbsp;                Object actualValue = actual.get(expectedKey);</b>
+<b class="fc"><i>716</i>&nbsp;                assertObjectEquals(expectedValue, actualValue);</b>
+<i>717</i>&nbsp;            }
+<b class="fc"><i>718</i>&nbsp;        }</b>
+<b class="fc"><i>719</i>&nbsp;    }</b>
+<i>720</i>&nbsp;
+<i>721</i>&nbsp;    /**
+<i>722</i>&nbsp;     * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
+<i>723</i>&nbsp;     */
+<i>724</i>&nbsp;    private static void assertListEquals(List&lt;Object&gt; expected, List&lt;Object&gt; actual) {
+<b class="nc"><i>725</i>&nbsp;        assertEquals(expected.size(), actual.size());</b>
+<b class="nc"><i>726</i>&nbsp;        Iterator&lt;Object&gt; actualIterator = actual.iterator();</b>
+<b class="nc"><i>727</i>&nbsp;        for (Object expectedValue : expected) {</b>
+<b class="nc"><i>728</i>&nbsp;            Object actualValue = actualIterator.next();</b>
+<b class="nc"><i>729</i>&nbsp;            assertObjectEquals(expectedValue, actualValue);</b>
+<b class="nc"><i>730</i>&nbsp;        }</b>
+<b class="nc"><i>731</i>&nbsp;    }</b>
+<i>732</i>&nbsp;
+<i>733</i>&nbsp;    /**
+<i>734</i>&nbsp;     * Compares two objects, recursively walking eventual maps and lists encountered, and using arrays comparisons
+<i>735</i>&nbsp;     * for byte[] through Arrays.equals(byte[], byte[])
+<i>736</i>&nbsp;     */
+<i>737</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>738</i>&nbsp;    private static void assertObjectEquals(Object expected, Object actual) {
+<b class="fc"><i>739</i>&nbsp;        if (expected instanceof Map) {</b>
+<b class="fc"><i>740</i>&nbsp;            assertThat(actual, instanceOf(Map.class));</b>
+<b class="fc"><i>741</i>&nbsp;            assertMapEquals((Map&lt;String, Object&gt;) expected, (Map&lt;String, Object&gt;) actual);</b>
+<b class="fc"><i>742</i>&nbsp;        } else if (expected instanceof List) {</b>
+<b class="nc"><i>743</i>&nbsp;            assertListEquals((List&lt;Object&gt;) expected, (List&lt;Object&gt;) actual);</b>
+<b class="fc"><i>744</i>&nbsp;        } else if (expected instanceof byte[]) {</b>
+<i>745</i>&nbsp;            //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
+<i>746</i>&nbsp;            //don&#39;t need to be handled. Ordinary arrays get parsed as lists.
+<b class="nc"><i>747</i>&nbsp;            assertArrayEquals((byte[]) expected, (byte[]) actual);</b>
+<i>748</i>&nbsp;        } else {
+<b class="fc"><i>749</i>&nbsp;            assertEquals(expected, actual);</b>
+<i>750</i>&nbsp;        }
+<b class="fc"><i>751</i>&nbsp;    }</b>
+<i>752</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

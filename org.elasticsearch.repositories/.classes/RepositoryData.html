@@ -1,0 +1,533 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RepositoryData</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.repositories</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RepositoryData (org.elasticsearch.repositories)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RepositoryData</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 192)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.repositories;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>23</i>&nbsp;import org.elasticsearch.ResourceNotFoundException;
+<i>24</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>25</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>28</i>&nbsp;import org.elasticsearch.snapshots.SnapshotId;
+<i>29</i>&nbsp;import org.elasticsearch.snapshots.SnapshotState;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.io.IOException;
+<i>32</i>&nbsp;import java.util.ArrayList;
+<i>33</i>&nbsp;import java.util.Collection;
+<i>34</i>&nbsp;import java.util.Collections;
+<i>35</i>&nbsp;import java.util.HashMap;
+<i>36</i>&nbsp;import java.util.LinkedHashSet;
+<i>37</i>&nbsp;import java.util.List;
+<i>38</i>&nbsp;import java.util.Map;
+<i>39</i>&nbsp;import java.util.Objects;
+<i>40</i>&nbsp;import java.util.Set;
+<i>41</i>&nbsp;import java.util.function.Function;
+<i>42</i>&nbsp;import java.util.stream.Collectors;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;/**
+<i>45</i>&nbsp; * A class that represents the data in a repository, as captured in the
+<i>46</i>&nbsp; * repository&#39;s index blob.
+<i>47</i>&nbsp; */
+<b class="nc"><i>48</i>&nbsp;public final class RepositoryData {</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    /**
+<i>51</i>&nbsp;     * The generation value indicating the repository has no index generational files.
+<i>52</i>&nbsp;     */
+<i>53</i>&nbsp;    public static final long EMPTY_REPO_GEN = -1L;
+<i>54</i>&nbsp;    /**
+<i>55</i>&nbsp;     * An instance initialized for an empty repository.
+<i>56</i>&nbsp;     */
+<b class="nc"><i>57</i>&nbsp;    public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN,</b>
+<b class="nc"><i>58</i>&nbsp;        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    /**
+<i>61</i>&nbsp;     * The generational id of the index file from which the repository data was read.
+<i>62</i>&nbsp;     */
+<i>63</i>&nbsp;    private final long genId;
+<i>64</i>&nbsp;    /**
+<i>65</i>&nbsp;     * The ids of the snapshots in the repository.
+<i>66</i>&nbsp;     */
+<i>67</i>&nbsp;    private final Map&lt;String, SnapshotId&gt; snapshotIds;
+<i>68</i>&nbsp;    /**
+<i>69</i>&nbsp;     * The states of each snapshot in the repository.
+<i>70</i>&nbsp;     */
+<i>71</i>&nbsp;    private final Map&lt;String, SnapshotState&gt; snapshotStates;
+<i>72</i>&nbsp;    /**
+<i>73</i>&nbsp;     * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
+<i>74</i>&nbsp;     */
+<i>75</i>&nbsp;    private final Map&lt;String, IndexId&gt; indices;
+<i>76</i>&nbsp;    /**
+<i>77</i>&nbsp;     * The snapshots that each index belongs to.
+<i>78</i>&nbsp;     */
+<i>79</i>&nbsp;    private final Map&lt;IndexId, Set&lt;SnapshotId&gt;&gt; indexSnapshots;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    public RepositoryData(long genId, Map&lt;String, SnapshotId&gt; snapshotIds, Map&lt;String, SnapshotState&gt; snapshotStates,
+<b class="nc"><i>83</i>&nbsp;                          Map&lt;IndexId, Set&lt;SnapshotId&gt;&gt; indexSnapshots) {</b>
+<b class="nc"><i>84</i>&nbsp;        this.genId = genId;</b>
+<b class="nc"><i>85</i>&nbsp;        this.snapshotIds = Collections.unmodifiableMap(snapshotIds);</b>
+<b class="nc"><i>86</i>&nbsp;        this.snapshotStates = Collections.unmodifiableMap(snapshotStates);</b>
+<b class="nc"><i>87</i>&nbsp;        this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()</b>
+<b class="nc"><i>88</i>&nbsp;            .collect(Collectors.toMap(IndexId::getName, Function.identity())));</b>
+<b class="nc"><i>89</i>&nbsp;        this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);</b>
+<b class="nc"><i>90</i>&nbsp;    }</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    protected RepositoryData copy() {
+<b class="nc"><i>93</i>&nbsp;        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots);</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    /**
+<i>97</i>&nbsp;     * Gets the generational index file id from which this instance was read.
+<i>98</i>&nbsp;     */
+<i>99</i>&nbsp;    public long getGenId() {
+<b class="nc"><i>100</i>&nbsp;        return genId;</b>
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    /**
+<i>104</i>&nbsp;     * Returns an unmodifiable collection of the snapshot ids.
+<i>105</i>&nbsp;     */
+<i>106</i>&nbsp;    public Collection&lt;SnapshotId&gt; getSnapshotIds() {
+<b class="nc"><i>107</i>&nbsp;        return Collections.unmodifiableCollection(snapshotIds.values());</b>
+<i>108</i>&nbsp;    }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    /**
+<i>111</i>&nbsp;     * Returns the {@link SnapshotState} for the given snapshot.  Returns {@code null} if
+<i>112</i>&nbsp;     * there is no state for the snapshot.
+<i>113</i>&nbsp;     */
+<i>114</i>&nbsp;    @Nullable
+<i>115</i>&nbsp;    public SnapshotState getSnapshotState(final SnapshotId snapshotId) {
+<b class="nc"><i>116</i>&nbsp;        return snapshotStates.get(snapshotId.getUUID());</b>
+<i>117</i>&nbsp;    }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    /**
+<i>120</i>&nbsp;     * Returns an unmodifiable map of the index names to {@link IndexId} in the repository.
+<i>121</i>&nbsp;     */
+<i>122</i>&nbsp;    public Map&lt;String, IndexId&gt; getIndices() {
+<b class="nc"><i>123</i>&nbsp;        return indices;</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    /**
+<i>127</i>&nbsp;     * Returns the list of {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by other
+<i>128</i>&nbsp;     * snapshots) after removing the given snapshot from the repository.
+<i>129</i>&nbsp;     *
+<i>130</i>&nbsp;     * @param snapshotId SnapshotId to remove
+<i>131</i>&nbsp;     * @return List of indices that are changed but not removed
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    public List&lt;IndexId&gt; indicesToUpdateAfterRemovingSnapshot(SnapshotId snapshotId) {
+<b class="nc"><i>134</i>&nbsp;        return indexSnapshots.entrySet().stream()</b>
+<b class="nc"><i>135</i>&nbsp;            .filter(entry -&gt; entry.getValue().size() &gt; 1 &amp;&amp; entry.getValue().contains(snapshotId))</b>
+<b class="nc"><i>136</i>&nbsp;            .map(Map.Entry::getKey)</b>
+<b class="nc"><i>137</i>&nbsp;            .collect(Collectors.toList());</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /**
+<i>141</i>&nbsp;     * Add a snapshot and its indices to the repository; returns a new instance.  If the snapshot
+<i>142</i>&nbsp;     * already exists in the repository data, this method throws an IllegalArgumentException.
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public RepositoryData addSnapshot(final SnapshotId snapshotId,
+<i>145</i>&nbsp;                                      final SnapshotState snapshotState,
+<i>146</i>&nbsp;                                      final List&lt;IndexId&gt; snapshottedIndices) {
+<b class="nc"><i>147</i>&nbsp;        if (snapshotIds.containsKey(snapshotId.getUUID())) {</b>
+<i>148</i>&nbsp;            // if the snapshot id already exists in the repository data, it means an old master
+<i>149</i>&nbsp;            // that is blocked from the cluster is trying to finalize a snapshot concurrently with
+<i>150</i>&nbsp;            // the new master, so we make the operation idempotent
+<b class="nc"><i>151</i>&nbsp;            return this;</b>
+<i>152</i>&nbsp;        }
+<b class="nc"><i>153</i>&nbsp;        Map&lt;String, SnapshotId&gt; snapshots = new HashMap&lt;&gt;(snapshotIds);</b>
+<b class="nc"><i>154</i>&nbsp;        snapshots.put(snapshotId.getUUID(), snapshotId);</b>
+<b class="nc"><i>155</i>&nbsp;        Map&lt;String, SnapshotState&gt; newSnapshotStates = new HashMap&lt;&gt;(snapshotStates);</b>
+<b class="nc"><i>156</i>&nbsp;        newSnapshotStates.put(snapshotId.getUUID(), snapshotState);</b>
+<b class="nc"><i>157</i>&nbsp;        Map&lt;IndexId, Set&lt;SnapshotId&gt;&gt; allIndexSnapshots = new HashMap&lt;&gt;(indexSnapshots);</b>
+<b class="nc"><i>158</i>&nbsp;        for (final IndexId indexId : snapshottedIndices) {</b>
+<b class="nc"><i>159</i>&nbsp;            if (allIndexSnapshots.containsKey(indexId)) {</b>
+<b class="nc"><i>160</i>&nbsp;                Set&lt;SnapshotId&gt; ids = allIndexSnapshots.get(indexId);</b>
+<b class="nc"><i>161</i>&nbsp;                if (ids == null) {</b>
+<b class="nc"><i>162</i>&nbsp;                    ids = new LinkedHashSet&lt;&gt;();</b>
+<b class="nc"><i>163</i>&nbsp;                    allIndexSnapshots.put(indexId, ids);</b>
+<i>164</i>&nbsp;                }
+<b class="nc"><i>165</i>&nbsp;                ids.add(snapshotId);</b>
+<b class="nc"><i>166</i>&nbsp;            } else {</b>
+<b class="nc"><i>167</i>&nbsp;                Set&lt;SnapshotId&gt; ids = new LinkedHashSet&lt;&gt;();</b>
+<b class="nc"><i>168</i>&nbsp;                ids.add(snapshotId);</b>
+<b class="nc"><i>169</i>&nbsp;                allIndexSnapshots.put(indexId, ids);</b>
+<i>170</i>&nbsp;            }
+<b class="nc"><i>171</i>&nbsp;        }</b>
+<b class="nc"><i>172</i>&nbsp;        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots);</b>
+<i>173</i>&nbsp;    }
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;    /**
+<i>176</i>&nbsp;     * Create a new instance with the given generation and all other fields equal to this instance.
+<i>177</i>&nbsp;     *
+<i>178</i>&nbsp;     * @param newGeneration New Generation
+<i>179</i>&nbsp;     * @return New instance
+<i>180</i>&nbsp;     */
+<i>181</i>&nbsp;    public RepositoryData withGenId(long newGeneration) {
+<b class="nc"><i>182</i>&nbsp;        if (newGeneration == genId) {</b>
+<b class="nc"><i>183</i>&nbsp;            return this;</b>
+<i>184</i>&nbsp;        }
+<b class="nc"><i>185</i>&nbsp;        return new RepositoryData(newGeneration, this.snapshotIds, this.snapshotStates, this.indexSnapshots);</b>
+<i>186</i>&nbsp;    }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    /**
+<i>189</i>&nbsp;     * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
+<i>190</i>&nbsp;     */
+<i>191</i>&nbsp;    public RepositoryData removeSnapshot(final SnapshotId snapshotId) {
+<b class="nc"><i>192</i>&nbsp;        Map&lt;String, SnapshotId&gt; newSnapshotIds = snapshotIds.values().stream()</b>
+<b class="nc"><i>193</i>&nbsp;            .filter(id -&gt; !snapshotId.equals(id))</b>
+<b class="nc"><i>194</i>&nbsp;            .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));</b>
+<b class="nc"><i>195</i>&nbsp;        if (newSnapshotIds.size() == snapshotIds.size()) {</b>
+<b class="nc"><i>196</i>&nbsp;            throw new ResourceNotFoundException(&quot;Attempting to remove non-existent snapshot [{}] from repository data&quot;, snapshotId);</b>
+<i>197</i>&nbsp;        }
+<b class="nc"><i>198</i>&nbsp;        Map&lt;String, SnapshotState&gt; newSnapshotStates = new HashMap&lt;&gt;(snapshotStates);</b>
+<b class="nc"><i>199</i>&nbsp;        newSnapshotStates.remove(snapshotId.getUUID());</b>
+<b class="nc"><i>200</i>&nbsp;        Map&lt;IndexId, Set&lt;SnapshotId&gt;&gt; indexSnapshots = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>201</i>&nbsp;        for (final IndexId indexId : indices.values()) {</b>
+<i>202</i>&nbsp;            Set&lt;SnapshotId&gt; set;
+<b class="nc"><i>203</i>&nbsp;            Set&lt;SnapshotId&gt; snapshotIds = this.indexSnapshots.get(indexId);</b>
+<b class="nc"><i>204</i>&nbsp;            assert snapshotIds != null;</b>
+<b class="nc"><i>205</i>&nbsp;            if (snapshotIds.contains(snapshotId)) {</b>
+<b class="nc"><i>206</i>&nbsp;                if (snapshotIds.size() == 1) {</b>
+<i>207</i>&nbsp;                    // removing the snapshot will mean no more snapshots
+<i>208</i>&nbsp;                    // have this index, so just skip over it
+<b class="nc"><i>209</i>&nbsp;                    continue;</b>
+<i>210</i>&nbsp;                }
+<b class="nc"><i>211</i>&nbsp;                set = new LinkedHashSet&lt;&gt;(snapshotIds);</b>
+<b class="nc"><i>212</i>&nbsp;                set.remove(snapshotId);</b>
+<i>213</i>&nbsp;            } else {
+<b class="nc"><i>214</i>&nbsp;                set = snapshotIds;</b>
+<i>215</i>&nbsp;            }
+<b class="nc"><i>216</i>&nbsp;            indexSnapshots.put(indexId, set);</b>
+<b class="nc"><i>217</i>&nbsp;        }</b>
+<i>218</i>&nbsp;
+<b class="nc"><i>219</i>&nbsp;        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots);</b>
+<i>220</i>&nbsp;    }
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;    /**
+<i>223</i>&nbsp;     * Returns an immutable collection of the snapshot ids for the snapshots that contain the given index.
+<i>224</i>&nbsp;     */
+<i>225</i>&nbsp;    public Set&lt;SnapshotId&gt; getSnapshots(final IndexId indexId) {
+<b class="nc"><i>226</i>&nbsp;        Set&lt;SnapshotId&gt; snapshotIds = indexSnapshots.get(indexId);</b>
+<b class="nc"><i>227</i>&nbsp;        if (snapshotIds == null) {</b>
+<b class="nc"><i>228</i>&nbsp;            throw new IllegalArgumentException(&quot;unknown snapshot index &quot; + indexId);</b>
+<i>229</i>&nbsp;        }
+<b class="nc"><i>230</i>&nbsp;        return snapshotIds;</b>
+<i>231</i>&nbsp;    }
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;    @Override
+<i>234</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>235</i>&nbsp;        if (this == obj) {</b>
+<b class="nc"><i>236</i>&nbsp;            return true;</b>
+<i>237</i>&nbsp;        }
+<b class="nc"><i>238</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="nc"><i>239</i>&nbsp;            return false;</b>
+<i>240</i>&nbsp;        }
+<b class="nc"><i>241</i>&nbsp;        RepositoryData that = (RepositoryData) obj;</b>
+<b class="nc"><i>242</i>&nbsp;        return snapshotIds.equals(that.snapshotIds)</b>
+<b class="nc"><i>243</i>&nbsp;                   &amp;&amp; snapshotStates.equals(that.snapshotStates)</b>
+<b class="nc"><i>244</i>&nbsp;                   &amp;&amp; indices.equals(that.indices)</b>
+<b class="nc"><i>245</i>&nbsp;                   &amp;&amp; indexSnapshots.equals(that.indexSnapshots);</b>
+<i>246</i>&nbsp;    }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    @Override
+<i>249</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>250</i>&nbsp;        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots);</b>
+<i>251</i>&nbsp;    }
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    /**
+<i>254</i>&nbsp;     * Resolve the index name to the index id specific to the repository,
+<i>255</i>&nbsp;     * throwing an exception if the index could not be resolved.
+<i>256</i>&nbsp;     */
+<i>257</i>&nbsp;    public IndexId resolveIndexId(final String indexName) {
+<b class="nc"><i>258</i>&nbsp;        if (indices.containsKey(indexName)) {</b>
+<b class="nc"><i>259</i>&nbsp;            return indices.get(indexName);</b>
+<i>260</i>&nbsp;        } else {
+<i>261</i>&nbsp;            // on repositories created before 5.0, there was no indices information in the index
+<i>262</i>&nbsp;            // blob, so if the repository hasn&#39;t been updated with new snapshots, no new index blob
+<i>263</i>&nbsp;            // would have been written, so we only have old snapshots without the index information.
+<i>264</i>&nbsp;            // in this case, the index id is just the index name
+<b class="nc"><i>265</i>&nbsp;            return new IndexId(indexName, indexName);</b>
+<i>266</i>&nbsp;        }
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    /**
+<i>270</i>&nbsp;     * Resolve the given index names to index ids.
+<i>271</i>&nbsp;     */
+<i>272</i>&nbsp;    public List&lt;IndexId&gt; resolveIndices(final List&lt;String&gt; indices) {
+<b class="nc"><i>273</i>&nbsp;        List&lt;IndexId&gt; resolvedIndices = new ArrayList&lt;&gt;(indices.size());</b>
+<b class="nc"><i>274</i>&nbsp;        for (final String indexName : indices) {</b>
+<b class="nc"><i>275</i>&nbsp;            resolvedIndices.add(resolveIndexId(indexName));</b>
+<b class="nc"><i>276</i>&nbsp;        }</b>
+<b class="nc"><i>277</i>&nbsp;        return resolvedIndices;</b>
+<i>278</i>&nbsp;    }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    /**
+<i>281</i>&nbsp;     * Resolve the given index names to index ids, creating new index ids for
+<i>282</i>&nbsp;     * new indices in the repository.
+<i>283</i>&nbsp;     */
+<i>284</i>&nbsp;    public List&lt;IndexId&gt; resolveNewIndices(final List&lt;String&gt; indicesToResolve) {
+<b class="nc"><i>285</i>&nbsp;        List&lt;IndexId&gt; snapshotIndices = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>286</i>&nbsp;        for (String index : indicesToResolve) {</b>
+<i>287</i>&nbsp;            final IndexId indexId;
+<b class="nc"><i>288</i>&nbsp;            if (indices.containsKey(index)) {</b>
+<b class="nc"><i>289</i>&nbsp;                indexId = indices.get(index);</b>
+<i>290</i>&nbsp;            } else {
+<b class="nc"><i>291</i>&nbsp;                indexId = new IndexId(index, UUIDs.randomBase64UUID());</b>
+<i>292</i>&nbsp;            }
+<b class="nc"><i>293</i>&nbsp;            snapshotIndices.add(indexId);</b>
+<b class="nc"><i>294</i>&nbsp;        }</b>
+<b class="nc"><i>295</i>&nbsp;        return snapshotIndices;</b>
+<i>296</i>&nbsp;    }
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;    private static final String SNAPSHOTS = &quot;snapshots&quot;;
+<i>299</i>&nbsp;    private static final String INDICES = &quot;indices&quot;;
+<i>300</i>&nbsp;    private static final String INDEX_ID = &quot;id&quot;;
+<i>301</i>&nbsp;    private static final String NAME = &quot;name&quot;;
+<i>302</i>&nbsp;    private static final String UUID = &quot;uuid&quot;;
+<i>303</i>&nbsp;    private static final String STATE = &quot;state&quot;;
+<i>304</i>&nbsp;
+<i>305</i>&nbsp;    /**
+<i>306</i>&nbsp;     * Writes the snapshots metadata and the related indices metadata to x-content.
+<i>307</i>&nbsp;     */
+<i>308</i>&nbsp;    public XContentBuilder snapshotsToXContent(final XContentBuilder builder) throws IOException {
+<b class="nc"><i>309</i>&nbsp;        builder.startObject();</b>
+<i>310</i>&nbsp;        // write the snapshots list
+<b class="nc"><i>311</i>&nbsp;        builder.startArray(SNAPSHOTS);</b>
+<b class="nc"><i>312</i>&nbsp;        for (final SnapshotId snapshot : getSnapshotIds()) {</b>
+<b class="nc"><i>313</i>&nbsp;            builder.startObject();</b>
+<b class="nc"><i>314</i>&nbsp;            builder.field(NAME, snapshot.getName());</b>
+<b class="nc"><i>315</i>&nbsp;            builder.field(UUID, snapshot.getUUID());</b>
+<b class="nc"><i>316</i>&nbsp;            if (snapshotStates.containsKey(snapshot.getUUID())) {</b>
+<b class="nc"><i>317</i>&nbsp;                builder.field(STATE, snapshotStates.get(snapshot.getUUID()).value());</b>
+<i>318</i>&nbsp;            }
+<b class="nc"><i>319</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>320</i>&nbsp;        }</b>
+<b class="nc"><i>321</i>&nbsp;        builder.endArray();</b>
+<i>322</i>&nbsp;        // write the indices map
+<b class="nc"><i>323</i>&nbsp;        builder.startObject(INDICES);</b>
+<b class="nc"><i>324</i>&nbsp;        for (final IndexId indexId : getIndices().values()) {</b>
+<b class="nc"><i>325</i>&nbsp;            builder.startObject(indexId.getName());</b>
+<b class="nc"><i>326</i>&nbsp;            builder.field(INDEX_ID, indexId.getId());</b>
+<b class="nc"><i>327</i>&nbsp;            builder.startArray(SNAPSHOTS);</b>
+<b class="nc"><i>328</i>&nbsp;            Set&lt;SnapshotId&gt; snapshotIds = indexSnapshots.get(indexId);</b>
+<b class="nc"><i>329</i>&nbsp;            assert snapshotIds != null;</b>
+<b class="nc"><i>330</i>&nbsp;            for (final SnapshotId snapshotId : snapshotIds) {</b>
+<b class="nc"><i>331</i>&nbsp;                builder.value(snapshotId.getUUID());</b>
+<b class="nc"><i>332</i>&nbsp;            }</b>
+<b class="nc"><i>333</i>&nbsp;            builder.endArray();</b>
+<b class="nc"><i>334</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>335</i>&nbsp;        }</b>
+<b class="nc"><i>336</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>337</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>338</i>&nbsp;        return builder;</b>
+<i>339</i>&nbsp;    }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;    /**
+<i>342</i>&nbsp;     * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
+<i>343</i>&nbsp;     */
+<i>344</i>&nbsp;    public static RepositoryData snapshotsFromXContent(final XContentParser parser, long genId) throws IOException {
+<b class="nc"><i>345</i>&nbsp;        final Map&lt;String, SnapshotId&gt; snapshots = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>346</i>&nbsp;        final Map&lt;String, SnapshotState&gt; snapshotStates = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>347</i>&nbsp;        final Map&lt;IndexId, Set&lt;SnapshotId&gt;&gt; indexSnapshots = new HashMap&lt;&gt;();</b>
+<i>348</i>&nbsp;
+<b class="nc"><i>349</i>&nbsp;        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>350</i>&nbsp;            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>351</i>&nbsp;                String field = parser.currentName();</b>
+<b class="nc"><i>352</i>&nbsp;                if (SNAPSHOTS.equals(field)) {</b>
+<b class="nc"><i>353</i>&nbsp;                    if (parser.nextToken() == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>354</i>&nbsp;                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<i>355</i>&nbsp;                            final SnapshotId snapshotId;
+<i>356</i>&nbsp;                            // the new format from 5.0 which contains the snapshot name and uuid
+<b class="nc"><i>357</i>&nbsp;                            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>358</i>&nbsp;                                String name = null;</b>
+<b class="nc"><i>359</i>&nbsp;                                String uuid = null;</b>
+<b class="nc"><i>360</i>&nbsp;                                SnapshotState state = null;</b>
+<b class="nc"><i>361</i>&nbsp;                                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>362</i>&nbsp;                                    String currentFieldName = parser.currentName();</b>
+<b class="nc"><i>363</i>&nbsp;                                    parser.nextToken();</b>
+<b class="nc"><i>364</i>&nbsp;                                    if (NAME.equals(currentFieldName)) {</b>
+<b class="nc"><i>365</i>&nbsp;                                        name = parser.text();</b>
+<b class="nc"><i>366</i>&nbsp;                                    } else if (UUID.equals(currentFieldName)) {</b>
+<b class="nc"><i>367</i>&nbsp;                                        uuid = parser.text();</b>
+<b class="nc"><i>368</i>&nbsp;                                    } else if (STATE.equals(currentFieldName)) {</b>
+<b class="nc"><i>369</i>&nbsp;                                        state = SnapshotState.fromValue(parser.numberValue().byteValue());</b>
+<i>370</i>&nbsp;                                    }
+<b class="nc"><i>371</i>&nbsp;                                }</b>
+<b class="nc"><i>372</i>&nbsp;                                snapshotId = new SnapshotId(name, uuid);</b>
+<b class="nc"><i>373</i>&nbsp;                                if (state != null) {</b>
+<b class="nc"><i>374</i>&nbsp;                                    snapshotStates.put(uuid, state);</b>
+<i>375</i>&nbsp;                                }
+<b class="nc"><i>376</i>&nbsp;                            } else {</b>
+<i>377</i>&nbsp;                                // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
+<b class="nc"><i>378</i>&nbsp;                                final String name = parser.text();</b>
+<b class="nc"><i>379</i>&nbsp;                                snapshotId = new SnapshotId(name, name);</b>
+<i>380</i>&nbsp;                            }
+<b class="nc"><i>381</i>&nbsp;                            snapshots.put(snapshotId.getUUID(), snapshotId);</b>
+<b class="nc"><i>382</i>&nbsp;                        }</b>
+<i>383</i>&nbsp;                    } else {
+<b class="nc"><i>384</i>&nbsp;                        throw new ElasticsearchParseException(&quot;expected array for [&quot; + field + &quot;]&quot;);</b>
+<i>385</i>&nbsp;                    }
+<b class="nc"><i>386</i>&nbsp;                } else if (INDICES.equals(field)) {</b>
+<b class="nc"><i>387</i>&nbsp;                    if (parser.nextToken() != XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>388</i>&nbsp;                        throw new ElasticsearchParseException(&quot;start object expected [indices]&quot;);</b>
+<i>389</i>&nbsp;                    }
+<b class="nc"><i>390</i>&nbsp;                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>391</i>&nbsp;                        final String indexName = parser.currentName();</b>
+<b class="nc"><i>392</i>&nbsp;                        final Set&lt;SnapshotId&gt; snapshotIds = new LinkedHashSet&lt;&gt;();</b>
+<i>393</i>&nbsp;
+<b class="nc"><i>394</i>&nbsp;                        IndexId indexId = null;</b>
+<b class="nc"><i>395</i>&nbsp;                        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>396</i>&nbsp;                            throw new ElasticsearchParseException(&quot;start object expected index[&quot; + indexName + &quot;]&quot;);</b>
+<i>397</i>&nbsp;                        }
+<b class="nc"><i>398</i>&nbsp;                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>399</i>&nbsp;                            final String indexMetaFieldName = parser.currentName();</b>
+<b class="nc"><i>400</i>&nbsp;                            parser.nextToken();</b>
+<b class="nc"><i>401</i>&nbsp;                            if (INDEX_ID.equals(indexMetaFieldName)) {</b>
+<b class="nc"><i>402</i>&nbsp;                                indexId = new IndexId(indexName, parser.text());</b>
+<b class="nc"><i>403</i>&nbsp;                            } else if (SNAPSHOTS.equals(indexMetaFieldName)) {</b>
+<b class="nc"><i>404</i>&nbsp;                                if (parser.currentToken() != XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>405</i>&nbsp;                                    throw new ElasticsearchParseException(&quot;start array expected [snapshots]&quot;);</b>
+<i>406</i>&nbsp;                                }
+<b class="nc"><i>407</i>&nbsp;                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>408</i>&nbsp;                                    String uuid = null;</b>
+<i>409</i>&nbsp;                                    // the old format pre 5.4.1 which contains the snapshot name and uuid
+<b class="nc"><i>410</i>&nbsp;                                    if (parser.currentToken() == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>411</i>&nbsp;                                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>412</i>&nbsp;                                            String currentFieldName = parser.currentName();</b>
+<b class="nc"><i>413</i>&nbsp;                                            parser.nextToken();</b>
+<b class="nc"><i>414</i>&nbsp;                                            if (UUID.equals(currentFieldName)) {</b>
+<b class="nc"><i>415</i>&nbsp;                                                uuid = parser.text();</b>
+<i>416</i>&nbsp;                                            }
+<b class="nc"><i>417</i>&nbsp;                                        }</b>
+<i>418</i>&nbsp;                                    } else {
+<i>419</i>&nbsp;                                        // the new format post 5.4.1 that only contains the snapshot uuid,
+<i>420</i>&nbsp;                                        // since we already have the name/uuid combo in the snapshots array
+<b class="nc"><i>421</i>&nbsp;                                        uuid = parser.text();</b>
+<i>422</i>&nbsp;                                    }
+<i>423</i>&nbsp;
+<b class="nc"><i>424</i>&nbsp;                                    SnapshotId snapshotId = snapshots.get(uuid);</b>
+<b class="nc"><i>425</i>&nbsp;                                    if (snapshotId != null) {</b>
+<b class="nc"><i>426</i>&nbsp;                                        snapshotIds.add(snapshotId);</b>
+<i>427</i>&nbsp;                                    } else {
+<i>428</i>&nbsp;                                        // A snapshotted index references a snapshot which does not exist in
+<i>429</i>&nbsp;                                        // the list of snapshots. This can happen when multiple clusters in
+<i>430</i>&nbsp;                                        // different versions create or delete snapshot in the same repository.
+<b class="nc"><i>431</i>&nbsp;                                        throw new ElasticsearchParseException(&quot;Detected a corrupted repository, index &quot; + indexId</b>
+<i>432</i>&nbsp;                                            + &quot; references an unknown snapshot uuid [&quot; + uuid + &quot;]&quot;);
+<i>433</i>&nbsp;                                    }
+<b class="nc"><i>434</i>&nbsp;                                }</b>
+<i>435</i>&nbsp;                            }
+<b class="nc"><i>436</i>&nbsp;                        }</b>
+<b class="nc"><i>437</i>&nbsp;                        assert indexId != null;</b>
+<b class="nc"><i>438</i>&nbsp;                        indexSnapshots.put(indexId, snapshotIds);</b>
+<b class="nc"><i>439</i>&nbsp;                    }</b>
+<i>440</i>&nbsp;                } else {
+<b class="nc"><i>441</i>&nbsp;                    throw new ElasticsearchParseException(&quot;unknown field name  [&quot; + field + &quot;]&quot;);</b>
+<i>442</i>&nbsp;                }
+<b class="nc"><i>443</i>&nbsp;            }</b>
+<i>444</i>&nbsp;        } else {
+<b class="nc"><i>445</i>&nbsp;            throw new ElasticsearchParseException(&quot;start object expected&quot;);</b>
+<i>446</i>&nbsp;        }
+<b class="nc"><i>447</i>&nbsp;        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots);</b>
+<i>448</i>&nbsp;    }
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

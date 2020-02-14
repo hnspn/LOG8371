@@ -1,0 +1,328 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ResourceWatcherService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.watcher</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ResourceWatcherService (org.elasticsearch.watcher)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ResourceWatcherService</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (4/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    56%
+  </span>
+  <span class="absValue">
+    (28/ 50)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ResourceWatcherService$Frequency</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (3/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (7/ 7)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ResourceWatcherService$ResourceMonitor</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (3/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.3%
+  </span>
+  <span class="absValue">
+    (8/ 15)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    58.8%
+  </span>
+  <span class="absValue">
+    (10/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.7%
+  </span>
+  <span class="absValue">
+    (43/ 72)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.watcher;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.elasticsearch.common.component.AbstractLifecycleComponent;
+<i>24</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>25</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>26</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>28</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>29</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>30</i>&nbsp;import org.elasticsearch.threadpool.Scheduler.Cancellable;
+<i>31</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool.Names;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.util.Set;
+<i>35</i>&nbsp;import java.util.concurrent.CopyOnWriteArraySet;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;/**
+<i>38</i>&nbsp; * Generic resource watcher service
+<i>39</i>&nbsp; *
+<i>40</i>&nbsp; * Other elasticsearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
+<i>41</i>&nbsp; * method. This service will call {@link org.elasticsearch.watcher.ResourceWatcher#checkAndNotify()} method of all
+<i>42</i>&nbsp; * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
+<i>43</i>&nbsp; * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
+<i>44</i>&nbsp; */
+<b class="nc"><i>45</i>&nbsp;public class ResourceWatcherService extends AbstractLifecycleComponent {</b>
+<b class="fc"><i>46</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ResourceWatcherService.class);</b>
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;    public enum Frequency {</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;        /**
+<i>51</i>&nbsp;         * Defaults to 5 seconds
+<i>52</i>&nbsp;         */
+<b class="fc"><i>53</i>&nbsp;        HIGH(TimeValue.timeValueSeconds(5)),</b>
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;        /**
+<i>56</i>&nbsp;         * Defaults to 30 seconds
+<i>57</i>&nbsp;         */
+<b class="fc"><i>58</i>&nbsp;        MEDIUM(TimeValue.timeValueSeconds(30)),</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;        /**
+<i>61</i>&nbsp;         * Defaults to 60 seconds
+<i>62</i>&nbsp;         */
+<b class="fc"><i>63</i>&nbsp;        LOW(TimeValue.timeValueSeconds(60));</b>
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;        final TimeValue interval;
+<i>66</i>&nbsp;
+<b class="fc"><i>67</i>&nbsp;        Frequency(TimeValue interval) {</b>
+<b class="fc"><i>68</i>&nbsp;            this.interval = interval;</b>
+<b class="fc"><i>69</i>&nbsp;        }</b>
+<i>70</i>&nbsp;    }
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    public static final Setting&lt;Boolean&gt; ENABLED = Setting.boolSetting(&quot;resource.reload.enabled&quot;, true, Property.NodeScope);</b>
+<b class="fc"><i>73</i>&nbsp;    public static final Setting&lt;TimeValue&gt; RELOAD_INTERVAL_HIGH =</b>
+<b class="fc"><i>74</i>&nbsp;        Setting.timeSetting(&quot;resource.reload.interval.high&quot;, Frequency.HIGH.interval, Property.NodeScope);</b>
+<b class="fc"><i>75</i>&nbsp;    public static final Setting&lt;TimeValue&gt; RELOAD_INTERVAL_MEDIUM = Setting.timeSetting(&quot;resource.reload.interval.medium&quot;,</b>
+<b class="fc"><i>76</i>&nbsp;        Setting.timeSetting(&quot;resource.reload.interval&quot;, Frequency.MEDIUM.interval), Property.NodeScope);</b>
+<b class="fc"><i>77</i>&nbsp;    public static final Setting&lt;TimeValue&gt; RELOAD_INTERVAL_LOW =</b>
+<b class="fc"><i>78</i>&nbsp;        Setting.timeSetting(&quot;resource.reload.interval.low&quot;, Frequency.LOW.interval, Property.NodeScope);</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    private final boolean enabled;
+<i>81</i>&nbsp;    private final ThreadPool threadPool;
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    final ResourceMonitor lowMonitor;
+<i>84</i>&nbsp;    final ResourceMonitor mediumMonitor;
+<i>85</i>&nbsp;    final ResourceMonitor highMonitor;
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    private volatile Cancellable lowFuture;
+<i>88</i>&nbsp;    private volatile Cancellable mediumFuture;
+<i>89</i>&nbsp;    private volatile Cancellable highFuture;
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    @Inject
+<b class="fc"><i>92</i>&nbsp;    public ResourceWatcherService(Settings settings, ThreadPool threadPool) {</b>
+<b class="fc"><i>93</i>&nbsp;        this.enabled = ENABLED.get(settings);</b>
+<b class="fc"><i>94</i>&nbsp;        this.threadPool = threadPool;</b>
+<i>95</i>&nbsp;
+<b class="fc"><i>96</i>&nbsp;        TimeValue interval = RELOAD_INTERVAL_LOW.get(settings);</b>
+<b class="fc"><i>97</i>&nbsp;        lowMonitor = new ResourceMonitor(interval, Frequency.LOW);</b>
+<b class="fc"><i>98</i>&nbsp;        interval = RELOAD_INTERVAL_MEDIUM.get(settings);</b>
+<b class="fc"><i>99</i>&nbsp;        mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);</b>
+<b class="fc"><i>100</i>&nbsp;        interval = RELOAD_INTERVAL_HIGH.get(settings);</b>
+<b class="fc"><i>101</i>&nbsp;        highMonitor = new ResourceMonitor(interval, Frequency.HIGH);</b>
+<b class="fc"><i>102</i>&nbsp;    }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    @Override
+<i>105</i>&nbsp;    protected void doStart() {
+<b class="fc"><i>106</i>&nbsp;        if (!enabled) {</b>
+<b class="nc"><i>107</i>&nbsp;            return;</b>
+<i>108</i>&nbsp;        }
+<b class="fc"><i>109</i>&nbsp;        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);</b>
+<b class="fc"><i>110</i>&nbsp;        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);</b>
+<b class="fc"><i>111</i>&nbsp;        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);</b>
+<b class="fc"><i>112</i>&nbsp;    }</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    @Override
+<i>115</i>&nbsp;    protected void doStop() {
+<b class="fc"><i>116</i>&nbsp;        if (!enabled) {</b>
+<b class="nc"><i>117</i>&nbsp;            return;</b>
+<i>118</i>&nbsp;        }
+<b class="fc"><i>119</i>&nbsp;        lowFuture.cancel();</b>
+<b class="fc"><i>120</i>&nbsp;        mediumFuture.cancel();</b>
+<b class="fc"><i>121</i>&nbsp;        highFuture.cancel();</b>
+<b class="fc"><i>122</i>&nbsp;    }</b>
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    @Override
+<i>125</i>&nbsp;    protected void doClose() {
+<b class="nc"><i>126</i>&nbsp;    }</b>
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    /**
+<i>129</i>&nbsp;     * Register new resource watcher that will be checked in default {@link Frequency#MEDIUM MEDIUM} frequency
+<i>130</i>&nbsp;     */
+<i>131</i>&nbsp;    public &lt;W extends ResourceWatcher&gt; WatcherHandle&lt;W&gt; add(W watcher) throws IOException {
+<b class="nc"><i>132</i>&nbsp;        return add(watcher, Frequency.MEDIUM);</b>
+<i>133</i>&nbsp;    }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Register new resource watcher that will be checked in the given frequency
+<i>137</i>&nbsp;     */
+<i>138</i>&nbsp;    public &lt;W extends ResourceWatcher&gt; WatcherHandle&lt;W&gt; add(W watcher, Frequency frequency) throws IOException {
+<b class="nc"><i>139</i>&nbsp;        watcher.init();</b>
+<b class="nc"><i>140</i>&nbsp;        switch (frequency) {</b>
+<i>141</i>&nbsp;            case LOW:
+<b class="nc"><i>142</i>&nbsp;                return lowMonitor.add(watcher);</b>
+<i>143</i>&nbsp;            case MEDIUM:
+<b class="nc"><i>144</i>&nbsp;                return mediumMonitor.add(watcher);</b>
+<i>145</i>&nbsp;            case HIGH:
+<b class="nc"><i>146</i>&nbsp;                return highMonitor.add(watcher);</b>
+<i>147</i>&nbsp;            default:
+<b class="nc"><i>148</i>&nbsp;                throw new IllegalArgumentException(&quot;Unknown frequency [&quot; + frequency + &quot;]&quot;);</b>
+<i>149</i>&nbsp;        }
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    public void notifyNow() {
+<b class="nc"><i>153</i>&nbsp;        notifyNow(Frequency.MEDIUM);</b>
+<b class="nc"><i>154</i>&nbsp;    }</b>
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    public void notifyNow(Frequency frequency) {
+<b class="nc"><i>157</i>&nbsp;        switch (frequency) {</b>
+<i>158</i>&nbsp;            case LOW:
+<b class="nc"><i>159</i>&nbsp;                lowMonitor.run();</b>
+<b class="nc"><i>160</i>&nbsp;                break;</b>
+<i>161</i>&nbsp;            case MEDIUM:
+<b class="nc"><i>162</i>&nbsp;                mediumMonitor.run();</b>
+<b class="nc"><i>163</i>&nbsp;                break;</b>
+<i>164</i>&nbsp;            case HIGH:
+<b class="nc"><i>165</i>&nbsp;                highMonitor.run();</b>
+<b class="nc"><i>166</i>&nbsp;                break;</b>
+<i>167</i>&nbsp;            default:
+<b class="nc"><i>168</i>&nbsp;                throw new IllegalArgumentException(&quot;Unknown frequency [&quot; + frequency + &quot;]&quot;);</b>
+<i>169</i>&nbsp;        }
+<b class="nc"><i>170</i>&nbsp;    }</b>
+<i>171</i>&nbsp;
+<b class="fc"><i>172</i>&nbsp;    class ResourceMonitor implements Runnable {</b>
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        final TimeValue interval;
+<i>175</i>&nbsp;        final Frequency frequency;
+<i>176</i>&nbsp;
+<b class="fc"><i>177</i>&nbsp;        final Set&lt;ResourceWatcher&gt; watchers = new CopyOnWriteArraySet&lt;&gt;();</b>
+<i>178</i>&nbsp;
+<b class="fc"><i>179</i>&nbsp;        private ResourceMonitor(TimeValue interval, Frequency frequency) {</b>
+<b class="fc"><i>180</i>&nbsp;            this.interval = interval;</b>
+<b class="fc"><i>181</i>&nbsp;            this.frequency = frequency;</b>
+<b class="fc"><i>182</i>&nbsp;        }</b>
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;        private &lt;W extends ResourceWatcher&gt; WatcherHandle&lt;W&gt; add(W watcher) {
+<b class="nc"><i>185</i>&nbsp;            watchers.add(watcher);</b>
+<b class="nc"><i>186</i>&nbsp;            return new WatcherHandle&lt;&gt;(this, watcher);</b>
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;        @Override
+<i>190</i>&nbsp;        public synchronized void run() {
+<b class="fc"><i>191</i>&nbsp;            for(ResourceWatcher watcher : watchers) {</b>
+<i>192</i>&nbsp;                try {
+<b class="nc"><i>193</i>&nbsp;                    watcher.checkAndNotify();</b>
+<b class="nc"><i>194</i>&nbsp;                } catch (IOException e) {</b>
+<b class="nc"><i>195</i>&nbsp;                    logger.trace(&quot;failed to check resource watcher&quot;, e);</b>
+<b class="nc"><i>196</i>&nbsp;                }</b>
+<b class="nc"><i>197</i>&nbsp;            }</b>
+<b class="fc"><i>198</i>&nbsp;        }</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

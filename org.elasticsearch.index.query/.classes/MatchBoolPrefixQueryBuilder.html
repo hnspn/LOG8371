@@ -1,0 +1,476 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MatchBoolPrefixQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MatchBoolPrefixQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MatchBoolPrefixQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 28)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 176)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.FuzzyQuery;
+<i>23</i>&nbsp;import org.apache.lucene.search.Query;
+<i>24</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>25</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>28</i>&nbsp;import org.elasticsearch.common.lucene.search.Queries;
+<i>29</i>&nbsp;import org.elasticsearch.common.unit.Fuzziness;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>33</i>&nbsp;import org.elasticsearch.index.query.support.QueryParsers;
+<i>34</i>&nbsp;import org.elasticsearch.index.search.MatchQuery;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;import java.io.IOException;
+<i>37</i>&nbsp;import java.util.Objects;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
+<i>40</i>&nbsp;import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+<i>41</i>&nbsp;import static org.elasticsearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIELD;
+<i>42</i>&nbsp;import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
+<i>43</i>&nbsp;import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;/**
+<i>46</i>&nbsp; * The boolean prefix query analyzes the input text and creates a boolean query containing a Term query for each term, except
+<i>47</i>&nbsp; * for the last term, which is used to create a prefix query
+<i>48</i>&nbsp; */
+<i>49</i>&nbsp;public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder&lt;MatchBoolPrefixQueryBuilder&gt; {
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    public static final String NAME = &quot;match_bool_prefix&quot;;
+<i>52</i>&nbsp;
+<b class="nc"><i>53</i>&nbsp;    private static final Operator DEFAULT_OPERATOR = Operator.OR;</b>
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    private final String fieldName;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    private final Object value;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    private String analyzer;
+<i>60</i>&nbsp;
+<b class="nc"><i>61</i>&nbsp;    private Operator operator = DEFAULT_OPERATOR;</b>
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    private String minimumShouldMatch;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    private Fuzziness fuzziness;
+<i>66</i>&nbsp;
+<b class="nc"><i>67</i>&nbsp;    private int prefixLength = FuzzyQuery.defaultPrefixLength;</b>
+<i>68</i>&nbsp;
+<b class="nc"><i>69</i>&nbsp;    private int  maxExpansions = FuzzyQuery.defaultMaxExpansions;</b>
+<i>70</i>&nbsp;
+<b class="nc"><i>71</i>&nbsp;    private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    private String fuzzyRewrite;
+<i>74</i>&nbsp;
+<b class="nc"><i>75</i>&nbsp;    public MatchBoolPrefixQueryBuilder(String fieldName, Object value) {</b>
+<b class="nc"><i>76</i>&nbsp;        if (Strings.isEmpty(fieldName)) {</b>
+<b class="nc"><i>77</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] requires fieldName&quot;);</b>
+<i>78</i>&nbsp;        }
+<b class="nc"><i>79</i>&nbsp;        if (value == null) {</b>
+<b class="nc"><i>80</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] requires query value&quot;);</b>
+<i>81</i>&nbsp;        }
+<b class="nc"><i>82</i>&nbsp;        this.fieldName = fieldName;</b>
+<b class="nc"><i>83</i>&nbsp;        this.value = value;</b>
+<b class="nc"><i>84</i>&nbsp;    }</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    public MatchBoolPrefixQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>87</i>&nbsp;        super(in);</b>
+<b class="nc"><i>88</i>&nbsp;        fieldName = in.readString();</b>
+<b class="nc"><i>89</i>&nbsp;        value = in.readGenericValue();</b>
+<b class="nc"><i>90</i>&nbsp;        analyzer = in.readOptionalString();</b>
+<b class="nc"><i>91</i>&nbsp;        operator = Operator.readFromStream(in);</b>
+<b class="nc"><i>92</i>&nbsp;        minimumShouldMatch = in.readOptionalString();</b>
+<b class="nc"><i>93</i>&nbsp;        fuzziness = in.readOptionalWriteable(Fuzziness::new);</b>
+<b class="nc"><i>94</i>&nbsp;        prefixLength = in.readVInt();</b>
+<b class="nc"><i>95</i>&nbsp;        maxExpansions = in.readVInt();</b>
+<b class="nc"><i>96</i>&nbsp;        fuzzyTranspositions = in.readBoolean();</b>
+<b class="nc"><i>97</i>&nbsp;        fuzzyRewrite = in.readOptionalString();</b>
+<b class="nc"><i>98</i>&nbsp;    }</b>
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    @Override
+<i>101</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>102</i>&nbsp;        out.writeString(fieldName);</b>
+<b class="nc"><i>103</i>&nbsp;        out.writeGenericValue(value);</b>
+<b class="nc"><i>104</i>&nbsp;        out.writeOptionalString(analyzer);</b>
+<b class="nc"><i>105</i>&nbsp;        operator.writeTo(out);</b>
+<b class="nc"><i>106</i>&nbsp;        out.writeOptionalString(minimumShouldMatch);</b>
+<b class="nc"><i>107</i>&nbsp;        out.writeOptionalWriteable(fuzziness);</b>
+<b class="nc"><i>108</i>&nbsp;        out.writeVInt(prefixLength);</b>
+<b class="nc"><i>109</i>&nbsp;        out.writeVInt(maxExpansions);</b>
+<b class="nc"><i>110</i>&nbsp;        out.writeBoolean(fuzzyTranspositions);</b>
+<b class="nc"><i>111</i>&nbsp;        out.writeOptionalString(fuzzyRewrite);</b>
+<b class="nc"><i>112</i>&nbsp;    }</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /** Returns the field name used in this query. */
+<i>115</i>&nbsp;    public String fieldName() {
+<b class="nc"><i>116</i>&nbsp;        return this.fieldName;</b>
+<i>117</i>&nbsp;    }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    /** Returns the value used in this query. */
+<i>120</i>&nbsp;    public Object value() {
+<b class="nc"><i>121</i>&nbsp;        return this.value;</b>
+<i>122</i>&nbsp;    }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    /** Get the analyzer to use, if previously set, otherwise {@code null} */
+<i>125</i>&nbsp;    public String analyzer() {
+<b class="nc"><i>126</i>&nbsp;        return this.analyzer;</b>
+<i>127</i>&nbsp;    }
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    /**
+<i>130</i>&nbsp;     * Explicitly set the analyzer to use. Defaults to use explicit mapping
+<i>131</i>&nbsp;     * config for the field, or, if not set, the default search analyzer.
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    public MatchBoolPrefixQueryBuilder analyzer(String analyzer) {
+<b class="nc"><i>134</i>&nbsp;        this.analyzer = analyzer;</b>
+<b class="nc"><i>135</i>&nbsp;        return this;</b>
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /** Sets the operator to use when using a boolean query. Defaults to {@code OR}. */
+<i>139</i>&nbsp;    public MatchBoolPrefixQueryBuilder operator(Operator operator) {
+<b class="nc"><i>140</i>&nbsp;        if (operator == null) {</b>
+<b class="nc"><i>141</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] requires operator to be non-null&quot;);</b>
+<i>142</i>&nbsp;        }
+<b class="nc"><i>143</i>&nbsp;        this.operator = operator;</b>
+<b class="nc"><i>144</i>&nbsp;        return this;</b>
+<i>145</i>&nbsp;    }
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;    /** Returns the operator to use in a boolean query.*/
+<i>148</i>&nbsp;    public Operator operator() {
+<b class="nc"><i>149</i>&nbsp;        return this.operator;</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /** Sets optional minimumShouldMatch value to apply to the query */
+<i>153</i>&nbsp;    public MatchBoolPrefixQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+<b class="nc"><i>154</i>&nbsp;        this.minimumShouldMatch = minimumShouldMatch;</b>
+<b class="nc"><i>155</i>&nbsp;        return this;</b>
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /** Gets the minimumShouldMatch value */
+<i>159</i>&nbsp;    public String minimumShouldMatch() {
+<b class="nc"><i>160</i>&nbsp;        return this.minimumShouldMatch;</b>
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to &quot;AUTO&quot;. */
+<i>164</i>&nbsp;    public MatchBoolPrefixQueryBuilder fuzziness(Object fuzziness) {
+<b class="nc"><i>165</i>&nbsp;        this.fuzziness = Fuzziness.build(fuzziness);</b>
+<b class="nc"><i>166</i>&nbsp;        return this;</b>
+<i>167</i>&nbsp;    }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    /**  Gets the fuzziness used when evaluated to a fuzzy query type. */
+<i>170</i>&nbsp;    public Fuzziness fuzziness() {
+<b class="nc"><i>171</i>&nbsp;        return this.fuzziness;</b>
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * Sets the length of a length of common (non-fuzzy) prefix for fuzzy match queries
+<i>176</i>&nbsp;     * @param prefixLength non-negative length of prefix
+<i>177</i>&nbsp;     * @throws IllegalArgumentException in case the prefix is negative
+<i>178</i>&nbsp;     */
+<i>179</i>&nbsp;    public MatchBoolPrefixQueryBuilder prefixLength(int prefixLength) {
+<b class="nc"><i>180</i>&nbsp;        if (prefixLength &lt; 0 ) {</b>
+<b class="nc"><i>181</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] requires prefix length to be non-negative.&quot;);</b>
+<i>182</i>&nbsp;        }
+<b class="nc"><i>183</i>&nbsp;        this.prefixLength = prefixLength;</b>
+<b class="nc"><i>184</i>&nbsp;        return this;</b>
+<i>185</i>&nbsp;    }
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;    /**
+<i>188</i>&nbsp;     * Gets the length of a length of common (non-fuzzy) prefix for fuzzy match queries
+<i>189</i>&nbsp;     */
+<i>190</i>&nbsp;    public int prefixLength() {
+<b class="nc"><i>191</i>&nbsp;        return this.prefixLength;</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    /**
+<i>195</i>&nbsp;     * When using fuzzy or prefix type query, the number of term expansions to use.
+<i>196</i>&nbsp;     */
+<i>197</i>&nbsp;    public MatchBoolPrefixQueryBuilder maxExpansions(int maxExpansions) {
+<b class="nc"><i>198</i>&nbsp;        if (maxExpansions &lt;= 0 ) {</b>
+<b class="nc"><i>199</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] requires maxExpansions to be positive.&quot;);</b>
+<i>200</i>&nbsp;        }
+<b class="nc"><i>201</i>&nbsp;        this.maxExpansions = maxExpansions;</b>
+<b class="nc"><i>202</i>&nbsp;        return this;</b>
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    /**
+<i>206</i>&nbsp;     * Get the (optional) number of term expansions when using fuzzy or prefix type query.
+<i>207</i>&nbsp;     */
+<i>208</i>&nbsp;    public int maxExpansions() {
+<b class="nc"><i>209</i>&nbsp;        return this.maxExpansions;</b>
+<i>210</i>&nbsp;    }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    /**
+<i>213</i>&nbsp;     * Sets whether transpositions are supported in fuzzy queries.&lt;p&gt;
+<i>214</i>&nbsp;     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+<i>215</i>&nbsp;     * distance formula which supports transpositions. Setting transposition to false will
+<i>216</i>&nbsp;     * switch to classic Levenshtein distance.&lt;br&gt;
+<i>217</i>&nbsp;     * If not set, Damerau-Levenshtein distance metric will be used.
+<i>218</i>&nbsp;     */
+<i>219</i>&nbsp;    public MatchBoolPrefixQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+<b class="nc"><i>220</i>&nbsp;        this.fuzzyTranspositions = fuzzyTranspositions;</b>
+<b class="nc"><i>221</i>&nbsp;        return this;</b>
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    /** Gets the fuzzy query transposition setting. */
+<i>225</i>&nbsp;    public boolean fuzzyTranspositions() {
+<b class="nc"><i>226</i>&nbsp;        return this.fuzzyTranspositions;</b>
+<i>227</i>&nbsp;    }
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    /** Sets the fuzzy_rewrite parameter controlling how the fuzzy query will get rewritten */
+<i>230</i>&nbsp;    public MatchBoolPrefixQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+<b class="nc"><i>231</i>&nbsp;        this.fuzzyRewrite = fuzzyRewrite;</b>
+<b class="nc"><i>232</i>&nbsp;        return this;</b>
+<i>233</i>&nbsp;    }
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;    /**
+<i>236</i>&nbsp;     * Get the fuzzy_rewrite parameter
+<i>237</i>&nbsp;     * @see #fuzzyRewrite(String)
+<i>238</i>&nbsp;     */
+<i>239</i>&nbsp;    public String fuzzyRewrite() {
+<b class="nc"><i>240</i>&nbsp;        return this.fuzzyRewrite;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    @Override
+<i>244</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>245</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>246</i>&nbsp;        builder.startObject(fieldName);</b>
+<b class="nc"><i>247</i>&nbsp;        builder.field(MatchQueryBuilder.QUERY_FIELD.getPreferredName(), value);</b>
+<b class="nc"><i>248</i>&nbsp;        if (analyzer != null) {</b>
+<b class="nc"><i>249</i>&nbsp;            builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);</b>
+<i>250</i>&nbsp;        }
+<b class="nc"><i>251</i>&nbsp;        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());</b>
+<b class="nc"><i>252</i>&nbsp;        if (minimumShouldMatch != null) {</b>
+<b class="nc"><i>253</i>&nbsp;            builder.field(MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);</b>
+<i>254</i>&nbsp;        }
+<b class="nc"><i>255</i>&nbsp;        if (fuzziness != null) {</b>
+<b class="nc"><i>256</i>&nbsp;            fuzziness.toXContent(builder, params);</b>
+<i>257</i>&nbsp;        }
+<b class="nc"><i>258</i>&nbsp;        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);</b>
+<b class="nc"><i>259</i>&nbsp;        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);</b>
+<b class="nc"><i>260</i>&nbsp;        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);</b>
+<b class="nc"><i>261</i>&nbsp;        if (fuzzyRewrite != null) {</b>
+<b class="nc"><i>262</i>&nbsp;            builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);</b>
+<i>263</i>&nbsp;        }
+<b class="nc"><i>264</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>265</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>266</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>267</i>&nbsp;    }</b>
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    public static MatchBoolPrefixQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>270</i>&nbsp;        String fieldName = null;</b>
+<b class="nc"><i>271</i>&nbsp;        Object value = null;</b>
+<b class="nc"><i>272</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>273</i>&nbsp;        String analyzer = null;</b>
+<b class="nc"><i>274</i>&nbsp;        Operator operator = DEFAULT_OPERATOR;</b>
+<b class="nc"><i>275</i>&nbsp;        String minimumShouldMatch = null;</b>
+<b class="nc"><i>276</i>&nbsp;        Fuzziness fuzziness = null;</b>
+<b class="nc"><i>277</i>&nbsp;        int prefixLength = FuzzyQuery.defaultPrefixLength;</b>
+<b class="nc"><i>278</i>&nbsp;        int maxExpansion = FuzzyQuery.defaultMaxExpansions;</b>
+<b class="nc"><i>279</i>&nbsp;        boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;</b>
+<b class="nc"><i>280</i>&nbsp;        String fuzzyRewrite = null;</b>
+<b class="nc"><i>281</i>&nbsp;        String queryName = null;</b>
+<i>282</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>283</i>&nbsp;        String currentFieldName = null;</b>
+<b class="nc"><i>284</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>285</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>286</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>287</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>288</i>&nbsp;                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);</b>
+<b class="nc"><i>289</i>&nbsp;                fieldName = currentFieldName;</b>
+<b class="nc"><i>290</i>&nbsp;                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>291</i>&nbsp;                    if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>292</i>&nbsp;                        currentFieldName = parser.currentName();</b>
+<b class="nc"><i>293</i>&nbsp;                    } else if (token.isValue()) {</b>
+<b class="nc"><i>294</i>&nbsp;                        if (MatchQueryBuilder.QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>295</i>&nbsp;                            value = parser.objectText();</b>
+<b class="nc"><i>296</i>&nbsp;                        } else if (MatchQueryBuilder.ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>297</i>&nbsp;                            analyzer = parser.text();</b>
+<b class="nc"><i>298</i>&nbsp;                        } else if (OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>299</i>&nbsp;                            operator = Operator.fromString(parser.text());</b>
+<b class="nc"><i>300</i>&nbsp;                        } else if (MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>301</i>&nbsp;                            minimumShouldMatch = parser.textOrNull();</b>
+<b class="nc"><i>302</i>&nbsp;                        } else if (Fuzziness.FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>303</i>&nbsp;                            fuzziness = Fuzziness.parse(parser);</b>
+<b class="nc"><i>304</i>&nbsp;                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>305</i>&nbsp;                            prefixLength = parser.intValue();</b>
+<b class="nc"><i>306</i>&nbsp;                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>307</i>&nbsp;                            maxExpansion = parser.intValue();</b>
+<b class="nc"><i>308</i>&nbsp;                        } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>309</i>&nbsp;                            fuzzyTranspositions = parser.booleanValue();</b>
+<b class="nc"><i>310</i>&nbsp;                        } else if (FUZZY_REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>311</i>&nbsp;                            fuzzyRewrite = parser.textOrNull();</b>
+<b class="nc"><i>312</i>&nbsp;                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>313</i>&nbsp;                            boost = parser.floatValue();</b>
+<b class="nc"><i>314</i>&nbsp;                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>315</i>&nbsp;                            queryName = parser.text();</b>
+<i>316</i>&nbsp;                        } else {
+<b class="nc"><i>317</i>&nbsp;                            throw new ParsingException(parser.getTokenLocation(),</b>
+<i>318</i>&nbsp;                                &quot;[&quot; + NAME + &quot;] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>319</i>&nbsp;                        }
+<i>320</i>&nbsp;                    } else {
+<b class="nc"><i>321</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(),</b>
+<i>322</i>&nbsp;                            &quot;[&quot; + NAME + &quot;] unknown token [&quot; + token + &quot;] after [&quot; + currentFieldName + &quot;]&quot;);
+<i>323</i>&nbsp;                    }
+<i>324</i>&nbsp;                }
+<i>325</i>&nbsp;            } else {
+<b class="nc"><i>326</i>&nbsp;                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());</b>
+<b class="nc"><i>327</i>&nbsp;                fieldName = parser.currentName();</b>
+<b class="nc"><i>328</i>&nbsp;                value = parser.objectText();</b>
+<i>329</i>&nbsp;            }
+<i>330</i>&nbsp;        }
+<i>331</i>&nbsp;
+<b class="nc"><i>332</i>&nbsp;        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value);</b>
+<b class="nc"><i>333</i>&nbsp;        queryBuilder.analyzer(analyzer);</b>
+<b class="nc"><i>334</i>&nbsp;        queryBuilder.operator(operator);</b>
+<b class="nc"><i>335</i>&nbsp;        queryBuilder.minimumShouldMatch(minimumShouldMatch);</b>
+<b class="nc"><i>336</i>&nbsp;        queryBuilder.boost(boost);</b>
+<b class="nc"><i>337</i>&nbsp;        queryBuilder.queryName(queryName);</b>
+<b class="nc"><i>338</i>&nbsp;        if (fuzziness != null) {</b>
+<b class="nc"><i>339</i>&nbsp;            queryBuilder.fuzziness(fuzziness);</b>
+<i>340</i>&nbsp;        }
+<b class="nc"><i>341</i>&nbsp;        queryBuilder.prefixLength(prefixLength);</b>
+<b class="nc"><i>342</i>&nbsp;        queryBuilder.maxExpansions(maxExpansion);</b>
+<b class="nc"><i>343</i>&nbsp;        queryBuilder.fuzzyTranspositions(fuzzyTranspositions);</b>
+<b class="nc"><i>344</i>&nbsp;        queryBuilder.fuzzyRewrite(fuzzyRewrite);</b>
+<b class="nc"><i>345</i>&nbsp;        return queryBuilder;</b>
+<i>346</i>&nbsp;    }
+<i>347</i>&nbsp;
+<i>348</i>&nbsp;    @Override
+<i>349</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>350</i>&nbsp;        if (analyzer != null &amp;&amp; context.getIndexAnalyzers().get(analyzer) == null) {</b>
+<b class="nc"><i>351</i>&nbsp;            throw new QueryShardException(context, &quot;[&quot; + NAME + &quot;] analyzer [&quot; + analyzer + &quot;] not found&quot;);</b>
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<b class="nc"><i>354</i>&nbsp;        final MatchQuery matchQuery = new MatchQuery(context);</b>
+<b class="nc"><i>355</i>&nbsp;        if (analyzer != null) {</b>
+<b class="nc"><i>356</i>&nbsp;            matchQuery.setAnalyzer(analyzer);</b>
+<i>357</i>&nbsp;        }
+<b class="nc"><i>358</i>&nbsp;        matchQuery.setOccur(operator.toBooleanClauseOccur());</b>
+<b class="nc"><i>359</i>&nbsp;        matchQuery.setFuzziness(fuzziness);</b>
+<b class="nc"><i>360</i>&nbsp;        matchQuery.setFuzzyPrefixLength(prefixLength);</b>
+<b class="nc"><i>361</i>&nbsp;        matchQuery.setMaxExpansions(maxExpansions);</b>
+<b class="nc"><i>362</i>&nbsp;        matchQuery.setTranspositions(fuzzyTranspositions);</b>
+<b class="nc"><i>363</i>&nbsp;        matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null, LoggingDeprecationHandler.INSTANCE));</b>
+<i>364</i>&nbsp;
+<b class="nc"><i>365</i>&nbsp;        final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, fieldName, value);</b>
+<b class="nc"><i>366</i>&nbsp;        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);</b>
+<i>367</i>&nbsp;    }
+<i>368</i>&nbsp;
+<i>369</i>&nbsp;    @Override
+<i>370</i>&nbsp;    protected boolean doEquals(MatchBoolPrefixQueryBuilder other) {
+<b class="nc"><i>371</i>&nbsp;        return Objects.equals(fieldName, other.fieldName) &amp;&amp;</b>
+<b class="nc"><i>372</i>&nbsp;            Objects.equals(value, other.value) &amp;&amp;</b>
+<b class="nc"><i>373</i>&nbsp;            Objects.equals(analyzer, other.analyzer) &amp;&amp;</b>
+<b class="nc"><i>374</i>&nbsp;            Objects.equals(operator, other.operator) &amp;&amp;</b>
+<b class="nc"><i>375</i>&nbsp;            Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &amp;&amp;</b>
+<b class="nc"><i>376</i>&nbsp;            Objects.equals(fuzziness, other.fuzziness) &amp;&amp;</b>
+<b class="nc"><i>377</i>&nbsp;            Objects.equals(prefixLength, other.prefixLength) &amp;&amp;</b>
+<b class="nc"><i>378</i>&nbsp;            Objects.equals(maxExpansions, other.maxExpansions) &amp;&amp;</b>
+<b class="nc"><i>379</i>&nbsp;            Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions) &amp;&amp;</b>
+<b class="nc"><i>380</i>&nbsp;            Objects.equals(fuzzyRewrite, other.fuzzyRewrite);</b>
+<i>381</i>&nbsp;    }
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;    @Override
+<i>384</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>385</i>&nbsp;        return Objects.hash(fieldName, value, analyzer, operator, minimumShouldMatch, fuzziness, prefixLength, maxExpansions,</b>
+<b class="nc"><i>386</i>&nbsp;            fuzzyTranspositions, fuzzyRewrite);</b>
+<i>387</i>&nbsp;    }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;    @Override
+<i>390</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>391</i>&nbsp;        return NAME;</b>
+<i>392</i>&nbsp;    }
+<i>393</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

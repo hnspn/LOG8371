@@ -1,0 +1,729 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RoutingTable</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RoutingTable (org.elasticsearch.cluster.routing)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RoutingTable</td>
+<td class="coverageStat">
+  <span class="percent">
+    60.6%
+  </span>
+  <span class="absValue">
+    (20/ 33)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    45.4%
+  </span>
+  <span class="absValue">
+    (59/ 130)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">RoutingTable$Builder</td>
+<td class="coverageStat">
+  <span class="percent">
+    61.1%
+  </span>
+  <span class="absValue">
+    (11/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    48.1%
+  </span>
+  <span class="absValue">
+    (50/ 104)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">RoutingTable$RoutingTableDiff</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (12/ 12)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    63.6%
+  </span>
+  <span class="absValue">
+    (35/ 55)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    49.2%
+  </span>
+  <span class="absValue">
+    (121/ 246)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.IntSet;
+<i>23</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectCursor;
+<i>24</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.Diff;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.Diffable;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.DiffableUtils;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+<i>31</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>32</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>33</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>34</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>35</i>&nbsp;import org.elasticsearch.common.util.iterable.Iterables;
+<i>36</i>&nbsp;import org.elasticsearch.index.Index;
+<i>37</i>&nbsp;import org.elasticsearch.index.IndexNotFoundException;
+<i>38</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>39</i>&nbsp;import org.elasticsearch.index.shard.ShardNotFoundException;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import java.io.IOException;
+<i>42</i>&nbsp;import java.util.ArrayList;
+<i>43</i>&nbsp;import java.util.Collections;
+<i>44</i>&nbsp;import java.util.HashMap;
+<i>45</i>&nbsp;import java.util.Iterator;
+<i>46</i>&nbsp;import java.util.List;
+<i>47</i>&nbsp;import java.util.Map;
+<i>48</i>&nbsp;import java.util.function.Predicate;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.isIndexVerifiedBeforeClosed;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;/**
+<i>53</i>&nbsp; * Represents a global cluster-wide routing table for all indices including the
+<i>54</i>&nbsp; * version of the current routing state.
+<i>55</i>&nbsp; *
+<i>56</i>&nbsp; * @see IndexRoutingTable
+<i>57</i>&nbsp; */
+<b class="fc"><i>58</i>&nbsp;public class RoutingTable implements Iterable&lt;IndexRoutingTable&gt;, Diffable&lt;RoutingTable&gt; {</b>
+<i>59</i>&nbsp;
+<b class="fc"><i>60</i>&nbsp;    public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();</b>
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private final long version;
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    // index to IndexRoutingTable map
+<i>65</i>&nbsp;    private final ImmutableOpenMap&lt;String, IndexRoutingTable&gt; indicesRouting;
+<i>66</i>&nbsp;
+<b class="fc"><i>67</i>&nbsp;    private RoutingTable(long version, ImmutableOpenMap&lt;String, IndexRoutingTable&gt; indicesRouting) {</b>
+<b class="fc"><i>68</i>&nbsp;        this.version = version;</b>
+<b class="fc"><i>69</i>&nbsp;        this.indicesRouting = indicesRouting;</b>
+<b class="fc"><i>70</i>&nbsp;    }</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    /**
+<i>73</i>&nbsp;     * Get&#39;s the {@link IndexShardRoutingTable} for the given shard id from the given {@link IndexRoutingTable}
+<i>74</i>&nbsp;     * or throws a {@link ShardNotFoundException} if no shard by the given id is found in the IndexRoutingTable.
+<i>75</i>&nbsp;     *
+<i>76</i>&nbsp;     * @param indexRouting IndexRoutingTable
+<i>77</i>&nbsp;     * @param shardId ShardId
+<i>78</i>&nbsp;     * @return IndexShardRoutingTable
+<i>79</i>&nbsp;     */
+<i>80</i>&nbsp;    public static IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
+<b class="nc"><i>81</i>&nbsp;        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);</b>
+<b class="nc"><i>82</i>&nbsp;        if (indexShard == null) {</b>
+<b class="nc"><i>83</i>&nbsp;            throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));</b>
+<i>84</i>&nbsp;        }
+<b class="nc"><i>85</i>&nbsp;        return indexShard;</b>
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    /**
+<i>89</i>&nbsp;     * Returns the version of the {@link RoutingTable}.
+<i>90</i>&nbsp;     *
+<i>91</i>&nbsp;     * @return version of the {@link RoutingTable}
+<i>92</i>&nbsp;     */
+<i>93</i>&nbsp;    public long version() {
+<b class="fc"><i>94</i>&nbsp;        return this.version;</b>
+<i>95</i>&nbsp;    }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    @Override
+<i>98</i>&nbsp;    public Iterator&lt;IndexRoutingTable&gt; iterator() {
+<b class="fc"><i>99</i>&nbsp;        return indicesRouting.valuesIt();</b>
+<i>100</i>&nbsp;    }
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    public boolean hasIndex(String index) {
+<b class="fc"><i>103</i>&nbsp;        return indicesRouting.containsKey(index);</b>
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    public boolean hasIndex(Index index) {
+<b class="nc"><i>107</i>&nbsp;        IndexRoutingTable indexRouting = index(index.getName());</b>
+<b class="nc"><i>108</i>&nbsp;        return indexRouting != null &amp;&amp; indexRouting.getIndex().equals(index);</b>
+<i>109</i>&nbsp;    }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    public IndexRoutingTable index(String index) {
+<b class="fc"><i>112</i>&nbsp;        return indicesRouting.get(index);</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    public IndexRoutingTable index(Index index) {
+<b class="nc"><i>116</i>&nbsp;        return indicesRouting.get(index.getName());</b>
+<i>117</i>&nbsp;    }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    public ImmutableOpenMap&lt;String, IndexRoutingTable&gt; indicesRouting() {
+<b class="fc"><i>120</i>&nbsp;        return indicesRouting;</b>
+<i>121</i>&nbsp;    }
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    public ImmutableOpenMap&lt;String, IndexRoutingTable&gt; getIndicesRouting() {
+<b class="nc"><i>124</i>&nbsp;        return indicesRouting();</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * All shards for the provided index and shard id
+<i>129</i>&nbsp;     * @return All the shard routing entries for the given index and shard id
+<i>130</i>&nbsp;     * @throws IndexNotFoundException if provided index does not exist
+<i>131</i>&nbsp;     * @throws ShardNotFoundException if provided shard id is unknown
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    public IndexShardRoutingTable shardRoutingTable(String index, int shardId) {
+<b class="nc"><i>134</i>&nbsp;        IndexRoutingTable indexRouting = index(index);</b>
+<b class="nc"><i>135</i>&nbsp;        if (indexRouting == null) {</b>
+<b class="nc"><i>136</i>&nbsp;            throw new IndexNotFoundException(index);</b>
+<i>137</i>&nbsp;        }
+<b class="nc"><i>138</i>&nbsp;        return shardRoutingTable(indexRouting, shardId);</b>
+<i>139</i>&nbsp;    }
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    /**
+<i>142</i>&nbsp;     * All shards for the provided {@link ShardId}
+<i>143</i>&nbsp;     * @return All the shard routing entries for the given index and shard id
+<i>144</i>&nbsp;     * @throws IndexNotFoundException if provided index does not exist
+<i>145</i>&nbsp;     * @throws ShardNotFoundException if provided shard id is unknown
+<i>146</i>&nbsp;     */
+<i>147</i>&nbsp;    public IndexShardRoutingTable shardRoutingTable(ShardId shardId) {
+<b class="fc"><i>148</i>&nbsp;        IndexRoutingTable indexRouting = index(shardId.getIndexName());</b>
+<b class="fc"><i>149</i>&nbsp;        if (indexRouting == null || indexRouting.getIndex().equals(shardId.getIndex()) == false) {</b>
+<b class="nc"><i>150</i>&nbsp;            throw new IndexNotFoundException(shardId.getIndex());</b>
+<i>151</i>&nbsp;        }
+<b class="fc"><i>152</i>&nbsp;        IndexShardRoutingTable shard = indexRouting.shard(shardId.id());</b>
+<b class="fc"><i>153</i>&nbsp;        if (shard == null) {</b>
+<b class="nc"><i>154</i>&nbsp;            throw new ShardNotFoundException(shardId);</b>
+<i>155</i>&nbsp;        }
+<b class="fc"><i>156</i>&nbsp;        return shard;</b>
+<i>157</i>&nbsp;    }
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    @Nullable
+<i>160</i>&nbsp;    public ShardRouting getByAllocationId(ShardId shardId, String allocationId) {
+<b class="fc"><i>161</i>&nbsp;        final IndexRoutingTable indexRoutingTable = index(shardId.getIndexName());</b>
+<b class="fc"><i>162</i>&nbsp;        if (indexRoutingTable == null) {</b>
+<b class="nc"><i>163</i>&nbsp;            return null;</b>
+<i>164</i>&nbsp;        }
+<b class="fc"><i>165</i>&nbsp;        final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.getId());</b>
+<b class="fc"><i>166</i>&nbsp;        return shardRoutingTable == null ? null : shardRoutingTable.getByAllocationId(allocationId);</b>
+<i>167</i>&nbsp;    }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    public boolean validate(MetaData metaData) {
+<b class="fc"><i>170</i>&nbsp;        for (IndexRoutingTable indexRoutingTable : this) {</b>
+<b class="fc"><i>171</i>&nbsp;            if (indexRoutingTable.validate(metaData) == false) {</b>
+<b class="nc"><i>172</i>&nbsp;                return false;</b>
+<i>173</i>&nbsp;            }
+<b class="fc"><i>174</i>&nbsp;        }</b>
+<b class="fc"><i>175</i>&nbsp;        return true;</b>
+<i>176</i>&nbsp;    }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    public List&lt;ShardRouting&gt; shardsWithState(ShardRoutingState state) {
+<b class="fc"><i>179</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>180</i>&nbsp;        for (IndexRoutingTable indexRoutingTable : this) {</b>
+<b class="fc"><i>181</i>&nbsp;            shards.addAll(indexRoutingTable.shardsWithState(state));</b>
+<b class="fc"><i>182</i>&nbsp;        }</b>
+<b class="fc"><i>183</i>&nbsp;        return shards;</b>
+<i>184</i>&nbsp;    }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;    /**
+<i>187</i>&nbsp;     * All the shards (replicas) for all indices in this routing table.
+<i>188</i>&nbsp;     *
+<i>189</i>&nbsp;     * @return All the shards
+<i>190</i>&nbsp;     */
+<i>191</i>&nbsp;    public List&lt;ShardRouting&gt; allShards() {
+<b class="fc"><i>192</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>193</i>&nbsp;        String[] indices = indicesRouting.keys().toArray(String.class);</b>
+<b class="fc"><i>194</i>&nbsp;        for (String index : indices) {</b>
+<b class="fc"><i>195</i>&nbsp;            List&lt;ShardRouting&gt; allShardsIndex = allShards(index);</b>
+<b class="fc"><i>196</i>&nbsp;            shards.addAll(allShardsIndex);</b>
+<i>197</i>&nbsp;        }
+<b class="fc"><i>198</i>&nbsp;        return shards;</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    /**
+<i>202</i>&nbsp;     * All the shards (replicas) for the provided index.
+<i>203</i>&nbsp;     *
+<i>204</i>&nbsp;     * @param index The index to return all the shards (replicas).
+<i>205</i>&nbsp;     * @return All the shards matching the specific index
+<i>206</i>&nbsp;     * @throws IndexNotFoundException If the index passed does not exists
+<i>207</i>&nbsp;     */
+<i>208</i>&nbsp;    public List&lt;ShardRouting&gt; allShards(String index)  {
+<b class="fc"><i>209</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>210</i>&nbsp;        IndexRoutingTable indexRoutingTable = index(index);</b>
+<b class="fc"><i>211</i>&nbsp;        if (indexRoutingTable == null) {</b>
+<b class="nc"><i>212</i>&nbsp;            throw new IndexNotFoundException(index);</b>
+<i>213</i>&nbsp;        }
+<b class="fc"><i>214</i>&nbsp;        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {</b>
+<b class="fc"><i>215</i>&nbsp;            for (ShardRouting shardRouting : indexShardRoutingTable) {</b>
+<b class="fc"><i>216</i>&nbsp;                shards.add(shardRouting);</b>
+<b class="fc"><i>217</i>&nbsp;            }</b>
+<b class="fc"><i>218</i>&nbsp;        }</b>
+<b class="fc"><i>219</i>&nbsp;        return shards;</b>
+<i>220</i>&nbsp;    }
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;    /**
+<i>223</i>&nbsp;     * Return GroupShardsIterator where each active shard routing has it&#39;s own shard iterator.
+<i>224</i>&nbsp;     *
+<i>225</i>&nbsp;     * @param includeEmpty             if true, a shard iterator will be added for non-assigned shards as well
+<i>226</i>&nbsp;     */
+<i>227</i>&nbsp;    public GroupShardsIterator&lt;ShardIterator&gt; allActiveShardsGrouped(String[] indices, boolean includeEmpty) {
+<b class="nc"><i>228</i>&nbsp;        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ACTIVE_PREDICATE);</b>
+<i>229</i>&nbsp;    }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    /**
+<i>232</i>&nbsp;     * Return GroupShardsIterator where each assigned shard routing has it&#39;s own shard iterator.
+<i>233</i>&nbsp;     *
+<i>234</i>&nbsp;     * @param includeEmpty if true, a shard iterator will be added for non-assigned shards as well
+<i>235</i>&nbsp;     */
+<i>236</i>&nbsp;    public GroupShardsIterator&lt;ShardIterator&gt; allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
+<b class="nc"><i>237</i>&nbsp;        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ASSIGNED_PREDICATE);</b>
+<i>238</i>&nbsp;    }
+<i>239</i>&nbsp;
+<b class="fc"><i>240</i>&nbsp;    private static Predicate&lt;ShardRouting&gt; ACTIVE_PREDICATE = ShardRouting::active;</b>
+<b class="fc"><i>241</i>&nbsp;    private static Predicate&lt;ShardRouting&gt; ASSIGNED_PREDICATE = ShardRouting::assignedToNode;</b>
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    private GroupShardsIterator&lt;ShardIterator&gt; allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty,
+<i>244</i>&nbsp;                                                                                   Predicate&lt;ShardRouting&gt; predicate) {
+<i>245</i>&nbsp;        // use list here since we need to maintain identity across shards
+<b class="nc"><i>246</i>&nbsp;        ArrayList&lt;ShardIterator&gt; set = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>247</i>&nbsp;        for (String index : indices) {</b>
+<b class="nc"><i>248</i>&nbsp;            IndexRoutingTable indexRoutingTable = index(index);</b>
+<b class="nc"><i>249</i>&nbsp;            if (indexRoutingTable == null) {</b>
+<b class="nc"><i>250</i>&nbsp;                continue;</b>
+<i>251</i>&nbsp;                // we simply ignore indices that don&#39;t exists (make sense for operations that use it currently)
+<i>252</i>&nbsp;            }
+<b class="nc"><i>253</i>&nbsp;            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {</b>
+<b class="nc"><i>254</i>&nbsp;                for (ShardRouting shardRouting : indexShardRoutingTable) {</b>
+<b class="nc"><i>255</i>&nbsp;                    if (predicate.test(shardRouting)) {</b>
+<b class="nc"><i>256</i>&nbsp;                        set.add(shardRouting.shardsIt());</b>
+<b class="nc"><i>257</i>&nbsp;                    } else if (includeEmpty) { // we need this for counting properly, just make it an empty one</b>
+<b class="nc"><i>258</i>&nbsp;                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.emptyList()));</b>
+<i>259</i>&nbsp;                    }
+<b class="nc"><i>260</i>&nbsp;                }</b>
+<b class="nc"><i>261</i>&nbsp;            }</b>
+<i>262</i>&nbsp;        }
+<b class="nc"><i>263</i>&nbsp;        return new GroupShardsIterator&lt;&gt;(set);</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    public ShardsIterator allShards(String[] indices) {
+<b class="nc"><i>267</i>&nbsp;        return allShardsSatisfyingPredicate(indices, shardRouting -&gt; true, false);</b>
+<i>268</i>&nbsp;    }
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;    public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {
+<b class="nc"><i>271</i>&nbsp;        return allShardsSatisfyingPredicate(indices, shardRouting -&gt; true, true);</b>
+<i>272</i>&nbsp;    }
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;    private ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate&lt;ShardRouting&gt; predicate,
+<i>275</i>&nbsp;                                                        boolean includeRelocationTargets) {
+<i>276</i>&nbsp;        // use list here since we need to maintain identity across shards
+<b class="nc"><i>277</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>278</i>&nbsp;        for (String index : indices) {</b>
+<b class="nc"><i>279</i>&nbsp;            IndexRoutingTable indexRoutingTable = index(index);</b>
+<b class="nc"><i>280</i>&nbsp;            if (indexRoutingTable == null) {</b>
+<b class="nc"><i>281</i>&nbsp;                continue;</b>
+<i>282</i>&nbsp;                // we simply ignore indices that don&#39;t exists (make sense for operations that use it currently)
+<i>283</i>&nbsp;            }
+<b class="nc"><i>284</i>&nbsp;            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {</b>
+<b class="nc"><i>285</i>&nbsp;                for (ShardRouting shardRouting : indexShardRoutingTable) {</b>
+<b class="nc"><i>286</i>&nbsp;                    if (predicate.test(shardRouting)) {</b>
+<b class="nc"><i>287</i>&nbsp;                        shards.add(shardRouting);</b>
+<b class="nc"><i>288</i>&nbsp;                        if (includeRelocationTargets &amp;&amp; shardRouting.relocating()) {</b>
+<b class="nc"><i>289</i>&nbsp;                            shards.add(shardRouting.getTargetRelocatingShard());</b>
+<i>290</i>&nbsp;                        }
+<i>291</i>&nbsp;                    }
+<b class="nc"><i>292</i>&nbsp;                }</b>
+<b class="nc"><i>293</i>&nbsp;            }</b>
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;        return new PlainShardsIterator(shards);</b>
+<i>296</i>&nbsp;    }
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;    /**
+<i>299</i>&nbsp;     * All the *active* primary shards for the provided indices grouped (each group is a single element, consisting
+<i>300</i>&nbsp;     * of the primary shard). This is handy for components that expect to get group iterators, but still want in some
+<i>301</i>&nbsp;     * cases to iterate over all primary shards (and not just one shard in replication group).
+<i>302</i>&nbsp;     *
+<i>303</i>&nbsp;     * @param indices The indices to return all the shards (replicas)
+<i>304</i>&nbsp;     * @return All the primary shards grouped into a single shard element group each
+<i>305</i>&nbsp;     * @throws IndexNotFoundException If an index passed does not exists
+<i>306</i>&nbsp;     */
+<i>307</i>&nbsp;    public GroupShardsIterator&lt;ShardIterator&gt; activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) {
+<i>308</i>&nbsp;        // use list here since we need to maintain identity across shards
+<b class="nc"><i>309</i>&nbsp;        ArrayList&lt;ShardIterator&gt; set = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>310</i>&nbsp;        for (String index : indices) {</b>
+<b class="nc"><i>311</i>&nbsp;            IndexRoutingTable indexRoutingTable = index(index);</b>
+<b class="nc"><i>312</i>&nbsp;            if (indexRoutingTable == null) {</b>
+<b class="nc"><i>313</i>&nbsp;                throw new IndexNotFoundException(index);</b>
+<i>314</i>&nbsp;            }
+<b class="nc"><i>315</i>&nbsp;            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {</b>
+<b class="nc"><i>316</i>&nbsp;                ShardRouting primary = indexShardRoutingTable.primaryShard();</b>
+<b class="nc"><i>317</i>&nbsp;                if (primary.active()) {</b>
+<b class="nc"><i>318</i>&nbsp;                    set.add(primary.shardsIt());</b>
+<b class="nc"><i>319</i>&nbsp;                } else if (includeEmpty) { // we need this for counting properly, just make it an empty one</b>
+<b class="nc"><i>320</i>&nbsp;                    set.add(new PlainShardIterator(primary.shardId(), Collections.emptyList()));</b>
+<i>321</i>&nbsp;                }
+<b class="nc"><i>322</i>&nbsp;            }</b>
+<i>323</i>&nbsp;        }
+<b class="nc"><i>324</i>&nbsp;        return new GroupShardsIterator&lt;&gt;(set);</b>
+<i>325</i>&nbsp;    }
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;    @Override
+<i>328</i>&nbsp;    public Diff&lt;RoutingTable&gt; diff(RoutingTable previousState) {
+<b class="fc"><i>329</i>&nbsp;        return new RoutingTableDiff(previousState, this);</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    public static Diff&lt;RoutingTable&gt; readDiffFrom(StreamInput in) throws IOException {
+<b class="fc"><i>333</i>&nbsp;        return new RoutingTableDiff(in);</b>
+<i>334</i>&nbsp;    }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    public static RoutingTable readFrom(StreamInput in) throws IOException {
+<b class="fc"><i>337</i>&nbsp;        Builder builder = new Builder();</b>
+<b class="fc"><i>338</i>&nbsp;        builder.version = in.readLong();</b>
+<b class="fc"><i>339</i>&nbsp;        int size = in.readVInt();</b>
+<b class="fc"><i>340</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>341</i>&nbsp;            IndexRoutingTable index = IndexRoutingTable.readFrom(in);</b>
+<b class="nc"><i>342</i>&nbsp;            builder.add(index);</b>
+<i>343</i>&nbsp;        }
+<i>344</i>&nbsp;
+<b class="fc"><i>345</i>&nbsp;        return builder.build();</b>
+<i>346</i>&nbsp;    }
+<i>347</i>&nbsp;
+<i>348</i>&nbsp;    @Override
+<i>349</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>350</i>&nbsp;        out.writeLong(version);</b>
+<b class="fc"><i>351</i>&nbsp;        out.writeVInt(indicesRouting.size());</b>
+<b class="fc"><i>352</i>&nbsp;        for (ObjectCursor&lt;IndexRoutingTable&gt; index : indicesRouting.values()) {</b>
+<b class="nc"><i>353</i>&nbsp;            index.value.writeTo(out);</b>
+<b class="nc"><i>354</i>&nbsp;        }</b>
+<b class="fc"><i>355</i>&nbsp;    }</b>
+<i>356</i>&nbsp;
+<i>357</i>&nbsp;    private static class RoutingTableDiff implements Diff&lt;RoutingTable&gt; {
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;        private final long version;
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;        private final Diff&lt;ImmutableOpenMap&lt;String, IndexRoutingTable&gt;&gt; indicesRouting;
+<i>362</i>&nbsp;
+<b class="fc"><i>363</i>&nbsp;        RoutingTableDiff(RoutingTable before, RoutingTable after) {</b>
+<b class="fc"><i>364</i>&nbsp;            version = after.version;</b>
+<b class="fc"><i>365</i>&nbsp;            indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting, DiffableUtils.getStringKeySerializer());</b>
+<b class="fc"><i>366</i>&nbsp;        }</b>
+<i>367</i>&nbsp;
+<b class="fc"><i>368</i>&nbsp;        RoutingTableDiff(StreamInput in) throws IOException {</b>
+<b class="fc"><i>369</i>&nbsp;            version = in.readLong();</b>
+<b class="fc"><i>370</i>&nbsp;            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexRoutingTable::readFrom,</b>
+<i>371</i>&nbsp;                IndexRoutingTable::readDiffFrom);
+<b class="fc"><i>372</i>&nbsp;        }</b>
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;        @Override
+<i>375</i>&nbsp;        public RoutingTable apply(RoutingTable part) {
+<b class="fc"><i>376</i>&nbsp;            return new RoutingTable(version, indicesRouting.apply(part.indicesRouting));</b>
+<i>377</i>&nbsp;        }
+<i>378</i>&nbsp;
+<i>379</i>&nbsp;        @Override
+<i>380</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>381</i>&nbsp;            out.writeLong(version);</b>
+<b class="fc"><i>382</i>&nbsp;            indicesRouting.writeTo(out);</b>
+<b class="fc"><i>383</i>&nbsp;        }</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    public static Builder builder() {
+<b class="fc"><i>387</i>&nbsp;        return new Builder();</b>
+<i>388</i>&nbsp;    }
+<i>389</i>&nbsp;
+<i>390</i>&nbsp;    public static Builder builder(RoutingTable routingTable) {
+<b class="fc"><i>391</i>&nbsp;        return new Builder(routingTable);</b>
+<i>392</i>&nbsp;    }
+<i>393</i>&nbsp;
+<i>394</i>&nbsp;    /**
+<i>395</i>&nbsp;     * Builder for the routing table. Note that build can only be called one time.
+<i>396</i>&nbsp;     */
+<b class="fc"><i>397</i>&nbsp;    public static class Builder {</b>
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;        private long version;
+<b class="fc"><i>400</i>&nbsp;        private ImmutableOpenMap.Builder&lt;String, IndexRoutingTable&gt; indicesRouting = ImmutableOpenMap.builder();</b>
+<i>401</i>&nbsp;
+<b class="fc"><i>402</i>&nbsp;        public Builder() {</b>
+<i>403</i>&nbsp;
+<b class="fc"><i>404</i>&nbsp;        }</b>
+<i>405</i>&nbsp;
+<b class="fc"><i>406</i>&nbsp;        public Builder(RoutingTable routingTable) {</b>
+<b class="fc"><i>407</i>&nbsp;            version = routingTable.version;</b>
+<b class="fc"><i>408</i>&nbsp;            for (IndexRoutingTable indexRoutingTable : routingTable) {</b>
+<b class="fc"><i>409</i>&nbsp;                indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);</b>
+<b class="fc"><i>410</i>&nbsp;            }</b>
+<b class="fc"><i>411</i>&nbsp;        }</b>
+<i>412</i>&nbsp;
+<i>413</i>&nbsp;        public Builder updateNodes(long version, RoutingNodes routingNodes) {
+<i>414</i>&nbsp;            // this is being called without pre initializing the routing table, so we must copy over the version as well
+<b class="fc"><i>415</i>&nbsp;            this.version = version;</b>
+<i>416</i>&nbsp;
+<b class="fc"><i>417</i>&nbsp;            Map&lt;String, IndexRoutingTable.Builder&gt; indexRoutingTableBuilders = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>418</i>&nbsp;            for (RoutingNode routingNode : routingNodes) {</b>
+<b class="fc"><i>419</i>&nbsp;                for (ShardRouting shardRoutingEntry : routingNode) {</b>
+<i>420</i>&nbsp;                    // every relocating shard has a double entry, ignore the target one.
+<b class="fc"><i>421</i>&nbsp;                    if (shardRoutingEntry.initializing() &amp;&amp; shardRoutingEntry.relocatingNodeId() != null)</b>
+<b class="nc"><i>422</i>&nbsp;                        continue;</b>
+<i>423</i>&nbsp;
+<b class="fc"><i>424</i>&nbsp;                    addShard(indexRoutingTableBuilders, shardRoutingEntry);</b>
+<b class="fc"><i>425</i>&nbsp;                }</b>
+<b class="fc"><i>426</i>&nbsp;            }</b>
+<i>427</i>&nbsp;
+<b class="fc"><i>428</i>&nbsp;            Iterable&lt;ShardRouting&gt; shardRoutingEntries = Iterables.concat(routingNodes.unassigned(), routingNodes.unassigned().ignored());</b>
+<i>429</i>&nbsp;
+<b class="fc"><i>430</i>&nbsp;            for (ShardRouting shardRoutingEntry : shardRoutingEntries) {</b>
+<b class="nc"><i>431</i>&nbsp;                addShard(indexRoutingTableBuilders, shardRoutingEntry);</b>
+<b class="nc"><i>432</i>&nbsp;            }</b>
+<i>433</i>&nbsp;
+<b class="fc"><i>434</i>&nbsp;            for (IndexRoutingTable.Builder indexBuilder : indexRoutingTableBuilders.values()) {</b>
+<b class="fc"><i>435</i>&nbsp;                add(indexBuilder);</b>
+<b class="fc"><i>436</i>&nbsp;            }</b>
+<b class="fc"><i>437</i>&nbsp;            return this;</b>
+<i>438</i>&nbsp;        }
+<i>439</i>&nbsp;
+<i>440</i>&nbsp;        private static void addShard(final Map&lt;String, IndexRoutingTable.Builder&gt; indexRoutingTableBuilders,
+<i>441</i>&nbsp;                final ShardRouting shardRoutingEntry) {
+<b class="fc"><i>442</i>&nbsp;            Index index = shardRoutingEntry.index();</b>
+<b class="fc"><i>443</i>&nbsp;            IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index.getName());</b>
+<b class="fc"><i>444</i>&nbsp;            if (indexBuilder == null) {</b>
+<b class="fc"><i>445</i>&nbsp;                indexBuilder = new IndexRoutingTable.Builder(index);</b>
+<b class="fc"><i>446</i>&nbsp;                indexRoutingTableBuilders.put(index.getName(), indexBuilder);</b>
+<i>447</i>&nbsp;            }
+<b class="fc"><i>448</i>&nbsp;            indexBuilder.addShard(shardRoutingEntry);</b>
+<b class="fc"><i>449</i>&nbsp;        }</b>
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;        /**
+<i>452</i>&nbsp;         * Update the number of replicas for the specified indices.
+<i>453</i>&nbsp;         *
+<i>454</i>&nbsp;         * @param numberOfReplicas the number of replicas
+<i>455</i>&nbsp;         * @param indices          the indices to update the number of replicas for
+<i>456</i>&nbsp;         * @return the builder
+<i>457</i>&nbsp;         */
+<i>458</i>&nbsp;        public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
+<b class="nc"><i>459</i>&nbsp;            if (indicesRouting == null) {</b>
+<b class="nc"><i>460</i>&nbsp;                throw new IllegalStateException(&quot;once build is called the builder cannot be reused&quot;);</b>
+<i>461</i>&nbsp;            }
+<b class="nc"><i>462</i>&nbsp;            for (String index : indices) {</b>
+<b class="nc"><i>463</i>&nbsp;                IndexRoutingTable indexRoutingTable = indicesRouting.get(index);</b>
+<b class="nc"><i>464</i>&nbsp;                if (indexRoutingTable == null) {</b>
+<i>465</i>&nbsp;                    // ignore index missing failure, its closed...
+<b class="nc"><i>466</i>&nbsp;                    continue;</b>
+<i>467</i>&nbsp;                }
+<b class="nc"><i>468</i>&nbsp;                int currentNumberOfReplicas = indexRoutingTable.shards().get(0).size() - 1; // remove the required primary</b>
+<b class="nc"><i>469</i>&nbsp;                IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());</b>
+<i>470</i>&nbsp;                // re-add all the shards
+<b class="nc"><i>471</i>&nbsp;                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {</b>
+<b class="nc"><i>472</i>&nbsp;                    builder.addIndexShard(indexShardRoutingTable);</b>
+<b class="nc"><i>473</i>&nbsp;                }</b>
+<b class="nc"><i>474</i>&nbsp;                if (currentNumberOfReplicas &lt; numberOfReplicas) {</b>
+<i>475</i>&nbsp;                    // now, add &quot;empty&quot; ones
+<b class="nc"><i>476</i>&nbsp;                    for (int i = 0; i &lt; (numberOfReplicas - currentNumberOfReplicas); i++) {</b>
+<b class="nc"><i>477</i>&nbsp;                        builder.addReplica();</b>
+<i>478</i>&nbsp;                    }
+<b class="nc"><i>479</i>&nbsp;                } else if (currentNumberOfReplicas &gt; numberOfReplicas) {</b>
+<b class="nc"><i>480</i>&nbsp;                    int delta = currentNumberOfReplicas - numberOfReplicas;</b>
+<b class="nc"><i>481</i>&nbsp;                    if (delta &lt;= 0) {</b>
+<i>482</i>&nbsp;                        // ignore, can&#39;t remove below the current one...
+<i>483</i>&nbsp;                    } else {
+<b class="nc"><i>484</i>&nbsp;                        for (int i = 0; i &lt; delta; i++) {</b>
+<b class="nc"><i>485</i>&nbsp;                            builder.removeReplica();</b>
+<i>486</i>&nbsp;                        }
+<i>487</i>&nbsp;                    }
+<i>488</i>&nbsp;                }
+<b class="nc"><i>489</i>&nbsp;                indicesRouting.put(index, builder.build());</b>
+<i>490</i>&nbsp;            }
+<b class="nc"><i>491</i>&nbsp;            return this;</b>
+<i>492</i>&nbsp;        }
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;        public Builder addAsNew(IndexMetaData indexMetaData) {
+<b class="fc"><i>495</i>&nbsp;            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {</b>
+<b class="fc"><i>496</i>&nbsp;                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="fc"><i>497</i>&nbsp;                        .initializeAsNew(indexMetaData);</b>
+<b class="fc"><i>498</i>&nbsp;                add(indexRoutingBuilder);</b>
+<i>499</i>&nbsp;            }
+<b class="fc"><i>500</i>&nbsp;            return this;</b>
+<i>501</i>&nbsp;        }
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;        public Builder addAsRecovery(IndexMetaData indexMetaData) {
+<b class="nc"><i>504</i>&nbsp;            if (indexMetaData.getState() == IndexMetaData.State.OPEN || isIndexVerifiedBeforeClosed(indexMetaData)) {</b>
+<b class="nc"><i>505</i>&nbsp;                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="nc"><i>506</i>&nbsp;                    .initializeAsRecovery(indexMetaData);</b>
+<b class="nc"><i>507</i>&nbsp;                add(indexRoutingBuilder);</b>
+<i>508</i>&nbsp;            }
+<b class="nc"><i>509</i>&nbsp;            return this;</b>
+<i>510</i>&nbsp;        }
+<i>511</i>&nbsp;
+<i>512</i>&nbsp;        public Builder addAsFromDangling(IndexMetaData indexMetaData) {
+<b class="nc"><i>513</i>&nbsp;            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {</b>
+<b class="nc"><i>514</i>&nbsp;                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="nc"><i>515</i>&nbsp;                        .initializeAsFromDangling(indexMetaData);</b>
+<b class="nc"><i>516</i>&nbsp;                add(indexRoutingBuilder);</b>
+<i>517</i>&nbsp;            }
+<b class="nc"><i>518</i>&nbsp;            return this;</b>
+<i>519</i>&nbsp;        }
+<i>520</i>&nbsp;
+<i>521</i>&nbsp;        public Builder addAsFromCloseToOpen(IndexMetaData indexMetaData) {
+<b class="nc"><i>522</i>&nbsp;            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {</b>
+<b class="nc"><i>523</i>&nbsp;                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="nc"><i>524</i>&nbsp;                        .initializeAsFromCloseToOpen(indexMetaData);</b>
+<b class="nc"><i>525</i>&nbsp;                add(indexRoutingBuilder);</b>
+<i>526</i>&nbsp;            }
+<b class="nc"><i>527</i>&nbsp;            return this;</b>
+<i>528</i>&nbsp;        }
+<i>529</i>&nbsp;
+<i>530</i>&nbsp;        public Builder addAsFromOpenToClose(IndexMetaData indexMetaData) {
+<b class="nc"><i>531</i>&nbsp;            assert isIndexVerifiedBeforeClosed(indexMetaData);</b>
+<b class="nc"><i>532</i>&nbsp;            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="nc"><i>533</i>&nbsp;                .initializeAsFromOpenToClose(indexMetaData);</b>
+<b class="nc"><i>534</i>&nbsp;            return add(indexRoutingBuilder);</b>
+<i>535</i>&nbsp;        }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;        public Builder addAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource) {
+<b class="nc"><i>538</i>&nbsp;            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="nc"><i>539</i>&nbsp;                    .initializeAsRestore(indexMetaData, recoverySource);</b>
+<b class="nc"><i>540</i>&nbsp;            add(indexRoutingBuilder);</b>
+<b class="nc"><i>541</i>&nbsp;            return this;</b>
+<i>542</i>&nbsp;        }
+<i>543</i>&nbsp;
+<i>544</i>&nbsp;        public Builder addAsNewRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+<b class="nc"><i>545</i>&nbsp;            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())</b>
+<b class="nc"><i>546</i>&nbsp;                    .initializeAsNewRestore(indexMetaData, recoverySource, ignoreShards);</b>
+<b class="nc"><i>547</i>&nbsp;            add(indexRoutingBuilder);</b>
+<b class="nc"><i>548</i>&nbsp;            return this;</b>
+<i>549</i>&nbsp;        }
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;        public Builder add(IndexRoutingTable indexRoutingTable) {
+<b class="fc"><i>552</i>&nbsp;            if (indicesRouting == null) {</b>
+<b class="nc"><i>553</i>&nbsp;                throw new IllegalStateException(&quot;once build is called the builder cannot be reused&quot;);</b>
+<i>554</i>&nbsp;            }
+<b class="fc"><i>555</i>&nbsp;            indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);</b>
+<b class="fc"><i>556</i>&nbsp;            return this;</b>
+<i>557</i>&nbsp;        }
+<i>558</i>&nbsp;
+<i>559</i>&nbsp;        public Builder add(IndexRoutingTable.Builder indexRoutingTableBuilder) {
+<b class="fc"><i>560</i>&nbsp;            add(indexRoutingTableBuilder.build());</b>
+<b class="fc"><i>561</i>&nbsp;            return this;</b>
+<i>562</i>&nbsp;        }
+<i>563</i>&nbsp;
+<i>564</i>&nbsp;        public Builder remove(String index) {
+<b class="fc"><i>565</i>&nbsp;            if (indicesRouting == null) {</b>
+<b class="nc"><i>566</i>&nbsp;                throw new IllegalStateException(&quot;once build is called the builder cannot be reused&quot;);</b>
+<i>567</i>&nbsp;            }
+<b class="fc"><i>568</i>&nbsp;            indicesRouting.remove(index);</b>
+<b class="fc"><i>569</i>&nbsp;            return this;</b>
+<i>570</i>&nbsp;        }
+<i>571</i>&nbsp;
+<i>572</i>&nbsp;        public Builder version(long version) {
+<b class="fc"><i>573</i>&nbsp;            this.version = version;</b>
+<b class="fc"><i>574</i>&nbsp;            return this;</b>
+<i>575</i>&nbsp;        }
+<i>576</i>&nbsp;
+<i>577</i>&nbsp;        /**
+<i>578</i>&nbsp;         * Builds the routing table. Note that once this is called the builder
+<i>579</i>&nbsp;         * must be thrown away. If you need to build a new RoutingTable as a
+<i>580</i>&nbsp;         * copy of this one you&#39;ll need to build a new RoutingTable.Builder.
+<i>581</i>&nbsp;         */
+<i>582</i>&nbsp;        public RoutingTable build() {
+<b class="fc"><i>583</i>&nbsp;            if (indicesRouting == null) {</b>
+<b class="nc"><i>584</i>&nbsp;                throw new IllegalStateException(&quot;once build is called the builder cannot be reused&quot;);</b>
+<i>585</i>&nbsp;            }
+<b class="fc"><i>586</i>&nbsp;            RoutingTable table = new RoutingTable(version, indicesRouting.build());</b>
+<b class="fc"><i>587</i>&nbsp;            indicesRouting = null;</b>
+<b class="fc"><i>588</i>&nbsp;            return table;</b>
+<i>589</i>&nbsp;        }
+<i>590</i>&nbsp;    }
+<i>591</i>&nbsp;
+<i>592</i>&nbsp;    @Override
+<i>593</i>&nbsp;    public String toString() {
+<b class="nc"><i>594</i>&nbsp;        StringBuilder sb = new StringBuilder(&quot;routing_table (version &quot;).append(version).append(&quot;):\n&quot;);</b>
+<b class="nc"><i>595</i>&nbsp;        for (ObjectObjectCursor&lt;String, IndexRoutingTable&gt; entry : indicesRouting) {</b>
+<b class="nc"><i>596</i>&nbsp;            sb.append(entry.value.prettyPrint()).append(&#39;\n&#39;);</b>
+<b class="nc"><i>597</i>&nbsp;        }</b>
+<b class="nc"><i>598</i>&nbsp;        return sb.toString();</b>
+<i>599</i>&nbsp;    }
+<i>600</i>&nbsp;
+<i>601</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

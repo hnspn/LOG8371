@@ -1,0 +1,158 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DateMathParser</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.time</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DateMathParser (org.elasticsearch.common.time)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DateMathParser</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.time;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.joda.time.DateTimeZone;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.time.Instant;
+<i>25</i>&nbsp;import java.time.ZoneId;
+<i>26</i>&nbsp;import java.util.function.LongSupplier;
+<i>27</i>&nbsp;
+<i>28</i>&nbsp;/**
+<i>29</i>&nbsp; * An abstraction over date math parsing to allow different implementation for joda and java time.
+<i>30</i>&nbsp; */
+<i>31</i>&nbsp;public interface DateMathParser {
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;    /**
+<i>34</i>&nbsp;     * Parse a date math expression without timezone info and rounding down.
+<i>35</i>&nbsp;     */
+<i>36</i>&nbsp;    default Instant parse(String text, LongSupplier now) {
+<b class="nc"><i>37</i>&nbsp;        return parse(text, now, false, (ZoneId) null);</b>
+<i>38</i>&nbsp;    }
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    // Note: we take a callable here for the timestamp in order to be able to figure out
+<i>41</i>&nbsp;    // if it has been used. For instance, the request cache does not cache requests that make
+<i>42</i>&nbsp;    // use of `now`.
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    // exists for backcompat, do not use!
+<i>45</i>&nbsp;    @Deprecated
+<i>46</i>&nbsp;    default Instant parse(String text, LongSupplier now, boolean roundUpProperty, DateTimeZone tz) {
+<b class="nc"><i>47</i>&nbsp;        return parse(text, now, roundUpProperty, tz == null ? null : ZoneId.of(tz.getID()));</b>
+<i>48</i>&nbsp;    }
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    /**
+<i>51</i>&nbsp;     * Parse text, that potentially contains date math into the milliseconds since the epoch
+<i>52</i>&nbsp;     *
+<i>53</i>&nbsp;     * Examples are
+<i>54</i>&nbsp;     *
+<i>55</i>&nbsp;     * &lt;code&gt;2014-11-18||-2y&lt;/code&gt; subtracts two years from the input date
+<i>56</i>&nbsp;     * &lt;code&gt;now/m&lt;/code&gt;           rounds the current time to minute granularity
+<i>57</i>&nbsp;     *
+<i>58</i>&nbsp;     * Supported rounding units are
+<i>59</i>&nbsp;     * y    year
+<i>60</i>&nbsp;     * M    month
+<i>61</i>&nbsp;     * w    week (beginning on a monday)
+<i>62</i>&nbsp;     * d    day
+<i>63</i>&nbsp;     * h/H  hour
+<i>64</i>&nbsp;     * m    minute
+<i>65</i>&nbsp;     * s    second
+<i>66</i>&nbsp;     *
+<i>67</i>&nbsp;     *
+<i>68</i>&nbsp;     * @param text              the input
+<i>69</i>&nbsp;     * @param now               a supplier to retrieve the current date in milliseconds, if needed for additions
+<i>70</i>&nbsp;     * @param roundUpProperty   should the result be rounded up with the granularity of the rounding (e.g. &lt;code&gt;now/M&lt;/code&gt;)
+<i>71</i>&nbsp;     * @param tz                an optional timezone that should be applied before returning the milliseconds since the epoch
+<i>72</i>&nbsp;     * @return                  the parsed date as an Instant since the epoch
+<i>73</i>&nbsp;     */
+<i>74</i>&nbsp;    Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId tz);
+<i>75</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

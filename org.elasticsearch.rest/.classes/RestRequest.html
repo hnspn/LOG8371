@@ -1,0 +1,623 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestRequest</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestRequest (org.elasticsearch.rest)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 45)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 161)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">RestRequest$Method</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    4.3%
+  </span>
+  <span class="absValue">
+    (2/ 47)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    1.2%
+  </span>
+  <span class="absValue">
+    (2/ 163)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.util.SetOnce;
+<i>23</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>24</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>25</i>&nbsp;import org.elasticsearch.common.CheckedConsumer;
+<i>26</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>27</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>28</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>29</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>30</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>31</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>32</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>38</i>&nbsp;import org.elasticsearch.http.HttpChannel;
+<i>39</i>&nbsp;import org.elasticsearch.http.HttpRequest;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import java.io.IOException;
+<i>42</i>&nbsp;import java.io.InputStream;
+<i>43</i>&nbsp;import java.util.ArrayList;
+<i>44</i>&nbsp;import java.util.Collections;
+<i>45</i>&nbsp;import java.util.HashMap;
+<i>46</i>&nbsp;import java.util.HashSet;
+<i>47</i>&nbsp;import java.util.List;
+<i>48</i>&nbsp;import java.util.Map;
+<i>49</i>&nbsp;import java.util.Set;
+<i>50</i>&nbsp;import java.util.regex.Pattern;
+<i>51</i>&nbsp;import java.util.stream.Collectors;
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+<i>54</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;public class RestRequest implements ToXContent.Params {
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    // tchar pattern as defined by RFC7230 section 3.2.6
+<b class="nc"><i>59</i>&nbsp;    private static final Pattern TCHAR_PATTERN = Pattern.compile(&quot;[a-zA-z0-9!#$%&amp;&#39;*+\\-.\\^_`|~]+&quot;);</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    private final NamedXContentRegistry xContentRegistry;
+<i>62</i>&nbsp;    private final Map&lt;String, String&gt; params;
+<i>63</i>&nbsp;    private final Map&lt;String, List&lt;String&gt;&gt; headers;
+<i>64</i>&nbsp;    private final String rawPath;
+<b class="nc"><i>65</i>&nbsp;    private final Set&lt;String&gt; consumedParams = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>66</i>&nbsp;    private final SetOnce&lt;XContentType&gt; xContentType = new SetOnce&lt;&gt;();</b>
+<i>67</i>&nbsp;    private final HttpRequest httpRequest;
+<i>68</i>&nbsp;    private final HttpChannel httpChannel;
+<i>69</i>&nbsp;
+<b class="nc"><i>70</i>&nbsp;    private boolean contentConsumed = false;</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    public boolean isContentConsumed() {
+<b class="nc"><i>73</i>&nbsp;        return contentConsumed;</b>
+<i>74</i>&nbsp;    }
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    protected RestRequest(NamedXContentRegistry xContentRegistry, Map&lt;String, String&gt; params, String path,
+<b class="nc"><i>77</i>&nbsp;                          Map&lt;String, List&lt;String&gt;&gt; headers, HttpRequest httpRequest, HttpChannel httpChannel) {</b>
+<i>78</i>&nbsp;        final XContentType xContentType;
+<i>79</i>&nbsp;        try {
+<b class="nc"><i>80</i>&nbsp;            xContentType = parseContentType(headers.get(&quot;Content-Type&quot;));</b>
+<b class="nc"><i>81</i>&nbsp;        } catch (final IllegalArgumentException e) {</b>
+<b class="nc"><i>82</i>&nbsp;            throw new ContentTypeHeaderException(e);</b>
+<b class="nc"><i>83</i>&nbsp;        }</b>
+<b class="nc"><i>84</i>&nbsp;        if (xContentType != null) {</b>
+<b class="nc"><i>85</i>&nbsp;            this.xContentType.set(xContentType);</b>
+<i>86</i>&nbsp;        }
+<b class="nc"><i>87</i>&nbsp;        this.xContentRegistry = xContentRegistry;</b>
+<b class="nc"><i>88</i>&nbsp;        this.httpRequest = httpRequest;</b>
+<b class="nc"><i>89</i>&nbsp;        this.httpChannel = httpChannel;</b>
+<b class="nc"><i>90</i>&nbsp;        this.params = params;</b>
+<b class="nc"><i>91</i>&nbsp;        this.rawPath = path;</b>
+<b class="nc"><i>92</i>&nbsp;        this.headers = Collections.unmodifiableMap(headers);</b>
+<b class="nc"><i>93</i>&nbsp;    }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    protected RestRequest(RestRequest restRequest) {
+<b class="nc"><i>96</i>&nbsp;        this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),</b>
+<b class="nc"><i>97</i>&nbsp;            restRequest.getHttpRequest(), restRequest.getHttpChannel());</b>
+<b class="nc"><i>98</i>&nbsp;    }</b>
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    /**
+<i>101</i>&nbsp;     * Creates a new REST request. This method will throw {@link BadParameterException} if the path cannot be
+<i>102</i>&nbsp;     * decoded
+<i>103</i>&nbsp;     *
+<i>104</i>&nbsp;     * @param xContentRegistry the content registry
+<i>105</i>&nbsp;     * @param httpRequest      the http request
+<i>106</i>&nbsp;     * @param httpChannel      the http channel
+<i>107</i>&nbsp;     * @throws BadParameterException      if the parameters can not be decoded
+<i>108</i>&nbsp;     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
+<b class="nc"><i>111</i>&nbsp;        Map&lt;String, String&gt; params = params(httpRequest.uri());</b>
+<b class="nc"><i>112</i>&nbsp;        String path = path(httpRequest.uri());</b>
+<b class="nc"><i>113</i>&nbsp;        return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel);</b>
+<i>114</i>&nbsp;    }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    private static Map&lt;String, String&gt; params(final String uri) {
+<b class="nc"><i>117</i>&nbsp;        final Map&lt;String, String&gt; params = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>118</i>&nbsp;        int index = uri.indexOf(&#39;?&#39;);</b>
+<b class="nc"><i>119</i>&nbsp;        if (index &gt;= 0) {</b>
+<i>120</i>&nbsp;            try {
+<b class="nc"><i>121</i>&nbsp;                RestUtils.decodeQueryString(uri, index + 1, params);</b>
+<b class="nc"><i>122</i>&nbsp;            } catch (final IllegalArgumentException e) {</b>
+<b class="nc"><i>123</i>&nbsp;                throw new BadParameterException(e);</b>
+<b class="nc"><i>124</i>&nbsp;            }</b>
+<i>125</i>&nbsp;        }
+<b class="nc"><i>126</i>&nbsp;        return params;</b>
+<i>127</i>&nbsp;    }
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    private static String path(final String uri) {
+<b class="nc"><i>130</i>&nbsp;        final int index = uri.indexOf(&#39;?&#39;);</b>
+<b class="nc"><i>131</i>&nbsp;        if (index &gt;= 0) {</b>
+<b class="nc"><i>132</i>&nbsp;            return uri.substring(0, index);</b>
+<i>133</i>&nbsp;        } else {
+<b class="nc"><i>134</i>&nbsp;            return uri;</b>
+<i>135</i>&nbsp;        }
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * Creates a new REST request. The path is not decoded so this constructor will not throw a
+<i>140</i>&nbsp;     * {@link BadParameterException}.
+<i>141</i>&nbsp;     *
+<i>142</i>&nbsp;     * @param xContentRegistry the content registry
+<i>143</i>&nbsp;     * @param httpRequest      the http request
+<i>144</i>&nbsp;     * @param httpChannel      the http channel
+<i>145</i>&nbsp;     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
+<i>146</i>&nbsp;     */
+<i>147</i>&nbsp;    public static RestRequest requestWithoutParameters(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
+<i>148</i>&nbsp;                                                       HttpChannel httpChannel) {
+<b class="nc"><i>149</i>&nbsp;        Map&lt;String, String&gt; params = Collections.emptyMap();</b>
+<b class="nc"><i>150</i>&nbsp;        return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);</b>
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<b class="fc"><i>153</i>&nbsp;    public enum Method {</b>
+<b class="fc"><i>154</i>&nbsp;        GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * Returns the HTTP method used in the REST request.
+<i>159</i>&nbsp;     *
+<i>160</i>&nbsp;     * @return the {@link Method} used in the REST request
+<i>161</i>&nbsp;     * @throws IllegalArgumentException if the HTTP method is invalid
+<i>162</i>&nbsp;     */
+<i>163</i>&nbsp;    public Method method() {
+<b class="nc"><i>164</i>&nbsp;        return httpRequest.method();</b>
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    /**
+<i>168</i>&nbsp;     * The uri of the rest request, with the query string.
+<i>169</i>&nbsp;     */
+<i>170</i>&nbsp;    public String uri() {
+<b class="nc"><i>171</i>&nbsp;        return httpRequest.uri();</b>
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * The non decoded, raw path provided.
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    public String rawPath() {
+<b class="nc"><i>178</i>&nbsp;        return rawPath;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * The path part of the URI (without the query string), decoded.
+<i>183</i>&nbsp;     */
+<i>184</i>&nbsp;    public final String path() {
+<b class="nc"><i>185</i>&nbsp;        return RestUtils.decodeComponent(rawPath());</b>
+<i>186</i>&nbsp;    }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    public boolean hasContent() {
+<b class="nc"><i>189</i>&nbsp;        return content(false).length() &gt; 0;</b>
+<i>190</i>&nbsp;    }
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    public BytesReference content() {
+<b class="nc"><i>193</i>&nbsp;        return content(true);</b>
+<i>194</i>&nbsp;    }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    protected BytesReference content(final boolean contentConsumed) {
+<b class="nc"><i>197</i>&nbsp;        this.contentConsumed = this.contentConsumed | contentConsumed;</b>
+<b class="nc"><i>198</i>&nbsp;        return httpRequest.content();</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    /**
+<i>202</i>&nbsp;     * @return content of the request body or throw an exception if the body or content type is missing
+<i>203</i>&nbsp;     */
+<i>204</i>&nbsp;    public final BytesReference requiredContent() {
+<b class="nc"><i>205</i>&nbsp;        if (hasContent() == false) {</b>
+<b class="nc"><i>206</i>&nbsp;            throw new ElasticsearchParseException(&quot;request body is required&quot;);</b>
+<b class="nc"><i>207</i>&nbsp;        } else if (xContentType.get() == null) {</b>
+<b class="nc"><i>208</i>&nbsp;            throw new IllegalStateException(&quot;unknown content type&quot;);</b>
+<i>209</i>&nbsp;        }
+<b class="nc"><i>210</i>&nbsp;        return content();</b>
+<i>211</i>&nbsp;    }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    /**
+<i>214</i>&nbsp;     * Get the value of the header or {@code null} if not found. This method only retrieves the first header value if multiple values are
+<i>215</i>&nbsp;     * sent. Use of {@link #getAllHeaderValues(String)} should be preferred
+<i>216</i>&nbsp;     */
+<i>217</i>&nbsp;    public final String header(String name) {
+<b class="nc"><i>218</i>&nbsp;        List&lt;String&gt; values = headers.get(name);</b>
+<b class="nc"><i>219</i>&nbsp;        if (values != null &amp;&amp; values.isEmpty() == false) {</b>
+<b class="nc"><i>220</i>&nbsp;            return values.get(0);</b>
+<i>221</i>&nbsp;        }
+<b class="nc"><i>222</i>&nbsp;        return null;</b>
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    /**
+<i>226</i>&nbsp;     * Get all values for the header or {@code null} if the header was not found
+<i>227</i>&nbsp;     */
+<i>228</i>&nbsp;    public final List&lt;String&gt; getAllHeaderValues(String name) {
+<b class="nc"><i>229</i>&nbsp;        List&lt;String&gt; values = headers.get(name);</b>
+<b class="nc"><i>230</i>&nbsp;        if (values != null) {</b>
+<b class="nc"><i>231</i>&nbsp;            return Collections.unmodifiableList(values);</b>
+<i>232</i>&nbsp;        }
+<b class="nc"><i>233</i>&nbsp;        return null;</b>
+<i>234</i>&nbsp;    }
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    /**
+<i>237</i>&nbsp;     * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
+<i>238</i>&nbsp;     */
+<i>239</i>&nbsp;    public final Map&lt;String, List&lt;String&gt;&gt; getHeaders() {
+<b class="nc"><i>240</i>&nbsp;        return headers;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * The {@link XContentType} that was parsed from the {@code Content-Type} header. This value will be {@code null} in the case of
+<i>245</i>&nbsp;     * a request without a valid {@code Content-Type} header, a request without content ({@link #hasContent()}, or a plain text request
+<i>246</i>&nbsp;     */
+<i>247</i>&nbsp;    @Nullable
+<i>248</i>&nbsp;    public final XContentType getXContentType() {
+<b class="nc"><i>249</i>&nbsp;        return xContentType.get();</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    public HttpChannel getHttpChannel() {
+<b class="nc"><i>253</i>&nbsp;        return httpChannel;</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    public HttpRequest getHttpRequest() {
+<b class="nc"><i>257</i>&nbsp;        return httpRequest;</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    public final boolean hasParam(String key) {
+<b class="nc"><i>261</i>&nbsp;        return params.containsKey(key);</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    @Override
+<i>265</i>&nbsp;    public final String param(String key) {
+<b class="nc"><i>266</i>&nbsp;        consumedParams.add(key);</b>
+<b class="nc"><i>267</i>&nbsp;        return params.get(key);</b>
+<i>268</i>&nbsp;    }
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;    @Override
+<i>271</i>&nbsp;    public final String param(String key, String defaultValue) {
+<b class="nc"><i>272</i>&nbsp;        consumedParams.add(key);</b>
+<b class="nc"><i>273</i>&nbsp;        String value = params.get(key);</b>
+<b class="nc"><i>274</i>&nbsp;        if (value == null) {</b>
+<b class="nc"><i>275</i>&nbsp;            return defaultValue;</b>
+<i>276</i>&nbsp;        }
+<b class="nc"><i>277</i>&nbsp;        return value;</b>
+<i>278</i>&nbsp;    }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    public Map&lt;String, String&gt; params() {
+<b class="nc"><i>281</i>&nbsp;        return params;</b>
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    /**
+<i>285</i>&nbsp;     * Returns a list of parameters that have been consumed. This method returns a copy, callers
+<i>286</i>&nbsp;     * are free to modify the returned list.
+<i>287</i>&nbsp;     *
+<i>288</i>&nbsp;     * @return the list of currently consumed parameters.
+<i>289</i>&nbsp;     */
+<i>290</i>&nbsp;    List&lt;String&gt; consumedParams() {
+<b class="nc"><i>291</i>&nbsp;        return new ArrayList&lt;&gt;(consumedParams);</b>
+<i>292</i>&nbsp;    }
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;    /**
+<i>295</i>&nbsp;     * Returns a list of parameters that have not yet been consumed. This method returns a copy,
+<i>296</i>&nbsp;     * callers are free to modify the returned list.
+<i>297</i>&nbsp;     *
+<i>298</i>&nbsp;     * @return the list of currently unconsumed parameters.
+<i>299</i>&nbsp;     */
+<i>300</i>&nbsp;    List&lt;String&gt; unconsumedParams() {
+<b class="nc"><i>301</i>&nbsp;        return params</b>
+<b class="nc"><i>302</i>&nbsp;            .keySet()</b>
+<b class="nc"><i>303</i>&nbsp;            .stream()</b>
+<b class="nc"><i>304</i>&nbsp;            .filter(p -&gt; !consumedParams.contains(p))</b>
+<b class="nc"><i>305</i>&nbsp;            .collect(Collectors.toList());</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    public float paramAsFloat(String key, float defaultValue) {
+<b class="nc"><i>309</i>&nbsp;        String sValue = param(key);</b>
+<b class="nc"><i>310</i>&nbsp;        if (sValue == null) {</b>
+<b class="nc"><i>311</i>&nbsp;            return defaultValue;</b>
+<i>312</i>&nbsp;        }
+<i>313</i>&nbsp;        try {
+<b class="nc"><i>314</i>&nbsp;            return Float.parseFloat(sValue);</b>
+<b class="nc"><i>315</i>&nbsp;        } catch (NumberFormatException e) {</b>
+<b class="nc"><i>316</i>&nbsp;            throw new IllegalArgumentException(&quot;Failed to parse float parameter [&quot; + key + &quot;] with value [&quot; + sValue + &quot;]&quot;, e);</b>
+<i>317</i>&nbsp;        }
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    public int paramAsInt(String key, int defaultValue) {
+<b class="nc"><i>321</i>&nbsp;        String sValue = param(key);</b>
+<b class="nc"><i>322</i>&nbsp;        if (sValue == null) {</b>
+<b class="nc"><i>323</i>&nbsp;            return defaultValue;</b>
+<i>324</i>&nbsp;        }
+<i>325</i>&nbsp;        try {
+<b class="nc"><i>326</i>&nbsp;            return Integer.parseInt(sValue);</b>
+<b class="nc"><i>327</i>&nbsp;        } catch (NumberFormatException e) {</b>
+<b class="nc"><i>328</i>&nbsp;            throw new IllegalArgumentException(&quot;Failed to parse int parameter [&quot; + key + &quot;] with value [&quot; + sValue + &quot;]&quot;, e);</b>
+<i>329</i>&nbsp;        }
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    public long paramAsLong(String key, long defaultValue) {
+<b class="nc"><i>333</i>&nbsp;        String sValue = param(key);</b>
+<b class="nc"><i>334</i>&nbsp;        if (sValue == null) {</b>
+<b class="nc"><i>335</i>&nbsp;            return defaultValue;</b>
+<i>336</i>&nbsp;        }
+<i>337</i>&nbsp;        try {
+<b class="nc"><i>338</i>&nbsp;            return Long.parseLong(sValue);</b>
+<b class="nc"><i>339</i>&nbsp;        } catch (NumberFormatException e) {</b>
+<b class="nc"><i>340</i>&nbsp;            throw new IllegalArgumentException(&quot;Failed to parse long parameter [&quot; + key + &quot;] with value [&quot; + sValue + &quot;]&quot;, e);</b>
+<i>341</i>&nbsp;        }
+<i>342</i>&nbsp;    }
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    @Override
+<i>345</i>&nbsp;    public boolean paramAsBoolean(String key, boolean defaultValue) {
+<b class="nc"><i>346</i>&nbsp;        String rawParam = param(key);</b>
+<i>347</i>&nbsp;        // Treat empty string as true because that allows the presence of the url parameter to mean &quot;turn this on&quot;
+<b class="nc"><i>348</i>&nbsp;        if (rawParam != null &amp;&amp; rawParam.length() == 0) {</b>
+<b class="nc"><i>349</i>&nbsp;            return true;</b>
+<i>350</i>&nbsp;        } else {
+<b class="nc"><i>351</i>&nbsp;            return Booleans.parseBoolean(rawParam, defaultValue);</b>
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    @Override
+<i>356</i>&nbsp;    public Boolean paramAsBoolean(String key, Boolean defaultValue) {
+<b class="nc"><i>357</i>&nbsp;        return Booleans.parseBoolean(param(key), defaultValue);</b>
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;    public TimeValue paramAsTime(String key, TimeValue defaultValue) {
+<b class="nc"><i>361</i>&nbsp;        return parseTimeValue(param(key), defaultValue, key);</b>
+<i>362</i>&nbsp;    }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;    public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
+<b class="nc"><i>365</i>&nbsp;        return parseBytesSizeValue(param(key), defaultValue, key);</b>
+<i>366</i>&nbsp;    }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;    public String[] paramAsStringArray(String key, String[] defaultValue) {
+<b class="nc"><i>369</i>&nbsp;        String value = param(key);</b>
+<b class="nc"><i>370</i>&nbsp;        if (value == null) {</b>
+<b class="nc"><i>371</i>&nbsp;            return defaultValue;</b>
+<i>372</i>&nbsp;        }
+<b class="nc"><i>373</i>&nbsp;        return Strings.splitStringByCommaToArray(value);</b>
+<i>374</i>&nbsp;    }
+<i>375</i>&nbsp;
+<i>376</i>&nbsp;    public String[] paramAsStringArrayOrEmptyIfAll(String key) {
+<b class="nc"><i>377</i>&nbsp;        String[] params = paramAsStringArray(key, Strings.EMPTY_ARRAY);</b>
+<b class="nc"><i>378</i>&nbsp;        if (Strings.isAllOrWildcard(params)) {</b>
+<b class="nc"><i>379</i>&nbsp;            return Strings.EMPTY_ARRAY;</b>
+<i>380</i>&nbsp;        }
+<b class="nc"><i>381</i>&nbsp;        return params;</b>
+<i>382</i>&nbsp;    }
+<i>383</i>&nbsp;
+<i>384</i>&nbsp;    /**
+<i>385</i>&nbsp;     * Get the {@link NamedXContentRegistry} that should be used to create parsers from this request.
+<i>386</i>&nbsp;     */
+<i>387</i>&nbsp;    public NamedXContentRegistry getXContentRegistry() {
+<b class="nc"><i>388</i>&nbsp;        return xContentRegistry;</b>
+<i>389</i>&nbsp;    }
+<i>390</i>&nbsp;
+<i>391</i>&nbsp;    /**
+<i>392</i>&nbsp;     * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
+<i>393</i>&nbsp;     * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn&#39;t have any contents. Use
+<i>394</i>&nbsp;     * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
+<i>395</i>&nbsp;     */
+<i>396</i>&nbsp;    public final XContentParser contentParser() throws IOException {
+<b class="nc"><i>397</i>&nbsp;        BytesReference content = requiredContent(); // will throw exception if body or content type missing</b>
+<b class="nc"><i>398</i>&nbsp;        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;    /**
+<i>402</i>&nbsp;     * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
+<i>403</i>&nbsp;     */
+<i>404</i>&nbsp;    public final void applyContentParser(CheckedConsumer&lt;XContentParser, IOException&gt; applyParser) throws IOException {
+<b class="nc"><i>405</i>&nbsp;        if (hasContent()) {</b>
+<b class="nc"><i>406</i>&nbsp;            try (XContentParser parser = contentParser()) {</b>
+<b class="nc"><i>407</i>&nbsp;                applyParser.accept(parser);</b>
+<b class="nc"><i>408</i>&nbsp;            }</b>
+<i>409</i>&nbsp;        }
+<b class="nc"><i>410</i>&nbsp;    }</b>
+<i>411</i>&nbsp;
+<i>412</i>&nbsp;    /**
+<i>413</i>&nbsp;     * Does this request have content or a {@code source} parameter? Use this instead of {@link #hasContent()} if this
+<i>414</i>&nbsp;     * {@linkplain RestHandler} treats the {@code source} parameter like the body content.
+<i>415</i>&nbsp;     */
+<i>416</i>&nbsp;    public final boolean hasContentOrSourceParam() {
+<b class="nc"><i>417</i>&nbsp;        return hasContent() || hasParam(&quot;source&quot;);</b>
+<i>418</i>&nbsp;    }
+<i>419</i>&nbsp;
+<i>420</i>&nbsp;    /**
+<i>421</i>&nbsp;     * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
+<i>422</i>&nbsp;     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} instead
+<i>423</i>&nbsp;     * if you need to handle the absence request content gracefully.
+<i>424</i>&nbsp;     */
+<i>425</i>&nbsp;    public final XContentParser contentOrSourceParamParser() throws IOException {
+<b class="nc"><i>426</i>&nbsp;        Tuple&lt;XContentType, BytesReference&gt; tuple = contentOrSourceParam();</b>
+<b class="nc"><i>427</i>&nbsp;        return tuple.v1().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, tuple.v2().streamInput());</b>
+<i>428</i>&nbsp;    }
+<i>429</i>&nbsp;
+<i>430</i>&nbsp;    /**
+<i>431</i>&nbsp;     * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
+<i>432</i>&nbsp;     * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
+<i>433</i>&nbsp;     * back to the user when there isn&#39;t request content.
+<i>434</i>&nbsp;     */
+<i>435</i>&nbsp;    public final void withContentOrSourceParamParserOrNull(CheckedConsumer&lt;XContentParser, IOException&gt; withParser) throws IOException {
+<b class="nc"><i>436</i>&nbsp;        if (hasContentOrSourceParam()) {</b>
+<b class="nc"><i>437</i>&nbsp;            Tuple&lt;XContentType, BytesReference&gt; tuple = contentOrSourceParam();</b>
+<b class="nc"><i>438</i>&nbsp;            BytesReference content = tuple.v2();</b>
+<b class="nc"><i>439</i>&nbsp;            XContentType xContentType = tuple.v1();</b>
+<b class="nc"><i>440</i>&nbsp;            try (InputStream stream = content.streamInput();</b>
+<b class="nc"><i>441</i>&nbsp;                 XContentParser parser = xContentType.xContent()</b>
+<b class="nc"><i>442</i>&nbsp;                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {</b>
+<b class="nc"><i>443</i>&nbsp;                withParser.accept(parser);</b>
+<b class="nc"><i>444</i>&nbsp;            }</b>
+<b class="nc"><i>445</i>&nbsp;        } else {</b>
+<b class="nc"><i>446</i>&nbsp;            withParser.accept(null);</b>
+<i>447</i>&nbsp;        }
+<b class="nc"><i>448</i>&nbsp;    }</b>
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;    /**
+<i>451</i>&nbsp;     * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
+<i>452</i>&nbsp;     * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
+<i>453</i>&nbsp;     */
+<i>454</i>&nbsp;    public final Tuple&lt;XContentType, BytesReference&gt; contentOrSourceParam() {
+<b class="nc"><i>455</i>&nbsp;        if (hasContentOrSourceParam() == false) {</b>
+<b class="nc"><i>456</i>&nbsp;            throw new ElasticsearchParseException(&quot;request body or source parameter is required&quot;);</b>
+<b class="nc"><i>457</i>&nbsp;        } else if (hasContent()) {</b>
+<b class="nc"><i>458</i>&nbsp;            return new Tuple&lt;&gt;(xContentType.get(), requiredContent());</b>
+<i>459</i>&nbsp;        }
+<b class="nc"><i>460</i>&nbsp;        String source = param(&quot;source&quot;);</b>
+<b class="nc"><i>461</i>&nbsp;        String typeParam = param(&quot;source_content_type&quot;);</b>
+<b class="nc"><i>462</i>&nbsp;        if (source == null || typeParam == null) {</b>
+<b class="nc"><i>463</i>&nbsp;            throw new IllegalStateException(&quot;source and source_content_type parameters are required&quot;);</b>
+<i>464</i>&nbsp;        }
+<b class="nc"><i>465</i>&nbsp;        BytesArray bytes = new BytesArray(source);</b>
+<b class="nc"><i>466</i>&nbsp;        final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));</b>
+<b class="nc"><i>467</i>&nbsp;        if (xContentType == null) {</b>
+<b class="nc"><i>468</i>&nbsp;            throw new IllegalStateException(&quot;Unknown value for source_content_type [&quot; + typeParam + &quot;]&quot;);</b>
+<i>469</i>&nbsp;        }
+<b class="nc"><i>470</i>&nbsp;        return new Tuple&lt;&gt;(xContentType, bytes);</b>
+<i>471</i>&nbsp;    }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;    /**
+<i>474</i>&nbsp;     * Parses the given content type string for the media type. This method currently ignores parameters.
+<i>475</i>&nbsp;     */
+<i>476</i>&nbsp;    // TODO stop ignoring parameters such as charset...
+<i>477</i>&nbsp;    public static XContentType parseContentType(List&lt;String&gt; header) {
+<b class="nc"><i>478</i>&nbsp;        if (header == null || header.isEmpty()) {</b>
+<b class="nc"><i>479</i>&nbsp;            return null;</b>
+<b class="nc"><i>480</i>&nbsp;        } else if (header.size() &gt; 1) {</b>
+<b class="nc"><i>481</i>&nbsp;            throw new IllegalArgumentException(&quot;only one Content-Type header should be provided&quot;);</b>
+<i>482</i>&nbsp;        }
+<i>483</i>&nbsp;
+<b class="nc"><i>484</i>&nbsp;        String rawContentType = header.get(0);</b>
+<b class="nc"><i>485</i>&nbsp;        final String[] elements = rawContentType.split(&quot;[ \t]*;&quot;);</b>
+<b class="nc"><i>486</i>&nbsp;        if (elements.length &gt; 0) {</b>
+<b class="nc"><i>487</i>&nbsp;            final String[] splitMediaType = elements[0].split(&quot;/&quot;);</b>
+<b class="nc"><i>488</i>&nbsp;            if (splitMediaType.length == 2 &amp;&amp; TCHAR_PATTERN.matcher(splitMediaType[0]).matches()</b>
+<b class="nc"><i>489</i>&nbsp;                &amp;&amp; TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) {</b>
+<b class="nc"><i>490</i>&nbsp;                return XContentType.fromMediaType(elements[0]);</b>
+<i>491</i>&nbsp;            } else {
+<b class="nc"><i>492</i>&nbsp;                throw new IllegalArgumentException(&quot;invalid Content-Type header [&quot; + rawContentType + &quot;]&quot;);</b>
+<i>493</i>&nbsp;            }
+<i>494</i>&nbsp;        }
+<b class="nc"><i>495</i>&nbsp;        throw new IllegalArgumentException(&quot;empty Content-Type header&quot;);</b>
+<i>496</i>&nbsp;    }
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;    public static class ContentTypeHeaderException extends RuntimeException {
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;        ContentTypeHeaderException(final IllegalArgumentException cause) {
+<i>501</i>&nbsp;            super(cause);
+<i>502</i>&nbsp;        }
+<i>503</i>&nbsp;
+<i>504</i>&nbsp;    }
+<i>505</i>&nbsp;
+<i>506</i>&nbsp;    public static class BadParameterException extends RuntimeException {
+<i>507</i>&nbsp;
+<i>508</i>&nbsp;        BadParameterException(final IllegalArgumentException cause) {
+<i>509</i>&nbsp;            super(cause);
+<i>510</i>&nbsp;        }
+<i>511</i>&nbsp;
+<i>512</i>&nbsp;    }
+<i>513</i>&nbsp;
+<i>514</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

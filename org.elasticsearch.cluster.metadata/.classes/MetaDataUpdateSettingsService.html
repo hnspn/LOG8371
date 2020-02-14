@@ -1,0 +1,399 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MetaDataUpdateSettingsService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.metadata</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MetaDataUpdateSettingsService (org.elasticsearch.cluster.metadata)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MetaDataUpdateSettingsService</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.9%
+  </span>
+  <span class="absValue">
+    (3/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    19.1%
+  </span>
+  <span class="absValue">
+    (9/ 47)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.metadata;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlock;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlocks;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingTable;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocationService;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>37</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>38</i>&nbsp;import org.elasticsearch.common.ValidationException;
+<i>39</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>40</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>41</i>&nbsp;import org.elasticsearch.common.regex.Regex;
+<i>42</i>&nbsp;import org.elasticsearch.common.settings.IndexScopedSettings;
+<i>43</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>45</i>&nbsp;import org.elasticsearch.index.Index;
+<i>46</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>47</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;import java.io.IOException;
+<i>50</i>&nbsp;import java.util.Arrays;
+<i>51</i>&nbsp;import java.util.HashSet;
+<i>52</i>&nbsp;import java.util.Locale;
+<i>53</i>&nbsp;import java.util.Map;
+<i>54</i>&nbsp;import java.util.Optional;
+<i>55</i>&nbsp;import java.util.Set;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+<i>58</i>&nbsp;import static org.elasticsearch.index.IndexSettings.same;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;/**
+<i>61</i>&nbsp; * Service responsible for submitting update index settings requests
+<i>62</i>&nbsp; */
+<b class="fc"><i>63</i>&nbsp;public class MetaDataUpdateSettingsService {</b>
+<b class="fc"><i>64</i>&nbsp;    private static final Logger logger = LogManager.getLogger(MetaDataUpdateSettingsService.class);</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    private final ClusterService clusterService;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    private final AllocationService allocationService;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    private final IndexScopedSettings indexScopedSettings;
+<i>71</i>&nbsp;    private final IndicesService indicesService;
+<i>72</i>&nbsp;    private final ThreadPool threadPool;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    @Inject
+<i>75</i>&nbsp;    public MetaDataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
+<b class="fc"><i>76</i>&nbsp;                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {</b>
+<b class="fc"><i>77</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>78</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>79</i>&nbsp;        this.allocationService = allocationService;</b>
+<b class="fc"><i>80</i>&nbsp;        this.indexScopedSettings = indexScopedSettings;</b>
+<b class="fc"><i>81</i>&nbsp;        this.indicesService = indicesService;</b>
+<b class="fc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
+<i>85</i>&nbsp;                               final ActionListener&lt;ClusterStateUpdateResponse&gt; listener) {
+<i>86</i>&nbsp;        final Settings normalizedSettings =
+<b class="nc"><i>87</i>&nbsp;            Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();</b>
+<b class="nc"><i>88</i>&nbsp;        Settings.Builder settingsForClosedIndices = Settings.builder();</b>
+<b class="nc"><i>89</i>&nbsp;        Settings.Builder settingsForOpenIndices = Settings.builder();</b>
+<b class="nc"><i>90</i>&nbsp;        final Set&lt;String&gt; skippedSettings = new HashSet&lt;&gt;();</b>
+<i>91</i>&nbsp;
+<b class="nc"><i>92</i>&nbsp;        indexScopedSettings.validate(</b>
+<b class="nc"><i>93</i>&nbsp;                normalizedSettings.filter(s -&gt; Regex.isSimpleMatchPattern(s) == false), // don&#39;t validate wildcards</b>
+<i>94</i>&nbsp;                false, // don&#39;t validate dependencies here we check it below never allow to change the number of shards
+<i>95</i>&nbsp;                true); // validate internal or private index settings
+<b class="nc"><i>96</i>&nbsp;        for (String key : normalizedSettings.keySet()) {</b>
+<b class="nc"><i>97</i>&nbsp;            Setting setting = indexScopedSettings.get(key);</b>
+<b class="nc"><i>98</i>&nbsp;            boolean isWildcard = setting == null &amp;&amp; Regex.isSimpleMatchPattern(key);</b>
+<b class="nc"><i>99</i>&nbsp;            assert setting != null // we already validated the normalized settings</b>
+<b class="nc"><i>100</i>&nbsp;                || (isWildcard &amp;&amp; normalizedSettings.hasValue(key) == false)</b>
+<b class="nc"><i>101</i>&nbsp;                : &quot;unknown setting: &quot; + key + &quot; isWildcard: &quot; + isWildcard + &quot; hasValue: &quot; + normalizedSettings.hasValue(key);</b>
+<b class="nc"><i>102</i>&nbsp;            settingsForClosedIndices.copy(key, normalizedSettings);</b>
+<b class="nc"><i>103</i>&nbsp;            if (isWildcard || setting.isDynamic()) {</b>
+<b class="nc"><i>104</i>&nbsp;                settingsForOpenIndices.copy(key, normalizedSettings);</b>
+<i>105</i>&nbsp;            } else {
+<b class="nc"><i>106</i>&nbsp;                skippedSettings.add(key);</b>
+<i>107</i>&nbsp;            }
+<b class="nc"><i>108</i>&nbsp;        }</b>
+<b class="nc"><i>109</i>&nbsp;        final Settings closedSettings = settingsForClosedIndices.build();</b>
+<b class="nc"><i>110</i>&nbsp;        final Settings openSettings = settingsForOpenIndices.build();</b>
+<b class="nc"><i>111</i>&nbsp;        final boolean preserveExisting = request.isPreserveExisting();</b>
+<i>112</i>&nbsp;
+<b class="nc"><i>113</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;update-settings&quot;,</b>
+<i>114</i>&nbsp;                new AckedClusterStateUpdateTask&lt;ClusterStateUpdateResponse&gt;(Priority.URGENT, request,
+<b class="nc"><i>115</i>&nbsp;                    wrapPreservingContext(listener, threadPool.getThreadContext())) {</b>
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;            @Override
+<i>118</i>&nbsp;            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+<i>119</i>&nbsp;                return new ClusterStateUpdateResponse(acknowledged);
+<i>120</i>&nbsp;            }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;            @Override
+<i>123</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+<i>126</i>&nbsp;                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;                // allow to change any settings to a close index, and only allow dynamic settings to be changed
+<i>129</i>&nbsp;                // on an open index
+<i>130</i>&nbsp;                Set&lt;Index&gt; openIndices = new HashSet&lt;&gt;();
+<i>131</i>&nbsp;                Set&lt;Index&gt; closeIndices = new HashSet&lt;&gt;();
+<i>132</i>&nbsp;                final String[] actualIndices = new String[request.indices().length];
+<i>133</i>&nbsp;                for (int i = 0; i &lt; request.indices().length; i++) {
+<i>134</i>&nbsp;                    Index index = request.indices()[i];
+<i>135</i>&nbsp;                    actualIndices[i] = index.getName();
+<i>136</i>&nbsp;                    final IndexMetaData metaData = currentState.metaData().getIndexSafe(index);
+<i>137</i>&nbsp;                    if (metaData.getState() == IndexMetaData.State.OPEN) {
+<i>138</i>&nbsp;                        openIndices.add(index);
+<i>139</i>&nbsp;                    } else {
+<i>140</i>&nbsp;                        closeIndices.add(index);
+<i>141</i>&nbsp;                    }
+<i>142</i>&nbsp;                }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;                if (!skippedSettings.isEmpty() &amp;&amp; !openIndices.isEmpty()) {
+<i>145</i>&nbsp;                    throw new IllegalArgumentException(String.format(Locale.ROOT,
+<i>146</i>&nbsp;                            &quot;Can&#39;t update non dynamic settings [%s] for open indices %s&quot;, skippedSettings, openIndices));
+<i>147</i>&nbsp;                }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;                int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
+<i>150</i>&nbsp;                if (updatedNumberOfReplicas != -1 &amp;&amp; preserveExisting == false) {
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;                    // Verify that this won&#39;t take us over the cluster shard limit.
+<i>153</i>&nbsp;                    int totalNewShards = Arrays.stream(request.indices())
+<i>154</i>&nbsp;                        .mapToInt(i -&gt; getTotalNewShards(i, currentState, updatedNumberOfReplicas))
+<i>155</i>&nbsp;                        .sum();
+<i>156</i>&nbsp;                    Optional&lt;String&gt; error = IndicesService.checkShardLimit(totalNewShards, currentState);
+<i>157</i>&nbsp;                    if (error.isPresent()) {
+<i>158</i>&nbsp;                        ValidationException ex = new ValidationException();
+<i>159</i>&nbsp;                        ex.addValidationError(error.get());
+<i>160</i>&nbsp;                        throw ex;
+<i>161</i>&nbsp;                    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;                    // we do *not* update the in sync allocation ids as they will be removed upon the first index
+<i>164</i>&nbsp;                    // operation which make these copies stale
+<i>165</i>&nbsp;                    // TODO: update the list once the data is deleted by the node?
+<i>166</i>&nbsp;                    routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+<i>167</i>&nbsp;                    metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+<i>168</i>&nbsp;                    logger.info(&quot;updating number_of_replicas to [{}] for indices {}&quot;, updatedNumberOfReplicas, actualIndices);
+<i>169</i>&nbsp;                }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+<i>172</i>&nbsp;                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK,
+<i>173</i>&nbsp;                    IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+<i>174</i>&nbsp;                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
+<i>175</i>&nbsp;                    IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
+<i>176</i>&nbsp;                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK,
+<i>177</i>&nbsp;                    IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
+<i>178</i>&nbsp;                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK,
+<i>179</i>&nbsp;                    IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
+<i>180</i>&nbsp;                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK,
+<i>181</i>&nbsp;                    IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;                if (!openIndices.isEmpty()) {
+<i>184</i>&nbsp;                    for (Index index : openIndices) {
+<i>185</i>&nbsp;                        IndexMetaData indexMetaData = metaDataBuilder.getSafe(index);
+<i>186</i>&nbsp;                        Settings.Builder updates = Settings.builder();
+<i>187</i>&nbsp;                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+<i>188</i>&nbsp;                        if (indexScopedSettings.updateDynamicSettings(openSettings, indexSettings, updates, index.getName())) {
+<i>189</i>&nbsp;                            if (preserveExisting) {
+<i>190</i>&nbsp;                                indexSettings.put(indexMetaData.getSettings());
+<i>191</i>&nbsp;                            }
+<i>192</i>&nbsp;                            Settings finalSettings = indexSettings.build();
+<i>193</i>&nbsp;                            indexScopedSettings.validate(
+<i>194</i>&nbsp;                                finalSettings.filter(k -&gt; indexScopedSettings.isPrivateSetting(k) == false), true);
+<i>195</i>&nbsp;                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
+<i>196</i>&nbsp;                        }
+<i>197</i>&nbsp;                    }
+<i>198</i>&nbsp;                }
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;                if (!closeIndices.isEmpty()) {
+<i>201</i>&nbsp;                    for (Index index : closeIndices) {
+<i>202</i>&nbsp;                        IndexMetaData indexMetaData = metaDataBuilder.getSafe(index);
+<i>203</i>&nbsp;                        Settings.Builder updates = Settings.builder();
+<i>204</i>&nbsp;                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+<i>205</i>&nbsp;                        if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index.getName())) {
+<i>206</i>&nbsp;                            if (preserveExisting) {
+<i>207</i>&nbsp;                                indexSettings.put(indexMetaData.getSettings());
+<i>208</i>&nbsp;                            }
+<i>209</i>&nbsp;                            Settings finalSettings = indexSettings.build();
+<i>210</i>&nbsp;                            indexScopedSettings.validate(
+<i>211</i>&nbsp;                                finalSettings.filter(k -&gt; indexScopedSettings.isPrivateSetting(k) == false), true);
+<i>212</i>&nbsp;                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
+<i>213</i>&nbsp;                        }
+<i>214</i>&nbsp;                    }
+<i>215</i>&nbsp;                }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;                // increment settings versions
+<i>218</i>&nbsp;                for (final String index : actualIndices) {
+<i>219</i>&nbsp;                    if (same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings()) == false) {
+<i>220</i>&nbsp;                        final IndexMetaData.Builder builder = IndexMetaData.builder(metaDataBuilder.get(index));
+<i>221</i>&nbsp;                        builder.settingsVersion(1 + builder.settingsVersion());
+<i>222</i>&nbsp;                        metaDataBuilder.put(builder);
+<i>223</i>&nbsp;                    }
+<i>224</i>&nbsp;                }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;                ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder)
+<i>227</i>&nbsp;                    .routingTable(routingTableBuilder.build()).blocks(blocks).build();
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;                // now, reroute in case things change that require it (like number of replicas)
+<i>230</i>&nbsp;                updatedState = allocationService.reroute(updatedState, &quot;settings update&quot;);
+<i>231</i>&nbsp;                try {
+<i>232</i>&nbsp;                    for (Index index : openIndices) {
+<i>233</i>&nbsp;                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+<i>234</i>&nbsp;                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+<i>235</i>&nbsp;                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+<i>236</i>&nbsp;                    }
+<i>237</i>&nbsp;                    for (Index index : closeIndices) {
+<i>238</i>&nbsp;                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+<i>239</i>&nbsp;                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+<i>240</i>&nbsp;                        // Verifies that the current index settings can be updated with the updated dynamic settings.
+<i>241</i>&nbsp;                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+<i>242</i>&nbsp;                        // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
+<i>243</i>&nbsp;                        // This step is mandatory since we allow to update non-dynamic settings on closed indices.
+<i>244</i>&nbsp;                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData);
+<i>245</i>&nbsp;                    }
+<i>246</i>&nbsp;                } catch (IOException ex) {
+<i>247</i>&nbsp;                    throw ExceptionsHelper.convertToElastic(ex);
+<i>248</i>&nbsp;                }
+<i>249</i>&nbsp;                return updatedState;
+<i>250</i>&nbsp;            }
+<i>251</i>&nbsp;        });
+<b class="nc"><i>252</i>&nbsp;    }</b>
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
+<b class="nc"><i>255</i>&nbsp;        IndexMetaData indexMetaData = currentState.metaData().index(index);</b>
+<b class="nc"><i>256</i>&nbsp;        int shardsInIndex = indexMetaData.getNumberOfShards();</b>
+<b class="nc"><i>257</i>&nbsp;        int oldNumberOfReplicas = indexMetaData.getNumberOfReplicas();</b>
+<b class="nc"><i>258</i>&nbsp;        int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;</b>
+<b class="nc"><i>259</i>&nbsp;        return replicaIncrease * shardsInIndex;</b>
+<i>260</i>&nbsp;    }
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;    /**
+<i>263</i>&nbsp;     * Updates the cluster block only iff the setting exists in the given settings
+<i>264</i>&nbsp;     */
+<i>265</i>&nbsp;    private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block,
+<i>266</i>&nbsp;                                                Setting&lt;Boolean&gt; setting, Settings openSettings) {
+<b class="nc"><i>267</i>&nbsp;        if (setting.exists(openSettings)) {</b>
+<b class="nc"><i>268</i>&nbsp;            final boolean updateBlock = setting.get(openSettings);</b>
+<b class="nc"><i>269</i>&nbsp;            for (String index : actualIndices) {</b>
+<b class="nc"><i>270</i>&nbsp;                if (updateBlock) {</b>
+<b class="nc"><i>271</i>&nbsp;                    blocks.addIndexBlock(index, block);</b>
+<i>272</i>&nbsp;                } else {
+<b class="nc"><i>273</i>&nbsp;                    blocks.removeIndexBlock(index, block);</b>
+<i>274</i>&nbsp;                }
+<i>275</i>&nbsp;            }
+<i>276</i>&nbsp;        }
+<b class="nc"><i>277</i>&nbsp;    }</b>
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request,
+<i>281</i>&nbsp;                                     final ActionListener&lt;ClusterStateUpdateResponse&gt; listener) {
+<b class="nc"><i>282</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;update-index-compatibility-versions&quot;,</b>
+<i>283</i>&nbsp;            new AckedClusterStateUpdateTask&lt;ClusterStateUpdateResponse&gt;(Priority.URGENT, request,
+<b class="nc"><i>284</i>&nbsp;                wrapPreservingContext(listener, threadPool.getThreadContext())) {</b>
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;            @Override
+<i>287</i>&nbsp;            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+<i>288</i>&nbsp;                return new ClusterStateUpdateResponse(acknowledged);
+<i>289</i>&nbsp;            }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;            @Override
+<i>292</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>293</i>&nbsp;                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+<i>294</i>&nbsp;                for (Map.Entry&lt;String, Tuple&lt;Version, String&gt;&gt; entry : request.versions().entrySet()) {
+<i>295</i>&nbsp;                    String index = entry.getKey();
+<i>296</i>&nbsp;                    IndexMetaData indexMetaData = metaDataBuilder.get(index);
+<i>297</i>&nbsp;                    if (indexMetaData != null) {
+<i>298</i>&nbsp;                        if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
+<i>299</i>&nbsp;                            // no reason to pollute the settings, we didn&#39;t really upgrade anything
+<i>300</i>&nbsp;                            metaDataBuilder.put(
+<i>301</i>&nbsp;                                    IndexMetaData
+<i>302</i>&nbsp;                                            .builder(indexMetaData)
+<i>303</i>&nbsp;                                            .settings(
+<i>304</i>&nbsp;                                                    Settings
+<i>305</i>&nbsp;                                                            .builder()
+<i>306</i>&nbsp;                                                            .put(indexMetaData.getSettings())
+<i>307</i>&nbsp;                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1()))
+<i>308</i>&nbsp;                                            .settingsVersion(1 + indexMetaData.getSettingsVersion()));
+<i>309</i>&nbsp;                        }
+<i>310</i>&nbsp;                    }
+<i>311</i>&nbsp;                }
+<i>312</i>&nbsp;                return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
+<i>313</i>&nbsp;            }
+<i>314</i>&nbsp;        });
+<b class="nc"><i>315</i>&nbsp;    }</b>
+<i>316</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

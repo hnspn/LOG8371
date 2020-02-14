@@ -1,0 +1,417 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BitsetFilterCache</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.cache.bitset</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BitsetFilterCache (org.elasticsearch.index.cache.bitset)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BitsetFilterCache</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.9%
+  </span>
+  <span class="absValue">
+    (6/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.3%
+  </span>
+  <span class="absValue">
+    (15/ 53)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">BitsetFilterCache$BitSetProducerWarmer</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    35.9%
+  </span>
+  <span class="absValue">
+    (14/ 39)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">BitsetFilterCache$Listener</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    47.1%
+  </span>
+  <span class="absValue">
+    (8/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    31.5%
+  </span>
+  <span class="absValue">
+    (29/ 92)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.cache.bitset;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>23</i>&nbsp;import org.apache.lucene.index.IndexReader;
+<i>24</i>&nbsp;import org.apache.lucene.index.IndexReaderContext;
+<i>25</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>26</i>&nbsp;import org.apache.lucene.index.ReaderUtil;
+<i>27</i>&nbsp;import org.apache.lucene.search.IndexSearcher;
+<i>28</i>&nbsp;import org.apache.lucene.search.Query;
+<i>29</i>&nbsp;import org.apache.lucene.search.ScoreMode;
+<i>30</i>&nbsp;import org.apache.lucene.search.Scorer;
+<i>31</i>&nbsp;import org.apache.lucene.search.Weight;
+<i>32</i>&nbsp;import org.apache.lucene.search.join.BitSetProducer;
+<i>33</i>&nbsp;import org.apache.lucene.util.Accountable;
+<i>34</i>&nbsp;import org.apache.lucene.util.BitDocIdSet;
+<i>35</i>&nbsp;import org.apache.lucene.util.BitSet;
+<i>36</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>37</i>&nbsp;import org.elasticsearch.common.cache.Cache;
+<i>38</i>&nbsp;import org.elasticsearch.common.cache.CacheBuilder;
+<i>39</i>&nbsp;import org.elasticsearch.common.cache.RemovalListener;
+<i>40</i>&nbsp;import org.elasticsearch.common.cache.RemovalNotification;
+<i>41</i>&nbsp;import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+<i>42</i>&nbsp;import org.elasticsearch.common.lucene.search.Queries;
+<i>43</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>45</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>46</i>&nbsp;import org.elasticsearch.index.AbstractIndexComponent;
+<i>47</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>48</i>&nbsp;import org.elasticsearch.index.IndexWarmer;
+<i>49</i>&nbsp;import org.elasticsearch.index.IndexWarmer.TerminationHandle;
+<i>50</i>&nbsp;import org.elasticsearch.index.mapper.DocumentMapper;
+<i>51</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>52</i>&nbsp;import org.elasticsearch.index.mapper.ObjectMapper;
+<i>53</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>54</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>55</i>&nbsp;import org.elasticsearch.index.shard.ShardUtils;
+<i>56</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;import java.io.Closeable;
+<i>59</i>&nbsp;import java.io.IOException;
+<i>60</i>&nbsp;import java.util.HashSet;
+<i>61</i>&nbsp;import java.util.Objects;
+<i>62</i>&nbsp;import java.util.Set;
+<i>63</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>64</i>&nbsp;import java.util.concurrent.ExecutionException;
+<i>65</i>&nbsp;import java.util.concurrent.Executor;
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;/**
+<i>68</i>&nbsp; * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
+<i>69</i>&nbsp; * &lt;p&gt;
+<i>70</i>&nbsp; * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
+<i>71</i>&nbsp; * and require that it should always be around should use this cache, otherwise the
+<i>72</i>&nbsp; * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
+<i>73</i>&nbsp; */
+<b class="fc"><i>74</i>&nbsp;public final class BitsetFilterCache extends AbstractIndexComponent</b>
+<i>75</i>&nbsp;        implements IndexReader.ClosedListener, RemovalListener&lt;IndexReader.CacheKey, Cache&lt;Query, BitsetFilterCache.Value&gt;&gt;, Closeable {
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;    public static final Setting&lt;Boolean&gt; INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =</b>
+<b class="fc"><i>78</i>&nbsp;        Setting.boolSetting(&quot;index.load_fixed_bitset_filters_eagerly&quot;, true, Property.IndexScope);</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    private final boolean loadRandomAccessFiltersEagerly;
+<i>81</i>&nbsp;    private final Cache&lt;IndexReader.CacheKey, Cache&lt;Query, Value&gt;&gt; loadedFilters;
+<i>82</i>&nbsp;    private final Listener listener;
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
+<b class="fc"><i>85</i>&nbsp;        super(indexSettings);</b>
+<b class="fc"><i>86</i>&nbsp;        if (listener == null) {</b>
+<b class="nc"><i>87</i>&nbsp;            throw new IllegalArgumentException(&quot;listener must not be null&quot;);</b>
+<i>88</i>&nbsp;        }
+<b class="fc"><i>89</i>&nbsp;        this.loadRandomAccessFiltersEagerly = this.indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);</b>
+<b class="fc"><i>90</i>&nbsp;        this.loadedFilters = CacheBuilder.&lt;IndexReader.CacheKey, Cache&lt;Query, Value&gt;&gt;builder().removalListener(this).build();</b>
+<b class="fc"><i>91</i>&nbsp;        this.listener = listener;</b>
+<b class="fc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    public static BitSet bitsetFromQuery(Query query, LeafReaderContext context) throws IOException {
+<b class="nc"><i>95</i>&nbsp;        final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);</b>
+<b class="nc"><i>96</i>&nbsp;        final IndexSearcher searcher = new IndexSearcher(topLevelContext);</b>
+<b class="nc"><i>97</i>&nbsp;        searcher.setQueryCache(null);</b>
+<b class="nc"><i>98</i>&nbsp;        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);</b>
+<b class="nc"><i>99</i>&nbsp;        Scorer s = weight.scorer(context);</b>
+<b class="nc"><i>100</i>&nbsp;        if (s == null) {</b>
+<b class="nc"><i>101</i>&nbsp;            return null;</b>
+<i>102</i>&nbsp;        } else {
+<b class="nc"><i>103</i>&nbsp;            return BitSet.of(s.iterator(), context.reader().maxDoc());</b>
+<i>104</i>&nbsp;        }
+<i>105</i>&nbsp;    }
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    public IndexWarmer.Listener createListener(ThreadPool threadPool) {
+<b class="fc"><i>108</i>&nbsp;        return new BitSetProducerWarmer(threadPool);</b>
+<i>109</i>&nbsp;    }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    public BitSetProducer getBitSetProducer(Query query) {
+<b class="nc"><i>113</i>&nbsp;        return new QueryWrapperBitSetProducer(query);</b>
+<i>114</i>&nbsp;    }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    @Override
+<i>117</i>&nbsp;    public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
+<b class="nc"><i>118</i>&nbsp;        loadedFilters.invalidate(ownerCoreCacheKey);</b>
+<b class="nc"><i>119</i>&nbsp;    }</b>
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    @Override
+<i>122</i>&nbsp;    public void close() {
+<b class="fc"><i>123</i>&nbsp;        clear(&quot;close&quot;);</b>
+<b class="fc"><i>124</i>&nbsp;    }</b>
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    public void clear(String reason) {
+<b class="fc"><i>127</i>&nbsp;        logger.debug(&quot;clearing all bitsets because [{}]&quot;, reason);</b>
+<b class="fc"><i>128</i>&nbsp;        loadedFilters.invalidateAll();</b>
+<b class="fc"><i>129</i>&nbsp;    }</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws ExecutionException {
+<b class="nc"><i>132</i>&nbsp;        final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();</b>
+<b class="nc"><i>133</i>&nbsp;        if (cacheHelper == null) {</b>
+<b class="nc"><i>134</i>&nbsp;            throw new IllegalArgumentException(&quot;Reader &quot; + context.reader() + &quot; does not support caching&quot;);</b>
+<i>135</i>&nbsp;        }
+<b class="nc"><i>136</i>&nbsp;        final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();</b>
+<b class="nc"><i>137</i>&nbsp;        final ShardId shardId = ShardUtils.extractShardId(context.reader());</b>
+<b class="nc"><i>138</i>&nbsp;        if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {</b>
+<i>139</i>&nbsp;            // insanity
+<b class="nc"><i>140</i>&nbsp;            throw new IllegalStateException(&quot;Trying to load bit set for index &quot; + shardId.getIndex()</b>
+<b class="nc"><i>141</i>&nbsp;                    + &quot; with cache of index &quot; + indexSettings.getIndex());</b>
+<i>142</i>&nbsp;        }
+<b class="nc"><i>143</i>&nbsp;        Cache&lt;Query, Value&gt; filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -&gt; {</b>
+<b class="nc"><i>144</i>&nbsp;            cacheHelper.addClosedListener(BitsetFilterCache.this);</b>
+<b class="nc"><i>145</i>&nbsp;            return CacheBuilder.&lt;Query, Value&gt;builder().build();</b>
+<i>146</i>&nbsp;        });
+<i>147</i>&nbsp;
+<b class="nc"><i>148</i>&nbsp;        return filterToFbs.computeIfAbsent(query, key -&gt; {</b>
+<b class="nc"><i>149</i>&nbsp;            final BitSet bitSet = bitsetFromQuery(query, context);</b>
+<b class="nc"><i>150</i>&nbsp;            Value value = new Value(bitSet, shardId);</b>
+<b class="nc"><i>151</i>&nbsp;            listener.onCache(shardId, value.bitset);</b>
+<b class="nc"><i>152</i>&nbsp;            return value;</b>
+<i>153</i>&nbsp;        }).bitset;
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    @Override
+<i>157</i>&nbsp;    public void onRemoval(RemovalNotification&lt;IndexReader.CacheKey, Cache&lt;Query, Value&gt;&gt; notification) {
+<b class="nc"><i>158</i>&nbsp;        if (notification.getKey() == null) {</b>
+<b class="nc"><i>159</i>&nbsp;            return;</b>
+<i>160</i>&nbsp;        }
+<i>161</i>&nbsp;
+<b class="nc"><i>162</i>&nbsp;        Cache&lt;Query, Value&gt; valueCache = notification.getValue();</b>
+<b class="nc"><i>163</i>&nbsp;        if (valueCache == null) {</b>
+<b class="nc"><i>164</i>&nbsp;            return;</b>
+<i>165</i>&nbsp;        }
+<i>166</i>&nbsp;
+<b class="nc"><i>167</i>&nbsp;        for (Value value : valueCache.values()) {</b>
+<b class="nc"><i>168</i>&nbsp;            listener.onRemoval(value.shardId, value.bitset);</b>
+<i>169</i>&nbsp;            // if null then this means the shard has already been removed and the stats are 0 anyway for the shard this key belongs to
+<b class="nc"><i>170</i>&nbsp;        }</b>
+<b class="nc"><i>171</i>&nbsp;    }</b>
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    public static final class Value {
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;        final BitSet bitset;
+<i>176</i>&nbsp;        final ShardId shardId;
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;        public Value(BitSet bitset, ShardId shardId) {
+<i>179</i>&nbsp;            this.bitset = bitset;
+<i>180</i>&nbsp;            this.shardId = shardId;
+<i>181</i>&nbsp;        }
+<i>182</i>&nbsp;    }
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    final class QueryWrapperBitSetProducer implements BitSetProducer {
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        final Query query;
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;        QueryWrapperBitSetProducer(Query query) {
+<i>189</i>&nbsp;            this.query = Objects.requireNonNull(query);
+<i>190</i>&nbsp;        }
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;        @Override
+<i>193</i>&nbsp;        public BitSet getBitSet(LeafReaderContext context) throws IOException {
+<i>194</i>&nbsp;            try {
+<i>195</i>&nbsp;                return getAndLoadIfNotPresent(query, context);
+<i>196</i>&nbsp;            } catch (ExecutionException e) {
+<i>197</i>&nbsp;                throw ExceptionsHelper.convertToElastic(e);
+<i>198</i>&nbsp;            }
+<i>199</i>&nbsp;        }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;        @Override
+<i>202</i>&nbsp;        public String toString() {
+<i>203</i>&nbsp;            return &quot;random_access(&quot; + query + &quot;)&quot;;
+<i>204</i>&nbsp;        }
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;        @Override
+<i>207</i>&nbsp;        public boolean equals(Object o) {
+<i>208</i>&nbsp;            if (!(o instanceof QueryWrapperBitSetProducer)) return false;
+<i>209</i>&nbsp;            return this.query.equals(((QueryWrapperBitSetProducer) o).query);
+<i>210</i>&nbsp;        }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;        @Override
+<i>213</i>&nbsp;        public int hashCode() {
+<i>214</i>&nbsp;            return 31 * getClass().hashCode() + query.hashCode();
+<i>215</i>&nbsp;        }
+<i>216</i>&nbsp;    }
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    final class BitSetProducerWarmer implements IndexWarmer.Listener {
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;        private final Executor executor;
+<i>221</i>&nbsp;
+<b class="fc"><i>222</i>&nbsp;        BitSetProducerWarmer(ThreadPool threadPool) {</b>
+<b class="fc"><i>223</i>&nbsp;            this.executor = threadPool.executor(ThreadPool.Names.WARMER);</b>
+<b class="fc"><i>224</i>&nbsp;        }</b>
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        @Override
+<i>227</i>&nbsp;        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
+<b class="fc"><i>228</i>&nbsp;            if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {</b>
+<i>229</i>&nbsp;                // this is from a different index
+<b class="nc"><i>230</i>&nbsp;                return TerminationHandle.NO_WAIT;</b>
+<i>231</i>&nbsp;            }
+<i>232</i>&nbsp;
+<b class="fc"><i>233</i>&nbsp;            if (!loadRandomAccessFiltersEagerly) {</b>
+<b class="nc"><i>234</i>&nbsp;                return TerminationHandle.NO_WAIT;</b>
+<i>235</i>&nbsp;            }
+<i>236</i>&nbsp;
+<b class="fc"><i>237</i>&nbsp;            boolean hasNested = false;</b>
+<b class="fc"><i>238</i>&nbsp;            final Set&lt;Query&gt; warmUp = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>239</i>&nbsp;            final MapperService mapperService = indexShard.mapperService();</b>
+<b class="fc"><i>240</i>&nbsp;            DocumentMapper docMapper = mapperService.documentMapper();</b>
+<b class="fc"><i>241</i>&nbsp;            if (docMapper != null) {</b>
+<b class="nc"><i>242</i>&nbsp;                if (docMapper.hasNestedObjects()) {</b>
+<b class="nc"><i>243</i>&nbsp;                    hasNested = true;</b>
+<b class="nc"><i>244</i>&nbsp;                    for (ObjectMapper objectMapper : docMapper.objectMappers().values()) {</b>
+<b class="nc"><i>245</i>&nbsp;                        if (objectMapper.nested().isNested()) {</b>
+<b class="nc"><i>246</i>&nbsp;                            ObjectMapper parentObjectMapper = objectMapper.getParentObjectMapper(mapperService);</b>
+<b class="nc"><i>247</i>&nbsp;                            if (parentObjectMapper != null &amp;&amp; parentObjectMapper.nested().isNested()) {</b>
+<b class="nc"><i>248</i>&nbsp;                                warmUp.add(parentObjectMapper.nestedTypeFilter());</b>
+<i>249</i>&nbsp;                            }
+<i>250</i>&nbsp;                        }
+<b class="nc"><i>251</i>&nbsp;                    }</b>
+<i>252</i>&nbsp;                }
+<i>253</i>&nbsp;            }
+<i>254</i>&nbsp;
+<b class="fc"><i>255</i>&nbsp;            if (hasNested) {</b>
+<b class="nc"><i>256</i>&nbsp;                warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));</b>
+<i>257</i>&nbsp;            }
+<i>258</i>&nbsp;
+<b class="fc"><i>259</i>&nbsp;            final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());</b>
+<b class="fc"><i>260</i>&nbsp;            for (final LeafReaderContext ctx : reader.leaves()) {</b>
+<b class="nc"><i>261</i>&nbsp;                for (final Query filterToWarm : warmUp) {</b>
+<b class="nc"><i>262</i>&nbsp;                    executor.execute(() -&gt; {</b>
+<i>263</i>&nbsp;                        try {
+<b class="nc"><i>264</i>&nbsp;                            final long start = System.nanoTime();</b>
+<b class="nc"><i>265</i>&nbsp;                            getAndLoadIfNotPresent(filterToWarm, ctx);</b>
+<b class="nc"><i>266</i>&nbsp;                            if (indexShard.warmerService().logger().isTraceEnabled()) {</b>
+<b class="nc"><i>267</i>&nbsp;                                indexShard.warmerService().logger().trace(&quot;warmed bitset for [{}], took [{}]&quot;,</b>
+<b class="nc"><i>268</i>&nbsp;                                    filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));</b>
+<i>269</i>&nbsp;                            }
+<b class="nc"><i>270</i>&nbsp;                        } catch (Exception e) {</b>
+<b class="nc"><i>271</i>&nbsp;                            indexShard.warmerService().logger().warn(() -&gt; new ParameterizedMessage(&quot;failed to load &quot; +</b>
+<i>272</i>&nbsp;                                &quot;bitset for [{}]&quot;, filterToWarm), e);
+<i>273</i>&nbsp;                        } finally {
+<b class="nc"><i>274</i>&nbsp;                            latch.countDown();</b>
+<b class="nc"><i>275</i>&nbsp;                        }</b>
+<b class="nc"><i>276</i>&nbsp;                    });</b>
+<b class="nc"><i>277</i>&nbsp;                }</b>
+<b class="nc"><i>278</i>&nbsp;            }</b>
+<b class="fc"><i>279</i>&nbsp;            return () -&gt; latch.await();</b>
+<i>280</i>&nbsp;        }
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    Cache&lt;IndexReader.CacheKey, Cache&lt;Query, Value&gt;&gt; getLoadedFilters() {
+<b class="nc"><i>285</i>&nbsp;        return loadedFilters;</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    /**
+<i>289</i>&nbsp;     *  A listener interface that is executed for each onCache / onRemoval event
+<i>290</i>&nbsp;     */
+<i>291</i>&nbsp;    public interface Listener {
+<i>292</i>&nbsp;        /**
+<i>293</i>&nbsp;         * Called for each cached bitset on the cache event.
+<i>294</i>&nbsp;         * @param shardId the shard id the bitset was cached for. This can be &lt;code&gt;null&lt;/code&gt;
+<i>295</i>&nbsp;         * @param accountable the bitsets ram representation
+<i>296</i>&nbsp;         */
+<i>297</i>&nbsp;        void onCache(ShardId shardId, Accountable accountable);
+<i>298</i>&nbsp;        /**
+<i>299</i>&nbsp;         * Called for each cached bitset on the removal event.
+<i>300</i>&nbsp;         * @param shardId the shard id the bitset was cached for. This can be &lt;code&gt;null&lt;/code&gt;
+<i>301</i>&nbsp;         * @param accountable the bitsets ram representation
+<i>302</i>&nbsp;         */
+<i>303</i>&nbsp;        void onRemoval(ShardId shardId, Accountable accountable);
+<i>304</i>&nbsp;    }
+<i>305</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

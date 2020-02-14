@@ -1,0 +1,301 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: QueryRescorer</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.rescore</a> ]
+</div>
+
+<h1>Coverage Summary for Class: QueryRescorer (org.elasticsearch.search.rescore)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">QueryRescorer$QueryRescoreContext</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 21)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 21)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.rescore;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.Explanation;
+<i>23</i>&nbsp;import org.apache.lucene.search.IndexSearcher;
+<i>24</i>&nbsp;import org.apache.lucene.search.Query;
+<i>25</i>&nbsp;import org.apache.lucene.search.ScoreDoc;
+<i>26</i>&nbsp;import org.apache.lucene.search.TopDocs;
+<i>27</i>&nbsp;
+<i>28</i>&nbsp;import java.io.IOException;
+<i>29</i>&nbsp;import java.util.Arrays;
+<i>30</i>&nbsp;import java.util.Collections;
+<i>31</i>&nbsp;import java.util.Comparator;
+<i>32</i>&nbsp;import java.util.List;
+<i>33</i>&nbsp;import java.util.Set;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import static java.util.stream.Collectors.toSet;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;public final class QueryRescorer implements Rescorer {
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;    public static final Rescorer INSTANCE = new QueryRescorer();
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;    @Override
+<i>42</i>&nbsp;    public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;        assert rescoreContext != null;
+<i>45</i>&nbsp;        if (topDocs == null || topDocs.scoreDocs.length == 0) {
+<i>46</i>&nbsp;            return topDocs;
+<i>47</i>&nbsp;        }
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;        final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;            @Override
+<i>54</i>&nbsp;            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+<i>55</i>&nbsp;                if (secondPassMatches) {
+<i>56</i>&nbsp;                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(),
+<i>57</i>&nbsp;                            secondPassScore * rescore.rescoreQueryWeight());
+<i>58</i>&nbsp;                }
+<i>59</i>&nbsp;                // TODO: shouldn&#39;t this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
+<i>60</i>&nbsp;                // secondary score?
+<i>61</i>&nbsp;                return firstPassScore * rescore.queryWeight();
+<i>62</i>&nbsp;            }
+<i>63</i>&nbsp;        };
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;        // First take top slice of incoming docs, to be rescored:
+<i>66</i>&nbsp;        TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;        // Save doc IDs for which rescoring was applied to be used in score explanation
+<i>69</i>&nbsp;        Set&lt;Integer&gt; topNDocIDs = Collections.unmodifiableSet(
+<i>70</i>&nbsp;            Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -&gt; scoreDoc.doc).collect(toSet()));
+<i>71</i>&nbsp;        rescoreContext.setRescoredDocs(topNDocIDs);
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;        // Rescore them:
+<i>74</i>&nbsp;        TopDocs rescored = rescorer.rescore(searcher, topNFirstPass, rescoreContext.getWindowSize());
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;        // Splice back to non-topN hits and resort all of them:
+<i>77</i>&nbsp;        return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
+<i>78</i>&nbsp;    }
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    @Override
+<i>81</i>&nbsp;    public Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
+<i>82</i>&nbsp;                               Explanation sourceExplanation) throws IOException {
+<i>83</i>&nbsp;        if (sourceExplanation == null) {
+<i>84</i>&nbsp;            // this should not happen but just in case
+<i>85</i>&nbsp;            return Explanation.noMatch(&quot;nothing matched&quot;);
+<i>86</i>&nbsp;        }
+<i>87</i>&nbsp;        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
+<i>88</i>&nbsp;        float primaryWeight = rescore.queryWeight();
+<i>89</i>&nbsp;        Explanation prim;
+<i>90</i>&nbsp;        if (sourceExplanation.isMatch()) {
+<i>91</i>&nbsp;            prim = Explanation.match(
+<i>92</i>&nbsp;                    sourceExplanation.getValue().floatValue() * primaryWeight,
+<i>93</i>&nbsp;                    &quot;product of:&quot;, sourceExplanation, Explanation.match(primaryWeight, &quot;primaryWeight&quot;));
+<i>94</i>&nbsp;        } else {
+<i>95</i>&nbsp;            prim = Explanation.noMatch(&quot;First pass did not match&quot;, sourceExplanation);
+<i>96</i>&nbsp;        }
+<i>97</i>&nbsp;        if (rescoreContext.isRescored(topLevelDocId)){
+<i>98</i>&nbsp;            Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
+<i>99</i>&nbsp;            // NOTE: we don&#39;t use Lucene&#39;s Rescorer.explain because we want to insert our own description with which ScoreMode was used.
+<i>100</i>&nbsp;            //  Maybe we should add QueryRescorer.explainCombine to Lucene?
+<i>101</i>&nbsp;            if (rescoreExplain != null &amp;&amp; rescoreExplain.isMatch()) {
+<i>102</i>&nbsp;                float secondaryWeight = rescore.rescoreQueryWeight();
+<i>103</i>&nbsp;                Explanation sec = Explanation.match(
+<i>104</i>&nbsp;                    rescoreExplain.getValue().floatValue() * secondaryWeight,
+<i>105</i>&nbsp;                    &quot;product of:&quot;,
+<i>106</i>&nbsp;                    rescoreExplain, Explanation.match(secondaryWeight, &quot;secondaryWeight&quot;));
+<i>107</i>&nbsp;                QueryRescoreMode scoreMode = rescore.scoreMode();
+<i>108</i>&nbsp;                return Explanation.match(
+<i>109</i>&nbsp;                    scoreMode.combine(prim.getValue().floatValue(), sec.getValue().floatValue()),
+<i>110</i>&nbsp;                    scoreMode + &quot; of:&quot;,
+<i>111</i>&nbsp;                    prim, sec);
+<i>112</i>&nbsp;            }
+<i>113</i>&nbsp;        }
+<i>114</i>&nbsp;        return prim;
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    private static final Comparator&lt;ScoreDoc&gt; SCORE_DOC_COMPARATOR = new Comparator&lt;ScoreDoc&gt;() {
+<i>118</i>&nbsp;        @Override
+<i>119</i>&nbsp;        public int compare(ScoreDoc o1, ScoreDoc o2) {
+<i>120</i>&nbsp;            int cmp = Float.compare(o2.score, o1.score);
+<i>121</i>&nbsp;            return cmp == 0 ?  Integer.compare(o1.doc, o2.doc) : cmp;
+<i>122</i>&nbsp;        }
+<i>123</i>&nbsp;    };
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &amp;lt;=
+<i>126</i>&nbsp;     *  topN. */
+<i>127</i>&nbsp;    private TopDocs topN(TopDocs in, int topN) {
+<i>128</i>&nbsp;        if (in.scoreDocs.length &lt; topN) {
+<i>129</i>&nbsp;            return in;
+<i>130</i>&nbsp;        }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;        ScoreDoc[] subset = new ScoreDoc[topN];
+<i>133</i>&nbsp;        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        return new TopDocs(in.totalHits, subset);
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted&#39;s hits, and then resorting all hits. */
+<i>139</i>&nbsp;    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;        System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
+<i>142</i>&nbsp;        if (in.scoreDocs.length &gt; resorted.scoreDocs.length) {
+<i>143</i>&nbsp;            // These hits were not rescored (beyond the rescore window), so we treat them the same as a hit that did get rescored but did
+<i>144</i>&nbsp;            // not match the 2nd pass query:
+<i>145</i>&nbsp;            for(int i=resorted.scoreDocs.length;i&lt;in.scoreDocs.length;i++) {
+<i>146</i>&nbsp;                // TODO: shouldn&#39;t this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
+<i>147</i>&nbsp;                // secondary score?
+<i>148</i>&nbsp;                in.scoreDocs[i].score *= ctx.queryWeight();
+<i>149</i>&nbsp;            }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;            // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
+<i>152</i>&nbsp;            // incoming first pass hits, instead of allowing recoring of just the top subset:
+<i>153</i>&nbsp;            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+<i>154</i>&nbsp;        }
+<i>155</i>&nbsp;        return in;
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<b class="nc"><i>158</i>&nbsp;    public static class QueryRescoreContext extends RescoreContext {</b>
+<i>159</i>&nbsp;        private Query query;
+<b class="nc"><i>160</i>&nbsp;        private float queryWeight = 1.0f;</b>
+<b class="nc"><i>161</i>&nbsp;        private float rescoreQueryWeight = 1.0f;</b>
+<i>162</i>&nbsp;        private QueryRescoreMode scoreMode;
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;        public QueryRescoreContext(int windowSize) {
+<b class="nc"><i>165</i>&nbsp;            super(windowSize, QueryRescorer.INSTANCE);</b>
+<b class="nc"><i>166</i>&nbsp;            this.scoreMode = QueryRescoreMode.Total;</b>
+<b class="nc"><i>167</i>&nbsp;        }</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;        public void setQuery(Query query) {
+<b class="nc"><i>170</i>&nbsp;            this.query = query;</b>
+<b class="nc"><i>171</i>&nbsp;        }</b>
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;        @Override
+<i>174</i>&nbsp;        public List&lt;Query&gt; getQueries() {
+<b class="nc"><i>175</i>&nbsp;            return Collections.singletonList(query);</b>
+<i>176</i>&nbsp;        }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;        public Query query() {
+<b class="nc"><i>179</i>&nbsp;            return query;</b>
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        public float queryWeight() {
+<b class="nc"><i>183</i>&nbsp;            return queryWeight;</b>
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        public float rescoreQueryWeight() {
+<b class="nc"><i>187</i>&nbsp;            return rescoreQueryWeight;</b>
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;        public QueryRescoreMode scoreMode() {
+<b class="nc"><i>191</i>&nbsp;            return scoreMode;</b>
+<i>192</i>&nbsp;        }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        public void setRescoreQueryWeight(float rescoreQueryWeight) {
+<b class="nc"><i>195</i>&nbsp;            this.rescoreQueryWeight = rescoreQueryWeight;</b>
+<b class="nc"><i>196</i>&nbsp;        }</b>
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;        public void setQueryWeight(float queryWeight) {
+<b class="nc"><i>199</i>&nbsp;            this.queryWeight = queryWeight;</b>
+<b class="nc"><i>200</i>&nbsp;        }</b>
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;        public void setScoreMode(QueryRescoreMode scoreMode) {
+<b class="nc"><i>203</i>&nbsp;            this.scoreMode = scoreMode;</b>
+<b class="nc"><i>204</i>&nbsp;        }</b>
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;        public void setScoreMode(String scoreMode) {
+<b class="nc"><i>207</i>&nbsp;            setScoreMode(QueryRescoreMode.fromString(scoreMode));</b>
+<b class="nc"><i>208</i>&nbsp;        }</b>
+<i>209</i>&nbsp;    }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

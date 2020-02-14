@@ -1,0 +1,342 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexFieldData</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.fielddata</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexFieldData (org.elasticsearch.index.fielddata)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">IndexFieldData$Builder</td>
+  </tr>
+  <tr>
+    <td class="name">IndexFieldData$Global</td>
+  </tr>
+  <tr>
+    <td class="name">IndexFieldData$XFieldComparatorSource</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 38)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 38)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.fielddata;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.DirectoryReader;
+<i>23</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>24</i>&nbsp;import org.apache.lucene.search.DocIdSet;
+<i>25</i>&nbsp;import org.apache.lucene.search.DocIdSetIterator;
+<i>26</i>&nbsp;import org.apache.lucene.search.FieldComparatorSource;
+<i>27</i>&nbsp;import org.apache.lucene.search.IndexSearcher;
+<i>28</i>&nbsp;import org.apache.lucene.search.Query;
+<i>29</i>&nbsp;import org.apache.lucene.search.ScoreMode;
+<i>30</i>&nbsp;import org.apache.lucene.search.Scorer;
+<i>31</i>&nbsp;import org.apache.lucene.search.SortField;
+<i>32</i>&nbsp;import org.apache.lucene.search.Weight;
+<i>33</i>&nbsp;import org.apache.lucene.search.join.BitSetProducer;
+<i>34</i>&nbsp;import org.apache.lucene.util.BitDocIdSet;
+<i>35</i>&nbsp;import org.apache.lucene.util.BitSet;
+<i>36</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>37</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>38</i>&nbsp;import org.elasticsearch.index.IndexComponent;
+<i>39</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>40</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+<i>41</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>42</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>43</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>44</i>&nbsp;import org.elasticsearch.search.MultiValueMode;
+<i>45</i>&nbsp;import org.elasticsearch.search.sort.NestedSortBuilder;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import java.io.IOException;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * Thread-safe utility class that allows to get per-segment values via the
+<i>51</i>&nbsp; * {@link #load(LeafReaderContext)} method.
+<i>52</i>&nbsp; */
+<i>53</i>&nbsp;public interface IndexFieldData&lt;FD extends AtomicFieldData&gt; extends IndexComponent {
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    /**
+<i>56</i>&nbsp;     * The field name.
+<i>57</i>&nbsp;     */
+<i>58</i>&nbsp;    String getFieldName();
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    /**
+<i>61</i>&nbsp;     * Loads the atomic field data for the reader, possibly cached.
+<i>62</i>&nbsp;     */
+<i>63</i>&nbsp;    FD load(LeafReaderContext context);
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    /**
+<i>66</i>&nbsp;     * Loads directly the atomic field data for the reader, ignoring any caching involved.
+<i>67</i>&nbsp;     */
+<i>68</i>&nbsp;    FD loadDirect(LeafReaderContext context) throws Exception;
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    /**
+<i>71</i>&nbsp;     * Returns the {@link SortField} to use for sorting.
+<i>72</i>&nbsp;     */
+<i>73</i>&nbsp;    SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * Clears any resources associated with this field data.
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    void clear();
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    // we need this extended source we we have custom comparators to reuse our field data
+<i>81</i>&nbsp;    // in this case, we need to reduce type that will be used when search results are reduced
+<i>82</i>&nbsp;    // on another node (we don&#39;t have the custom source them...)
+<i>83</i>&nbsp;    abstract class XFieldComparatorSource extends FieldComparatorSource {
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;        protected final MultiValueMode sortMode;
+<i>86</i>&nbsp;        protected final Object missingValue;
+<i>87</i>&nbsp;        protected final Nested nested;
+<i>88</i>&nbsp;
+<b class="nc"><i>89</i>&nbsp;        public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {</b>
+<b class="nc"><i>90</i>&nbsp;            this.sortMode = sortMode;</b>
+<b class="nc"><i>91</i>&nbsp;            this.missingValue = missingValue;</b>
+<b class="nc"><i>92</i>&nbsp;            this.nested = nested;</b>
+<b class="nc"><i>93</i>&nbsp;        }</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;        public MultiValueMode sortMode() {
+<b class="nc"><i>96</i>&nbsp;            return this.sortMode;</b>
+<i>97</i>&nbsp;        }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;        public Nested nested() {
+<b class="nc"><i>100</i>&nbsp;            return this.nested;</b>
+<i>101</i>&nbsp;        }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;        /**
+<i>104</i>&nbsp;         * Simple wrapper class around a filter that matches parent documents
+<i>105</i>&nbsp;         * and a filter that matches child documents. For every root document R,
+<i>106</i>&nbsp;         * R will be in the parent filter and its children documents will be the
+<i>107</i>&nbsp;         * documents that are contained in the inner set between the previous
+<i>108</i>&nbsp;         * parent + 1, or 0 if there is no previous parent, and R (excluded).
+<i>109</i>&nbsp;         */
+<i>110</i>&nbsp;        public static class Nested {
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;            private final BitSetProducer rootFilter;
+<i>113</i>&nbsp;            private final Query innerQuery;
+<i>114</i>&nbsp;            private final NestedSortBuilder nestedSort;
+<i>115</i>&nbsp;            private final IndexSearcher searcher;
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort, IndexSearcher searcher) {
+<i>118</i>&nbsp;                this.rootFilter = rootFilter;
+<i>119</i>&nbsp;                this.innerQuery = innerQuery;
+<i>120</i>&nbsp;                this.nestedSort = nestedSort;
+<i>121</i>&nbsp;                this.searcher = searcher;
+<i>122</i>&nbsp;            }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;            public Query getInnerQuery() {
+<i>125</i>&nbsp;                return innerQuery;
+<i>126</i>&nbsp;            }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;            public NestedSortBuilder getNestedSort() { return nestedSort; }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;            /**
+<i>131</i>&nbsp;             * Get a {@link BitDocIdSet} that matches the root documents.
+<i>132</i>&nbsp;             */
+<i>133</i>&nbsp;            public BitSet rootDocs(LeafReaderContext ctx) throws IOException {
+<i>134</i>&nbsp;                return rootFilter.getBitSet(ctx);
+<i>135</i>&nbsp;            }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;            /**
+<i>138</i>&nbsp;             * Get a {@link DocIdSet} that matches the inner documents.
+<i>139</i>&nbsp;             */
+<i>140</i>&nbsp;            public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
+<i>141</i>&nbsp;                Weight weight = searcher.createWeight(searcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+<i>142</i>&nbsp;                Scorer s = weight.scorer(ctx);
+<i>143</i>&nbsp;                return s == null ? null : s.iterator();
+<i>144</i>&nbsp;            }
+<i>145</i>&nbsp;        }
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;        /** Whether missing values should be sorted first. */
+<i>148</i>&nbsp;        public final boolean sortMissingFirst(Object missingValue) {
+<b class="nc"><i>149</i>&nbsp;            return &quot;_first&quot;.equals(missingValue);</b>
+<i>150</i>&nbsp;        }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;        /** Whether missing values should be sorted last, this is the default. */
+<i>153</i>&nbsp;        public final boolean sortMissingLast(Object missingValue) {
+<b class="nc"><i>154</i>&nbsp;            return missingValue == null || &quot;_last&quot;.equals(missingValue);</b>
+<i>155</i>&nbsp;        }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;        /** Return the missing object value according to the reduced type of the comparator. */
+<i>158</i>&nbsp;        public final Object missingObject(Object missingValue, boolean reversed) {
+<b class="nc"><i>159</i>&nbsp;            if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {</b>
+<b class="nc"><i>160</i>&nbsp;                final boolean min = sortMissingFirst(missingValue) ^ reversed;</b>
+<b class="nc"><i>161</i>&nbsp;                switch (reducedType()) {</b>
+<i>162</i>&nbsp;                case INT:
+<b class="nc"><i>163</i>&nbsp;                    return min ? Integer.MIN_VALUE : Integer.MAX_VALUE;</b>
+<i>164</i>&nbsp;                case LONG:
+<b class="nc"><i>165</i>&nbsp;                    return min ? Long.MIN_VALUE : Long.MAX_VALUE;</b>
+<i>166</i>&nbsp;                case FLOAT:
+<b class="nc"><i>167</i>&nbsp;                    return min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;</b>
+<i>168</i>&nbsp;                case DOUBLE:
+<b class="nc"><i>169</i>&nbsp;                    return min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;</b>
+<i>170</i>&nbsp;                case STRING:
+<i>171</i>&nbsp;                case STRING_VAL:
+<b class="nc"><i>172</i>&nbsp;                    return null;</b>
+<i>173</i>&nbsp;                default:
+<b class="nc"><i>174</i>&nbsp;                    throw new UnsupportedOperationException(&quot;Unsupported reduced type: &quot; + reducedType());</b>
+<i>175</i>&nbsp;                }
+<i>176</i>&nbsp;            } else {
+<b class="nc"><i>177</i>&nbsp;                switch (reducedType()) {</b>
+<i>178</i>&nbsp;                case INT:
+<b class="nc"><i>179</i>&nbsp;                    if (missingValue instanceof Number) {</b>
+<b class="nc"><i>180</i>&nbsp;                        return ((Number) missingValue).intValue();</b>
+<i>181</i>&nbsp;                    } else {
+<b class="nc"><i>182</i>&nbsp;                        return Integer.parseInt(missingValue.toString());</b>
+<i>183</i>&nbsp;                    }
+<i>184</i>&nbsp;                case LONG:
+<b class="nc"><i>185</i>&nbsp;                    if (missingValue instanceof Number) {</b>
+<b class="nc"><i>186</i>&nbsp;                        return ((Number) missingValue).longValue();</b>
+<i>187</i>&nbsp;                    } else {
+<b class="nc"><i>188</i>&nbsp;                        return Long.parseLong(missingValue.toString());</b>
+<i>189</i>&nbsp;                    }
+<i>190</i>&nbsp;                case FLOAT:
+<b class="nc"><i>191</i>&nbsp;                    if (missingValue instanceof Number) {</b>
+<b class="nc"><i>192</i>&nbsp;                        return ((Number) missingValue).floatValue();</b>
+<i>193</i>&nbsp;                    } else {
+<b class="nc"><i>194</i>&nbsp;                        return Float.parseFloat(missingValue.toString());</b>
+<i>195</i>&nbsp;                    }
+<i>196</i>&nbsp;                case DOUBLE:
+<b class="nc"><i>197</i>&nbsp;                    if (missingValue instanceof Number) {</b>
+<b class="nc"><i>198</i>&nbsp;                        return ((Number) missingValue).doubleValue();</b>
+<i>199</i>&nbsp;                    } else {
+<b class="nc"><i>200</i>&nbsp;                        return Double.parseDouble(missingValue.toString());</b>
+<i>201</i>&nbsp;                    }
+<i>202</i>&nbsp;                case STRING:
+<i>203</i>&nbsp;                case STRING_VAL:
+<b class="nc"><i>204</i>&nbsp;                    if (missingValue instanceof BytesRef) {</b>
+<b class="nc"><i>205</i>&nbsp;                        return (BytesRef) missingValue;</b>
+<b class="nc"><i>206</i>&nbsp;                    } else if (missingValue instanceof byte[]) {</b>
+<b class="nc"><i>207</i>&nbsp;                        return new BytesRef((byte[]) missingValue);</b>
+<i>208</i>&nbsp;                    } else {
+<b class="nc"><i>209</i>&nbsp;                        return new BytesRef(missingValue.toString());</b>
+<i>210</i>&nbsp;                    }
+<i>211</i>&nbsp;                default:
+<b class="nc"><i>212</i>&nbsp;                    throw new UnsupportedOperationException(&quot;Unsupported reduced type: &quot; + reducedType());</b>
+<i>213</i>&nbsp;                }
+<i>214</i>&nbsp;            }
+<i>215</i>&nbsp;        }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;        public abstract SortField.Type reducedType();
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;        /**
+<i>220</i>&nbsp;         * Return a missing value that is understandable by {@link SortField#setMissingValue(Object)}.
+<i>221</i>&nbsp;         * Most implementations return null because they already replace the value at the fielddata level.
+<i>222</i>&nbsp;         * However this can&#39;t work in case of strings since there is no such thing as a string which
+<i>223</i>&nbsp;         * compares greater than any other string, so in that case we need to return
+<i>224</i>&nbsp;         * {@link SortField#STRING_FIRST} or {@link SortField#STRING_LAST} so that the coordinating node
+<i>225</i>&nbsp;         * knows how to deal with null values.
+<i>226</i>&nbsp;         */
+<i>227</i>&nbsp;        public Object missingValue(boolean reversed) {
+<b class="nc"><i>228</i>&nbsp;            return null;</b>
+<i>229</i>&nbsp;        }
+<i>230</i>&nbsp;    }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    interface Builder {
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;        IndexFieldData&lt;?&gt; build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+<i>235</i>&nbsp;                             CircuitBreakerService breakerService, MapperService mapperService);
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    interface Global&lt;FD extends AtomicFieldData&gt; extends IndexFieldData&lt;FD&gt; {
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;        IndexFieldData&lt;FD&gt; loadGlobal(DirectoryReader indexReader);
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;        IndexFieldData&lt;FD&gt; localGlobalDirect(DirectoryReader indexReader) throws Exception;
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

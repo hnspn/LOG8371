@@ -1,0 +1,618 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ConstructingObjectParser</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.xcontent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ConstructingObjectParser (org.elasticsearch.common.xcontent)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ConstructingObjectParser</td>
+<td class="coverageStat">
+  <span class="percent">
+    55%
+  </span>
+  <span class="absValue">
+    (11/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41.3%
+  </span>
+  <span class="absValue">
+    (38/ 92)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ConstructingObjectParser$ConstructorArgInfo</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">ConstructingObjectParser$Target</td>
+<td class="coverageStat">
+  <span class="percent">
+    83.3%
+  </span>
+  <span class="absValue">
+    (5/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.8%
+  </span>
+  <span class="absValue">
+    (20/ 49)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    63%
+  </span>
+  <span class="absValue">
+    (17/ 27)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    42.8%
+  </span>
+  <span class="absValue">
+    (62/ 145)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.xcontent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>23</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
+<i>24</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+<i>25</i>&nbsp;
+<i>26</i>&nbsp;import java.io.IOException;
+<i>27</i>&nbsp;import java.util.ArrayList;
+<i>28</i>&nbsp;import java.util.List;
+<i>29</i>&nbsp;import java.util.function.BiConsumer;
+<i>30</i>&nbsp;import java.util.function.BiFunction;
+<i>31</i>&nbsp;import java.util.function.Consumer;
+<i>32</i>&nbsp;import java.util.function.Function;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;/**
+<i>35</i>&nbsp; * Like {@link ObjectParser} but works with objects that have constructors whose arguments are mixed in with its other settings. Queries are
+<i>36</i>&nbsp; * like this, for example &lt;code&gt;ids&lt;/code&gt; requires &lt;code&gt;types&lt;/code&gt; but always parses the &lt;code&gt;values&lt;/code&gt; field on the same level. If
+<i>37</i>&nbsp; * this doesn&#39;t sounds like what you want to parse have a look at
+<i>38</i>&nbsp; * {@link ObjectParser#declareNamedObjects(BiConsumer, ObjectParser.NamedObjectParser, Consumer, ParseField)} which solves a slightly
+<i>39</i>&nbsp; * different but similar sounding problem.
+<i>40</i>&nbsp; * &lt;p&gt;
+<i>41</i>&nbsp; * Anyway, {@linkplain ConstructingObjectParser} parses the fields in the order that they are in the XContent, collecting constructor
+<i>42</i>&nbsp; * arguments and parsing and queueing normal fields until all constructor arguments are parsed. Then it builds the target object and replays
+<i>43</i>&nbsp; * the queued fields. Any fields that come in after the last constructor arguments are parsed and immediately applied to the target object
+<i>44</i>&nbsp; * just like {@linkplain ObjectParser}.
+<i>45</i>&nbsp; * &lt;/p&gt;
+<i>46</i>&nbsp; * &lt;p&gt;
+<i>47</i>&nbsp; * Declaring a {@linkplain ConstructingObjectParser} is intentionally quite similar to declaring an {@linkplain ObjectParser}. The only
+<i>48</i>&nbsp; * differences being that constructor arguments are declared with the consumer returned by the static {@link #constructorArg()} method and
+<i>49</i>&nbsp; * that {@linkplain ConstructingObjectParser}&#39;s constructor takes a lambda that must build the target object from a list of constructor
+<i>50</i>&nbsp; * arguments:
+<i>51</i>&nbsp; * &lt;/p&gt;
+<i>52</i>&nbsp; * &lt;pre&gt;{@code
+<i>53</i>&nbsp; *   private static final ConstructingObjectParser&lt;Thing, SomeContext&gt; PARSER = new ConstructingObjectParser&lt;&gt;(&quot;thing&quot;,
+<i>54</i>&nbsp; *           a -&gt; new Thing((String) a[0], (String) a[1], (Integer) a[2]));
+<i>55</i>&nbsp; *   static {
+<i>56</i>&nbsp; *       PARSER.declareString(constructorArg(), new ParseField(&quot;animal&quot;));
+<i>57</i>&nbsp; *       PARSER.declareString(constructorArg(), new ParseField(&quot;vegetable&quot;));
+<i>58</i>&nbsp; *       PARSER.declareInt(optionalConstructorArg(), new ParseField(&quot;mineral&quot;));
+<i>59</i>&nbsp; *       PARSER.declareInt(Thing::setFruit, new ParseField(&quot;fruit&quot;));
+<i>60</i>&nbsp; *       PARSER.declareInt(Thing::setBug, new ParseField(&quot;bug&quot;));
+<i>61</i>&nbsp; *   }
+<i>62</i>&nbsp; * }&lt;/pre&gt;
+<i>63</i>&nbsp; * &lt;p&gt;
+<i>64</i>&nbsp; * This does add some overhead compared to just using {@linkplain ObjectParser} directly. On a 2.2 GHz Intel Core i7 MacBook Air running on
+<i>65</i>&nbsp; * battery power in a reasonably unscientific microbenchmark it is about 100 microseconds for a reasonably large object, less if the
+<i>66</i>&nbsp; * constructor arguments are first. On this platform with the same microbenchmarks just creating the XContentParser is around 900
+<i>67</i>&nbsp; * microseconds and using {#linkplain ObjectParser} directly adds another 300 or so microseconds. In the best case
+<i>68</i>&nbsp; * {@linkplain ConstructingObjectParser} allocates two additional objects per parse compared to {#linkplain ObjectParser}. In the worst case
+<i>69</i>&nbsp; * it allocates &lt;code&gt;3 + 2 * param_count&lt;/code&gt; objects per parse. If this overhead is too much for you then feel free to have ObjectParser
+<i>70</i>&nbsp; * parse a secondary object and have that one call the target object&#39;s constructor. That ought to be rare though.
+<i>71</i>&nbsp; * &lt;/p&gt;
+<i>72</i>&nbsp; * &lt;p&gt;
+<i>73</i>&nbsp; * Note: if optional constructor arguments aren&#39;t specified then the number of allocations is always the worst case.
+<i>74</i>&nbsp; * &lt;/p&gt;
+<i>75</i>&nbsp; */
+<b class="fc"><i>76</i>&nbsp;public final class ConstructingObjectParser&lt;Value, Context&gt; extends AbstractObjectParser&lt;Value, Context&gt; {</b>
+<i>77</i>&nbsp;    /**
+<i>78</i>&nbsp;     * Consumer that marks a field as a required constructor argument instead of a real object field.
+<i>79</i>&nbsp;     */
+<b class="fc"><i>80</i>&nbsp;    private static final BiConsumer&lt;?, ?&gt; REQUIRED_CONSTRUCTOR_ARG_MARKER = (a, b) -&gt; {</b>
+<b class="nc"><i>81</i>&nbsp;        throw new UnsupportedOperationException(&quot;I am just a marker I should never be called.&quot;);</b>
+<i>82</i>&nbsp;    };
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    /**
+<i>85</i>&nbsp;     * Consumer that marks a field as an optional constructor argument instead of a real object field.
+<i>86</i>&nbsp;     */
+<b class="fc"><i>87</i>&nbsp;    private static final BiConsumer&lt;?, ?&gt; OPTIONAL_CONSTRUCTOR_ARG_MARKER = (a, b) -&gt; {</b>
+<b class="nc"><i>88</i>&nbsp;        throw new UnsupportedOperationException(&quot;I am just a marker I should never be called.&quot;);</b>
+<i>89</i>&nbsp;    };
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * List of constructor names used for generating the error message if not all arrive.
+<i>93</i>&nbsp;     */
+<b class="fc"><i>94</i>&nbsp;    private final List&lt;ConstructorArgInfo&gt; constructorArgInfos = new ArrayList&lt;&gt;();</b>
+<i>95</i>&nbsp;    private final ObjectParser&lt;Target, Context&gt; objectParser;
+<i>96</i>&nbsp;    private final BiFunction&lt;Object[], Context, Value&gt; builder;
+<i>97</i>&nbsp;    /**
+<i>98</i>&nbsp;     * The number of fields on the targetObject. This doesn&#39;t include any constructor arguments and is the size used for the array backing
+<i>99</i>&nbsp;     * the field queue.
+<i>100</i>&nbsp;     */
+<b class="fc"><i>101</i>&nbsp;    private int numberOfFields = 0;</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    /**
+<i>104</i>&nbsp;     * Build the parser.
+<i>105</i>&nbsp;     *
+<i>106</i>&nbsp;     * @param name The name given to the delegate ObjectParser for error identification. Use what you&#39;d use if the object worked with
+<i>107</i>&nbsp;     *        ObjectParser.
+<i>108</i>&nbsp;     * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
+<i>109</i>&nbsp;     *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
+<i>110</i>&nbsp;     *        that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren&#39;t defined in
+<i>111</i>&nbsp;     *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map&lt;String, Object&gt;} to save on
+<i>112</i>&nbsp;     *        allocations.
+<i>113</i>&nbsp;     */
+<i>114</i>&nbsp;    public ConstructingObjectParser(String name, Function&lt;Object[], Value&gt; builder) {
+<b class="fc"><i>115</i>&nbsp;        this(name, false, builder);</b>
+<b class="fc"><i>116</i>&nbsp;    }</b>
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    /**
+<i>119</i>&nbsp;     * Build the parser.
+<i>120</i>&nbsp;     *
+<i>121</i>&nbsp;     * @param name The name given to the delegate ObjectParser for error identification. Use what you&#39;d use if the object worked with
+<i>122</i>&nbsp;     *        ObjectParser.
+<i>123</i>&nbsp;     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
+<i>124</i>&nbsp;     *        from external systems, never when parsing requests from users.
+<i>125</i>&nbsp;     * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
+<i>126</i>&nbsp;     *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
+<i>127</i>&nbsp;     *        that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren&#39;t defined in
+<i>128</i>&nbsp;     *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map&lt;String, Object&gt;} to save on
+<i>129</i>&nbsp;     *        allocations.
+<i>130</i>&nbsp;     */
+<i>131</i>&nbsp;    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, Function&lt;Object[], Value&gt; builder) {
+<b class="fc"><i>132</i>&nbsp;        this(name, ignoreUnknownFields, (args, context) -&gt; builder.apply(args));</b>
+<b class="fc"><i>133</i>&nbsp;    }</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Build the parser.
+<i>137</i>&nbsp;     *
+<i>138</i>&nbsp;     * @param name The name given to the delegate ObjectParser for error identification. Use what you&#39;d use if the object worked with
+<i>139</i>&nbsp;     *        ObjectParser.
+<i>140</i>&nbsp;     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
+<i>141</i>&nbsp;     *        from external systems, never when parsing requests from users.
+<i>142</i>&nbsp;     * @param builder A binary function that builds the object from an array of Objects and the parser context.  Declare this inline with
+<i>143</i>&nbsp;     *        the parser, casting the elements of the array to the arguments so they work with your favorite constructor. The objects in
+<i>144</i>&nbsp;     *        the array will be in the same order that you declared the {@link #constructorArg()}s and none will be null. The second
+<i>145</i>&nbsp;     *        argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
+<i>146</i>&nbsp;     *        constructor arguments aren&#39;t defined in the XContent then parsing will throw an error. We use an array here rather than a
+<i>147</i>&nbsp;     *        {@code Map&lt;String, Object&gt;} to save on allocations.
+<i>148</i>&nbsp;     */
+<b class="fc"><i>149</i>&nbsp;    public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction&lt;Object[], Context, Value&gt; builder) {</b>
+<b class="fc"><i>150</i>&nbsp;        objectParser = new ObjectParser&lt;&gt;(name, ignoreUnknownFields, null);</b>
+<b class="fc"><i>151</i>&nbsp;        this.builder = builder;</b>
+<i>152</i>&nbsp;
+<b class="fc"><i>153</i>&nbsp;    }</b>
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    /**
+<i>156</i>&nbsp;     * Call this to do the actual parsing. This implements {@link BiFunction} for conveniently integrating with ObjectParser.
+<i>157</i>&nbsp;     */
+<i>158</i>&nbsp;    @Override
+<i>159</i>&nbsp;    public Value apply(XContentParser parser, Context context) {
+<i>160</i>&nbsp;        try {
+<b class="fc"><i>161</i>&nbsp;            return parse(parser, context);</b>
+<b class="nc"><i>162</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>163</i>&nbsp;            throw new XContentParseException(parser.getTokenLocation(), &quot;[&quot; + objectParser.getName()  + &quot;] failed to parse object&quot;, e);</b>
+<i>164</i>&nbsp;        }
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    @Override
+<i>168</i>&nbsp;    public Value parse(XContentParser parser, Context context) throws IOException {
+<b class="fc"><i>169</i>&nbsp;        return objectParser.parse(parser, new Target(parser, context), context).finish();</b>
+<i>170</i>&nbsp;    }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    /**
+<i>173</i>&nbsp;     * Pass the {@linkplain BiConsumer} this returns the declare methods to declare a required constructor argument. See this class&#39;s
+<i>174</i>&nbsp;     * javadoc for an example. The order in which these are declared matters: it is the order that they come in the array passed to
+<i>175</i>&nbsp;     * {@link #builder} and the order that missing arguments are reported to the user if any are missing. When all of these parameters are
+<i>176</i>&nbsp;     * parsed from the {@linkplain XContentParser} the target object is immediately built.
+<i>177</i>&nbsp;     */
+<i>178</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;) // Safe because we never call the method. This is just trickery to make the interface pretty.
+<i>179</i>&nbsp;    public static &lt;Value, FieldT&gt; BiConsumer&lt;Value, FieldT&gt; constructorArg() {
+<b class="fc"><i>180</i>&nbsp;        return (BiConsumer&lt;Value, FieldT&gt;) REQUIRED_CONSTRUCTOR_ARG_MARKER;</b>
+<i>181</i>&nbsp;    }
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    /**
+<i>184</i>&nbsp;     * Pass the {@linkplain BiConsumer} this returns the declare methods to declare an optional constructor argument. See this class&#39;s
+<i>185</i>&nbsp;     * javadoc for an example. The order in which these are declared matters: it is the order that they come in the array passed to
+<i>186</i>&nbsp;     * {@link #builder} and the order that missing arguments are reported to the user if any are missing. When all of these parameters are
+<i>187</i>&nbsp;     * parsed from the {@linkplain XContentParser} the target object is immediately built.
+<i>188</i>&nbsp;     */
+<i>189</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;) // Safe because we never call the method. This is just trickery to make the interface pretty.
+<i>190</i>&nbsp;    public static &lt;Value, FieldT&gt; BiConsumer&lt;Value, FieldT&gt; optionalConstructorArg() {
+<b class="fc"><i>191</i>&nbsp;        return (BiConsumer&lt;Value, FieldT&gt;) OPTIONAL_CONSTRUCTOR_ARG_MARKER;</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    @Override
+<i>195</i>&nbsp;    public &lt;T&gt; void declareField(BiConsumer&lt;Value, T&gt; consumer, ContextParser&lt;Context, T&gt; parser, ParseField parseField, ValueType type) {
+<b class="fc"><i>196</i>&nbsp;        if (consumer == null) {</b>
+<b class="nc"><i>197</i>&nbsp;            throw new IllegalArgumentException(&quot;[consumer] is required&quot;);</b>
+<i>198</i>&nbsp;        }
+<b class="fc"><i>199</i>&nbsp;        if (parser == null) {</b>
+<b class="nc"><i>200</i>&nbsp;            throw new IllegalArgumentException(&quot;[parser] is required&quot;);</b>
+<i>201</i>&nbsp;        }
+<b class="fc"><i>202</i>&nbsp;        if (parseField == null) {</b>
+<b class="nc"><i>203</i>&nbsp;            throw new IllegalArgumentException(&quot;[parseField] is required&quot;);</b>
+<i>204</i>&nbsp;        }
+<b class="fc"><i>205</i>&nbsp;        if (type == null) {</b>
+<b class="nc"><i>206</i>&nbsp;            throw new IllegalArgumentException(&quot;[type] is required&quot;);</b>
+<i>207</i>&nbsp;        }
+<i>208</i>&nbsp;
+<b class="fc"><i>209</i>&nbsp;        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {</b>
+<i>210</i>&nbsp;            /*
+<i>211</i>&nbsp;             * Constructor arguments are detected by these &quot;marker&quot; consumers. It keeps the API looking clean even if it is a bit sleezy. We
+<i>212</i>&nbsp;             * then build a new consumer directly against the object parser that triggers the &quot;constructor arg just arrived behavior&quot; of the
+<i>213</i>&nbsp;             * parser. Conveniently, we can close over the position of the constructor in the argument list so we don&#39;t need to do any fancy
+<i>214</i>&nbsp;             * or expensive lookups whenever the constructor args come in.
+<i>215</i>&nbsp;             */
+<b class="fc"><i>216</i>&nbsp;            int position = constructorArgInfos.size();</b>
+<b class="fc"><i>217</i>&nbsp;            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;</b>
+<b class="fc"><i>218</i>&nbsp;            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));</b>
+<b class="fc"><i>219</i>&nbsp;            objectParser.declareField((target, v) -&gt; target.constructorArg(position, v), parser, parseField, type);</b>
+<b class="fc"><i>220</i>&nbsp;        } else {</b>
+<b class="nc"><i>221</i>&nbsp;            numberOfFields += 1;</b>
+<b class="nc"><i>222</i>&nbsp;            objectParser.declareField(queueingConsumer(consumer, parseField), parser, parseField, type);</b>
+<i>223</i>&nbsp;        }
+<b class="fc"><i>224</i>&nbsp;    }</b>
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;    @Override
+<i>227</i>&nbsp;    public &lt;T&gt; void declareNamedObjects(BiConsumer&lt;Value, List&lt;T&gt;&gt; consumer, NamedObjectParser&lt;T, Context&gt; namedObjectParser,
+<i>228</i>&nbsp;            ParseField parseField) {
+<b class="fc"><i>229</i>&nbsp;        if (consumer == null) {</b>
+<b class="nc"><i>230</i>&nbsp;            throw new IllegalArgumentException(&quot;[consumer] is required&quot;);</b>
+<i>231</i>&nbsp;        }
+<b class="fc"><i>232</i>&nbsp;        if (namedObjectParser == null) {</b>
+<b class="nc"><i>233</i>&nbsp;            throw new IllegalArgumentException(&quot;[parser] is required&quot;);</b>
+<i>234</i>&nbsp;        }
+<b class="fc"><i>235</i>&nbsp;        if (parseField == null) {</b>
+<b class="nc"><i>236</i>&nbsp;            throw new IllegalArgumentException(&quot;[parseField] is required&quot;);</b>
+<i>237</i>&nbsp;        }
+<i>238</i>&nbsp;
+<b class="fc"><i>239</i>&nbsp;        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {</b>
+<i>240</i>&nbsp;            /*
+<i>241</i>&nbsp;             * Constructor arguments are detected by this &quot;marker&quot; consumer. It
+<i>242</i>&nbsp;             * keeps the API looking clean even if it is a bit sleezy. We then
+<i>243</i>&nbsp;             * build a new consumer directly against the object parser that
+<i>244</i>&nbsp;             * triggers the &quot;constructor arg just arrived behavior&quot; of the
+<i>245</i>&nbsp;             * parser. Conveniently, we can close over the position of the
+<i>246</i>&nbsp;             * constructor in the argument list so we don&#39;t need to do any fancy
+<i>247</i>&nbsp;             * or expensive lookups whenever the constructor args come in.
+<i>248</i>&nbsp;             */
+<b class="fc"><i>249</i>&nbsp;            int position = constructorArgInfos.size();</b>
+<b class="fc"><i>250</i>&nbsp;            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;</b>
+<b class="fc"><i>251</i>&nbsp;            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));</b>
+<b class="fc"><i>252</i>&nbsp;            objectParser.declareNamedObjects((target, v) -&gt; target.constructorArg(position, v), namedObjectParser, parseField);</b>
+<b class="fc"><i>253</i>&nbsp;        } else {</b>
+<b class="nc"><i>254</i>&nbsp;            numberOfFields += 1;</b>
+<b class="nc"><i>255</i>&nbsp;            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser, parseField);</b>
+<i>256</i>&nbsp;        }
+<b class="fc"><i>257</i>&nbsp;    }</b>
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    @Override
+<i>260</i>&nbsp;    public &lt;T&gt; void declareNamedObjects(BiConsumer&lt;Value, List&lt;T&gt;&gt; consumer, NamedObjectParser&lt;T, Context&gt; namedObjectParser,
+<i>261</i>&nbsp;            Consumer&lt;Value&gt; orderedModeCallback, ParseField parseField) {
+<b class="nc"><i>262</i>&nbsp;        if (consumer == null) {</b>
+<b class="nc"><i>263</i>&nbsp;            throw new IllegalArgumentException(&quot;[consumer] is required&quot;);</b>
+<i>264</i>&nbsp;        }
+<b class="nc"><i>265</i>&nbsp;        if (namedObjectParser == null) {</b>
+<b class="nc"><i>266</i>&nbsp;            throw new IllegalArgumentException(&quot;[parser] is required&quot;);</b>
+<i>267</i>&nbsp;        }
+<b class="nc"><i>268</i>&nbsp;        if (orderedModeCallback == null) {</b>
+<b class="nc"><i>269</i>&nbsp;            throw new IllegalArgumentException(&quot;[orderedModeCallback] is required&quot;);</b>
+<i>270</i>&nbsp;        }
+<b class="nc"><i>271</i>&nbsp;        if (parseField == null) {</b>
+<b class="nc"><i>272</i>&nbsp;            throw new IllegalArgumentException(&quot;[parseField] is required&quot;);</b>
+<i>273</i>&nbsp;        }
+<i>274</i>&nbsp;
+<b class="nc"><i>275</i>&nbsp;        if (consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER) {</b>
+<i>276</i>&nbsp;            /*
+<i>277</i>&nbsp;             * Constructor arguments are detected by this &quot;marker&quot; consumer. It
+<i>278</i>&nbsp;             * keeps the API looking clean even if it is a bit sleezy. We then
+<i>279</i>&nbsp;             * build a new consumer directly against the object parser that
+<i>280</i>&nbsp;             * triggers the &quot;constructor arg just arrived behavior&quot; of the
+<i>281</i>&nbsp;             * parser. Conveniently, we can close over the position of the
+<i>282</i>&nbsp;             * constructor in the argument list so we don&#39;t need to do any fancy
+<i>283</i>&nbsp;             * or expensive lookups whenever the constructor args come in.
+<i>284</i>&nbsp;             */
+<b class="nc"><i>285</i>&nbsp;            int position = constructorArgInfos.size();</b>
+<b class="nc"><i>286</i>&nbsp;            boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;</b>
+<b class="nc"><i>287</i>&nbsp;            constructorArgInfos.add(new ConstructorArgInfo(parseField, required));</b>
+<b class="nc"><i>288</i>&nbsp;            objectParser.declareNamedObjects((target, v) -&gt; target.constructorArg(position, v), namedObjectParser,</b>
+<b class="nc"><i>289</i>&nbsp;                    wrapOrderedModeCallBack(orderedModeCallback), parseField);</b>
+<b class="nc"><i>290</i>&nbsp;        } else {</b>
+<b class="nc"><i>291</i>&nbsp;            numberOfFields += 1;</b>
+<b class="nc"><i>292</i>&nbsp;            objectParser.declareNamedObjects(queueingConsumer(consumer, parseField), namedObjectParser,</b>
+<b class="nc"><i>293</i>&nbsp;                    wrapOrderedModeCallBack(orderedModeCallback), parseField);</b>
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;    }</b>
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    @Override
+<i>298</i>&nbsp;    public String getName() {
+<b class="nc"><i>299</i>&nbsp;        return objectParser.getName();</b>
+<i>300</i>&nbsp;    }
+<i>301</i>&nbsp;
+<i>302</i>&nbsp;    private Consumer&lt;Target&gt; wrapOrderedModeCallBack(Consumer&lt;Value&gt; callback) {
+<b class="nc"><i>303</i>&nbsp;        return (target) -&gt; {</b>
+<b class="nc"><i>304</i>&nbsp;            if (target.targetObject != null) {</b>
+<i>305</i>&nbsp;                // The target has already been built. Call the callback now.
+<b class="nc"><i>306</i>&nbsp;                callback.accept(target.targetObject);</b>
+<b class="nc"><i>307</i>&nbsp;                return;</b>
+<i>308</i>&nbsp;            }
+<i>309</i>&nbsp;            /*
+<i>310</i>&nbsp;             * The target hasn&#39;t been built. Queue the callback.
+<i>311</i>&nbsp;             */
+<b class="nc"><i>312</i>&nbsp;            target.queuedOrderedModeCallback = callback;</b>
+<b class="nc"><i>313</i>&nbsp;        };</b>
+<i>314</i>&nbsp;    }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;    /**
+<i>317</i>&nbsp;     * Creates the consumer that does the &quot;field just arrived&quot; behavior. If the targetObject hasn&#39;t been built then it queues the value.
+<i>318</i>&nbsp;     * Otherwise it just applies the value just like {@linkplain ObjectParser} does.
+<i>319</i>&nbsp;     */
+<i>320</i>&nbsp;    private &lt;T&gt; BiConsumer&lt;Target, T&gt; queueingConsumer(BiConsumer&lt;Value, T&gt; consumer, ParseField parseField) {
+<b class="nc"><i>321</i>&nbsp;        return (target, v) -&gt; {</b>
+<b class="nc"><i>322</i>&nbsp;            if (target.targetObject != null) {</b>
+<i>323</i>&nbsp;                // The target has already been built. Just apply the consumer now.
+<b class="nc"><i>324</i>&nbsp;                consumer.accept(target.targetObject, v);</b>
+<b class="nc"><i>325</i>&nbsp;                return;</b>
+<i>326</i>&nbsp;            }
+<i>327</i>&nbsp;            /*
+<i>328</i>&nbsp;             * The target hasn&#39;t been built. Queue the consumer. The next two lines are the only allocations that ConstructingObjectParser
+<i>329</i>&nbsp;             * does during parsing other than the boxing the ObjectParser might do. The first one is to preserve a snapshot of the current
+<i>330</i>&nbsp;             * location so we can add it to the error message if parsing fails. The second one (the lambda) is the actual operation being
+<i>331</i>&nbsp;             * queued. Note that we don&#39;t do any of this if the target object has already been built.
+<i>332</i>&nbsp;             */
+<b class="nc"><i>333</i>&nbsp;            XContentLocation location = target.parser.getTokenLocation();</b>
+<b class="nc"><i>334</i>&nbsp;            target.queue(targetObject -&gt; {</b>
+<i>335</i>&nbsp;                try {
+<b class="nc"><i>336</i>&nbsp;                    consumer.accept(targetObject, v);</b>
+<b class="nc"><i>337</i>&nbsp;                } catch (Exception e) {</b>
+<b class="nc"><i>338</i>&nbsp;                    throw new XContentParseException(location,</b>
+<b class="nc"><i>339</i>&nbsp;                            &quot;[&quot; + objectParser.getName() + &quot;] failed to parse field [&quot; + parseField.getPreferredName() + &quot;]&quot;, e);</b>
+<b class="nc"><i>340</i>&nbsp;                }</b>
+<b class="nc"><i>341</i>&nbsp;            });</b>
+<b class="nc"><i>342</i>&nbsp;        };</b>
+<i>343</i>&nbsp;    }
+<i>344</i>&nbsp;
+<i>345</i>&nbsp;    /**
+<i>346</i>&nbsp;     * The target of the {@linkplain ConstructingObjectParser}. One of these is built every time you call
+<i>347</i>&nbsp;     * {@linkplain ConstructingObjectParser#apply(XContentParser, Object)} Note that it is not static so it inherits
+<i>348</i>&nbsp;     * {@linkplain ConstructingObjectParser}&#39;s type parameters.
+<i>349</i>&nbsp;     */
+<b class="fc"><i>350</i>&nbsp;    private class Target {</b>
+<i>351</i>&nbsp;        /**
+<i>352</i>&nbsp;         * Array of constructor args to be passed to the {@link ConstructingObjectParser#builder}.
+<i>353</i>&nbsp;         */
+<b class="fc"><i>354</i>&nbsp;        private final Object[] constructorArgs = new Object[constructorArgInfos.size()];</b>
+<i>355</i>&nbsp;        /**
+<i>356</i>&nbsp;         * The parser this class is working against. We store it here so we can fetch it conveniently when queueing fields to lookup the
+<i>357</i>&nbsp;         * location of each field so that we can give a useful error message when replaying the queue.
+<i>358</i>&nbsp;         */
+<i>359</i>&nbsp;        private final XContentParser parser;
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;        /**
+<i>362</i>&nbsp;         * The parse context that is used for this invocation. Stored here so that it can be passed to the {@link #builder}.
+<i>363</i>&nbsp;         */
+<i>364</i>&nbsp;        private Context context;
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;        /**
+<i>367</i>&nbsp;         * How many of the constructor parameters have we collected? We keep track of this so we don&#39;t have to count the
+<i>368</i>&nbsp;         * {@link #constructorArgs} array looking for nulls when we receive another constructor parameter. When this is equal to the size of
+<i>369</i>&nbsp;         * {@link #constructorArgs} we build the target object.
+<i>370</i>&nbsp;         */
+<b class="fc"><i>371</i>&nbsp;        private int constructorArgsCollected = 0;</b>
+<i>372</i>&nbsp;        /**
+<i>373</i>&nbsp;         * Fields to be saved to the target object when we can build it. This is only allocated if a field has to be queued.
+<i>374</i>&nbsp;         */
+<i>375</i>&nbsp;        private Consumer&lt;Value&gt;[] queuedFields;
+<i>376</i>&nbsp;        /**
+<i>377</i>&nbsp;         * OrderedModeCallback to be called with the target object when we can
+<i>378</i>&nbsp;         * build it. This is only allocated if the callback has to be queued.
+<i>379</i>&nbsp;         */
+<i>380</i>&nbsp;        private Consumer&lt;Value&gt; queuedOrderedModeCallback;
+<i>381</i>&nbsp;        /**
+<i>382</i>&nbsp;         * The count of fields already queued.
+<i>383</i>&nbsp;         */
+<b class="fc"><i>384</i>&nbsp;        private int queuedFieldsCount = 0;</b>
+<i>385</i>&nbsp;        /**
+<i>386</i>&nbsp;         * The target object. This will be instantiated with the constructor arguments are all parsed.
+<i>387</i>&nbsp;         */
+<i>388</i>&nbsp;        private Value targetObject;
+<i>389</i>&nbsp;
+<b class="fc"><i>390</i>&nbsp;        Target(XContentParser parser, Context context) {</b>
+<b class="fc"><i>391</i>&nbsp;            this.parser = parser;</b>
+<b class="fc"><i>392</i>&nbsp;            this.context = context;</b>
+<b class="fc"><i>393</i>&nbsp;        }</b>
+<i>394</i>&nbsp;
+<i>395</i>&nbsp;        /**
+<i>396</i>&nbsp;         * Set a constructor argument and build the target object if all constructor arguments have arrived.
+<i>397</i>&nbsp;         */
+<i>398</i>&nbsp;        private void constructorArg(int position, Object value) {
+<b class="fc"><i>399</i>&nbsp;            constructorArgs[position] = value;</b>
+<b class="fc"><i>400</i>&nbsp;            constructorArgsCollected++;</b>
+<b class="fc"><i>401</i>&nbsp;            if (constructorArgsCollected == constructorArgInfos.size()) {</b>
+<b class="fc"><i>402</i>&nbsp;                buildTarget();</b>
+<i>403</i>&nbsp;            }
+<b class="fc"><i>404</i>&nbsp;        }</b>
+<i>405</i>&nbsp;
+<i>406</i>&nbsp;        /**
+<i>407</i>&nbsp;         * Queue a consumer that we&#39;ll call once the targetObject is built. If targetObject has been built this will fail because the caller
+<i>408</i>&nbsp;         * should have just applied the consumer immediately.
+<i>409</i>&nbsp;         */
+<i>410</i>&nbsp;        private void queue(Consumer&lt;Value&gt; queueMe) {
+<b class="nc"><i>411</i>&nbsp;            assert targetObject == null: &quot;Don&#39;t queue after the targetObject has been built! Just apply the consumer directly.&quot;;</b>
+<b class="nc"><i>412</i>&nbsp;            if (queuedFields == null) {</b>
+<i>413</i>&nbsp;                @SuppressWarnings({&quot;unchecked&quot;, &quot;rawtypes&quot;})
+<b class="nc"><i>414</i>&nbsp;                Consumer&lt;Value&gt;[] queuedFields = new Consumer[numberOfFields];</b>
+<b class="nc"><i>415</i>&nbsp;                this.queuedFields = queuedFields;</b>
+<i>416</i>&nbsp;            }
+<b class="nc"><i>417</i>&nbsp;            queuedFields[queuedFieldsCount] = queueMe;</b>
+<b class="nc"><i>418</i>&nbsp;            queuedFieldsCount++;</b>
+<b class="nc"><i>419</i>&nbsp;        }</b>
+<i>420</i>&nbsp;
+<i>421</i>&nbsp;        /**
+<i>422</i>&nbsp;         * Finish parsing the object.
+<i>423</i>&nbsp;         */
+<i>424</i>&nbsp;        private Value finish() {
+<b class="fc"><i>425</i>&nbsp;            if (targetObject != null) {</b>
+<b class="fc"><i>426</i>&nbsp;                return targetObject;</b>
+<i>427</i>&nbsp;            }
+<i>428</i>&nbsp;            /*
+<i>429</i>&nbsp;             * The object hasn&#39;t been built which ought to mean we&#39;re missing some constructor arguments. But they could be optional! We&#39;ll
+<i>430</i>&nbsp;             * check if they are all optional and build the error message at the same time - if we don&#39;t start the error message then they
+<i>431</i>&nbsp;             * were all optional!
+<i>432</i>&nbsp;             */
+<b class="nc"><i>433</i>&nbsp;            StringBuilder message = null;</b>
+<b class="nc"><i>434</i>&nbsp;            for (int i = 0; i &lt; constructorArgs.length; i++) {</b>
+<b class="nc"><i>435</i>&nbsp;                if (constructorArgs[i] != null) continue;</b>
+<b class="nc"><i>436</i>&nbsp;                ConstructorArgInfo arg = constructorArgInfos.get(i);</b>
+<b class="nc"><i>437</i>&nbsp;                if (false == arg.required) continue;</b>
+<b class="nc"><i>438</i>&nbsp;                if (message == null) {</b>
+<b class="nc"><i>439</i>&nbsp;                    message = new StringBuilder(&quot;Required [&quot;).append(arg.field);</b>
+<i>440</i>&nbsp;                } else {
+<b class="nc"><i>441</i>&nbsp;                    message.append(&quot;, &quot;).append(arg.field);</b>
+<i>442</i>&nbsp;                }
+<i>443</i>&nbsp;            }
+<b class="nc"><i>444</i>&nbsp;            if (message != null) {</b>
+<i>445</i>&nbsp;                // There were non-optional constructor arguments missing.
+<b class="nc"><i>446</i>&nbsp;                throw new IllegalArgumentException(message.append(&#39;]&#39;).toString());</b>
+<i>447</i>&nbsp;            }
+<i>448</i>&nbsp;            /*
+<i>449</i>&nbsp;             * If there weren&#39;t any constructor arguments declared at all then we won&#39;t get an error message but this isn&#39;t really a valid
+<i>450</i>&nbsp;             * use of ConstructingObjectParser. You should be using ObjectParser instead. Since this is more of a programmer error and the
+<i>451</i>&nbsp;             * parser ought to still work we just assert this.
+<i>452</i>&nbsp;             */
+<b class="nc"><i>453</i>&nbsp;            assert false == constructorArgInfos.isEmpty() : &quot;[&quot; + objectParser.getName() + &quot;] must configure at least one constructor &quot;</b>
+<i>454</i>&nbsp;                        + &quot;argument. If it doesn&#39;t have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug &quot;
+<i>455</i>&nbsp;                        + &quot;in the parser declaration.&quot;;
+<i>456</i>&nbsp;            // All missing constructor arguments were optional. Just build the target and return it.
+<b class="nc"><i>457</i>&nbsp;            buildTarget();</b>
+<b class="nc"><i>458</i>&nbsp;            return targetObject;</b>
+<i>459</i>&nbsp;        }
+<i>460</i>&nbsp;
+<i>461</i>&nbsp;        private void buildTarget() {
+<i>462</i>&nbsp;            try {
+<b class="fc"><i>463</i>&nbsp;                targetObject = builder.apply(constructorArgs, context);</b>
+<b class="fc"><i>464</i>&nbsp;                if (queuedOrderedModeCallback != null) {</b>
+<b class="nc"><i>465</i>&nbsp;                    queuedOrderedModeCallback.accept(targetObject);</b>
+<i>466</i>&nbsp;                }
+<b class="fc"><i>467</i>&nbsp;                while (queuedFieldsCount &gt; 0) {</b>
+<b class="nc"><i>468</i>&nbsp;                    queuedFieldsCount -= 1;</b>
+<b class="nc"><i>469</i>&nbsp;                    queuedFields[queuedFieldsCount].accept(targetObject);</b>
+<i>470</i>&nbsp;                }
+<b class="nc"><i>471</i>&nbsp;            } catch (XContentParseException e) {</b>
+<b class="nc"><i>472</i>&nbsp;                throw new XContentParseException(e.getLocation(),</b>
+<b class="nc"><i>473</i>&nbsp;                    &quot;failed to build [&quot; + objectParser.getName() + &quot;] after last required field arrived&quot;, e);</b>
+<b class="nc"><i>474</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>475</i>&nbsp;                throw new XContentParseException(null,</b>
+<b class="nc"><i>476</i>&nbsp;                        &quot;Failed to build [&quot; + objectParser.getName() + &quot;] after last required field arrived&quot;, e);</b>
+<b class="fc"><i>477</i>&nbsp;            }</b>
+<b class="fc"><i>478</i>&nbsp;        }</b>
+<i>479</i>&nbsp;    }
+<i>480</i>&nbsp;
+<i>481</i>&nbsp;    private static class ConstructorArgInfo {
+<i>482</i>&nbsp;        final ParseField field;
+<i>483</i>&nbsp;        final boolean required;
+<i>484</i>&nbsp;
+<b class="fc"><i>485</i>&nbsp;        ConstructorArgInfo(ParseField field, boolean required) {</b>
+<b class="fc"><i>486</i>&nbsp;            this.field = field;</b>
+<b class="fc"><i>487</i>&nbsp;            this.required = required;</b>
+<b class="fc"><i>488</i>&nbsp;        }</b>
+<i>489</i>&nbsp;    }
+<i>490</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

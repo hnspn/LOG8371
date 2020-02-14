@@ -1,0 +1,285 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TransportMultiSearchAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TransportMultiSearchAction (org.elasticsearch.action.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TransportMultiSearchAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (1/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    16.7%
+  </span>
+  <span class="absValue">
+    (7/ 42)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.search;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>23</i>&nbsp;import org.elasticsearch.action.support.ActionFilters;
+<i>24</i>&nbsp;import org.elasticsearch.action.support.HandledTransportAction;
+<i>25</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>29</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>32</i>&nbsp;import org.elasticsearch.common.util.concurrent.AtomicArray;
+<i>33</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>34</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>35</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>36</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.util.Queue;
+<i>39</i>&nbsp;import java.util.concurrent.ConcurrentLinkedQueue;
+<i>40</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>41</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>42</i>&nbsp;import java.util.function.LongSupplier;
+<i>43</i>&nbsp;
+<b class="nc"><i>44</i>&nbsp;public class TransportMultiSearchAction extends HandledTransportAction&lt;MultiSearchRequest, MultiSearchResponse&gt; {</b>
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    private final int availableProcessors;
+<i>47</i>&nbsp;    private final ThreadPool threadPool;
+<i>48</i>&nbsp;    private final ClusterService clusterService;
+<i>49</i>&nbsp;    private final LongSupplier relativeTimeProvider;
+<i>50</i>&nbsp;    private final NodeClient client;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    @Inject
+<i>53</i>&nbsp;    public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+<i>54</i>&nbsp;                                      ClusterService clusterService, ActionFilters actionFilters, NodeClient client) {
+<b class="fc"><i>55</i>&nbsp;        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader&lt;MultiSearchRequest&gt;) MultiSearchRequest::new);</b>
+<b class="fc"><i>56</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>57</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>58</i>&nbsp;        this.availableProcessors = EsExecutors.numberOfProcessors(settings);</b>
+<b class="fc"><i>59</i>&nbsp;        this.relativeTimeProvider = System::nanoTime;</b>
+<b class="fc"><i>60</i>&nbsp;        this.client = client;</b>
+<b class="fc"><i>61</i>&nbsp;    }</b>
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
+<i>64</i>&nbsp;                               ClusterService clusterService, int availableProcessors,
+<i>65</i>&nbsp;                               LongSupplier relativeTimeProvider, NodeClient client) {
+<b class="nc"><i>66</i>&nbsp;        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader&lt;MultiSearchRequest&gt;) MultiSearchRequest::new);</b>
+<b class="nc"><i>67</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="nc"><i>68</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="nc"><i>69</i>&nbsp;        this.availableProcessors = availableProcessors;</b>
+<b class="nc"><i>70</i>&nbsp;        this.relativeTimeProvider = relativeTimeProvider;</b>
+<b class="nc"><i>71</i>&nbsp;        this.client = client;</b>
+<b class="nc"><i>72</i>&nbsp;    }</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    @Override
+<i>75</i>&nbsp;    protected void doExecute(Task task, MultiSearchRequest request, ActionListener&lt;MultiSearchResponse&gt; listener) {
+<b class="nc"><i>76</i>&nbsp;        final long relativeStartTime = relativeTimeProvider.getAsLong();</b>
+<i>77</i>&nbsp;
+<b class="nc"><i>78</i>&nbsp;        ClusterState clusterState = clusterService.state();</b>
+<b class="nc"><i>79</i>&nbsp;        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);</b>
+<i>80</i>&nbsp;
+<b class="nc"><i>81</i>&nbsp;        int maxConcurrentSearches = request.maxConcurrentSearchRequests();</b>
+<b class="nc"><i>82</i>&nbsp;        if (maxConcurrentSearches == MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {</b>
+<b class="nc"><i>83</i>&nbsp;            maxConcurrentSearches = defaultMaxConcurrentSearches(availableProcessors, clusterState);</b>
+<i>84</i>&nbsp;        }
+<i>85</i>&nbsp;
+<b class="nc"><i>86</i>&nbsp;        Queue&lt;SearchRequestSlot&gt; searchRequestSlots = new ConcurrentLinkedQueue&lt;&gt;();</b>
+<b class="nc"><i>87</i>&nbsp;        for (int i = 0; i &lt; request.requests().size(); i++) {</b>
+<b class="nc"><i>88</i>&nbsp;            SearchRequest searchRequest = request.requests().get(i);</b>
+<b class="nc"><i>89</i>&nbsp;            searchRequest.setParentTask(client.getLocalNodeId(), task.getId());</b>
+<b class="nc"><i>90</i>&nbsp;            searchRequestSlots.add(new SearchRequestSlot(searchRequest, i));</b>
+<i>91</i>&nbsp;        }
+<i>92</i>&nbsp;
+<b class="nc"><i>93</i>&nbsp;        int numRequests = request.requests().size();</b>
+<b class="nc"><i>94</i>&nbsp;        final AtomicArray&lt;MultiSearchResponse.Item&gt; responses = new AtomicArray&lt;&gt;(numRequests);</b>
+<b class="nc"><i>95</i>&nbsp;        final AtomicInteger responseCounter = new AtomicInteger(numRequests);</b>
+<b class="nc"><i>96</i>&nbsp;        int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);</b>
+<b class="nc"><i>97</i>&nbsp;        for (int i = 0; i &lt; numConcurrentSearches; i++) {</b>
+<b class="nc"><i>98</i>&nbsp;            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);</b>
+<i>99</i>&nbsp;        }
+<b class="nc"><i>100</i>&nbsp;    }</b>
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    /*
+<i>103</i>&nbsp;     * This is not perfect and makes a big assumption, that all nodes have the same thread pool size / have the number of processors and
+<i>104</i>&nbsp;     * that shard of the indices the search requests go to are more or less evenly distributed across all nodes in the cluster. But I think
+<i>105</i>&nbsp;     * it is a good enough default for most cases, if not then the default should be overwritten in the request itself.
+<i>106</i>&nbsp;     */
+<i>107</i>&nbsp;    static int defaultMaxConcurrentSearches(int availableProcessors, ClusterState state) {
+<b class="nc"><i>108</i>&nbsp;        int numDateNodes = state.getNodes().getDataNodes().size();</b>
+<i>109</i>&nbsp;        // availableProcessors will never be larger than 32, so max defaultMaxConcurrentSearches will never be larger than 49,
+<i>110</i>&nbsp;        // but we don&#39;t know about about other search requests that are being executed so lets cap at 10 per node
+<b class="nc"><i>111</i>&nbsp;        int defaultSearchThreadPoolSize = Math.min(ThreadPool.searchThreadPoolSize(availableProcessors), 10);</b>
+<b class="nc"><i>112</i>&nbsp;        return Math.max(1, numDateNodes * defaultSearchThreadPoolSize);</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    /**
+<i>116</i>&nbsp;     * Executes a single request from the queue of requests. When a request finishes, another request is taken from the queue. When a
+<i>117</i>&nbsp;     * request is executed, a permit is taken on the specified semaphore, and released as each request completes.
+<i>118</i>&nbsp;     *
+<i>119</i>&nbsp;     * @param requests the queue of multi-search requests to execute
+<i>120</i>&nbsp;     * @param responses atomic array to hold the responses corresponding to each search request slot
+<i>121</i>&nbsp;     * @param responseCounter incremented on each response
+<i>122</i>&nbsp;     * @param listener the listener attached to the multi-search request
+<i>123</i>&nbsp;     */
+<i>124</i>&nbsp;    void executeSearch(
+<i>125</i>&nbsp;            final Queue&lt;SearchRequestSlot&gt; requests,
+<i>126</i>&nbsp;            final AtomicArray&lt;MultiSearchResponse.Item&gt; responses,
+<i>127</i>&nbsp;            final AtomicInteger responseCounter,
+<i>128</i>&nbsp;            final ActionListener&lt;MultiSearchResponse&gt; listener,
+<i>129</i>&nbsp;            final long relativeStartTime) {
+<b class="nc"><i>130</i>&nbsp;        SearchRequestSlot request = requests.poll();</b>
+<b class="nc"><i>131</i>&nbsp;        if (request == null) {</b>
+<i>132</i>&nbsp;            /*
+<i>133</i>&nbsp;             * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
+<i>134</i>&nbsp;             * of concurrent requests. At first glance, it appears that we should never poll from the queue and not obtain a request given
+<i>135</i>&nbsp;             * that we only poll here no more times than the number of requests. However, this is not the only consumer of this queue as
+<i>136</i>&nbsp;             * earlier requests that have already completed will poll from the queue too and they could complete before later polls are
+<i>137</i>&nbsp;             * invoked here. Thus, it can be the case that we poll here and the queue was empty.
+<i>138</i>&nbsp;             */
+<b class="nc"><i>139</i>&nbsp;            return;</b>
+<i>140</i>&nbsp;        }
+<i>141</i>&nbsp;
+<i>142</i>&nbsp;        /*
+<i>143</i>&nbsp;         * With a request in hand, we are now prepared to execute the search request. There are two possibilities, either we go asynchronous
+<i>144</i>&nbsp;         * or we do not (this can happen if the request does not resolve to any shards). If we do not go asynchronous, we are going to come
+<i>145</i>&nbsp;         * back on the same thread that attempted to execute the search request. At this point, or any other point where we come back on the
+<i>146</i>&nbsp;         * same thread as when the request was submitted, we should not recurse lest we might descend into a stack overflow. To avoid this,
+<i>147</i>&nbsp;         * when we handle the response rather than going recursive, we fork to another thread, otherwise we recurse.
+<i>148</i>&nbsp;         */
+<b class="nc"><i>149</i>&nbsp;        final Thread thread = Thread.currentThread();</b>
+<b class="nc"><i>150</i>&nbsp;        client.search(request.request, new ActionListener&lt;SearchResponse&gt;() {</b>
+<i>151</i>&nbsp;            @Override
+<i>152</i>&nbsp;            public void onResponse(final SearchResponse searchResponse) {
+<i>153</i>&nbsp;                handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
+<i>154</i>&nbsp;            }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;            @Override
+<i>157</i>&nbsp;            public void onFailure(final Exception e) {
+<i>158</i>&nbsp;                handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
+<i>159</i>&nbsp;            }
+<i>160</i>&nbsp;
+<i>161</i>&nbsp;            private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
+<i>162</i>&nbsp;                responses.set(responseSlot, item);
+<i>163</i>&nbsp;                if (responseCounter.decrementAndGet() == 0) {
+<i>164</i>&nbsp;                    assert requests.isEmpty();
+<i>165</i>&nbsp;                    finish();
+<i>166</i>&nbsp;                } else {
+<i>167</i>&nbsp;                    if (thread == Thread.currentThread()) {
+<i>168</i>&nbsp;                        // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
+<i>169</i>&nbsp;                        threadPool.generic()
+<i>170</i>&nbsp;                                .execute(() -&gt; executeSearch(requests, responses, responseCounter, listener, relativeStartTime));
+<i>171</i>&nbsp;                    } else {
+<i>172</i>&nbsp;                        // we are on a different thread (we went asynchronous), it&#39;s safe to recurse
+<i>173</i>&nbsp;                        executeSearch(requests, responses, responseCounter, listener, relativeStartTime);
+<i>174</i>&nbsp;                    }
+<i>175</i>&nbsp;                }
+<i>176</i>&nbsp;            }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;            private void finish() {
+<i>179</i>&nbsp;                listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]),
+<i>180</i>&nbsp;                        buildTookInMillis()));
+<i>181</i>&nbsp;            }
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;            /**
+<i>184</i>&nbsp;             * Builds how long it took to execute the msearch.
+<i>185</i>&nbsp;             */
+<i>186</i>&nbsp;            private long buildTookInMillis() {
+<i>187</i>&nbsp;                return TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - relativeStartTime);
+<i>188</i>&nbsp;            }
+<i>189</i>&nbsp;        });
+<b class="nc"><i>190</i>&nbsp;    }</b>
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    static final class SearchRequestSlot {
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        final SearchRequest request;
+<i>195</i>&nbsp;        final int responseSlot;
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;        SearchRequestSlot(SearchRequest request, int responseSlot) {
+<i>198</i>&nbsp;            this.request = request;
+<i>199</i>&nbsp;            this.responseSlot = responseSlot;
+<i>200</i>&nbsp;        }
+<i>201</i>&nbsp;    }
+<i>202</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

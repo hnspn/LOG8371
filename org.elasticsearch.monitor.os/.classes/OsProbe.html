@@ -1,0 +1,769 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: OsProbe</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.monitor.os</a> ]
+</div>
+
+<h1>Coverage Summary for Class: OsProbe (org.elasticsearch.monitor.os)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">OsProbe</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.6%
+  </span>
+  <span class="absValue">
+    (13/ 32)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.5%
+  </span>
+  <span class="absValue">
+    (43/ 191)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">OsProbe$OsProbeHolder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    44.1%
+  </span>
+  <span class="absValue">
+    (15/ 34)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    23.3%
+  </span>
+  <span class="absValue">
+    (45/ 193)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.monitor.os;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.lucene.util.Constants;
+<i>25</i>&nbsp;import org.elasticsearch.common.SuppressForbidden;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.PathUtils;
+<i>27</i>&nbsp;import org.elasticsearch.monitor.Probes;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.io.IOException;
+<i>30</i>&nbsp;import java.lang.management.ManagementFactory;
+<i>31</i>&nbsp;import java.lang.management.OperatingSystemMXBean;
+<i>32</i>&nbsp;import java.lang.reflect.InvocationTargetException;
+<i>33</i>&nbsp;import java.lang.reflect.Method;
+<i>34</i>&nbsp;import java.nio.file.Files;
+<i>35</i>&nbsp;import java.nio.file.Path;
+<i>36</i>&nbsp;import java.util.Collections;
+<i>37</i>&nbsp;import java.util.HashMap;
+<i>38</i>&nbsp;import java.util.List;
+<i>39</i>&nbsp;import java.util.Map;
+<i>40</i>&nbsp;import java.util.Optional;
+<i>41</i>&nbsp;import java.util.regex.Matcher;
+<i>42</i>&nbsp;import java.util.regex.Pattern;
+<i>43</i>&nbsp;import java.util.stream.Collectors;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;/**
+<i>46</i>&nbsp; * The {@link OsProbe} class retrieves information about the physical and swap size of the machine
+<i>47</i>&nbsp; * memory, as well as the system load average and cpu load.
+<i>48</i>&nbsp; *
+<i>49</i>&nbsp; * In some exceptional cases, it&#39;s possible the underlying native method used by
+<i>50</i>&nbsp; * {@link #getFreePhysicalMemorySize()} and {@link #getTotalPhysicalMemorySize()} can return a
+<i>51</i>&nbsp; * negative value. Because of this, we prevent those methods from returning negative values,
+<i>52</i>&nbsp; * returning 0 instead.
+<i>53</i>&nbsp; *
+<i>54</i>&nbsp; * The OS can report a negative number in a number of cases:
+<i>55</i>&nbsp; * - Non-supported OSes (HP-UX, or AIX)
+<i>56</i>&nbsp; * - A failure of macOS to initialize host statistics
+<i>57</i>&nbsp; * - An OS that does not support the {@code _SC_PHYS_PAGES} or {@code _SC_PAGE_SIZE} flags for the {@code sysconf()} linux kernel call
+<i>58</i>&nbsp; * - An overflow of the product of {@code _SC_PHYS_PAGES} and {@code _SC_PAGE_SIZE}
+<i>59</i>&nbsp; * - An error case retrieving these values from a linux kernel
+<i>60</i>&nbsp; * - A non-standard libc implementation not implementing the required values
+<i>61</i>&nbsp; * For a more exhaustive explanation, see https://github.com/elastic/elasticsearch/pull/42725
+<i>62</i>&nbsp; */
+<b class="fc"><i>63</i>&nbsp;public class OsProbe {</b>
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    private static final Method getFreePhysicalMemorySize;
+<i>68</i>&nbsp;    private static final Method getTotalPhysicalMemorySize;
+<i>69</i>&nbsp;    private static final Method getFreeSwapSpaceSize;
+<i>70</i>&nbsp;    private static final Method getTotalSwapSpaceSize;
+<i>71</i>&nbsp;    private static final Method getSystemLoadAverage;
+<i>72</i>&nbsp;    private static final Method getSystemCpuLoad;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    static {
+<b class="fc"><i>75</i>&nbsp;        getFreePhysicalMemorySize = getMethod(&quot;getFreePhysicalMemorySize&quot;);</b>
+<b class="fc"><i>76</i>&nbsp;        getTotalPhysicalMemorySize = getMethod(&quot;getTotalPhysicalMemorySize&quot;);</b>
+<b class="fc"><i>77</i>&nbsp;        getFreeSwapSpaceSize = getMethod(&quot;getFreeSwapSpaceSize&quot;);</b>
+<b class="fc"><i>78</i>&nbsp;        getTotalSwapSpaceSize = getMethod(&quot;getTotalSwapSpaceSize&quot;);</b>
+<b class="fc"><i>79</i>&nbsp;        getSystemLoadAverage = getMethod(&quot;getSystemLoadAverage&quot;);</b>
+<b class="fc"><i>80</i>&nbsp;        getSystemCpuLoad = getMethod(&quot;getSystemCpuLoad&quot;);</b>
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    /**
+<i>84</i>&nbsp;     * Returns the amount of free physical memory in bytes.
+<i>85</i>&nbsp;     */
+<i>86</i>&nbsp;    public long getFreePhysicalMemorySize() {
+<b class="fc"><i>87</i>&nbsp;        if (getFreePhysicalMemorySize == null) {</b>
+<b class="nc"><i>88</i>&nbsp;            logger.warn(&quot;getFreePhysicalMemorySize is not available&quot;);</b>
+<b class="nc"><i>89</i>&nbsp;            return 0;</b>
+<i>90</i>&nbsp;        }
+<i>91</i>&nbsp;        try {
+<b class="fc"><i>92</i>&nbsp;            final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);</b>
+<b class="fc"><i>93</i>&nbsp;            if (freeMem &lt; 0) {</b>
+<b class="nc"><i>94</i>&nbsp;                logger.warn(&quot;OS reported a negative free memory value [{}]&quot;, freeMem);</b>
+<b class="nc"><i>95</i>&nbsp;                return 0;</b>
+<i>96</i>&nbsp;            }
+<b class="fc"><i>97</i>&nbsp;            return freeMem;</b>
+<b class="nc"><i>98</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>99</i>&nbsp;            logger.warn(&quot;exception retrieving free physical memory&quot;, e);</b>
+<b class="nc"><i>100</i>&nbsp;            return 0;</b>
+<i>101</i>&nbsp;        }
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    /**
+<i>105</i>&nbsp;     * Returns the total amount of physical memory in bytes.
+<i>106</i>&nbsp;     */
+<i>107</i>&nbsp;    public long getTotalPhysicalMemorySize() {
+<b class="fc"><i>108</i>&nbsp;        if (getTotalPhysicalMemorySize == null) {</b>
+<b class="nc"><i>109</i>&nbsp;            logger.warn(&quot;getTotalPhysicalMemorySize is not available&quot;);</b>
+<b class="nc"><i>110</i>&nbsp;            return 0;</b>
+<i>111</i>&nbsp;        }
+<i>112</i>&nbsp;        try {
+<b class="fc"><i>113</i>&nbsp;            final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);</b>
+<b class="fc"><i>114</i>&nbsp;            if (totalMem &lt; 0) {</b>
+<b class="nc"><i>115</i>&nbsp;                logger.warn(&quot;OS reported a negative total memory value [{}]&quot;, totalMem);</b>
+<b class="nc"><i>116</i>&nbsp;                return 0;</b>
+<i>117</i>&nbsp;            }
+<b class="fc"><i>118</i>&nbsp;            return totalMem;</b>
+<b class="nc"><i>119</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>120</i>&nbsp;            logger.warn(&quot;exception retrieving total physical memory&quot;, e);</b>
+<b class="nc"><i>121</i>&nbsp;            return 0;</b>
+<i>122</i>&nbsp;        }
+<i>123</i>&nbsp;    }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    /**
+<i>126</i>&nbsp;     * Returns the amount of free swap space in bytes.
+<i>127</i>&nbsp;     */
+<i>128</i>&nbsp;    public long getFreeSwapSpaceSize() {
+<b class="fc"><i>129</i>&nbsp;        if (getFreeSwapSpaceSize == null) {</b>
+<b class="nc"><i>130</i>&nbsp;            return -1;</b>
+<i>131</i>&nbsp;        }
+<i>132</i>&nbsp;        try {
+<b class="fc"><i>133</i>&nbsp;            return (long) getFreeSwapSpaceSize.invoke(osMxBean);</b>
+<b class="nc"><i>134</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>135</i>&nbsp;            return -1;</b>
+<i>136</i>&nbsp;        }
+<i>137</i>&nbsp;    }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * Returns the total amount of swap space in bytes.
+<i>141</i>&nbsp;     */
+<i>142</i>&nbsp;    public long getTotalSwapSpaceSize() {
+<b class="fc"><i>143</i>&nbsp;        if (getTotalSwapSpaceSize == null) {</b>
+<b class="nc"><i>144</i>&nbsp;            return -1;</b>
+<i>145</i>&nbsp;        }
+<i>146</i>&nbsp;        try {
+<b class="fc"><i>147</i>&nbsp;            return (long) getTotalSwapSpaceSize.invoke(osMxBean);</b>
+<b class="nc"><i>148</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>149</i>&nbsp;            return -1;</b>
+<i>150</i>&nbsp;        }
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    /**
+<i>154</i>&nbsp;     * The system load averages as an array.
+<i>155</i>&nbsp;     *
+<i>156</i>&nbsp;     * On Windows, this method returns {@code null}.
+<i>157</i>&nbsp;     *
+<i>158</i>&nbsp;     * On Linux, this method returns the 1, 5, and 15-minute load averages.
+<i>159</i>&nbsp;     *
+<i>160</i>&nbsp;     * On macOS, this method should return the 1-minute load average.
+<i>161</i>&nbsp;     *
+<i>162</i>&nbsp;     * @return the available system load averages or {@code null}
+<i>163</i>&nbsp;     */
+<i>164</i>&nbsp;    final double[] getSystemLoadAverage() {
+<b class="fc"><i>165</i>&nbsp;        if (Constants.WINDOWS) {</b>
+<b class="nc"><i>166</i>&nbsp;            return null;</b>
+<b class="fc"><i>167</i>&nbsp;        } else if (Constants.LINUX) {</b>
+<i>168</i>&nbsp;            try {
+<b class="nc"><i>169</i>&nbsp;                final String procLoadAvg = readProcLoadavg();</b>
+<b class="nc"><i>170</i>&nbsp;                assert procLoadAvg.matches(&quot;(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+&quot;);</b>
+<b class="nc"><i>171</i>&nbsp;                final String[] fields = procLoadAvg.split(&quot;\\s+&quot;);</b>
+<b class="nc"><i>172</i>&nbsp;                return new double[]{Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2])};</b>
+<b class="nc"><i>173</i>&nbsp;            } catch (final IOException e) {</b>
+<b class="nc"><i>174</i>&nbsp;                if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>175</i>&nbsp;                    logger.debug(&quot;error reading /proc/loadavg&quot;, e);</b>
+<i>176</i>&nbsp;                }
+<b class="nc"><i>177</i>&nbsp;                return null;</b>
+<i>178</i>&nbsp;            }
+<i>179</i>&nbsp;        } else {
+<b class="fc"><i>180</i>&nbsp;            assert Constants.MAC_OS_X;</b>
+<b class="fc"><i>181</i>&nbsp;            if (getSystemLoadAverage == null) {</b>
+<b class="nc"><i>182</i>&nbsp;                return null;</b>
+<i>183</i>&nbsp;            }
+<i>184</i>&nbsp;            try {
+<b class="fc"><i>185</i>&nbsp;                final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);</b>
+<b class="fc"><i>186</i>&nbsp;                return new double[]{oneMinuteLoadAverage &gt;= 0 ? oneMinuteLoadAverage : -1, -1, -1};</b>
+<b class="nc"><i>187</i>&nbsp;            } catch (IllegalAccessException | InvocationTargetException e) {</b>
+<b class="nc"><i>188</i>&nbsp;                if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>189</i>&nbsp;                    logger.debug(&quot;error reading one minute load average from operating system&quot;, e);</b>
+<i>190</i>&nbsp;                }
+<b class="nc"><i>191</i>&nbsp;                return null;</b>
+<i>192</i>&nbsp;            }
+<i>193</i>&nbsp;        }
+<i>194</i>&nbsp;    }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    /**
+<i>197</i>&nbsp;     * The line from {@code /proc/loadavg}. The first three fields are the load averages averaged over 1, 5, and 15 minutes. The fourth
+<i>198</i>&nbsp;     * field is two numbers separated by a slash, the first is the number of currently runnable scheduling entities, the second is the
+<i>199</i>&nbsp;     * number of scheduling entities on the system. The fifth field is the PID of the most recently created process.
+<i>200</i>&nbsp;     *
+<i>201</i>&nbsp;     * @return the line from {@code /proc/loadavg} or {@code null}
+<i>202</i>&nbsp;     */
+<i>203</i>&nbsp;    @SuppressForbidden(reason = &quot;access /proc/loadavg&quot;)
+<i>204</i>&nbsp;    String readProcLoadavg() throws IOException {
+<b class="nc"><i>205</i>&nbsp;        return readSingleLine(PathUtils.get(&quot;/proc/loadavg&quot;));</b>
+<i>206</i>&nbsp;    }
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;    public short getSystemCpuPercent() {
+<b class="fc"><i>209</i>&nbsp;        return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);</b>
+<i>210</i>&nbsp;    }
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    /**
+<i>213</i>&nbsp;     * Reads a file containing a single line.
+<i>214</i>&nbsp;     *
+<i>215</i>&nbsp;     * @param path path to the file to read
+<i>216</i>&nbsp;     * @return the single line
+<i>217</i>&nbsp;     * @throws IOException if an I/O exception occurs reading the file
+<i>218</i>&nbsp;     */
+<i>219</i>&nbsp;    private String readSingleLine(final Path path) throws IOException {
+<b class="nc"><i>220</i>&nbsp;        final List&lt;String&gt; lines = Files.readAllLines(path);</b>
+<b class="nc"><i>221</i>&nbsp;        assert lines != null &amp;&amp; lines.size() == 1;</b>
+<b class="nc"><i>222</i>&nbsp;        return lines.get(0);</b>
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
+<i>226</i>&nbsp;    // respect to /proc/self/cgroup; for Docker containers this should be set to &quot;/&quot;
+<b class="fc"><i>227</i>&nbsp;    private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty(&quot;es.cgroups.hierarchy.override&quot;);</b>
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    /**
+<i>230</i>&nbsp;     * A map of the control groups to which the Elasticsearch process belongs. Note that this is a map because the control groups can vary
+<i>231</i>&nbsp;     * from subsystem to subsystem. Additionally, this map can not be cached because a running process can be reclassified.
+<i>232</i>&nbsp;     *
+<i>233</i>&nbsp;     * @return a map from subsystems to the control group for the Elasticsearch process.
+<i>234</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}
+<i>235</i>&nbsp;     */
+<i>236</i>&nbsp;    private Map&lt;String, String&gt; getControlGroups() throws IOException {
+<b class="nc"><i>237</i>&nbsp;        final List&lt;String&gt; lines = readProcSelfCgroup();</b>
+<b class="nc"><i>238</i>&nbsp;        final Map&lt;String, String&gt; controllerMap = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>239</i>&nbsp;        for (final String line : lines) {</b>
+<i>240</i>&nbsp;            /*
+<i>241</i>&nbsp;             * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
+<i>242</i>&nbsp;             * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
+<i>243</i>&nbsp;             * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
+<i>244</i>&nbsp;             * version 2 hierarchy. For cgroups version 1
+<i>245</i>&nbsp;             */
+<b class="nc"><i>246</i>&nbsp;            final String[] fields = line.split(&quot;:&quot;);</b>
+<b class="nc"><i>247</i>&nbsp;            assert fields.length == 3;</b>
+<b class="nc"><i>248</i>&nbsp;            final String[] controllers = fields[1].split(&quot;,&quot;);</b>
+<b class="nc"><i>249</i>&nbsp;            for (final String controller : controllers) {</b>
+<i>250</i>&nbsp;                final String controlGroupPath;
+<b class="nc"><i>251</i>&nbsp;                if (CONTROL_GROUPS_HIERARCHY_OVERRIDE != null) {</b>
+<i>252</i>&nbsp;                    /*
+<i>253</i>&nbsp;                     * Docker violates the relationship between /proc/self/cgroup and the /sys/fs/cgroup hierarchy. It&#39;s possible that this
+<i>254</i>&nbsp;                     * will be fixed in future versions of Docker with cgroup namespaces, but this requires modern kernels. Thus, we provide
+<i>255</i>&nbsp;                     * an undocumented hack for overriding the control group path. Do not rely on this hack, it will be removed.
+<i>256</i>&nbsp;                     */
+<b class="nc"><i>257</i>&nbsp;                    controlGroupPath = CONTROL_GROUPS_HIERARCHY_OVERRIDE;</b>
+<i>258</i>&nbsp;                } else {
+<b class="nc"><i>259</i>&nbsp;                    controlGroupPath = fields[2];</b>
+<i>260</i>&nbsp;                }
+<b class="nc"><i>261</i>&nbsp;                final String previous = controllerMap.put(controller, controlGroupPath);</b>
+<b class="nc"><i>262</i>&nbsp;                assert previous == null;</b>
+<i>263</i>&nbsp;            }
+<b class="nc"><i>264</i>&nbsp;        }</b>
+<b class="nc"><i>265</i>&nbsp;        return controllerMap;</b>
+<i>266</i>&nbsp;    }
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    /**
+<i>269</i>&nbsp;     * The lines from {@code /proc/self/cgroup}. This file represents the control groups to which the Elasticsearch process belongs. Each
+<i>270</i>&nbsp;     * line in this file represents a control group hierarchy of the form
+<i>271</i>&nbsp;     * &lt;p&gt;
+<i>272</i>&nbsp;     * {@code \d+:([^:,]+(?:,[^:,]+)?):(/.*)}
+<i>273</i>&nbsp;     * &lt;p&gt;
+<i>274</i>&nbsp;     * with the first field representing the hierarchy ID, the second field representing a comma-separated list of the subsystems bound to
+<i>275</i>&nbsp;     * the hierarchy, and the last field representing the control group.
+<i>276</i>&nbsp;     *
+<i>277</i>&nbsp;     * @return the lines from {@code /proc/self/cgroup}
+<i>278</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}
+<i>279</i>&nbsp;     */
+<i>280</i>&nbsp;    @SuppressForbidden(reason = &quot;access /proc/self/cgroup&quot;)
+<i>281</i>&nbsp;    List&lt;String&gt; readProcSelfCgroup() throws IOException {
+<b class="nc"><i>282</i>&nbsp;        final List&lt;String&gt; lines = Files.readAllLines(PathUtils.get(&quot;/proc/self/cgroup&quot;));</b>
+<b class="nc"><i>283</i>&nbsp;        assert lines != null &amp;&amp; !lines.isEmpty();</b>
+<b class="nc"><i>284</i>&nbsp;        return lines;</b>
+<i>285</i>&nbsp;    }
+<i>286</i>&nbsp;
+<i>287</i>&nbsp;    /**
+<i>288</i>&nbsp;     * The total CPU time in nanoseconds consumed by all tasks in the cgroup to which the Elasticsearch process belongs for the {@code
+<i>289</i>&nbsp;     * cpuacct} subsystem.
+<i>290</i>&nbsp;     *
+<i>291</i>&nbsp;     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
+<i>292</i>&nbsp;     * @return the total CPU time in nanoseconds
+<i>293</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
+<i>294</i>&nbsp;     */
+<i>295</i>&nbsp;    private long getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
+<b class="nc"><i>296</i>&nbsp;        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));</b>
+<i>297</i>&nbsp;    }
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    /**
+<i>300</i>&nbsp;     * Returns the line from {@code cpuacct.usage} for the control group to which the Elasticsearch process belongs for the {@code cpuacct}
+<i>301</i>&nbsp;     * subsystem. This line represents the total CPU time in nanoseconds consumed by all tasks in the same control group.
+<i>302</i>&nbsp;     *
+<i>303</i>&nbsp;     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpuacct} subsystem
+<i>304</i>&nbsp;     * @return the line from {@code cpuacct.usage}
+<i>305</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
+<i>306</i>&nbsp;     */
+<i>307</i>&nbsp;    @SuppressForbidden(reason = &quot;access /sys/fs/cgroup/cpuacct&quot;)
+<i>308</i>&nbsp;    String readSysFsCgroupCpuAcctCpuAcctUsage(final String controlGroup) throws IOException {
+<b class="nc"><i>309</i>&nbsp;        return readSingleLine(PathUtils.get(&quot;/sys/fs/cgroup/cpuacct&quot;, controlGroup, &quot;cpuacct.usage&quot;));</b>
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    /**
+<i>313</i>&nbsp;     * The total period of time in microseconds for how frequently the Elasticsearch control group&#39;s access to CPU resources will be
+<i>314</i>&nbsp;     * reallocated.
+<i>315</i>&nbsp;     *
+<i>316</i>&nbsp;     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
+<i>317</i>&nbsp;     * @return the CFS quota period in microseconds
+<i>318</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_period_us} for the control group
+<i>319</i>&nbsp;     */
+<i>320</i>&nbsp;    private long getCgroupCpuAcctCpuCfsPeriodMicros(final String controlGroup) throws IOException {
+<b class="nc"><i>321</i>&nbsp;        return Long.parseLong(readSysFsCgroupCpuAcctCpuCfsPeriod(controlGroup));</b>
+<i>322</i>&nbsp;    }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    /**
+<i>325</i>&nbsp;     * Returns the line from {@code cpu.cfs_period_us} for the control group to which the Elasticsearch process belongs for the {@code cpu}
+<i>326</i>&nbsp;     * subsystem. This line represents the period of time in microseconds for how frequently the control group&#39;s access to CPU resources
+<i>327</i>&nbsp;     * will be reallocated.
+<i>328</i>&nbsp;     *
+<i>329</i>&nbsp;     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
+<i>330</i>&nbsp;     * @return the line from {@code cpu.cfs_period_us}
+<i>331</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_period_us} for the control group
+<i>332</i>&nbsp;     */
+<i>333</i>&nbsp;    @SuppressForbidden(reason = &quot;access /sys/fs/cgroup/cpu&quot;)
+<i>334</i>&nbsp;    String readSysFsCgroupCpuAcctCpuCfsPeriod(final String controlGroup) throws IOException {
+<b class="nc"><i>335</i>&nbsp;        return readSingleLine(PathUtils.get(&quot;/sys/fs/cgroup/cpu&quot;, controlGroup, &quot;cpu.cfs_period_us&quot;));</b>
+<i>336</i>&nbsp;    }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    /**
+<i>339</i>&nbsp;     * The total time in microseconds that all tasks in the Elasticsearch control group can run during one period as specified by {@code
+<i>340</i>&nbsp;     * cpu.cfs_period_us}.
+<i>341</i>&nbsp;     *
+<i>342</i>&nbsp;     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
+<i>343</i>&nbsp;     * @return the CFS quota in microseconds
+<i>344</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_quota_us} for the control group
+<i>345</i>&nbsp;     */
+<i>346</i>&nbsp;    private long getCgroupCpuAcctCpuCfsQuotaMicros(final String controlGroup) throws IOException {
+<b class="nc"><i>347</i>&nbsp;        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctCfsQuota(controlGroup));</b>
+<i>348</i>&nbsp;    }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    /**
+<i>351</i>&nbsp;     * Returns the line from {@code cpu.cfs_quota_us} for the control group to which the Elasticsearch process belongs for the {@code cpu}
+<i>352</i>&nbsp;     * subsystem. This line represents the total time in microseconds that all tasks in the control group can run during one period as
+<i>353</i>&nbsp;     * specified by {@code cpu.cfs_period_us}.
+<i>354</i>&nbsp;     *
+<i>355</i>&nbsp;     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
+<i>356</i>&nbsp;     * @return the line from {@code cpu.cfs_quota_us}
+<i>357</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpu.cfs_quota_us} for the control group
+<i>358</i>&nbsp;     */
+<i>359</i>&nbsp;    @SuppressForbidden(reason = &quot;access /sys/fs/cgroup/cpu&quot;)
+<i>360</i>&nbsp;    String readSysFsCgroupCpuAcctCpuAcctCfsQuota(final String controlGroup) throws IOException {
+<b class="nc"><i>361</i>&nbsp;        return readSingleLine(PathUtils.get(&quot;/sys/fs/cgroup/cpu&quot;, controlGroup, &quot;cpu.cfs_quota_us&quot;));</b>
+<i>362</i>&nbsp;    }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;    /**
+<i>365</i>&nbsp;     * The CPU time statistics for all tasks in the Elasticsearch control group.
+<i>366</i>&nbsp;     *
+<i>367</i>&nbsp;     * @param controlGroup the control group for the Elasticsearch process for the {@code cpuacct} subsystem
+<i>368</i>&nbsp;     * @return the CPU time statistics
+<i>369</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
+<i>370</i>&nbsp;     */
+<i>371</i>&nbsp;    private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
+<b class="nc"><i>372</i>&nbsp;        final List&lt;String&gt; lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);</b>
+<b class="nc"><i>373</i>&nbsp;        long numberOfPeriods = -1;</b>
+<b class="nc"><i>374</i>&nbsp;        long numberOfTimesThrottled = -1;</b>
+<b class="nc"><i>375</i>&nbsp;        long timeThrottledNanos = -1;</b>
+<b class="nc"><i>376</i>&nbsp;        for (final String line : lines) {</b>
+<b class="nc"><i>377</i>&nbsp;            final String[] fields = line.split(&quot;\\s+&quot;);</b>
+<b class="nc"><i>378</i>&nbsp;            switch (fields[0]) {</b>
+<i>379</i>&nbsp;                case &quot;nr_periods&quot;:
+<b class="nc"><i>380</i>&nbsp;                    numberOfPeriods = Long.parseLong(fields[1]);</b>
+<b class="nc"><i>381</i>&nbsp;                    break;</b>
+<i>382</i>&nbsp;                case &quot;nr_throttled&quot;:
+<b class="nc"><i>383</i>&nbsp;                    numberOfTimesThrottled = Long.parseLong(fields[1]);</b>
+<b class="nc"><i>384</i>&nbsp;                    break;</b>
+<i>385</i>&nbsp;                case &quot;throttled_time&quot;:
+<b class="nc"><i>386</i>&nbsp;                    timeThrottledNanos = Long.parseLong(fields[1]);</b>
+<i>387</i>&nbsp;                    break;
+<i>388</i>&nbsp;            }
+<b class="nc"><i>389</i>&nbsp;        }</b>
+<b class="nc"><i>390</i>&nbsp;        assert numberOfPeriods != -1;</b>
+<b class="nc"><i>391</i>&nbsp;        assert numberOfTimesThrottled != -1;</b>
+<b class="nc"><i>392</i>&nbsp;        assert timeThrottledNanos != -1;</b>
+<b class="nc"><i>393</i>&nbsp;        return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);</b>
+<i>394</i>&nbsp;    }
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;    /**
+<i>397</i>&nbsp;     * Returns the lines from {@code cpu.stat} for the control group to which the Elasticsearch process belongs for the {@code cpu}
+<i>398</i>&nbsp;     * subsystem. These lines represent the CPU time statistics and have the form
+<i>399</i>&nbsp;     * &lt;blockquote&gt;&lt;pre&gt;
+<i>400</i>&nbsp;     * nr_periods \d+
+<i>401</i>&nbsp;     * nr_throttled \d+
+<i>402</i>&nbsp;     * throttled_time \d+
+<i>403</i>&nbsp;     * &lt;/pre&gt;&lt;/blockquote&gt;
+<i>404</i>&nbsp;     * where {@code nr_periods} is the number of period intervals as specified by {@code cpu.cfs_period_us} that have elapsed, {@code
+<i>405</i>&nbsp;     * nr_throttled} is the number of times tasks in the given control group have been throttled, and {@code throttled_time} is the total
+<i>406</i>&nbsp;     * time in nanoseconds for which tasks in the given control group have been throttled.
+<i>407</i>&nbsp;     *
+<i>408</i>&nbsp;     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
+<i>409</i>&nbsp;     * @return the lines from {@code cpu.stat}
+<i>410</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
+<i>411</i>&nbsp;     */
+<i>412</i>&nbsp;    @SuppressForbidden(reason = &quot;access /sys/fs/cgroup/cpu&quot;)
+<i>413</i>&nbsp;    List&lt;String&gt; readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
+<b class="nc"><i>414</i>&nbsp;        final List&lt;String&gt; lines = Files.readAllLines(PathUtils.get(&quot;/sys/fs/cgroup/cpu&quot;, controlGroup, &quot;cpu.stat&quot;));</b>
+<b class="nc"><i>415</i>&nbsp;        assert lines != null &amp;&amp; lines.size() == 3;</b>
+<b class="nc"><i>416</i>&nbsp;        return lines;</b>
+<i>417</i>&nbsp;    }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    /**
+<i>420</i>&nbsp;     * The maximum amount of user memory (including file cache).
+<i>421</i>&nbsp;     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+<i>422</i>&nbsp;     * unsigned 64 bit number, and this will overflow a long, hence the result type is &lt;code&gt;String&lt;/code&gt;.
+<i>423</i>&nbsp;     * (The alternative would have been &lt;code&gt;BigInteger&lt;/code&gt; but then it would not be possible to index
+<i>424</i>&nbsp;     * the OS stats document into Elasticsearch without losing information, as &lt;code&gt;BigInteger&lt;/code&gt; is
+<i>425</i>&nbsp;     * not a supported Elasticsearch type.)
+<i>426</i>&nbsp;     *
+<i>427</i>&nbsp;     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+<i>428</i>&nbsp;     * @return the maximum amount of user memory (including file cache)
+<i>429</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+<i>430</i>&nbsp;     */
+<i>431</i>&nbsp;    private String getCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+<b class="nc"><i>432</i>&nbsp;        return readSysFsCgroupMemoryLimitInBytes(controlGroup);</b>
+<i>433</i>&nbsp;    }
+<i>434</i>&nbsp;
+<i>435</i>&nbsp;    /**
+<i>436</i>&nbsp;     * Returns the line from {@code memory.limit_in_bytes} for the control group to which the Elasticsearch process belongs for the
+<i>437</i>&nbsp;     * {@code memory} subsystem. This line represents the maximum amount of user memory (including file cache).
+<i>438</i>&nbsp;     *
+<i>439</i>&nbsp;     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+<i>440</i>&nbsp;     * @return the line from {@code memory.limit_in_bytes}
+<i>441</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+<i>442</i>&nbsp;     */
+<i>443</i>&nbsp;    @SuppressForbidden(reason = &quot;access /sys/fs/cgroup/memory&quot;)
+<i>444</i>&nbsp;    String readSysFsCgroupMemoryLimitInBytes(final String controlGroup) throws IOException {
+<b class="nc"><i>445</i>&nbsp;        return readSingleLine(PathUtils.get(&quot;/sys/fs/cgroup/memory&quot;, controlGroup, &quot;memory.limit_in_bytes&quot;));</b>
+<i>446</i>&nbsp;    }
+<i>447</i>&nbsp;
+<i>448</i>&nbsp;    /**
+<i>449</i>&nbsp;     * The total current memory usage by processes in the cgroup (in bytes).
+<i>450</i>&nbsp;     * If there is no limit then some Linux versions return the maximum value that can be stored in an
+<i>451</i>&nbsp;     * unsigned 64 bit number, and this will overflow a long, hence the result type is &lt;code&gt;String&lt;/code&gt;.
+<i>452</i>&nbsp;     * (The alternative would have been &lt;code&gt;BigInteger&lt;/code&gt; but then it would not be possible to index
+<i>453</i>&nbsp;     * the OS stats document into Elasticsearch without losing information, as &lt;code&gt;BigInteger&lt;/code&gt; is
+<i>454</i>&nbsp;     * not a supported Elasticsearch type.)
+<i>455</i>&nbsp;     *
+<i>456</i>&nbsp;     * @param controlGroup the control group for the Elasticsearch process for the {@code memory} subsystem
+<i>457</i>&nbsp;     * @return the total current memory usage by processes in the cgroup (in bytes)
+<i>458</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code memory.limit_in_bytes} for the control group
+<i>459</i>&nbsp;     */
+<i>460</i>&nbsp;    private String getCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+<b class="nc"><i>461</i>&nbsp;        return readSysFsCgroupMemoryUsageInBytes(controlGroup);</b>
+<i>462</i>&nbsp;    }
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;    /**
+<i>465</i>&nbsp;     * Returns the line from {@code memory.usage_in_bytes} for the control group to which the Elasticsearch process belongs for the
+<i>466</i>&nbsp;     * {@code memory} subsystem. This line represents the total current memory usage by processes in the cgroup (in bytes).
+<i>467</i>&nbsp;     *
+<i>468</i>&nbsp;     * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code memory} subsystem
+<i>469</i>&nbsp;     * @return the line from {@code memory.usage_in_bytes}
+<i>470</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code memory.usage_in_bytes} for the control group
+<i>471</i>&nbsp;     */
+<i>472</i>&nbsp;    @SuppressForbidden(reason = &quot;access /sys/fs/cgroup/memory&quot;)
+<i>473</i>&nbsp;    String readSysFsCgroupMemoryUsageInBytes(final String controlGroup) throws IOException {
+<b class="nc"><i>474</i>&nbsp;        return readSingleLine(PathUtils.get(&quot;/sys/fs/cgroup/memory&quot;, controlGroup, &quot;memory.usage_in_bytes&quot;));</b>
+<i>475</i>&nbsp;    }
+<i>476</i>&nbsp;
+<i>477</i>&nbsp;    /**
+<i>478</i>&nbsp;     * Checks if cgroup stats are available by checking for the existence of {@code /proc/self/cgroup}, {@code /sys/fs/cgroup/cpu},
+<i>479</i>&nbsp;     * {@code /sys/fs/cgroup/cpuacct} and {@code /sys/fs/cgroup/memory}.
+<i>480</i>&nbsp;     *
+<i>481</i>&nbsp;     * @return {@code true} if the stats are available, otherwise {@code false}
+<i>482</i>&nbsp;     */
+<i>483</i>&nbsp;    @SuppressForbidden(reason = &quot;access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory&quot;)
+<i>484</i>&nbsp;    boolean areCgroupStatsAvailable() {
+<b class="nc"><i>485</i>&nbsp;        if (!Files.exists(PathUtils.get(&quot;/proc/self/cgroup&quot;))) {</b>
+<b class="nc"><i>486</i>&nbsp;            return false;</b>
+<i>487</i>&nbsp;        }
+<b class="nc"><i>488</i>&nbsp;        if (!Files.exists(PathUtils.get(&quot;/sys/fs/cgroup/cpu&quot;))) {</b>
+<b class="nc"><i>489</i>&nbsp;            return false;</b>
+<i>490</i>&nbsp;        }
+<b class="nc"><i>491</i>&nbsp;        if (!Files.exists(PathUtils.get(&quot;/sys/fs/cgroup/cpuacct&quot;))) {</b>
+<b class="nc"><i>492</i>&nbsp;            return false;</b>
+<i>493</i>&nbsp;        }
+<b class="nc"><i>494</i>&nbsp;        if (!Files.exists(PathUtils.get(&quot;/sys/fs/cgroup/memory&quot;))) {</b>
+<b class="nc"><i>495</i>&nbsp;            return false;</b>
+<i>496</i>&nbsp;        }
+<b class="nc"><i>497</i>&nbsp;        return true;</b>
+<i>498</i>&nbsp;    }
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;    /**
+<i>501</i>&nbsp;     * Basic cgroup stats.
+<i>502</i>&nbsp;     *
+<i>503</i>&nbsp;     * @return basic cgroup stats, or {@code null} if an I/O exception occurred reading the cgroup stats
+<i>504</i>&nbsp;     */
+<i>505</i>&nbsp;    private OsStats.Cgroup getCgroup() {
+<i>506</i>&nbsp;        try {
+<b class="nc"><i>507</i>&nbsp;            if (!areCgroupStatsAvailable()) {</b>
+<b class="nc"><i>508</i>&nbsp;                return null;</b>
+<i>509</i>&nbsp;            } else {
+<b class="nc"><i>510</i>&nbsp;                final Map&lt;String, String&gt; controllerMap = getControlGroups();</b>
+<b class="nc"><i>511</i>&nbsp;                assert !controllerMap.isEmpty();</b>
+<i>512</i>&nbsp;
+<b class="nc"><i>513</i>&nbsp;                final String cpuAcctControlGroup = controllerMap.get(&quot;cpuacct&quot;);</b>
+<b class="nc"><i>514</i>&nbsp;                if (cpuAcctControlGroup == null) {</b>
+<b class="nc"><i>515</i>&nbsp;                    logger.debug(&quot;no [cpuacct] data found in cgroup stats&quot;);</b>
+<b class="nc"><i>516</i>&nbsp;                    return null;</b>
+<i>517</i>&nbsp;                }
+<b class="nc"><i>518</i>&nbsp;                final long cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);</b>
+<i>519</i>&nbsp;
+<b class="nc"><i>520</i>&nbsp;                final String cpuControlGroup = controllerMap.get(&quot;cpu&quot;);</b>
+<b class="nc"><i>521</i>&nbsp;                if (cpuControlGroup == null) {</b>
+<b class="nc"><i>522</i>&nbsp;                    logger.debug(&quot;no [cpu] data found in cgroup stats&quot;);</b>
+<b class="nc"><i>523</i>&nbsp;                    return null;</b>
+<i>524</i>&nbsp;                }
+<b class="nc"><i>525</i>&nbsp;                final long cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);</b>
+<b class="nc"><i>526</i>&nbsp;                final long cgroupCpuAcctCpuCfsQuotaMicros = getCgroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup);</b>
+<b class="nc"><i>527</i>&nbsp;                final OsStats.Cgroup.CpuStat cpuStat = getCgroupCpuAcctCpuStat(cpuControlGroup);</b>
+<i>528</i>&nbsp;
+<b class="nc"><i>529</i>&nbsp;                final String memoryControlGroup = controllerMap.get(&quot;memory&quot;);</b>
+<b class="nc"><i>530</i>&nbsp;                if (memoryControlGroup == null) {</b>
+<b class="nc"><i>531</i>&nbsp;                    logger.debug(&quot;no [memory] data found in cgroup stats&quot;);</b>
+<b class="nc"><i>532</i>&nbsp;                    return null;</b>
+<i>533</i>&nbsp;                }
+<b class="nc"><i>534</i>&nbsp;                final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);</b>
+<b class="nc"><i>535</i>&nbsp;                final String cgroupMemoryUsageInBytes = getCgroupMemoryUsageInBytes(memoryControlGroup);</b>
+<i>536</i>&nbsp;
+<b class="nc"><i>537</i>&nbsp;                return new OsStats.Cgroup(</b>
+<i>538</i>&nbsp;                    cpuAcctControlGroup,
+<i>539</i>&nbsp;                    cgroupCpuAcctUsageNanos,
+<i>540</i>&nbsp;                    cpuControlGroup,
+<i>541</i>&nbsp;                    cgroupCpuAcctCpuCfsPeriodMicros,
+<i>542</i>&nbsp;                    cgroupCpuAcctCpuCfsQuotaMicros,
+<i>543</i>&nbsp;                    cpuStat,
+<i>544</i>&nbsp;                    memoryControlGroup,
+<i>545</i>&nbsp;                    cgroupMemoryLimitInBytes,
+<i>546</i>&nbsp;                    cgroupMemoryUsageInBytes);
+<i>547</i>&nbsp;            }
+<b class="nc"><i>548</i>&nbsp;        } catch (final IOException e) {</b>
+<b class="nc"><i>549</i>&nbsp;            logger.debug(&quot;error reading control group stats&quot;, e);</b>
+<b class="nc"><i>550</i>&nbsp;            return null;</b>
+<i>551</i>&nbsp;        }
+<i>552</i>&nbsp;    }
+<i>553</i>&nbsp;
+<b class="fc"><i>554</i>&nbsp;    private static class OsProbeHolder {</b>
+<b class="fc"><i>555</i>&nbsp;        private static final OsProbe INSTANCE = new OsProbe();</b>
+<i>556</i>&nbsp;    }
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;    public static OsProbe getInstance() {
+<b class="fc"><i>559</i>&nbsp;        return OsProbeHolder.INSTANCE;</b>
+<i>560</i>&nbsp;    }
+<i>561</i>&nbsp;
+<b class="fc"><i>562</i>&nbsp;    OsProbe() {</b>
+<i>563</i>&nbsp;
+<b class="fc"><i>564</i>&nbsp;    }</b>
+<i>565</i>&nbsp;
+<b class="fc"><i>566</i>&nbsp;    private final Logger logger = LogManager.getLogger(getClass());</b>
+<i>567</i>&nbsp;
+<i>568</i>&nbsp;    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+<b class="fc"><i>569</i>&nbsp;        return new OsInfo(</b>
+<i>570</i>&nbsp;                refreshInterval,
+<b class="fc"><i>571</i>&nbsp;                Runtime.getRuntime().availableProcessors(),</b>
+<i>572</i>&nbsp;                allocatedProcessors,
+<i>573</i>&nbsp;                Constants.OS_NAME,
+<b class="fc"><i>574</i>&nbsp;                getPrettyName(),</b>
+<i>575</i>&nbsp;                Constants.OS_ARCH,
+<i>576</i>&nbsp;                Constants.OS_VERSION);
+<i>577</i>&nbsp;    }
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;    private String getPrettyName() throws IOException {
+<i>580</i>&nbsp;        // TODO: return a prettier name on non-Linux OS
+<b class="fc"><i>581</i>&nbsp;        if (Constants.LINUX) {</b>
+<i>582</i>&nbsp;            /*
+<i>583</i>&nbsp;             * We read the lines from /etc/os-release (or /usr/lib/os-release) to extract the PRETTY_NAME. The format of this file is
+<i>584</i>&nbsp;             * newline-separated key-value pairs. The key and value are separated by an equals symbol (=). The value can unquoted, or
+<i>585</i>&nbsp;             * wrapped in single- or double-quotes.
+<i>586</i>&nbsp;             */
+<b class="nc"><i>587</i>&nbsp;            final List&lt;String&gt; etcOsReleaseLines = readOsRelease();</b>
+<b class="nc"><i>588</i>&nbsp;            final List&lt;String&gt; prettyNameLines =</b>
+<b class="nc"><i>589</i>&nbsp;                    etcOsReleaseLines.stream().filter(line -&gt; line.startsWith(&quot;PRETTY_NAME&quot;)).collect(Collectors.toList());</b>
+<b class="nc"><i>590</i>&nbsp;            assert prettyNameLines.size() &lt;= 1 : prettyNameLines;</b>
+<i>591</i>&nbsp;            final Optional&lt;String&gt; maybePrettyNameLine =
+<b class="nc"><i>592</i>&nbsp;                    prettyNameLines.size() == 1 ? Optional.of(prettyNameLines.get(0)) : Optional.empty();</b>
+<b class="nc"><i>593</i>&nbsp;            if (maybePrettyNameLine.isPresent()) {</b>
+<i>594</i>&nbsp;                // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
+<b class="nc"><i>595</i>&nbsp;                final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();</b>
+<b class="nc"><i>596</i>&nbsp;                final Matcher matcher = Pattern.compile(&quot;PRETTY_NAME=(\&quot;?|&#39;?)?([^\&quot;&#39;]+)\\1&quot;).matcher(trimmedPrettyNameLine);</b>
+<b class="nc"><i>597</i>&nbsp;                final boolean matches = matcher.matches();</b>
+<b class="nc"><i>598</i>&nbsp;                assert matches : trimmedPrettyNameLine;</b>
+<b class="nc"><i>599</i>&nbsp;                assert matcher.groupCount() == 2 : trimmedPrettyNameLine;</b>
+<b class="nc"><i>600</i>&nbsp;                return matcher.group(2);</b>
+<i>601</i>&nbsp;            } else {
+<b class="nc"><i>602</i>&nbsp;                return Constants.OS_NAME;</b>
+<i>603</i>&nbsp;            }
+<i>604</i>&nbsp;
+<i>605</i>&nbsp;        } else {
+<b class="fc"><i>606</i>&nbsp;            return Constants.OS_NAME;</b>
+<i>607</i>&nbsp;        }
+<i>608</i>&nbsp;    }
+<i>609</i>&nbsp;
+<i>610</i>&nbsp;    /**
+<i>611</i>&nbsp;     * The lines from {@code /etc/os-release} or {@code /usr/lib/os-release} as a fallback, with an additional fallback to
+<i>612</i>&nbsp;     * {@code /etc/system-release}. These files represent identification of the underlying operating system. The structure of the file is
+<i>613</i>&nbsp;     * newlines of key-value pairs of shell-compatible variable assignments.
+<i>614</i>&nbsp;     *
+<i>615</i>&nbsp;     * @return the lines from {@code /etc/os-release} or {@code /usr/lib/os-release} or {@code /etc/system-release}
+<i>616</i>&nbsp;     * @throws IOException if an I/O exception occurs reading {@code /etc/os-release} or {@code /usr/lib/os-release} or
+<i>617</i>&nbsp;     *                     {@code /etc/system-release}
+<i>618</i>&nbsp;     */
+<i>619</i>&nbsp;    @SuppressForbidden(reason = &quot;access /etc/os-release or /usr/lib/os-release or /etc/system-release&quot;)
+<i>620</i>&nbsp;    List&lt;String&gt; readOsRelease() throws IOException {
+<i>621</i>&nbsp;        final List&lt;String&gt; lines;
+<b class="nc"><i>622</i>&nbsp;        if (Files.exists(PathUtils.get(&quot;/etc/os-release&quot;))) {</b>
+<b class="nc"><i>623</i>&nbsp;            lines = Files.readAllLines(PathUtils.get(&quot;/etc/os-release&quot;));</b>
+<b class="nc"><i>624</i>&nbsp;            assert lines != null &amp;&amp; lines.isEmpty() == false;</b>
+<b class="nc"><i>625</i>&nbsp;            return lines;</b>
+<b class="nc"><i>626</i>&nbsp;        } else if (Files.exists(PathUtils.get(&quot;/usr/lib/os-release&quot;))) {</b>
+<b class="nc"><i>627</i>&nbsp;            lines = Files.readAllLines(PathUtils.get(&quot;/usr/lib/os-release&quot;));</b>
+<b class="nc"><i>628</i>&nbsp;            assert lines != null &amp;&amp; lines.isEmpty() == false;</b>
+<b class="nc"><i>629</i>&nbsp;            return lines;</b>
+<b class="nc"><i>630</i>&nbsp;        } else if (Files.exists(PathUtils.get(&quot;/etc/system-release&quot;))) {</b>
+<i>631</i>&nbsp;            // fallback for older Red Hat-like OS
+<b class="nc"><i>632</i>&nbsp;            lines = Files.readAllLines(PathUtils.get(&quot;/etc/system-release&quot;));</b>
+<b class="nc"><i>633</i>&nbsp;            assert lines != null &amp;&amp; lines.size() == 1;</b>
+<b class="nc"><i>634</i>&nbsp;            return Collections.singletonList(&quot;PRETTY_NAME=\&quot;&quot; + lines.get(0) + &quot;\&quot;&quot;);</b>
+<i>635</i>&nbsp;        } else {
+<b class="nc"><i>636</i>&nbsp;            return Collections.emptyList();</b>
+<i>637</i>&nbsp;        }
+<i>638</i>&nbsp;    }
+<i>639</i>&nbsp;
+<i>640</i>&nbsp;    public OsStats osStats() {
+<b class="fc"><i>641</i>&nbsp;        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());</b>
+<b class="fc"><i>642</i>&nbsp;        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());</b>
+<b class="fc"><i>643</i>&nbsp;        final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());</b>
+<b class="fc"><i>644</i>&nbsp;        final OsStats.Cgroup cgroup = Constants.LINUX ? getCgroup() : null;</b>
+<b class="fc"><i>645</i>&nbsp;        return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);</b>
+<i>646</i>&nbsp;    }
+<i>647</i>&nbsp;
+<i>648</i>&nbsp;    /**
+<i>649</i>&nbsp;     * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
+<i>650</i>&nbsp;     */
+<i>651</i>&nbsp;    private static Method getMethod(String methodName) {
+<i>652</i>&nbsp;        try {
+<b class="fc"><i>653</i>&nbsp;            return Class.forName(&quot;com.sun.management.OperatingSystemMXBean&quot;).getMethod(methodName);</b>
+<b class="nc"><i>654</i>&nbsp;        } catch (Exception e) {</b>
+<i>655</i>&nbsp;            // not available
+<b class="nc"><i>656</i>&nbsp;            return null;</b>
+<i>657</i>&nbsp;        }
+<i>658</i>&nbsp;    }
+<i>659</i>&nbsp;
+<i>660</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

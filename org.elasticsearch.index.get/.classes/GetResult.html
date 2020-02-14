@@ -1,0 +1,582 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GetResult</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.get</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GetResult (org.elasticsearch.index.get)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GetResult</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 34)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 220)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.get;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>23</i>&nbsp;import org.elasticsearch.Version;
+<i>24</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>25</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>26</i>&nbsp;import org.elasticsearch.common.compress.CompressorFactory;
+<i>27</i>&nbsp;import org.elasticsearch.common.document.DocumentField;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>35</i>&nbsp;import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+<i>36</i>&nbsp;import org.elasticsearch.index.mapper.SourceFieldMapper;
+<i>37</i>&nbsp;import org.elasticsearch.search.lookup.SourceLookup;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.util.Collections;
+<i>41</i>&nbsp;import java.util.HashMap;
+<i>42</i>&nbsp;import java.util.Iterator;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Objects;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>47</i>&nbsp;import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+<i>48</i>&nbsp;import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+<i>49</i>&nbsp;import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+<i>50</i>&nbsp;
+<b class="nc"><i>51</i>&nbsp;public class GetResult implements Writeable, Iterable&lt;DocumentField&gt;, ToXContentObject {</b>
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    public static final String _INDEX = &quot;_index&quot;;
+<i>54</i>&nbsp;    public static final String _TYPE = &quot;_type&quot;;
+<i>55</i>&nbsp;    public static final String _ID = &quot;_id&quot;;
+<i>56</i>&nbsp;    private static final String _VERSION = &quot;_version&quot;;
+<i>57</i>&nbsp;    private static final String _SEQ_NO = &quot;_seq_no&quot;;
+<i>58</i>&nbsp;    private static final String _PRIMARY_TERM = &quot;_primary_term&quot;;
+<i>59</i>&nbsp;    private static final String FOUND = &quot;found&quot;;
+<i>60</i>&nbsp;    private static final String FIELDS = &quot;fields&quot;;
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private String index;
+<i>63</i>&nbsp;    private String type;
+<i>64</i>&nbsp;    private String id;
+<i>65</i>&nbsp;    private long version;
+<i>66</i>&nbsp;    private long seqNo;
+<i>67</i>&nbsp;    private long primaryTerm;
+<i>68</i>&nbsp;    private boolean exists;
+<i>69</i>&nbsp;    private Map&lt;String, DocumentField&gt; documentFields;
+<i>70</i>&nbsp;    private Map&lt;String, DocumentField&gt; metaFields;
+<i>71</i>&nbsp;    private Map&lt;String, Object&gt; sourceAsMap;
+<i>72</i>&nbsp;    private BytesReference source;
+<i>73</i>&nbsp;    private byte[] sourceAsBytes;
+<i>74</i>&nbsp;
+<b class="nc"><i>75</i>&nbsp;    public GetResult(StreamInput in) throws IOException {</b>
+<b class="nc"><i>76</i>&nbsp;        index = in.readString();</b>
+<b class="nc"><i>77</i>&nbsp;        type = in.readOptionalString();</b>
+<b class="nc"><i>78</i>&nbsp;        id = in.readString();</b>
+<b class="nc"><i>79</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {</b>
+<b class="nc"><i>80</i>&nbsp;            seqNo = in.readZLong();</b>
+<b class="nc"><i>81</i>&nbsp;            primaryTerm = in.readVLong();</b>
+<i>82</i>&nbsp;        } else {
+<b class="nc"><i>83</i>&nbsp;            seqNo = UNASSIGNED_SEQ_NO;</b>
+<b class="nc"><i>84</i>&nbsp;            primaryTerm = UNASSIGNED_PRIMARY_TERM;</b>
+<i>85</i>&nbsp;        }
+<b class="nc"><i>86</i>&nbsp;        version = in.readLong();</b>
+<b class="nc"><i>87</i>&nbsp;        exists = in.readBoolean();</b>
+<b class="nc"><i>88</i>&nbsp;        if (exists) {</b>
+<b class="nc"><i>89</i>&nbsp;            source = in.readBytesReference();</b>
+<b class="nc"><i>90</i>&nbsp;            if (source.length() == 0) {</b>
+<b class="nc"><i>91</i>&nbsp;                source = null;</b>
+<i>92</i>&nbsp;            }
+<b class="nc"><i>93</i>&nbsp;            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {</b>
+<b class="nc"><i>94</i>&nbsp;                documentFields = readFields(in);</b>
+<b class="nc"><i>95</i>&nbsp;                metaFields = readFields(in);</b>
+<i>96</i>&nbsp;            } else {
+<b class="nc"><i>97</i>&nbsp;                Map&lt;String, DocumentField&gt; fields = readFields(in);</b>
+<b class="nc"><i>98</i>&nbsp;                documentFields = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>99</i>&nbsp;                metaFields = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>100</i>&nbsp;                splitFieldsByMetadata(fields, documentFields, metaFields);</b>
+<i>101</i>&nbsp;            }
+<i>102</i>&nbsp;        }
+<b class="nc"><i>103</i>&nbsp;    }</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    public GetResult(String index, String type, String id, long seqNo, long primaryTerm, long version, boolean exists,
+<b class="nc"><i>106</i>&nbsp;                     BytesReference source, Map&lt;String, DocumentField&gt; documentFields, Map&lt;String, DocumentField&gt; metaFields) {</b>
+<b class="nc"><i>107</i>&nbsp;        this.index = index;</b>
+<b class="nc"><i>108</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>109</i>&nbsp;        this.id = id;</b>
+<b class="nc"><i>110</i>&nbsp;        this.seqNo = seqNo;</b>
+<b class="nc"><i>111</i>&nbsp;        this.primaryTerm = primaryTerm;</b>
+<b class="nc"><i>112</i>&nbsp;        assert (seqNo == UNASSIGNED_SEQ_NO &amp;&amp; primaryTerm == UNASSIGNED_PRIMARY_TERM) || (seqNo &gt;= 0 &amp;&amp; primaryTerm &gt;= 1) :</b>
+<i>113</i>&nbsp;            &quot;seqNo: &quot; + seqNo + &quot; primaryTerm: &quot; + primaryTerm;
+<b class="nc"><i>114</i>&nbsp;        assert exists || (seqNo == UNASSIGNED_SEQ_NO &amp;&amp; primaryTerm == UNASSIGNED_PRIMARY_TERM) :</b>
+<i>115</i>&nbsp;            &quot;doc not found but seqNo/primaryTerm are set&quot;;
+<b class="nc"><i>116</i>&nbsp;        this.version = version;</b>
+<b class="nc"><i>117</i>&nbsp;        this.exists = exists;</b>
+<b class="nc"><i>118</i>&nbsp;        this.source = source;</b>
+<b class="nc"><i>119</i>&nbsp;        this.documentFields = documentFields;</b>
+<b class="nc"><i>120</i>&nbsp;        if (this.documentFields == null) {</b>
+<b class="nc"><i>121</i>&nbsp;            this.documentFields = emptyMap();</b>
+<i>122</i>&nbsp;        }
+<b class="nc"><i>123</i>&nbsp;        this.metaFields = metaFields;</b>
+<b class="nc"><i>124</i>&nbsp;        if (this.metaFields == null) {</b>
+<b class="nc"><i>125</i>&nbsp;            this.metaFields = emptyMap();</b>
+<i>126</i>&nbsp;        }
+<b class="nc"><i>127</i>&nbsp;    }</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    /**
+<i>130</i>&nbsp;     * Does the document exist.
+<i>131</i>&nbsp;     */
+<i>132</i>&nbsp;    public boolean isExists() {
+<b class="nc"><i>133</i>&nbsp;        return exists;</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    /**
+<i>137</i>&nbsp;     * The index the document was fetched from.
+<i>138</i>&nbsp;     */
+<i>139</i>&nbsp;    public String getIndex() {
+<b class="nc"><i>140</i>&nbsp;        return index;</b>
+<i>141</i>&nbsp;    }
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    /**
+<i>144</i>&nbsp;     * The type of the document.
+<i>145</i>&nbsp;     */
+<i>146</i>&nbsp;    public String getType() {
+<b class="nc"><i>147</i>&nbsp;        return type;</b>
+<i>148</i>&nbsp;    }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    /**
+<i>151</i>&nbsp;     * The id of the document.
+<i>152</i>&nbsp;     */
+<i>153</i>&nbsp;    public String getId() {
+<b class="nc"><i>154</i>&nbsp;        return id;</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * The version of the doc.
+<i>159</i>&nbsp;     */
+<i>160</i>&nbsp;    public long getVersion() {
+<b class="nc"><i>161</i>&nbsp;        return version;</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    /**
+<i>165</i>&nbsp;     * The sequence number assigned to the last operation that has changed this document, if found.
+<i>166</i>&nbsp;     */
+<i>167</i>&nbsp;    public long getSeqNo() {
+<b class="nc"><i>168</i>&nbsp;        return seqNo;</b>
+<i>169</i>&nbsp;    }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    /**
+<i>172</i>&nbsp;     * The primary term of the last primary that has changed this document, if found.
+<i>173</i>&nbsp;     */
+<i>174</i>&nbsp;    public long getPrimaryTerm() {
+<b class="nc"><i>175</i>&nbsp;        return primaryTerm;</b>
+<i>176</i>&nbsp;    }
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    /**
+<i>179</i>&nbsp;     * The source of the document if exists.
+<i>180</i>&nbsp;     */
+<i>181</i>&nbsp;    public byte[] source() {
+<b class="nc"><i>182</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>183</i>&nbsp;            return null;</b>
+<i>184</i>&nbsp;        }
+<b class="nc"><i>185</i>&nbsp;        if (sourceAsBytes != null) {</b>
+<b class="nc"><i>186</i>&nbsp;            return sourceAsBytes;</b>
+<i>187</i>&nbsp;        }
+<b class="nc"><i>188</i>&nbsp;        this.sourceAsBytes = BytesReference.toBytes(sourceRef());</b>
+<b class="nc"><i>189</i>&nbsp;        return this.sourceAsBytes;</b>
+<i>190</i>&nbsp;    }
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    /**
+<i>193</i>&nbsp;     * Returns bytes reference, also un compress the source if needed.
+<i>194</i>&nbsp;     */
+<i>195</i>&nbsp;    public BytesReference sourceRef() {
+<b class="nc"><i>196</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>197</i>&nbsp;            return null;</b>
+<i>198</i>&nbsp;        }
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;        try {
+<b class="nc"><i>201</i>&nbsp;            this.source = CompressorFactory.uncompressIfNeeded(this.source);</b>
+<b class="nc"><i>202</i>&nbsp;            return this.source;</b>
+<b class="nc"><i>203</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>204</i>&nbsp;            throw new ElasticsearchParseException(&quot;failed to decompress source&quot;, e);</b>
+<i>205</i>&nbsp;        }
+<i>206</i>&nbsp;    }
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;    /**
+<i>209</i>&nbsp;     * Internal source representation, might be compressed....
+<i>210</i>&nbsp;     */
+<i>211</i>&nbsp;    public BytesReference internalSourceRef() {
+<b class="nc"><i>212</i>&nbsp;        return source;</b>
+<i>213</i>&nbsp;    }
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    /**
+<i>216</i>&nbsp;     * Is the source empty (not available) or not.
+<i>217</i>&nbsp;     */
+<i>218</i>&nbsp;    public boolean isSourceEmpty() {
+<b class="nc"><i>219</i>&nbsp;        return source == null;</b>
+<i>220</i>&nbsp;    }
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;    /**
+<i>223</i>&nbsp;     * The source of the document (as a string).
+<i>224</i>&nbsp;     */
+<i>225</i>&nbsp;    public String sourceAsString() {
+<b class="nc"><i>226</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>227</i>&nbsp;            return null;</b>
+<i>228</i>&nbsp;        }
+<b class="nc"><i>229</i>&nbsp;        BytesReference source = sourceRef();</b>
+<i>230</i>&nbsp;        try {
+<b class="nc"><i>231</i>&nbsp;            return XContentHelper.convertToJson(source, false);</b>
+<b class="nc"><i>232</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>233</i>&nbsp;            throw new ElasticsearchParseException(&quot;failed to convert source to a json string&quot;);</b>
+<i>234</i>&nbsp;        }
+<i>235</i>&nbsp;    }
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;    /**
+<i>238</i>&nbsp;     * The source of the document (As a map).
+<i>239</i>&nbsp;     */
+<i>240</i>&nbsp;    public Map&lt;String, Object&gt; sourceAsMap() throws ElasticsearchParseException {
+<b class="nc"><i>241</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>242</i>&nbsp;            return null;</b>
+<i>243</i>&nbsp;        }
+<b class="nc"><i>244</i>&nbsp;        if (sourceAsMap != null) {</b>
+<b class="nc"><i>245</i>&nbsp;            return sourceAsMap;</b>
+<i>246</i>&nbsp;        }
+<i>247</i>&nbsp;
+<b class="nc"><i>248</i>&nbsp;        sourceAsMap = SourceLookup.sourceAsMap(source);</b>
+<b class="nc"><i>249</i>&nbsp;        return sourceAsMap;</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    public Map&lt;String, Object&gt; getSource() {
+<b class="nc"><i>253</i>&nbsp;        return sourceAsMap();</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;    public Map&lt;String, DocumentField&gt; getMetadataFields() {
+<b class="nc"><i>258</i>&nbsp;        return metaFields;</b>
+<i>259</i>&nbsp;    }
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    public Map&lt;String, DocumentField&gt; getDocumentFields() {
+<b class="nc"><i>262</i>&nbsp;        return documentFields;</b>
+<i>263</i>&nbsp;    }
+<i>264</i>&nbsp;
+<i>265</i>&nbsp;    public Map&lt;String, DocumentField&gt; getFields() {
+<b class="nc"><i>266</i>&nbsp;        Map&lt;String, DocumentField&gt; fields = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>267</i>&nbsp;        fields.putAll(metaFields);</b>
+<b class="nc"><i>268</i>&nbsp;        fields.putAll(documentFields);</b>
+<b class="nc"><i>269</i>&nbsp;        return fields;</b>
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    public DocumentField field(String name) {
+<b class="nc"><i>273</i>&nbsp;        return getFields().get(name);</b>
+<i>274</i>&nbsp;    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    @Override
+<i>277</i>&nbsp;    public Iterator&lt;DocumentField&gt; iterator() {
+<i>278</i>&nbsp;        // need to join the fields and metadata fields
+<b class="nc"><i>279</i>&nbsp;        Map&lt;String, DocumentField&gt; allFields = this.getFields();</b>
+<b class="nc"><i>280</i>&nbsp;        return allFields.values().iterator();</b>
+<i>281</i>&nbsp;    }
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>284</i>&nbsp;        if (seqNo != UNASSIGNED_SEQ_NO) { // seqNo may not be assigned if read from an old node</b>
+<b class="nc"><i>285</i>&nbsp;            builder.field(_SEQ_NO, seqNo);</b>
+<b class="nc"><i>286</i>&nbsp;            builder.field(_PRIMARY_TERM, primaryTerm);</b>
+<i>287</i>&nbsp;        }
+<i>288</i>&nbsp;
+<b class="nc"><i>289</i>&nbsp;        for (DocumentField field : metaFields.values()) {</b>
+<i>290</i>&nbsp;            // TODO: can we avoid having an exception here?
+<b class="nc"><i>291</i>&nbsp;            if (field.getName().equals(IgnoredFieldMapper.NAME)) {</b>
+<b class="nc"><i>292</i>&nbsp;                builder.field(field.getName(), field.getValues());</b>
+<i>293</i>&nbsp;            } else {
+<b class="nc"><i>294</i>&nbsp;                builder.field(field.getName(), field.&lt;Object&gt;getValue());</b>
+<i>295</i>&nbsp;            }
+<b class="nc"><i>296</i>&nbsp;        }</b>
+<i>297</i>&nbsp;
+<b class="nc"><i>298</i>&nbsp;        builder.field(FOUND, exists);</b>
+<i>299</i>&nbsp;
+<b class="nc"><i>300</i>&nbsp;        if (source != null) {</b>
+<b class="nc"><i>301</i>&nbsp;            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);</b>
+<i>302</i>&nbsp;        }
+<i>303</i>&nbsp;
+<b class="nc"><i>304</i>&nbsp;        if (!documentFields.isEmpty()) {</b>
+<b class="nc"><i>305</i>&nbsp;            builder.startObject(FIELDS);</b>
+<b class="nc"><i>306</i>&nbsp;            for (DocumentField field : documentFields.values()) {</b>
+<b class="nc"><i>307</i>&nbsp;                field.toXContent(builder, params);</b>
+<b class="nc"><i>308</i>&nbsp;            }</b>
+<b class="nc"><i>309</i>&nbsp;            builder.endObject();</b>
+<i>310</i>&nbsp;        }
+<b class="nc"><i>311</i>&nbsp;        return builder;</b>
+<i>312</i>&nbsp;    }
+<i>313</i>&nbsp;
+<i>314</i>&nbsp;    @Override
+<i>315</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>316</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>317</i>&nbsp;        builder.field(_INDEX, index);</b>
+<b class="nc"><i>318</i>&nbsp;        builder.field(_TYPE, type);</b>
+<b class="nc"><i>319</i>&nbsp;        builder.field(_ID, id);</b>
+<b class="nc"><i>320</i>&nbsp;        if (isExists()) {</b>
+<b class="nc"><i>321</i>&nbsp;            if (version != -1) {</b>
+<b class="nc"><i>322</i>&nbsp;                builder.field(_VERSION, version);</b>
+<i>323</i>&nbsp;            }
+<b class="nc"><i>324</i>&nbsp;            toXContentEmbedded(builder, params);</b>
+<i>325</i>&nbsp;        } else {
+<b class="nc"><i>326</i>&nbsp;            builder.field(FOUND, false);</b>
+<i>327</i>&nbsp;        }
+<b class="nc"><i>328</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>329</i>&nbsp;        return builder;</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
+<b class="nc"><i>333</i>&nbsp;        XContentParser.Token token = parser.nextToken();</b>
+<b class="nc"><i>334</i>&nbsp;        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);</b>
+<b class="nc"><i>335</i>&nbsp;        return fromXContentEmbedded(parser, null, null, null);</b>
+<i>336</i>&nbsp;    }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    public static GetResult fromXContentEmbedded(XContentParser parser, String index, String type, String id) throws IOException {
+<b class="nc"><i>339</i>&nbsp;        XContentParser.Token token = parser.currentToken();</b>
+<b class="nc"><i>340</i>&nbsp;        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);</b>
+<i>341</i>&nbsp;
+<b class="nc"><i>342</i>&nbsp;        String currentFieldName = parser.currentName();</b>
+<b class="nc"><i>343</i>&nbsp;        long version = -1;</b>
+<b class="nc"><i>344</i>&nbsp;        long seqNo = UNASSIGNED_SEQ_NO;</b>
+<b class="nc"><i>345</i>&nbsp;        long primaryTerm = UNASSIGNED_PRIMARY_TERM;</b>
+<b class="nc"><i>346</i>&nbsp;        Boolean found = null;</b>
+<b class="nc"><i>347</i>&nbsp;        BytesReference source = null;</b>
+<b class="nc"><i>348</i>&nbsp;        Map&lt;String, DocumentField&gt; documentFields = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>349</i>&nbsp;        Map&lt;String, DocumentField&gt; metaFields = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>350</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>351</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>352</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>353</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="nc"><i>354</i>&nbsp;                if (_INDEX.equals(currentFieldName)) {</b>
+<b class="nc"><i>355</i>&nbsp;                    index = parser.text();</b>
+<b class="nc"><i>356</i>&nbsp;                } else if (_TYPE.equals(currentFieldName)) {</b>
+<b class="nc"><i>357</i>&nbsp;                    type = parser.text();</b>
+<b class="nc"><i>358</i>&nbsp;                } else if (_ID.equals(currentFieldName)) {</b>
+<b class="nc"><i>359</i>&nbsp;                    id = parser.text();</b>
+<b class="nc"><i>360</i>&nbsp;                }  else if (_VERSION.equals(currentFieldName)) {</b>
+<b class="nc"><i>361</i>&nbsp;                    version = parser.longValue();</b>
+<b class="nc"><i>362</i>&nbsp;                }  else if (_SEQ_NO.equals(currentFieldName)) {</b>
+<b class="nc"><i>363</i>&nbsp;                    seqNo = parser.longValue();</b>
+<b class="nc"><i>364</i>&nbsp;                }  else if (_PRIMARY_TERM.equals(currentFieldName)) {</b>
+<b class="nc"><i>365</i>&nbsp;                    primaryTerm = parser.longValue();</b>
+<b class="nc"><i>366</i>&nbsp;                } else if (FOUND.equals(currentFieldName)) {</b>
+<b class="nc"><i>367</i>&nbsp;                    found = parser.booleanValue();</b>
+<i>368</i>&nbsp;                } else {
+<b class="nc"><i>369</i>&nbsp;                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, </b>
+<b class="nc"><i>370</i>&nbsp;                            Collections.singletonList(parser.objectText())));</b>
+<i>371</i>&nbsp;                }
+<b class="nc"><i>372</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>373</i>&nbsp;                if (SourceFieldMapper.NAME.equals(currentFieldName)) {</b>
+<b class="nc"><i>374</i>&nbsp;                    try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {</b>
+<i>375</i>&nbsp;                        //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
+<i>376</i>&nbsp;                        //it all depends on the current builder settings
+<b class="nc"><i>377</i>&nbsp;                        builder.copyCurrentStructure(parser);</b>
+<b class="nc"><i>378</i>&nbsp;                        source = BytesReference.bytes(builder);</b>
+<b class="nc"><i>379</i>&nbsp;                    }</b>
+<b class="nc"><i>380</i>&nbsp;                } else if (FIELDS.equals(currentFieldName)) {</b>
+<b class="nc"><i>381</i>&nbsp;                    while(parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>382</i>&nbsp;                        DocumentField getField = DocumentField.fromXContent(parser);</b>
+<b class="nc"><i>383</i>&nbsp;                        documentFields.put(getField.getName(), getField);</b>
+<b class="nc"><i>384</i>&nbsp;                    }</b>
+<i>385</i>&nbsp;                } else {
+<b class="nc"><i>386</i>&nbsp;                    parser.skipChildren(); // skip potential inner objects for forward compatibility</b>
+<i>387</i>&nbsp;                }
+<b class="nc"><i>388</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>389</i>&nbsp;                if (IgnoredFieldMapper.NAME.equals(currentFieldName)) {</b>
+<b class="nc"><i>390</i>&nbsp;                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));</b>
+<i>391</i>&nbsp;                } else {
+<b class="nc"><i>392</i>&nbsp;                    parser.skipChildren(); // skip potential inner arrays for forward compatibility</b>
+<i>393</i>&nbsp;                }
+<i>394</i>&nbsp;            }
+<i>395</i>&nbsp;        }
+<b class="nc"><i>396</i>&nbsp;        return new GetResult(index, type, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);</b>
+<i>397</i>&nbsp;    }
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    public static GetResult fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>400</i>&nbsp;        XContentParser.Token token = parser.nextToken();</b>
+<b class="nc"><i>401</i>&nbsp;        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);</b>
+<i>402</i>&nbsp;
+<b class="nc"><i>403</i>&nbsp;        return fromXContentEmbedded(parser);</b>
+<i>404</i>&nbsp;    }
+<i>405</i>&nbsp;
+<i>406</i>&nbsp;    private Map&lt;String, DocumentField&gt; readFields(StreamInput in) throws IOException {
+<b class="nc"><i>407</i>&nbsp;        Map&lt;String, DocumentField&gt; fields = null;</b>
+<b class="nc"><i>408</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>409</i>&nbsp;        if (size == 0) {</b>
+<b class="nc"><i>410</i>&nbsp;            fields = new HashMap&lt;&gt;();</b>
+<i>411</i>&nbsp;        } else {
+<b class="nc"><i>412</i>&nbsp;            fields = new HashMap&lt;&gt;(size);</b>
+<b class="nc"><i>413</i>&nbsp;            for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>414</i>&nbsp;                DocumentField field = new DocumentField(in);</b>
+<b class="nc"><i>415</i>&nbsp;                fields.put(field.getName(), field);</b>
+<i>416</i>&nbsp;            }
+<i>417</i>&nbsp;        }
+<b class="nc"><i>418</i>&nbsp;        return fields;</b>
+<i>419</i>&nbsp;    }
+<i>420</i>&nbsp;    
+<i>421</i>&nbsp;    static void splitFieldsByMetadata(Map&lt;String, DocumentField&gt; fields, Map&lt;String, DocumentField&gt; outOther,
+<i>422</i>&nbsp;                                       Map&lt;String, DocumentField&gt; outMetadata) {
+<b class="nc"><i>423</i>&nbsp;        if (fields == null) {</b>
+<b class="nc"><i>424</i>&nbsp;            return;</b>
+<i>425</i>&nbsp;        }
+<b class="nc"><i>426</i>&nbsp;        for (Map.Entry&lt;String, DocumentField&gt; fieldEntry: fields.entrySet()) {</b>
+<b class="nc"><i>427</i>&nbsp;            if (fieldEntry.getValue().isMetadataField()) {</b>
+<b class="nc"><i>428</i>&nbsp;                outMetadata.put(fieldEntry.getKey(), fieldEntry.getValue());</b>
+<i>429</i>&nbsp;            } else {
+<b class="nc"><i>430</i>&nbsp;                outOther.put(fieldEntry.getKey(), fieldEntry.getValue());                </b>
+<i>431</i>&nbsp;            }
+<b class="nc"><i>432</i>&nbsp;        }</b>
+<b class="nc"><i>433</i>&nbsp;    }</b>
+<i>434</i>&nbsp;
+<i>435</i>&nbsp;    @Override
+<i>436</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>437</i>&nbsp;        out.writeString(index);</b>
+<b class="nc"><i>438</i>&nbsp;        out.writeOptionalString(type);</b>
+<b class="nc"><i>439</i>&nbsp;        out.writeString(id);</b>
+<b class="nc"><i>440</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {</b>
+<b class="nc"><i>441</i>&nbsp;            out.writeZLong(seqNo);</b>
+<b class="nc"><i>442</i>&nbsp;            out.writeVLong(primaryTerm);</b>
+<i>443</i>&nbsp;        }
+<b class="nc"><i>444</i>&nbsp;        out.writeLong(version);</b>
+<b class="nc"><i>445</i>&nbsp;        out.writeBoolean(exists);</b>
+<b class="nc"><i>446</i>&nbsp;        if (exists) {</b>
+<b class="nc"><i>447</i>&nbsp;            out.writeBytesReference(source);</b>
+<b class="nc"><i>448</i>&nbsp;            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {</b>
+<b class="nc"><i>449</i>&nbsp;                writeFields(out, documentFields);</b>
+<b class="nc"><i>450</i>&nbsp;                writeFields(out, metaFields);</b>
+<i>451</i>&nbsp;            } else {
+<b class="nc"><i>452</i>&nbsp;                writeFields(out, this.getFields());                </b>
+<i>453</i>&nbsp;            }
+<i>454</i>&nbsp;        }
+<b class="nc"><i>455</i>&nbsp;    }</b>
+<i>456</i>&nbsp;    
+<i>457</i>&nbsp;    private void writeFields(StreamOutput out,  Map&lt;String, DocumentField&gt; fields) throws IOException {
+<b class="nc"><i>458</i>&nbsp;        if (fields == null) {</b>
+<b class="nc"><i>459</i>&nbsp;            out.writeVInt(0);</b>
+<i>460</i>&nbsp;        } else {
+<b class="nc"><i>461</i>&nbsp;            out.writeVInt(fields.size());</b>
+<b class="nc"><i>462</i>&nbsp;            for (DocumentField field : fields.values()) {</b>
+<b class="nc"><i>463</i>&nbsp;                field.writeTo(out);</b>
+<b class="nc"><i>464</i>&nbsp;            }</b>
+<i>465</i>&nbsp;        }
+<b class="nc"><i>466</i>&nbsp;    }</b>
+<i>467</i>&nbsp;
+<i>468</i>&nbsp;    @Override
+<i>469</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>470</i>&nbsp;        if (this == o) {</b>
+<b class="nc"><i>471</i>&nbsp;            return true;</b>
+<i>472</i>&nbsp;        }
+<b class="nc"><i>473</i>&nbsp;        if (o == null || getClass() != o.getClass()) {</b>
+<b class="nc"><i>474</i>&nbsp;            return false;</b>
+<i>475</i>&nbsp;        }
+<b class="nc"><i>476</i>&nbsp;        GetResult getResult = (GetResult) o;</b>
+<b class="nc"><i>477</i>&nbsp;        return version == getResult.version &amp;&amp;</b>
+<i>478</i>&nbsp;                seqNo == getResult.seqNo &amp;&amp;
+<i>479</i>&nbsp;                primaryTerm == getResult.primaryTerm &amp;&amp;
+<i>480</i>&nbsp;                exists == getResult.exists &amp;&amp;
+<b class="nc"><i>481</i>&nbsp;                Objects.equals(index, getResult.index) &amp;&amp;</b>
+<b class="nc"><i>482</i>&nbsp;                Objects.equals(type, getResult.type) &amp;&amp;</b>
+<b class="nc"><i>483</i>&nbsp;                Objects.equals(id, getResult.id) &amp;&amp;</b>
+<b class="nc"><i>484</i>&nbsp;                Objects.equals(documentFields, getResult.documentFields) &amp;&amp;</b>
+<b class="nc"><i>485</i>&nbsp;                Objects.equals(metaFields, getResult.metaFields) &amp;&amp;</b>
+<b class="nc"><i>486</i>&nbsp;                Objects.equals(sourceAsMap(), getResult.sourceAsMap());</b>
+<i>487</i>&nbsp;    }
+<i>488</i>&nbsp;
+<i>489</i>&nbsp;    @Override
+<i>490</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>491</i>&nbsp;        return Objects.hash(version, seqNo, primaryTerm, exists, index, type, id, documentFields, metaFields, sourceAsMap());</b>
+<i>492</i>&nbsp;    }
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;    @Override
+<i>495</i>&nbsp;    public String toString() {
+<b class="nc"><i>496</i>&nbsp;        return Strings.toString(this, true, true);</b>
+<i>497</i>&nbsp;    }
+<i>498</i>&nbsp;}
+<i>499</i>&nbsp;
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

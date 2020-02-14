@@ -1,0 +1,412 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RoutingAllocation</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RoutingAllocation (org.elasticsearch.cluster.routing.allocation)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RoutingAllocation</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.3%
+  </span>
+  <span class="absValue">
+    (16/ 27)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    56.5%
+  </span>
+  <span class="absValue">
+    (35/ 62)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">RoutingAllocation$DebugMode</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    62.1%
+  </span>
+  <span class="absValue">
+    (18/ 29)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.1%
+  </span>
+  <span class="absValue">
+    (39/ 66)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.ClusterInfo;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.RestoreInProgress;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNodes;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingTable;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+<i>33</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>34</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>35</i>&nbsp;import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.util.HashMap;
+<i>38</i>&nbsp;import java.util.HashSet;
+<i>39</i>&nbsp;import java.util.Map;
+<i>40</i>&nbsp;import java.util.Set;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import static java.util.Collections.emptySet;
+<i>43</i>&nbsp;import static java.util.Collections.unmodifiableSet;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;/**
+<i>46</i>&nbsp; * The {@link RoutingAllocation} keep the state of the current allocation
+<i>47</i>&nbsp; * of shards and holds the {@link AllocationDeciders} which are responsible
+<i>48</i>&nbsp; *  for the current routing state.
+<i>49</i>&nbsp; */
+<i>50</i>&nbsp;public class RoutingAllocation {
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    private final AllocationDeciders deciders;
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    private final RoutingNodes routingNodes;
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private final MetaData metaData;
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final RoutingTable routingTable;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    private final DiscoveryNodes nodes;
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private final ImmutableOpenMap&lt;String, ClusterState.Custom&gt; customs;
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    private final ClusterInfo clusterInfo;
+<i>65</i>&nbsp;
+<b class="fc"><i>66</i>&nbsp;    private Map&lt;ShardId, Set&lt;String&gt;&gt; ignoredShardToNodes = null;</b>
+<i>67</i>&nbsp;
+<b class="fc"><i>68</i>&nbsp;    private boolean ignoreDisable = false;</b>
+<i>69</i>&nbsp;
+<b class="fc"><i>70</i>&nbsp;    private DebugMode debugDecision = DebugMode.OFF;</b>
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    private boolean hasPendingAsyncFetch = false;</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    private final long currentNanoTime;
+<i>75</i>&nbsp;
+<b class="fc"><i>76</i>&nbsp;    private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();</b>
+<b class="fc"><i>77</i>&nbsp;    private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();</b>
+<b class="fc"><i>78</i>&nbsp;    private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();</b>
+<b class="fc"><i>79</i>&nbsp;    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(</b>
+<i>80</i>&nbsp;        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
+<i>81</i>&nbsp;    );
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    /**
+<i>85</i>&nbsp;     * Creates a new {@link RoutingAllocation}
+<i>86</i>&nbsp;     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+<i>87</i>&nbsp;     * @param routingNodes Routing nodes in the current cluster
+<i>88</i>&nbsp;     * @param clusterState cluster state before rerouting
+<i>89</i>&nbsp;     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+<i>90</i>&nbsp;     */
+<i>91</i>&nbsp;    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
+<b class="fc"><i>92</i>&nbsp;                             long currentNanoTime) {</b>
+<b class="fc"><i>93</i>&nbsp;        this.deciders = deciders;</b>
+<b class="fc"><i>94</i>&nbsp;        this.routingNodes = routingNodes;</b>
+<b class="fc"><i>95</i>&nbsp;        this.metaData = clusterState.metaData();</b>
+<b class="fc"><i>96</i>&nbsp;        this.routingTable = clusterState.routingTable();</b>
+<b class="fc"><i>97</i>&nbsp;        this.nodes = clusterState.nodes();</b>
+<b class="fc"><i>98</i>&nbsp;        this.customs = clusterState.customs();</b>
+<b class="fc"><i>99</i>&nbsp;        this.clusterInfo = clusterInfo;</b>
+<b class="fc"><i>100</i>&nbsp;        this.currentNanoTime = currentNanoTime;</b>
+<b class="fc"><i>101</i>&nbsp;    }</b>
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
+<i>104</i>&nbsp;    public long getCurrentNanoTime() {
+<b class="nc"><i>105</i>&nbsp;        return currentNanoTime;</b>
+<i>106</i>&nbsp;    }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    /**
+<i>109</i>&nbsp;     * Get {@link AllocationDeciders} used for allocation
+<i>110</i>&nbsp;     * @return {@link AllocationDeciders} used for allocation
+<i>111</i>&nbsp;     */
+<i>112</i>&nbsp;    public AllocationDeciders deciders() {
+<b class="fc"><i>113</i>&nbsp;        return this.deciders;</b>
+<i>114</i>&nbsp;    }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    /**
+<i>117</i>&nbsp;     * Get routing table of current nodes
+<i>118</i>&nbsp;     * @return current routing table
+<i>119</i>&nbsp;     */
+<i>120</i>&nbsp;    public RoutingTable routingTable() {
+<b class="nc"><i>121</i>&nbsp;        return routingTable;</b>
+<i>122</i>&nbsp;    }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    /**
+<i>125</i>&nbsp;     * Get current routing nodes
+<i>126</i>&nbsp;     * @return routing nodes
+<i>127</i>&nbsp;     */
+<i>128</i>&nbsp;    public RoutingNodes routingNodes() {
+<b class="fc"><i>129</i>&nbsp;        return routingNodes;</b>
+<i>130</i>&nbsp;    }
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    /**
+<i>133</i>&nbsp;     * Get metadata of routing nodes
+<i>134</i>&nbsp;     * @return Metadata of routing nodes
+<i>135</i>&nbsp;     */
+<i>136</i>&nbsp;    public MetaData metaData() {
+<b class="fc"><i>137</i>&nbsp;        return metaData;</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    /**
+<i>141</i>&nbsp;     * Get discovery nodes in current routing
+<i>142</i>&nbsp;     * @return discovery nodes
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public DiscoveryNodes nodes() {
+<b class="fc"><i>145</i>&nbsp;        return nodes;</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    public ClusterInfo clusterInfo() {
+<b class="fc"><i>149</i>&nbsp;        return clusterInfo;</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    public &lt;T extends ClusterState.Custom&gt; T custom(String key) {
+<b class="fc"><i>153</i>&nbsp;        return (T)customs.get(key);</b>
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    public ImmutableOpenMap&lt;String, ClusterState.Custom&gt; getCustoms() {
+<b class="nc"><i>157</i>&nbsp;        return customs;</b>
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;    public void ignoreDisable(boolean ignoreDisable) {
+<b class="nc"><i>161</i>&nbsp;        this.ignoreDisable = ignoreDisable;</b>
+<b class="nc"><i>162</i>&nbsp;    }</b>
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    public boolean ignoreDisable() {
+<b class="fc"><i>165</i>&nbsp;        return this.ignoreDisable;</b>
+<i>166</i>&nbsp;    }
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;    public void setDebugMode(DebugMode debug) {
+<b class="nc"><i>169</i>&nbsp;        this.debugDecision = debug;</b>
+<b class="nc"><i>170</i>&nbsp;    }</b>
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    public void debugDecision(boolean debug) {
+<b class="nc"><i>173</i>&nbsp;        this.debugDecision = debug ? DebugMode.ON : DebugMode.OFF;</b>
+<b class="nc"><i>174</i>&nbsp;    }</b>
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    public boolean debugDecision() {
+<b class="fc"><i>177</i>&nbsp;        return this.debugDecision != DebugMode.OFF;</b>
+<i>178</i>&nbsp;    }
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;    public DebugMode getDebugMode() {
+<b class="fc"><i>181</i>&nbsp;        return this.debugDecision;</b>
+<i>182</i>&nbsp;    }
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
+<b class="nc"><i>185</i>&nbsp;        if (ignoredShardToNodes == null) {</b>
+<b class="nc"><i>186</i>&nbsp;            ignoredShardToNodes = new HashMap&lt;&gt;();</b>
+<i>187</i>&nbsp;        }
+<b class="nc"><i>188</i>&nbsp;        ignoredShardToNodes.computeIfAbsent(shardId, k -&gt; new HashSet&lt;&gt;()).add(nodeId);</b>
+<b class="nc"><i>189</i>&nbsp;    }</b>
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;    /**
+<i>192</i>&nbsp;     * Returns whether the given node id should be ignored from consideration when {@link AllocationDeciders}
+<i>193</i>&nbsp;     * is deciding whether to allocate the specified shard id to that node.  The node will be ignored if
+<i>194</i>&nbsp;     * the specified shard failed on that node, triggering the current round of allocation.  Since the shard
+<i>195</i>&nbsp;     * just failed on that node, we don&#39;t want to try to reassign it there, if the node is still a part
+<i>196</i>&nbsp;     * of the cluster.
+<i>197</i>&nbsp;     *
+<i>198</i>&nbsp;     * @param shardId the shard id to be allocated
+<i>199</i>&nbsp;     * @param nodeId the node id to check against
+<i>200</i>&nbsp;     * @return true if the node id should be ignored in allocation decisions, false otherwise
+<i>201</i>&nbsp;     */
+<i>202</i>&nbsp;    public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
+<b class="fc"><i>203</i>&nbsp;        if (ignoredShardToNodes == null) {</b>
+<b class="fc"><i>204</i>&nbsp;            return false;</b>
+<i>205</i>&nbsp;        }
+<b class="nc"><i>206</i>&nbsp;        Set&lt;String&gt; nodes = ignoredShardToNodes.get(shardId);</b>
+<b class="nc"><i>207</i>&nbsp;        return nodes != null &amp;&amp; nodes.contains(nodeId);</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    public Set&lt;String&gt; getIgnoreNodes(ShardId shardId) {
+<b class="nc"><i>211</i>&nbsp;        if (ignoredShardToNodes == null) {</b>
+<b class="nc"><i>212</i>&nbsp;            return emptySet();</b>
+<i>213</i>&nbsp;        }
+<b class="nc"><i>214</i>&nbsp;        Set&lt;String&gt; ignore = ignoredShardToNodes.get(shardId);</b>
+<b class="nc"><i>215</i>&nbsp;        if (ignore == null) {</b>
+<b class="nc"><i>216</i>&nbsp;            return emptySet();</b>
+<i>217</i>&nbsp;        }
+<b class="nc"><i>218</i>&nbsp;        return unmodifiableSet(new HashSet&lt;&gt;(ignore));</b>
+<i>219</i>&nbsp;    }
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;    /**
+<i>222</i>&nbsp;     * Remove the allocation id of the provided shard from the set of in-sync shard copies
+<i>223</i>&nbsp;     */
+<i>224</i>&nbsp;    public void removeAllocationId(ShardRouting shardRouting) {
+<b class="nc"><i>225</i>&nbsp;        indexMetaDataUpdater.removeAllocationId(shardRouting);</b>
+<b class="nc"><i>226</i>&nbsp;    }</b>
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    /**
+<i>229</i>&nbsp;     * Returns observer to use for changes made to the routing nodes
+<i>230</i>&nbsp;     */
+<i>231</i>&nbsp;    public RoutingChangesObserver changes() {
+<b class="fc"><i>232</i>&nbsp;        return routingChangesObserver;</b>
+<i>233</i>&nbsp;    }
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;    /**
+<i>236</i>&nbsp;     * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
+<i>237</i>&nbsp;     */
+<i>238</i>&nbsp;    public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
+<b class="fc"><i>239</i>&nbsp;        return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);</b>
+<i>240</i>&nbsp;    }
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    /**
+<i>243</i>&nbsp;     * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
+<i>244</i>&nbsp;     */
+<i>245</i>&nbsp;    public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
+<b class="nc"><i>246</i>&nbsp;        return restoreInProgressUpdater.applyChanges(restoreInProgress);</b>
+<i>247</i>&nbsp;    }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;    /**
+<i>250</i>&nbsp;     * Returns true iff changes were made to the routing nodes
+<i>251</i>&nbsp;     */
+<i>252</i>&nbsp;    public boolean routingNodesChanged() {
+<b class="fc"><i>253</i>&nbsp;        return nodesChangedObserver.isChanged();</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    /**
+<i>257</i>&nbsp;     * Create a routing decision, including the reason if the debug flag is
+<i>258</i>&nbsp;     * turned on
+<i>259</i>&nbsp;     * @param decision decision whether to allow/deny allocation
+<i>260</i>&nbsp;     * @param deciderLabel a human readable label for the AllocationDecider
+<i>261</i>&nbsp;     * @param reason a format string explanation of the decision
+<i>262</i>&nbsp;     * @param params format string parameters
+<i>263</i>&nbsp;     */
+<i>264</i>&nbsp;    public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
+<b class="fc"><i>265</i>&nbsp;        if (debugDecision()) {</b>
+<b class="nc"><i>266</i>&nbsp;            return Decision.single(decision.type(), deciderLabel, reason, params);</b>
+<i>267</i>&nbsp;        } else {
+<b class="fc"><i>268</i>&nbsp;            return decision;</b>
+<i>269</i>&nbsp;        }
+<i>270</i>&nbsp;    }
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    /**
+<i>273</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; iff the current allocation run has not processed all of the in-flight or available
+<i>274</i>&nbsp;     * shard or store fetches. Otherwise &lt;code&gt;true&lt;/code&gt;
+<i>275</i>&nbsp;     */
+<i>276</i>&nbsp;    public boolean hasPendingAsyncFetch() {
+<b class="fc"><i>277</i>&nbsp;        return hasPendingAsyncFetch;</b>
+<i>278</i>&nbsp;    }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    /**
+<i>281</i>&nbsp;     * Sets a flag that signals that current allocation run has not processed all of the in-flight or available shard or store fetches.
+<i>282</i>&nbsp;     * This state is anti-viral and can be reset in on allocation run.
+<i>283</i>&nbsp;     */
+<i>284</i>&nbsp;    public void setHasPendingAsyncFetch() {
+<b class="nc"><i>285</i>&nbsp;        this.hasPendingAsyncFetch = true;</b>
+<b class="nc"><i>286</i>&nbsp;    }</b>
+<i>287</i>&nbsp;
+<b class="fc"><i>288</i>&nbsp;    public enum DebugMode {</b>
+<i>289</i>&nbsp;        /**
+<i>290</i>&nbsp;         * debug mode is off
+<i>291</i>&nbsp;         */
+<b class="fc"><i>292</i>&nbsp;        OFF,</b>
+<i>293</i>&nbsp;        /**
+<i>294</i>&nbsp;         * debug mode is on
+<i>295</i>&nbsp;         */
+<b class="fc"><i>296</i>&nbsp;        ON,</b>
+<i>297</i>&nbsp;        /**
+<i>298</i>&nbsp;         * debug mode is on, but YES decisions from a {@link org.elasticsearch.cluster.routing.allocation.decider.Decision.Multi}
+<i>299</i>&nbsp;         * are not included.
+<i>300</i>&nbsp;         */
+<b class="fc"><i>301</i>&nbsp;        EXCLUDE_YES_DECISIONS</b>
+<i>302</i>&nbsp;    }
+<i>303</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,448 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GatewayMetaState</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GatewayMetaState (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GatewayMetaState</td>
+<td class="coverageStat">
+  <span class="percent">
+    90.9%
+  </span>
+  <span class="absValue">
+    (10/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    67%
+  </span>
+  <span class="absValue">
+    (61/ 91)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">GatewayMetaState$GatewayPersistedState</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (6/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    72.7%
+  </span>
+  <span class="absValue">
+    (16/ 22)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    94.1%
+  </span>
+  <span class="absValue">
+    (16/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    68.1%
+  </span>
+  <span class="absValue">
+    (77/ 113)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>26</i>&nbsp;import org.apache.lucene.util.SetOnce;
+<i>27</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>28</i>&nbsp;import org.elasticsearch.Version;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterStateApplier;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+<i>37</i>&nbsp;import org.elasticsearch.cluster.metadata.Manifest;
+<i>38</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>39</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
+<i>40</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>41</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>42</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>43</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>45</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>46</i>&nbsp;import org.elasticsearch.discovery.DiscoveryModule;
+<i>47</i>&nbsp;import org.elasticsearch.index.Index;
+<i>48</i>&nbsp;import org.elasticsearch.plugins.MetaDataUpgrader;
+<i>49</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;import java.io.IOException;
+<i>52</i>&nbsp;import java.util.HashMap;
+<i>53</i>&nbsp;import java.util.Map;
+<i>54</i>&nbsp;import java.util.function.BiConsumer;
+<i>55</i>&nbsp;import java.util.function.Consumer;
+<i>56</i>&nbsp;import java.util.function.Function;
+<i>57</i>&nbsp;import java.util.function.UnaryOperator;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;/**
+<i>60</i>&nbsp; * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
+<i>61</i>&nbsp; *
+<i>62</i>&nbsp; * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that
+<i>63</i>&nbsp; * the state being loaded when constructing the instance of this class is not necessarily the state that will be used as {@link
+<i>64</i>&nbsp; * ClusterState#metaData()} because it might be stale or incomplete. Master-eligible nodes must perform an election to find a complete and
+<i>65</i>&nbsp; * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
+<i>66</i>&nbsp; */
+<b class="fc"><i>67</i>&nbsp;public class GatewayMetaState {</b>
+<b class="fc"><i>68</i>&nbsp;    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    // Set by calling start()
+<b class="fc"><i>71</i>&nbsp;    private final SetOnce&lt;PersistedState&gt; persistedState = new SetOnce&lt;&gt;();</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    public PersistedState getPersistedState() {
+<b class="fc"><i>74</i>&nbsp;        final PersistedState persistedState = this.persistedState.get();</b>
+<b class="fc"><i>75</i>&nbsp;        assert persistedState != null : &quot;not started&quot;;</b>
+<b class="fc"><i>76</i>&nbsp;        return persistedState;</b>
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    public MetaData getMetaData() {
+<b class="nc"><i>80</i>&nbsp;        return getPersistedState().getLastAcceptedState().metaData();</b>
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    public void start(Settings settings, TransportService transportService, ClusterService clusterService,
+<i>84</i>&nbsp;                      MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+<i>85</i>&nbsp;                      MetaDataUpgrader metaDataUpgrader) {
+<b class="fc"><i>86</i>&nbsp;        assert persistedState.get() == null : &quot;should only start once, but already have &quot; + persistedState.get();</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;        final Tuple&lt;Manifest, ClusterState&gt; manifestClusterStateTuple;
+<i>89</i>&nbsp;        try {
+<b class="fc"><i>90</i>&nbsp;            upgradeMetaData(settings, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader);</b>
+<b class="fc"><i>91</i>&nbsp;            manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings), metaStateService);</b>
+<b class="nc"><i>92</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>93</i>&nbsp;            throw new ElasticsearchException(&quot;failed to load metadata&quot;, e);</b>
+<b class="fc"><i>94</i>&nbsp;        }</b>
+<b class="fc"><i>95</i>&nbsp;        final IncrementalClusterStateWriter incrementalClusterStateWriter</b>
+<b class="fc"><i>96</i>&nbsp;            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,</b>
+<b class="fc"><i>97</i>&nbsp;            manifestClusterStateTuple.v1(),</b>
+<b class="fc"><i>98</i>&nbsp;            prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),</b>
+<b class="fc"><i>99</i>&nbsp;            transportService.getThreadPool()::relativeTimeInMillis);</b>
+<i>100</i>&nbsp;
+<b class="fc"><i>101</i>&nbsp;        if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {</b>
+<i>102</i>&nbsp;            // only for tests that simulate mixed Zen1/Zen2 clusters, see Zen1IT
+<b class="nc"><i>103</i>&nbsp;            if (isMasterOrDataNode(settings)) {</b>
+<b class="nc"><i>104</i>&nbsp;                clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));</b>
+<i>105</i>&nbsp;            }
+<b class="nc"><i>106</i>&nbsp;            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));</b>
+<b class="fc"><i>107</i>&nbsp;        } else if (DiscoveryNode.isMasterNode(settings) == false) {</b>
+<b class="nc"><i>108</i>&nbsp;            if (DiscoveryNode.isDataNode(settings)) {</b>
+<i>109</i>&nbsp;                // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It&#39;s
+<i>110</i>&nbsp;                // vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata when
+<i>111</i>&nbsp;                // _accepting_ the cluster state (i.e. before it is committed). This persistence happens on the generic threadpool.
+<i>112</i>&nbsp;                //
+<i>113</i>&nbsp;                // In contrast, master-ineligible data nodes only persist the index metadata for shards that they hold. When all shards of
+<i>114</i>&nbsp;                // an index are moved off such a node the IndicesStore is responsible for removing the corresponding index directory,
+<i>115</i>&nbsp;                // including the metadata, and does so on the cluster applier thread.
+<i>116</i>&nbsp;                //
+<i>117</i>&nbsp;                // This presents a problem: if a shard is unassigned from a node and then reassigned back to it again then there is a race
+<i>118</i>&nbsp;                // between the IndicesStore deleting the index folder and the CoordinationState concurrently trying to write the updated
+<i>119</i>&nbsp;                // metadata into it. We could probably solve this with careful synchronization, but in fact there is no need.  The persisted
+<i>120</i>&nbsp;                // state on master-ineligible data nodes is mostly ignored - it&#39;s only there to support dangling index imports, which is
+<i>121</i>&nbsp;                // inherently unsafe anyway. Thus we can safely delay metadata writes on master-ineligible data nodes until applying the
+<i>122</i>&nbsp;                // cluster state, which is what this does:
+<b class="nc"><i>123</i>&nbsp;                clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));</b>
+<i>124</i>&nbsp;            }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;            // Master-ineligible nodes do not need to persist the cluster state when accepting it because they are not in the voting
+<i>127</i>&nbsp;            // configuration, so it&#39;s ok if they have a stale or incomplete cluster state when restarted. We track the latest cluster state
+<i>128</i>&nbsp;            // in memory instead.
+<b class="nc"><i>129</i>&nbsp;            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));</b>
+<i>130</i>&nbsp;        } else {
+<i>131</i>&nbsp;            // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
+<i>132</i>&nbsp;            // last-accepted cluster state when restarted.
+<b class="fc"><i>133</i>&nbsp;            persistedState.set(new GatewayPersistedState(incrementalClusterStateWriter));</b>
+<i>134</i>&nbsp;        }
+<b class="fc"><i>135</i>&nbsp;    }</b>
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    // exposed so it can be overridden by tests
+<i>138</i>&nbsp;    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+<b class="fc"><i>139</i>&nbsp;        assert clusterState.nodes().getLocalNode() == null : &quot;prepareInitialClusterState must only be called once&quot;;</b>
+<b class="fc"><i>140</i>&nbsp;        assert transportService.getLocalNode() != null : &quot;transport service is not yet started&quot;;</b>
+<b class="fc"><i>141</i>&nbsp;        return Function.&lt;ClusterState&gt;identity()</b>
+<b class="fc"><i>142</i>&nbsp;            .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)</b>
+<b class="fc"><i>143</i>&nbsp;            .andThen(state -&gt; ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))</b>
+<b class="fc"><i>144</i>&nbsp;            .andThen(state -&gt; ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))</b>
+<b class="fc"><i>145</i>&nbsp;            .andThen(ClusterStateUpdaters::recoverClusterBlocks)</b>
+<b class="fc"><i>146</i>&nbsp;            .apply(clusterState);</b>
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    // exposed so it can be overridden by tests
+<i>150</i>&nbsp;    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+<i>151</i>&nbsp;                         MetaDataUpgrader metaDataUpgrader) throws IOException {
+<b class="fc"><i>152</i>&nbsp;        if (isMasterOrDataNode(settings)) {</b>
+<i>153</i>&nbsp;            try {
+<b class="fc"><i>154</i>&nbsp;                final Tuple&lt;Manifest, MetaData&gt; metaStateAndData = metaStateService.loadFullState();</b>
+<b class="fc"><i>155</i>&nbsp;                final Manifest manifest = metaStateAndData.v1();</b>
+<b class="fc"><i>156</i>&nbsp;                final MetaData metaData = metaStateAndData.v2();</b>
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;                // We finished global state validation and successfully checked all indices for backward compatibility
+<i>159</i>&nbsp;                // and found no non-upgradable indices, which means the upgrade can continue.
+<i>160</i>&nbsp;                // Now it&#39;s safe to overwrite global and index metadata.
+<i>161</i>&nbsp;                // We don&#39;t re-write metadata if it&#39;s not upgraded by upgrade plugins, because
+<i>162</i>&nbsp;                // if there is manifest file, it means metadata is properly persisted to all data paths
+<i>163</i>&nbsp;                // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
+<i>164</i>&nbsp;                // but anyway we will re-write it as soon as we receive first ClusterState
+<b class="fc"><i>165</i>&nbsp;                final IncrementalClusterStateWriter.AtomicClusterStateWriter writer</b>
+<i>166</i>&nbsp;                    = new IncrementalClusterStateWriter.AtomicClusterStateWriter(metaStateService, manifest);
+<b class="fc"><i>167</i>&nbsp;                final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;                final long globalStateGeneration;
+<b class="fc"><i>170</i>&nbsp;                if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {</b>
+<b class="nc"><i>171</i>&nbsp;                    globalStateGeneration = writer.writeGlobalState(&quot;upgrade&quot;, upgradedMetaData);</b>
+<i>172</i>&nbsp;                } else {
+<b class="fc"><i>173</i>&nbsp;                    globalStateGeneration = manifest.getGlobalGeneration();</b>
+<i>174</i>&nbsp;                }
+<i>175</i>&nbsp;
+<b class="fc"><i>176</i>&nbsp;                Map&lt;Index, Long&gt; indices = new HashMap&lt;&gt;(manifest.getIndexGenerations());</b>
+<b class="fc"><i>177</i>&nbsp;                for (IndexMetaData indexMetaData : upgradedMetaData) {</b>
+<b class="nc"><i>178</i>&nbsp;                    if (metaData.hasIndexMetaData(indexMetaData) == false) {</b>
+<b class="nc"><i>179</i>&nbsp;                        final long generation = writer.writeIndex(&quot;upgrade&quot;, indexMetaData);</b>
+<b class="nc"><i>180</i>&nbsp;                        indices.put(indexMetaData.getIndex(), generation);</b>
+<i>181</i>&nbsp;                    }
+<b class="nc"><i>182</i>&nbsp;                }</b>
+<i>183</i>&nbsp;
+<b class="fc"><i>184</i>&nbsp;                final Manifest newManifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(),</b>
+<i>185</i>&nbsp;                        globalStateGeneration, indices);
+<b class="fc"><i>186</i>&nbsp;                writer.writeManifestAndCleanup(&quot;startup&quot;, newManifest);</b>
+<b class="nc"><i>187</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>188</i>&nbsp;                logger.error(&quot;failed to read or upgrade local state, exiting...&quot;, e);</b>
+<b class="nc"><i>189</i>&nbsp;                throw e;</b>
+<b class="fc"><i>190</i>&nbsp;            }</b>
+<i>191</i>&nbsp;        }
+<b class="fc"><i>192</i>&nbsp;    }</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    private static Tuple&lt;Manifest,ClusterState&gt; loadStateAndManifest(ClusterName clusterName,
+<i>195</i>&nbsp;                                                                     MetaStateService metaStateService) throws IOException {
+<b class="fc"><i>196</i>&nbsp;        final long startNS = System.nanoTime();</b>
+<b class="fc"><i>197</i>&nbsp;        final Tuple&lt;Manifest, MetaData&gt; manifestAndMetaData = metaStateService.loadFullState();</b>
+<b class="fc"><i>198</i>&nbsp;        final Manifest manifest = manifestAndMetaData.v1();</b>
+<i>199</i>&nbsp;
+<b class="fc"><i>200</i>&nbsp;        final ClusterState clusterState = ClusterState.builder(clusterName)</b>
+<b class="fc"><i>201</i>&nbsp;            .version(manifest.getClusterStateVersion())</b>
+<b class="fc"><i>202</i>&nbsp;            .metaData(manifestAndMetaData.v2()).build();</b>
+<i>203</i>&nbsp;
+<b class="fc"><i>204</i>&nbsp;        logger.debug(&quot;took {} to load state&quot;, TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));</b>
+<i>205</i>&nbsp;
+<b class="fc"><i>206</i>&nbsp;        return Tuple.tuple(manifest, clusterState);</b>
+<i>207</i>&nbsp;    }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;    private static boolean isMasterOrDataNode(Settings settings) {
+<b class="fc"><i>210</i>&nbsp;        return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);</b>
+<i>211</i>&nbsp;    }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    /**
+<i>214</i>&nbsp;     * Elasticsearch 2.0 removed several deprecated features and as well as support for Lucene 3.x. This method calls
+<i>215</i>&nbsp;     * {@link MetaDataIndexUpgradeService} to makes sure that indices are compatible with the current version. The
+<i>216</i>&nbsp;     * MetaDataIndexUpgradeService might also update obsolete settings if needed.
+<i>217</i>&nbsp;     *
+<i>218</i>&nbsp;     * @return input &lt;code&gt;metaData&lt;/code&gt; if no upgrade is needed or an upgraded metaData
+<i>219</i>&nbsp;     */
+<i>220</i>&nbsp;    static MetaData upgradeMetaData(MetaData metaData,
+<i>221</i>&nbsp;                                    MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+<i>222</i>&nbsp;                                    MetaDataUpgrader metaDataUpgrader) {
+<i>223</i>&nbsp;        // upgrade index meta data
+<b class="fc"><i>224</i>&nbsp;        boolean changed = false;</b>
+<b class="fc"><i>225</i>&nbsp;        final MetaData.Builder upgradedMetaData = MetaData.builder(metaData);</b>
+<b class="fc"><i>226</i>&nbsp;        for (IndexMetaData indexMetaData : metaData) {</b>
+<b class="nc"><i>227</i>&nbsp;            IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,</b>
+<b class="nc"><i>228</i>&nbsp;                    Version.CURRENT.minimumIndexCompatibilityVersion());</b>
+<b class="nc"><i>229</i>&nbsp;            changed |= indexMetaData != newMetaData;</b>
+<b class="nc"><i>230</i>&nbsp;            upgradedMetaData.put(newMetaData, false);</b>
+<b class="nc"><i>231</i>&nbsp;        }</b>
+<i>232</i>&nbsp;        // upgrade current templates
+<b class="fc"><i>233</i>&nbsp;        if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,</b>
+<b class="fc"><i>234</i>&nbsp;                upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -&gt; upgradedMetaData.put(indexTemplateMetaData))) {</b>
+<b class="nc"><i>235</i>&nbsp;            changed = true;</b>
+<i>236</i>&nbsp;        }
+<b class="fc"><i>237</i>&nbsp;        return changed ? upgradedMetaData.build() : metaData;</b>
+<i>238</i>&nbsp;    }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;    private static boolean applyPluginUpgraders(ImmutableOpenMap&lt;String, IndexTemplateMetaData&gt; existingData,
+<i>241</i>&nbsp;                                                UnaryOperator&lt;Map&lt;String, IndexTemplateMetaData&gt;&gt; upgrader,
+<i>242</i>&nbsp;                                                Consumer&lt;String&gt; removeData,
+<i>243</i>&nbsp;                                                BiConsumer&lt;String, IndexTemplateMetaData&gt; putData) {
+<i>244</i>&nbsp;        // collect current data
+<b class="fc"><i>245</i>&nbsp;        Map&lt;String, IndexTemplateMetaData&gt; existingMap = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>246</i>&nbsp;        for (ObjectObjectCursor&lt;String, IndexTemplateMetaData&gt; customCursor : existingData) {</b>
+<b class="nc"><i>247</i>&nbsp;            existingMap.put(customCursor.key, customCursor.value);</b>
+<b class="nc"><i>248</i>&nbsp;        }</b>
+<i>249</i>&nbsp;        // upgrade global custom meta data
+<b class="fc"><i>250</i>&nbsp;        Map&lt;String, IndexTemplateMetaData&gt; upgradedCustoms = upgrader.apply(existingMap);</b>
+<b class="fc"><i>251</i>&nbsp;        if (upgradedCustoms.equals(existingMap) == false) {</b>
+<i>252</i>&nbsp;            // remove all data first so a plugin can remove custom metadata or templates if needed
+<b class="nc"><i>253</i>&nbsp;            existingMap.keySet().forEach(removeData);</b>
+<b class="nc"><i>254</i>&nbsp;            for (Map.Entry&lt;String, IndexTemplateMetaData&gt; upgradedCustomEntry : upgradedCustoms.entrySet()) {</b>
+<b class="nc"><i>255</i>&nbsp;                putData.accept(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());</b>
+<b class="nc"><i>256</i>&nbsp;            }</b>
+<b class="nc"><i>257</i>&nbsp;            return true;</b>
+<i>258</i>&nbsp;        }
+<b class="fc"><i>259</i>&nbsp;        return false;</b>
+<i>260</i>&nbsp;    }
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    private static class GatewayClusterApplier implements ClusterStateApplier {
+<i>264</i>&nbsp;
+<i>265</i>&nbsp;        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+<i>266</i>&nbsp;
+<i>267</i>&nbsp;        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
+<i>268</i>&nbsp;            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
+<i>269</i>&nbsp;        }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;        @Override
+<i>272</i>&nbsp;        public void applyClusterState(ClusterChangedEvent event) {
+<i>273</i>&nbsp;            if (event.state().blocks().disableStatePersistence()) {
+<i>274</i>&nbsp;                incrementalClusterStateWriter.setIncrementalWrite(false);
+<i>275</i>&nbsp;                return;
+<i>276</i>&nbsp;            }
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;            try {
+<i>279</i>&nbsp;                // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
+<i>280</i>&nbsp;                // that&#39;s higher than the last accepted term.
+<i>281</i>&nbsp;                // TODO: can we get rid of this hack?
+<i>282</i>&nbsp;                if (event.state().term() &gt; incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
+<i>283</i>&nbsp;                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
+<i>284</i>&nbsp;                }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;                incrementalClusterStateWriter.updateClusterState(event.state());
+<i>287</i>&nbsp;                incrementalClusterStateWriter.setIncrementalWrite(true);
+<i>288</i>&nbsp;            } catch (WriteStateException e) {
+<i>289</i>&nbsp;                logger.warn(&quot;Exception occurred when storing new meta data&quot;, e);
+<i>290</i>&nbsp;            }
+<i>291</i>&nbsp;        }
+<i>292</i>&nbsp;
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;
+<b class="fc"><i>295</i>&nbsp;    private static class GatewayPersistedState implements PersistedState {</b>
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+<i>298</i>&nbsp;
+<b class="fc"><i>299</i>&nbsp;        GatewayPersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {</b>
+<b class="fc"><i>300</i>&nbsp;            this.incrementalClusterStateWriter = incrementalClusterStateWriter;</b>
+<b class="fc"><i>301</i>&nbsp;        }</b>
+<i>302</i>&nbsp;
+<i>303</i>&nbsp;        @Override
+<i>304</i>&nbsp;        public long getCurrentTerm() {
+<b class="fc"><i>305</i>&nbsp;            return incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm();</b>
+<i>306</i>&nbsp;        }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;        @Override
+<i>309</i>&nbsp;        public ClusterState getLastAcceptedState() {
+<b class="fc"><i>310</i>&nbsp;            final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();</b>
+<b class="fc"><i>311</i>&nbsp;            assert previousClusterState.nodes().getLocalNode() != null : &quot;Cluster state is not fully built yet&quot;;</b>
+<b class="fc"><i>312</i>&nbsp;            return previousClusterState;</b>
+<i>313</i>&nbsp;        }
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;        @Override
+<i>316</i>&nbsp;        public void setCurrentTerm(long currentTerm) {
+<i>317</i>&nbsp;            try {
+<b class="fc"><i>318</i>&nbsp;                incrementalClusterStateWriter.setCurrentTerm(currentTerm);</b>
+<b class="nc"><i>319</i>&nbsp;            } catch (WriteStateException e) {</b>
+<b class="nc"><i>320</i>&nbsp;                logger.error(new ParameterizedMessage(&quot;Failed to set current term to {}&quot;, currentTerm), e);</b>
+<b class="nc"><i>321</i>&nbsp;                e.rethrowAsErrorOrUncheckedException();</b>
+<b class="fc"><i>322</i>&nbsp;            }</b>
+<b class="fc"><i>323</i>&nbsp;        }</b>
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;        @Override
+<i>326</i>&nbsp;        public void setLastAcceptedState(ClusterState clusterState) {
+<i>327</i>&nbsp;            try {
+<b class="fc"><i>328</i>&nbsp;                incrementalClusterStateWriter.setIncrementalWrite(</b>
+<b class="fc"><i>329</i>&nbsp;                    incrementalClusterStateWriter.getPreviousClusterState().term() == clusterState.term());</b>
+<b class="fc"><i>330</i>&nbsp;                incrementalClusterStateWriter.updateClusterState(clusterState);</b>
+<b class="nc"><i>331</i>&nbsp;            } catch (WriteStateException e) {</b>
+<b class="nc"><i>332</i>&nbsp;                logger.error(new ParameterizedMessage(&quot;Failed to set last accepted state with version {}&quot;, clusterState.version()), e);</b>
+<b class="nc"><i>333</i>&nbsp;                e.rethrowAsErrorOrUncheckedException();</b>
+<b class="fc"><i>334</i>&nbsp;            }</b>
+<b class="fc"><i>335</i>&nbsp;        }</b>
+<i>336</i>&nbsp;
+<i>337</i>&nbsp;    }
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

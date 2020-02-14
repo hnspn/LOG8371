@@ -1,0 +1,313 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: OutboundHandler</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.transport</a> ]
+</div>
+
+<h1>Coverage Summary for Class: OutboundHandler (org.elasticsearch.transport)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">OutboundHandler</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (3/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    24.5%
+  </span>
+  <span class="absValue">
+    (13/ 53)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.transport;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.action.NotifyOnceListener;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>29</i>&nbsp;import org.elasticsearch.common.CheckedSupplier;
+<i>30</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+<i>32</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>33</i>&nbsp;import org.elasticsearch.common.lease.Releasables;
+<i>34</i>&nbsp;import org.elasticsearch.common.metrics.MeanMetric;
+<i>35</i>&nbsp;import org.elasticsearch.common.network.CloseableChannel;
+<i>36</i>&nbsp;import org.elasticsearch.common.transport.NetworkExceptionHelper;
+<i>37</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>38</i>&nbsp;import org.elasticsearch.common.util.BigArrays;
+<i>39</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>40</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import java.io.IOException;
+<i>43</i>&nbsp;import java.util.Set;
+<i>44</i>&nbsp;
+<b class="nc"><i>45</i>&nbsp;final class OutboundHandler {</b>
+<i>46</i>&nbsp;
+<b class="fc"><i>47</i>&nbsp;    private static final Logger logger = LogManager.getLogger(OutboundHandler.class);</b>
+<i>48</i>&nbsp;
+<b class="fc"><i>49</i>&nbsp;    private final MeanMetric transmittedBytesMetric = new MeanMetric();</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    private final String nodeName;
+<i>52</i>&nbsp;    private final Version version;
+<i>53</i>&nbsp;    private final String[] features;
+<i>54</i>&nbsp;    private final ThreadPool threadPool;
+<i>55</i>&nbsp;    private final BigArrays bigArrays;
+<b class="fc"><i>56</i>&nbsp;    private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;</b>
+<i>57</i>&nbsp;
+<b class="fc"><i>58</i>&nbsp;    OutboundHandler(String nodeName, Version version, String[] features, ThreadPool threadPool, BigArrays bigArrays) {</b>
+<b class="fc"><i>59</i>&nbsp;        this.nodeName = nodeName;</b>
+<b class="fc"><i>60</i>&nbsp;        this.version = version;</b>
+<b class="fc"><i>61</i>&nbsp;        this.features = features;</b>
+<b class="fc"><i>62</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>63</i>&nbsp;        this.bigArrays = bigArrays;</b>
+<b class="fc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener&lt;Void&gt; listener) {
+<b class="nc"><i>67</i>&nbsp;        SendContext sendContext = new SendContext(channel, () -&gt; bytes, listener);</b>
+<i>68</i>&nbsp;        try {
+<b class="nc"><i>69</i>&nbsp;            internalSend(channel, sendContext);</b>
+<b class="nc"><i>70</i>&nbsp;        } catch (IOException e) {</b>
+<i>71</i>&nbsp;            // This should not happen as the bytes are already serialized
+<b class="nc"><i>72</i>&nbsp;            throw new AssertionError(e);</b>
+<b class="nc"><i>73</i>&nbsp;        }</b>
+<b class="nc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    /**
+<i>77</i>&nbsp;     * Sends the request to the given channel. This method should be used to send {@link TransportRequest}
+<i>78</i>&nbsp;     * objects back to the caller.
+<i>79</i>&nbsp;     */
+<i>80</i>&nbsp;    void sendRequest(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
+<i>81</i>&nbsp;                     final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
+<i>82</i>&nbsp;                     final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
+<b class="nc"><i>83</i>&nbsp;        Version version = Version.min(this.version, channelVersion);</b>
+<b class="nc"><i>84</i>&nbsp;        OutboundMessage.Request message = new OutboundMessage.Request(threadPool.getThreadContext(), features, request, version, action,</b>
+<i>85</i>&nbsp;            requestId, isHandshake, compressRequest);
+<b class="nc"><i>86</i>&nbsp;        ActionListener&lt;Void&gt; listener = ActionListener.wrap(() -&gt;</b>
+<b class="nc"><i>87</i>&nbsp;            messageListener.onRequestSent(node, requestId, action, request, options));</b>
+<b class="nc"><i>88</i>&nbsp;        sendMessage(channel, message, listener);</b>
+<b class="nc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
+<i>93</i>&nbsp;     * objects back to the caller.
+<i>94</i>&nbsp;     *
+<i>95</i>&nbsp;     * @see #sendErrorResponse(Version, Set, TcpChannel, long, String, Exception) for sending error responses
+<i>96</i>&nbsp;     */
+<i>97</i>&nbsp;    void sendResponse(final Version nodeVersion, final Set&lt;String&gt; features, final TcpChannel channel,
+<i>98</i>&nbsp;                      final long requestId, final String action, final TransportResponse response,
+<i>99</i>&nbsp;                      final boolean compress, final boolean isHandshake) throws IOException {
+<b class="nc"><i>100</i>&nbsp;        Version version = Version.min(this.version, nodeVersion);</b>
+<b class="nc"><i>101</i>&nbsp;        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version,</b>
+<i>102</i>&nbsp;            requestId, isHandshake, compress);
+<b class="nc"><i>103</i>&nbsp;        ActionListener&lt;Void&gt; listener = ActionListener.wrap(() -&gt; messageListener.onResponseSent(requestId, action, response));</b>
+<b class="nc"><i>104</i>&nbsp;        sendMessage(channel, message, listener);</b>
+<b class="nc"><i>105</i>&nbsp;    }</b>
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    /**
+<i>108</i>&nbsp;     * Sends back an error response to the caller via the given channel
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    void sendErrorResponse(final Version nodeVersion, final Set&lt;String&gt; features, final TcpChannel channel, final long requestId,
+<i>111</i>&nbsp;                           final String action, final Exception error) throws IOException {
+<b class="nc"><i>112</i>&nbsp;        Version version = Version.min(this.version, nodeVersion);</b>
+<b class="nc"><i>113</i>&nbsp;        TransportAddress address = new TransportAddress(channel.getLocalAddress());</b>
+<b class="nc"><i>114</i>&nbsp;        RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);</b>
+<b class="nc"><i>115</i>&nbsp;        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, tx, version, requestId,</b>
+<i>116</i>&nbsp;            false, false);
+<b class="nc"><i>117</i>&nbsp;        ActionListener&lt;Void&gt; listener = ActionListener.wrap(() -&gt; messageListener.onResponseSent(requestId, action, error));</b>
+<b class="nc"><i>118</i>&nbsp;        sendMessage(channel, message, listener);</b>
+<b class="nc"><i>119</i>&nbsp;    }</b>
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener&lt;Void&gt; listener) throws IOException {
+<b class="nc"><i>122</i>&nbsp;        MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);</b>
+<b class="nc"><i>123</i>&nbsp;        SendContext sendContext = new SendContext(channel, serializer, listener, serializer);</b>
+<b class="nc"><i>124</i>&nbsp;        internalSend(channel, sendContext);</b>
+<b class="nc"><i>125</i>&nbsp;    }</b>
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
+<b class="nc"><i>128</i>&nbsp;        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());</b>
+<b class="nc"><i>129</i>&nbsp;        BytesReference reference = sendContext.get();</b>
+<i>130</i>&nbsp;        try {
+<b class="nc"><i>131</i>&nbsp;            channel.sendMessage(reference, sendContext);</b>
+<b class="nc"><i>132</i>&nbsp;        } catch (RuntimeException ex) {</b>
+<b class="nc"><i>133</i>&nbsp;            sendContext.onFailure(ex);</b>
+<b class="nc"><i>134</i>&nbsp;            CloseableChannel.closeChannel(channel);</b>
+<b class="nc"><i>135</i>&nbsp;            throw ex;</b>
+<b class="nc"><i>136</i>&nbsp;        }</b>
+<i>137</i>&nbsp;
+<b class="nc"><i>138</i>&nbsp;    }</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    MeanMetric getTransmittedBytes() {
+<b class="nc"><i>141</i>&nbsp;        return transmittedBytesMetric;</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    void setMessageListener(TransportMessageListener listener) {
+<b class="fc"><i>145</i>&nbsp;        if (messageListener == TransportMessageListener.NOOP_LISTENER) {</b>
+<b class="fc"><i>146</i>&nbsp;            messageListener = listener;</b>
+<i>147</i>&nbsp;        } else {
+<b class="nc"><i>148</i>&nbsp;            throw new IllegalStateException(&quot;Cannot set message listener twice&quot;);</b>
+<i>149</i>&nbsp;        }
+<b class="fc"><i>150</i>&nbsp;    }</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    private static class MessageSerializer implements CheckedSupplier&lt;BytesReference, IOException&gt;, Releasable {
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;        private final OutboundMessage message;
+<i>155</i>&nbsp;        private final BigArrays bigArrays;
+<i>156</i>&nbsp;        private volatile ReleasableBytesStreamOutput bytesStreamOutput;
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;        private MessageSerializer(OutboundMessage message, BigArrays bigArrays) {
+<i>159</i>&nbsp;            this.message = message;
+<i>160</i>&nbsp;            this.bigArrays = bigArrays;
+<i>161</i>&nbsp;        }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;        @Override
+<i>164</i>&nbsp;        public BytesReference get() throws IOException {
+<i>165</i>&nbsp;            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+<i>166</i>&nbsp;            return message.serialize(bytesStreamOutput);
+<i>167</i>&nbsp;        }
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;        @Override
+<i>170</i>&nbsp;        public void close() {
+<i>171</i>&nbsp;            IOUtils.closeWhileHandlingException(bytesStreamOutput);
+<i>172</i>&nbsp;        }
+<i>173</i>&nbsp;    }
+<i>174</i>&nbsp;
+<i>175</i>&nbsp;    private class SendContext extends NotifyOnceListener&lt;Void&gt; implements CheckedSupplier&lt;BytesReference, IOException&gt; {
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;        private final TcpChannel channel;
+<i>178</i>&nbsp;        private final CheckedSupplier&lt;BytesReference, IOException&gt; messageSupplier;
+<i>179</i>&nbsp;        private final ActionListener&lt;Void&gt; listener;
+<i>180</i>&nbsp;        private final Releasable optionalReleasable;
+<i>181</i>&nbsp;        private long messageSize = -1;
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;        private SendContext(TcpChannel channel, CheckedSupplier&lt;BytesReference, IOException&gt; messageSupplier,
+<i>184</i>&nbsp;                            ActionListener&lt;Void&gt; listener) {
+<i>185</i>&nbsp;            this(channel, messageSupplier, listener, null);
+<i>186</i>&nbsp;        }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;        private SendContext(TcpChannel channel, CheckedSupplier&lt;BytesReference, IOException&gt; messageSupplier,
+<i>189</i>&nbsp;                            ActionListener&lt;Void&gt; listener, Releasable optionalReleasable) {
+<i>190</i>&nbsp;            this.channel = channel;
+<i>191</i>&nbsp;            this.messageSupplier = messageSupplier;
+<i>192</i>&nbsp;            this.listener = listener;
+<i>193</i>&nbsp;            this.optionalReleasable = optionalReleasable;
+<i>194</i>&nbsp;        }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;        public BytesReference get() throws IOException {
+<i>197</i>&nbsp;            BytesReference message;
+<i>198</i>&nbsp;            try {
+<i>199</i>&nbsp;                message = messageSupplier.get();
+<i>200</i>&nbsp;                messageSize = message.length();
+<i>201</i>&nbsp;                TransportLogger.logOutboundMessage(channel, message);
+<i>202</i>&nbsp;                return message;
+<i>203</i>&nbsp;            } catch (Exception e) {
+<i>204</i>&nbsp;                onFailure(e);
+<i>205</i>&nbsp;                throw e;
+<i>206</i>&nbsp;            }
+<i>207</i>&nbsp;        }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;        @Override
+<i>210</i>&nbsp;        protected void innerOnResponse(Void v) {
+<i>211</i>&nbsp;            assert messageSize != -1 : &quot;If onResponse is being called, the message should have been serialized&quot;;
+<i>212</i>&nbsp;            transmittedBytesMetric.inc(messageSize);
+<i>213</i>&nbsp;            closeAndCallback(() -&gt; listener.onResponse(v));
+<i>214</i>&nbsp;        }
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;        @Override
+<i>217</i>&nbsp;        protected void innerOnFailure(Exception e) {
+<i>218</i>&nbsp;            if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+<i>219</i>&nbsp;                logger.debug(() -&gt; new ParameterizedMessage(&quot;send message failed [channel: {}]&quot;, channel), e);
+<i>220</i>&nbsp;            } else {
+<i>221</i>&nbsp;                logger.warn(() -&gt; new ParameterizedMessage(&quot;send message failed [channel: {}]&quot;, channel), e);
+<i>222</i>&nbsp;            }
+<i>223</i>&nbsp;            closeAndCallback(() -&gt; listener.onFailure(e));
+<i>224</i>&nbsp;        }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;        private void closeAndCallback(Runnable runnable) {
+<i>227</i>&nbsp;            Releasables.close(optionalReleasable, runnable::run);
+<i>228</i>&nbsp;        }
+<i>229</i>&nbsp;    }
+<i>230</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

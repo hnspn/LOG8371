@@ -1,0 +1,263 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FileSystemUtils</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.io</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FileSystemUtils (org.elasticsearch.common.io)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FileSystemUtils</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.8%
+  </span>
+  <span class="absValue">
+    (4/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    24.1%
+  </span>
+  <span class="absValue">
+    (13/ 54)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.io;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.lucene.util.Constants;
+<i>24</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>25</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>26</i>&nbsp;import org.elasticsearch.common.SuppressForbidden;
+<i>27</i>&nbsp;
+<i>28</i>&nbsp;import java.io.IOException;
+<i>29</i>&nbsp;import java.io.InputStream;
+<i>30</i>&nbsp;import java.net.URL;
+<i>31</i>&nbsp;import java.nio.file.DirectoryStream;
+<i>32</i>&nbsp;import java.nio.file.Files;
+<i>33</i>&nbsp;import java.nio.file.Path;
+<i>34</i>&nbsp;import java.util.stream.StreamSupport;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * Elasticsearch utils to work with {@link java.nio.file.Path}
+<i>38</i>&nbsp; */
+<b class="fc"><i>39</i>&nbsp;public final class FileSystemUtils {</b>
+<i>40</i>&nbsp;
+<b class="nc"><i>41</i>&nbsp;    private FileSystemUtils() {} // only static methods</b>
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;    /**
+<i>44</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; iff one of the files exists otherwise &lt;code&gt;false&lt;/code&gt;
+<i>45</i>&nbsp;     */
+<i>46</i>&nbsp;    public static boolean exists(Path... files) {
+<b class="fc"><i>47</i>&nbsp;        for (Path file : files) {</b>
+<b class="fc"><i>48</i>&nbsp;            if (Files.exists(file)) {</b>
+<b class="nc"><i>49</i>&nbsp;                return true;</b>
+<i>50</i>&nbsp;            }
+<i>51</i>&nbsp;        }
+<b class="fc"><i>52</i>&nbsp;        return false;</b>
+<i>53</i>&nbsp;    }
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    /**
+<i>56</i>&nbsp;     * Check whether the file denoted by the given path is hidden.
+<i>57</i>&nbsp;     * In practice, this will check if the file name starts with a dot.
+<i>58</i>&nbsp;     * This should be preferred to {@link Files#isHidden(Path)} as this
+<i>59</i>&nbsp;     * does not depend on the operating system.
+<i>60</i>&nbsp;     */
+<i>61</i>&nbsp;    public static boolean isHidden(Path path) {
+<b class="nc"><i>62</i>&nbsp;        Path fileName = path.getFileName();</b>
+<b class="nc"><i>63</i>&nbsp;        if (fileName == null) {</b>
+<b class="nc"><i>64</i>&nbsp;            return false;</b>
+<i>65</i>&nbsp;        }
+<b class="nc"><i>66</i>&nbsp;        return fileName.toString().startsWith(&quot;.&quot;);</b>
+<i>67</i>&nbsp;    }
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    /**
+<i>70</i>&nbsp;     * Check whether the file denoted by the given path is a desktop services store created by Finder on macOS.
+<i>71</i>&nbsp;     *
+<i>72</i>&nbsp;     * @param path the path
+<i>73</i>&nbsp;     * @return true if the current system is macOS and the specified file appears to be a desktop services store file
+<i>74</i>&nbsp;     */
+<i>75</i>&nbsp;    public static boolean isDesktopServicesStore(final Path path) {
+<b class="nc"><i>76</i>&nbsp;        return Constants.MAC_OS_X &amp;&amp; Files.isRegularFile(path) &amp;&amp; &quot;.DS_Store&quot;.equals(path.getFileName().toString());</b>
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    /**
+<i>80</i>&nbsp;     * Appends the path to the given base and strips N elements off the path if strip is &amp;gt; 0.
+<i>81</i>&nbsp;     */
+<i>82</i>&nbsp;    public static Path append(Path base, Path path, int strip) {
+<b class="nc"><i>83</i>&nbsp;        for (Path subPath : path) {</b>
+<b class="nc"><i>84</i>&nbsp;            if (strip-- &gt; 0) {</b>
+<b class="nc"><i>85</i>&nbsp;                continue;</b>
+<i>86</i>&nbsp;            }
+<b class="nc"><i>87</i>&nbsp;            base = base.resolve(subPath.toString());</b>
+<b class="nc"><i>88</i>&nbsp;        }</b>
+<b class="nc"><i>89</i>&nbsp;        return base;</b>
+<i>90</i>&nbsp;    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    /**
+<i>93</i>&nbsp;     * Deletes all subdirectories in the given path recursively
+<i>94</i>&nbsp;     * @throws java.lang.IllegalArgumentException if the given path is not a directory
+<i>95</i>&nbsp;     */
+<i>96</i>&nbsp;    public static void deleteSubDirectories(Path... paths) throws IOException {
+<b class="nc"><i>97</i>&nbsp;        for (Path path : paths) {</b>
+<b class="nc"><i>98</i>&nbsp;            try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(path)) {</b>
+<b class="nc"><i>99</i>&nbsp;                for (Path subPath : stream) {</b>
+<b class="nc"><i>100</i>&nbsp;                    if (Files.isDirectory(subPath)) {</b>
+<b class="nc"><i>101</i>&nbsp;                        IOUtils.rm(subPath);</b>
+<i>102</i>&nbsp;                    }
+<b class="nc"><i>103</i>&nbsp;                }</b>
+<b class="nc"><i>104</i>&nbsp;            }</b>
+<i>105</i>&nbsp;        }
+<b class="nc"><i>106</i>&nbsp;    }</b>
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    /**
+<i>110</i>&nbsp;     * Check that a directory exists, is a directory and is readable
+<i>111</i>&nbsp;     * by the current user
+<i>112</i>&nbsp;     */
+<i>113</i>&nbsp;    public static boolean isAccessibleDirectory(Path directory, Logger logger) {
+<b class="fc"><i>114</i>&nbsp;        assert directory != null &amp;&amp; logger != null;</b>
+<i>115</i>&nbsp;
+<b class="fc"><i>116</i>&nbsp;        if (!Files.exists(directory)) {</b>
+<b class="fc"><i>117</i>&nbsp;            logger.debug(&quot;[{}] directory does not exist.&quot;, directory.toAbsolutePath());</b>
+<b class="fc"><i>118</i>&nbsp;            return false;</b>
+<i>119</i>&nbsp;        }
+<b class="nc"><i>120</i>&nbsp;        if (!Files.isDirectory(directory)) {</b>
+<b class="nc"><i>121</i>&nbsp;            logger.debug(&quot;[{}] should be a directory but is not.&quot;, directory.toAbsolutePath());</b>
+<b class="nc"><i>122</i>&nbsp;            return false;</b>
+<i>123</i>&nbsp;        }
+<b class="nc"><i>124</i>&nbsp;        if (!Files.isReadable(directory)) {</b>
+<b class="nc"><i>125</i>&nbsp;            logger.debug(&quot;[{}] directory is not readable.&quot;, directory.toAbsolutePath());</b>
+<b class="nc"><i>126</i>&nbsp;            return false;</b>
+<i>127</i>&nbsp;        }
+<b class="nc"><i>128</i>&nbsp;        return true;</b>
+<i>129</i>&nbsp;    }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    /**
+<i>132</i>&nbsp;     * Returns an InputStream the given url if the url has a protocol of &#39;file&#39; or &#39;jar&#39;, no host, and no port.
+<i>133</i>&nbsp;     */
+<i>134</i>&nbsp;    @SuppressForbidden(reason = &quot;Will only open url streams for local files&quot;)
+<i>135</i>&nbsp;    public static InputStream openFileURLStream(URL url) throws IOException {
+<b class="fc"><i>136</i>&nbsp;        String protocol = url.getProtocol();</b>
+<b class="fc"><i>137</i>&nbsp;        if (&quot;file&quot;.equals(protocol) == false &amp;&amp; &quot;jar&quot;.equals(protocol) == false) {</b>
+<b class="nc"><i>138</i>&nbsp;            throw new IllegalArgumentException(&quot;Invalid protocol [&quot; + protocol + &quot;], must be [file] or [jar]&quot;);</b>
+<i>139</i>&nbsp;        }
+<b class="fc"><i>140</i>&nbsp;        if (Strings.isEmpty(url.getHost()) == false) {</b>
+<b class="nc"><i>141</i>&nbsp;            throw new IllegalArgumentException(&quot;URL cannot have host. Found: [&quot; + url.getHost() + &#39;]&#39;);</b>
+<i>142</i>&nbsp;        }
+<b class="fc"><i>143</i>&nbsp;        if (url.getPort() != -1) {</b>
+<b class="nc"><i>144</i>&nbsp;            throw new IllegalArgumentException(&quot;URL cannot have port. Found: [&quot; + url.getPort() + &#39;]&#39;);</b>
+<i>145</i>&nbsp;        }
+<b class="fc"><i>146</i>&nbsp;        return url.openStream();</b>
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    /**
+<i>150</i>&nbsp;     * Returns an array of all files in the given directory matching.
+<i>151</i>&nbsp;     */
+<i>152</i>&nbsp;    public static Path[] files(Path from, DirectoryStream.Filter&lt;Path&gt; filter) throws IOException {
+<b class="nc"><i>153</i>&nbsp;        try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(from, filter)) {</b>
+<b class="nc"><i>154</i>&nbsp;            return toArray(stream);</b>
+<b class="nc"><i>155</i>&nbsp;        }</b>
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /**
+<i>159</i>&nbsp;     * Returns an array of all files in the given directory.
+<i>160</i>&nbsp;     */
+<i>161</i>&nbsp;    public static Path[] files(Path directory) throws IOException {
+<b class="nc"><i>162</i>&nbsp;        try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(directory)) {</b>
+<b class="nc"><i>163</i>&nbsp;            return toArray(stream);</b>
+<b class="nc"><i>164</i>&nbsp;        }</b>
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    /**
+<i>168</i>&nbsp;     * Returns an array of all files in the given directory matching the glob.
+<i>169</i>&nbsp;     */
+<i>170</i>&nbsp;    public static Path[] files(Path directory, String glob) throws IOException {
+<b class="nc"><i>171</i>&nbsp;        try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(directory, glob)) {</b>
+<b class="nc"><i>172</i>&nbsp;            return toArray(stream);</b>
+<b class="nc"><i>173</i>&nbsp;        }</b>
+<i>174</i>&nbsp;    }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    private static Path[] toArray(DirectoryStream&lt;Path&gt; stream) {
+<b class="nc"><i>177</i>&nbsp;        return StreamSupport.stream(stream.spliterator(), false).toArray(length -&gt; new Path[length]);</b>
+<i>178</i>&nbsp;    }
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

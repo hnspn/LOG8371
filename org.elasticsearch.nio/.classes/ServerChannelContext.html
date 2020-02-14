@@ -1,0 +1,203 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ServerChannelContext</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.nio</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ServerChannelContext (org.elasticsearch.nio)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ServerChannelContext</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    70%
+  </span>
+  <span class="absValue">
+    (7/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.5%
+  </span>
+  <span class="absValue">
+    (25/ 42)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.nio;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.concurrent.CompletableContext;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import java.io.IOException;
+<i>25</i>&nbsp;import java.net.BindException;
+<i>26</i>&nbsp;import java.net.InetSocketAddress;
+<i>27</i>&nbsp;import java.net.ServerSocket;
+<i>28</i>&nbsp;import java.nio.channels.ServerSocketChannel;
+<i>29</i>&nbsp;import java.nio.channels.SocketChannel;
+<i>30</i>&nbsp;import java.security.AccessController;
+<i>31</i>&nbsp;import java.security.PrivilegedActionException;
+<i>32</i>&nbsp;import java.security.PrivilegedExceptionAction;
+<i>33</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>34</i>&nbsp;import java.util.function.BiConsumer;
+<i>35</i>&nbsp;import java.util.function.Consumer;
+<i>36</i>&nbsp;import java.util.function.Supplier;
+<i>37</i>&nbsp;
+<b class="fc"><i>38</i>&nbsp;public class ServerChannelContext extends ChannelContext&lt;ServerSocketChannel&gt; {</b>
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    private final NioServerSocketChannel channel;
+<i>41</i>&nbsp;    private final NioSelector selector;
+<i>42</i>&nbsp;    private final Config.ServerSocket config;
+<i>43</i>&nbsp;    private final Consumer&lt;NioSocketChannel&gt; acceptor;
+<b class="fc"><i>44</i>&nbsp;    private final AtomicBoolean isClosing = new AtomicBoolean(false);</b>
+<i>45</i>&nbsp;    private final ChannelFactory&lt;?, ?&gt; channelFactory;
+<b class="fc"><i>46</i>&nbsp;    private final CompletableContext&lt;Void&gt; bindContext = new CompletableContext&lt;&gt;();</b>
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory&lt;?, ?&gt; channelFactory, NioSelector selector,
+<i>49</i>&nbsp;                                Config.ServerSocket config, Consumer&lt;NioSocketChannel&gt; acceptor,
+<i>50</i>&nbsp;                                Consumer&lt;Exception&gt; exceptionHandler) {
+<b class="fc"><i>51</i>&nbsp;        super(channel.getRawChannel(), exceptionHandler);</b>
+<b class="fc"><i>52</i>&nbsp;        this.channel = channel;</b>
+<b class="fc"><i>53</i>&nbsp;        this.channelFactory = channelFactory;</b>
+<b class="fc"><i>54</i>&nbsp;        this.selector = selector;</b>
+<b class="fc"><i>55</i>&nbsp;        this.config = config;</b>
+<b class="fc"><i>56</i>&nbsp;        this.acceptor = acceptor;</b>
+<b class="fc"><i>57</i>&nbsp;    }</b>
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    public void acceptChannels(Supplier&lt;NioSelector&gt; selectorSupplier) throws IOException {
+<i>60</i>&nbsp;        SocketChannel acceptedChannel;
+<b class="nc"><i>61</i>&nbsp;        while ((acceptedChannel = accept(rawChannel)) != null) {</b>
+<b class="nc"><i>62</i>&nbsp;            NioSocketChannel nioChannel = channelFactory.acceptNioChannel(acceptedChannel, selectorSupplier);</b>
+<b class="nc"><i>63</i>&nbsp;            acceptor.accept(nioChannel);</b>
+<b class="nc"><i>64</i>&nbsp;        }</b>
+<b class="nc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    public void addBindListener(BiConsumer&lt;Void, Exception&gt; listener) {
+<b class="fc"><i>68</i>&nbsp;        bindContext.addListener(listener);</b>
+<b class="fc"><i>69</i>&nbsp;    }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    @Override
+<i>72</i>&nbsp;    protected void register() throws IOException {
+<b class="fc"><i>73</i>&nbsp;        super.register();</b>
+<i>74</i>&nbsp;
+<b class="fc"><i>75</i>&nbsp;        configureSocket(rawChannel.socket());</b>
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;        InetSocketAddress localAddress = config.getLocalAddress();</b>
+<i>78</i>&nbsp;        try {
+<b class="fc"><i>79</i>&nbsp;            rawChannel.bind(localAddress);</b>
+<b class="fc"><i>80</i>&nbsp;            bindContext.complete(null);</b>
+<b class="nc"><i>81</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>82</i>&nbsp;            BindException exception = new BindException(&quot;Failed to bind server socket channel {localAddress=&quot; + localAddress + &quot;}.&quot;);</b>
+<b class="nc"><i>83</i>&nbsp;            exception.initCause(e);</b>
+<b class="nc"><i>84</i>&nbsp;            bindContext.completeExceptionally(exception);</b>
+<b class="nc"><i>85</i>&nbsp;            throw exception;</b>
+<b class="fc"><i>86</i>&nbsp;        }</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    @Override
+<i>90</i>&nbsp;    public void closeChannel() {
+<b class="fc"><i>91</i>&nbsp;        if (isClosing.compareAndSet(false, true)) {</b>
+<b class="fc"><i>92</i>&nbsp;            getSelector().queueChannelClose(channel);</b>
+<i>93</i>&nbsp;        }
+<b class="fc"><i>94</i>&nbsp;    }</b>
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    @Override
+<i>97</i>&nbsp;    public NioSelector getSelector() {
+<b class="fc"><i>98</i>&nbsp;        return selector;</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    @Override
+<i>102</i>&nbsp;    public NioServerSocketChannel getChannel() {
+<b class="nc"><i>103</i>&nbsp;        return channel;</b>
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    private void configureSocket(ServerSocket socket) throws IOException {
+<b class="fc"><i>107</i>&nbsp;        socket.setReuseAddress(config.tcpReuseAddress());</b>
+<b class="fc"><i>108</i>&nbsp;    }</b>
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    protected static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
+<i>111</i>&nbsp;        try {
+<b class="nc"><i>112</i>&nbsp;            assert serverSocketChannel.isBlocking() == false;</b>
+<b class="nc"><i>113</i>&nbsp;            SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction&lt;SocketChannel&gt;) serverSocketChannel::accept);</b>
+<b class="nc"><i>114</i>&nbsp;            assert serverSocketChannel.isBlocking() == false;</b>
+<b class="nc"><i>115</i>&nbsp;            return channel;</b>
+<b class="nc"><i>116</i>&nbsp;        } catch (PrivilegedActionException e) {</b>
+<b class="nc"><i>117</i>&nbsp;            throw (IOException) e.getCause();</b>
+<i>118</i>&nbsp;        }
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

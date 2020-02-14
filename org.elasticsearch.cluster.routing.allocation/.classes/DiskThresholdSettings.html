@@ -1,0 +1,547 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DiskThresholdSettings</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DiskThresholdSettings (org.elasticsearch.cluster.routing.allocation)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DiskThresholdSettings</td>
+<td class="coverageStat">
+  <span class="percent">
+    59.4%
+  </span>
+  <span class="absValue">
+    (19/ 32)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    65.3%
+  </span>
+  <span class="absValue">
+    (79/ 121)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">DiskThresholdSettings$FloodStageValidator</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (8/ 8)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">DiskThresholdSettings$HighDiskWatermarkValidator</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (8/ 8)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">DiskThresholdSettings$LowDiskWatermarkValidator</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (8/ 8)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    70.5%
+  </span>
+  <span class="absValue">
+    (31/ 44)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    71%
+  </span>
+  <span class="absValue">
+    (103/ 145)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>23</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>24</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>25</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>26</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>27</i>&nbsp;import org.elasticsearch.common.unit.RatioValue;
+<i>28</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.util.Arrays;
+<i>31</i>&nbsp;import java.util.Iterator;
+<i>32</i>&nbsp;import java.util.List;
+<i>33</i>&nbsp;import java.util.Locale;
+<i>34</i>&nbsp;import java.util.Map;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * A container to keep settings for disk thresholds up to date with cluster setting changes.
+<i>38</i>&nbsp; */
+<b class="fc"><i>39</i>&nbsp;public class DiskThresholdSettings {</b>
+<b class="fc"><i>40</i>&nbsp;    public static final Setting&lt;Boolean&gt; CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING =</b>
+<b class="fc"><i>41</i>&nbsp;        Setting.boolSetting(&quot;cluster.routing.allocation.disk.threshold_enabled&quot;, true,</b>
+<i>42</i>&nbsp;            Setting.Property.Dynamic, Setting.Property.NodeScope);
+<b class="fc"><i>43</i>&nbsp;    public static final Setting&lt;String&gt; CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =</b>
+<i>44</i>&nbsp;        new Setting&lt;&gt;(&quot;cluster.routing.allocation.disk.watermark.low&quot;, &quot;85%&quot;,
+<b class="fc"><i>45</i>&nbsp;            (s) -&gt; validWatermarkSetting(s, &quot;cluster.routing.allocation.disk.watermark.low&quot;),</b>
+<i>46</i>&nbsp;            new LowDiskWatermarkValidator(),
+<i>47</i>&nbsp;            Setting.Property.Dynamic, Setting.Property.NodeScope);
+<b class="fc"><i>48</i>&nbsp;    public static final Setting&lt;String&gt; CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING =</b>
+<i>49</i>&nbsp;        new Setting&lt;&gt;(&quot;cluster.routing.allocation.disk.watermark.high&quot;, &quot;90%&quot;,
+<b class="fc"><i>50</i>&nbsp;            (s) -&gt; validWatermarkSetting(s, &quot;cluster.routing.allocation.disk.watermark.high&quot;),</b>
+<i>51</i>&nbsp;            new HighDiskWatermarkValidator(),
+<i>52</i>&nbsp;            Setting.Property.Dynamic, Setting.Property.NodeScope);
+<b class="fc"><i>53</i>&nbsp;    public static final Setting&lt;String&gt; CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING =</b>
+<i>54</i>&nbsp;        new Setting&lt;&gt;(&quot;cluster.routing.allocation.disk.watermark.flood_stage&quot;, &quot;95%&quot;,
+<b class="fc"><i>55</i>&nbsp;            (s) -&gt; validWatermarkSetting(s, &quot;cluster.routing.allocation.disk.watermark.flood_stage&quot;),</b>
+<i>56</i>&nbsp;            new FloodStageValidator(),
+<i>57</i>&nbsp;            Setting.Property.Dynamic, Setting.Property.NodeScope);
+<b class="fc"><i>58</i>&nbsp;    public static final Setting&lt;Boolean&gt; CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =</b>
+<b class="fc"><i>59</i>&nbsp;        Setting.boolSetting(&quot;cluster.routing.allocation.disk.include_relocations&quot;, true,</b>
+<i>60</i>&nbsp;            Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
+<b class="fc"><i>61</i>&nbsp;    public static final Setting&lt;TimeValue&gt; CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =</b>
+<b class="fc"><i>62</i>&nbsp;        Setting.positiveTimeSetting(&quot;cluster.routing.allocation.disk.reroute_interval&quot;, TimeValue.timeValueSeconds(60),</b>
+<i>63</i>&nbsp;            Setting.Property.Dynamic, Setting.Property.NodeScope);
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    private volatile String lowWatermarkRaw;
+<i>66</i>&nbsp;    private volatile String highWatermarkRaw;
+<i>67</i>&nbsp;    private volatile Double freeDiskThresholdLow;
+<i>68</i>&nbsp;    private volatile Double freeDiskThresholdHigh;
+<i>69</i>&nbsp;    private volatile ByteSizeValue freeBytesThresholdLow;
+<i>70</i>&nbsp;    private volatile ByteSizeValue freeBytesThresholdHigh;
+<i>71</i>&nbsp;    private volatile boolean includeRelocations;
+<i>72</i>&nbsp;    private volatile boolean enabled;
+<i>73</i>&nbsp;    private volatile TimeValue rerouteInterval;
+<i>74</i>&nbsp;    private volatile Double freeDiskThresholdFloodStage;
+<i>75</i>&nbsp;    private volatile ByteSizeValue freeBytesThresholdFloodStage;
+<i>76</i>&nbsp;    private static final boolean autoReleaseIndexEnabled;
+<i>77</i>&nbsp;    public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = &quot;es.disk.auto_release_flood_stage_block&quot;;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    static {
+<b class="fc"><i>80</i>&nbsp;        final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);</b>
+<b class="fc"><i>81</i>&nbsp;        if (property == null) {</b>
+<b class="fc"><i>82</i>&nbsp;            autoReleaseIndexEnabled = true;</b>
+<b class="nc"><i>83</i>&nbsp;        } else if (Boolean.FALSE.toString().equals(property)){</b>
+<b class="nc"><i>84</i>&nbsp;            autoReleaseIndexEnabled = false;</b>
+<i>85</i>&nbsp;        } else {
+<b class="nc"><i>86</i>&nbsp;            throw new IllegalArgumentException(AUTO_RELEASE_INDEX_ENABLED_KEY + &quot; may only be unset or set to [false] but was [&quot; +</b>
+<i>87</i>&nbsp;                property + &quot;]&quot;);
+<i>88</i>&nbsp;        }
+<b class="fc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<b class="fc"><i>91</i>&nbsp;    public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {</b>
+<b class="fc"><i>92</i>&nbsp;        final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);</b>
+<b class="fc"><i>93</i>&nbsp;        final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings);</b>
+<b class="fc"><i>94</i>&nbsp;        final String floodStage = CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.get(settings);</b>
+<b class="fc"><i>95</i>&nbsp;        setHighWatermark(highWatermark);</b>
+<b class="fc"><i>96</i>&nbsp;        setLowWatermark(lowWatermark);</b>
+<b class="fc"><i>97</i>&nbsp;        setFloodStage(floodStage);</b>
+<b class="fc"><i>98</i>&nbsp;        this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);</b>
+<b class="fc"><i>99</i>&nbsp;        this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);</b>
+<b class="fc"><i>100</i>&nbsp;        this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);</b>
+<b class="fc"><i>101</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);</b>
+<b class="fc"><i>102</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);</b>
+<b class="fc"><i>103</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);</b>
+<b class="fc"><i>104</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);</b>
+<b class="fc"><i>105</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);</b>
+<b class="fc"><i>106</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);</b>
+<b class="fc"><i>107</i>&nbsp;    }</b>
+<i>108</i>&nbsp;
+<b class="fc"><i>109</i>&nbsp;    static final class LowDiskWatermarkValidator implements Setting.Validator&lt;String&gt; {</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;        @Override
+<i>112</i>&nbsp;        public void validate(String value) {
+<i>113</i>&nbsp;
+<b class="fc"><i>114</i>&nbsp;        }</b>
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;        @Override
+<i>117</i>&nbsp;        public void validate(final String value, final Map&lt;Setting&lt;?&gt;, Object&gt; settings) {
+<b class="fc"><i>118</i>&nbsp;            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);</b>
+<b class="fc"><i>119</i>&nbsp;            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);</b>
+<b class="fc"><i>120</i>&nbsp;            doValidate(value, highWatermarkRaw, floodStageRaw);</b>
+<b class="fc"><i>121</i>&nbsp;        }</b>
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;        @Override
+<i>124</i>&nbsp;        public Iterator&lt;Setting&lt;?&gt;&gt; settings() {
+<b class="fc"><i>125</i>&nbsp;            final List&lt;Setting&lt;?&gt;&gt; settings = Arrays.asList(</b>
+<i>126</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+<i>127</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+<b class="fc"><i>128</i>&nbsp;            return settings.iterator();</b>
+<i>129</i>&nbsp;        }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    }
+<i>132</i>&nbsp;
+<b class="fc"><i>133</i>&nbsp;    static final class HighDiskWatermarkValidator implements Setting.Validator&lt;String&gt; {</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        @Override
+<i>136</i>&nbsp;        public void validate(final String value) {
+<i>137</i>&nbsp;
+<b class="fc"><i>138</i>&nbsp;        }</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;        @Override
+<i>141</i>&nbsp;        public void validate(final String value, final Map&lt;Setting&lt;?&gt;, Object&gt; settings) {
+<b class="fc"><i>142</i>&nbsp;            final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);</b>
+<b class="fc"><i>143</i>&nbsp;            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);</b>
+<b class="fc"><i>144</i>&nbsp;            doValidate(lowWatermarkRaw, value, floodStageRaw);</b>
+<b class="fc"><i>145</i>&nbsp;        }</b>
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;        @Override
+<i>148</i>&nbsp;        public Iterator&lt;Setting&lt;?&gt;&gt; settings() {
+<b class="fc"><i>149</i>&nbsp;            final List&lt;Setting&lt;?&gt;&gt; settings = Arrays.asList(</b>
+<i>150</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+<i>151</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+<b class="fc"><i>152</i>&nbsp;            return settings.iterator();</b>
+<i>153</i>&nbsp;        }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<b class="fc"><i>157</i>&nbsp;    static final class FloodStageValidator implements Setting.Validator&lt;String&gt; {</b>
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;        @Override
+<i>160</i>&nbsp;        public void validate(final String value) {
+<i>161</i>&nbsp;
+<b class="fc"><i>162</i>&nbsp;        }</b>
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;        @Override
+<i>165</i>&nbsp;        public void validate(final String value, final Map&lt;Setting&lt;?&gt;, Object&gt; settings) {
+<b class="fc"><i>166</i>&nbsp;            final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);</b>
+<b class="fc"><i>167</i>&nbsp;            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);</b>
+<b class="fc"><i>168</i>&nbsp;            doValidate(lowWatermarkRaw, highWatermarkRaw, value);</b>
+<b class="fc"><i>169</i>&nbsp;        }</b>
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        @Override
+<i>172</i>&nbsp;        public Iterator&lt;Setting&lt;?&gt;&gt; settings() {
+<b class="fc"><i>173</i>&nbsp;            final List&lt;Setting&lt;?&gt;&gt; settings = Arrays.asList(</b>
+<i>174</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+<i>175</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+<b class="fc"><i>176</i>&nbsp;            return settings.iterator();</b>
+<i>177</i>&nbsp;        }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    private static void doValidate(String low, String high, String flood) {
+<i>182</i>&nbsp;        try {
+<b class="fc"><i>183</i>&nbsp;            doValidateAsPercentage(low, high, flood);</b>
+<b class="nc"><i>184</i>&nbsp;            return; // early return so that we do not try to parse as bytes</b>
+<b class="fc"><i>185</i>&nbsp;        } catch (final ElasticsearchParseException e) {</b>
+<i>186</i>&nbsp;            // swallow as we are now going to try to parse as bytes
+<i>187</i>&nbsp;        }
+<i>188</i>&nbsp;        try {
+<b class="fc"><i>189</i>&nbsp;            doValidateAsBytes(low, high, flood);</b>
+<b class="nc"><i>190</i>&nbsp;        } catch (final ElasticsearchParseException e) {</b>
+<b class="nc"><i>191</i>&nbsp;            final String message = String.format(</b>
+<i>192</i>&nbsp;                    Locale.ROOT,
+<i>193</i>&nbsp;                    &quot;unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes&quot;,
+<b class="nc"><i>194</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),</b>
+<i>195</i>&nbsp;                    low,
+<b class="nc"><i>196</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),</b>
+<i>197</i>&nbsp;                    high,
+<b class="nc"><i>198</i>&nbsp;                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),</b>
+<i>199</i>&nbsp;                    flood);
+<b class="nc"><i>200</i>&nbsp;            throw new IllegalArgumentException(message, e);</b>
+<b class="fc"><i>201</i>&nbsp;        }</b>
+<b class="fc"><i>202</i>&nbsp;    }</b>
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;    private static void doValidateAsPercentage(final String low, final String high, final String flood) {
+<b class="fc"><i>205</i>&nbsp;        final double lowWatermarkThreshold = thresholdPercentageFromWatermark(low, false);</b>
+<b class="nc"><i>206</i>&nbsp;        final double highWatermarkThreshold = thresholdPercentageFromWatermark(high, false);</b>
+<b class="nc"><i>207</i>&nbsp;        final double floodThreshold = thresholdPercentageFromWatermark(flood, false);</b>
+<b class="nc"><i>208</i>&nbsp;        if (lowWatermarkThreshold &gt; highWatermarkThreshold) {</b>
+<b class="nc"><i>209</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>210</i>&nbsp;                    &quot;low disk watermark [&quot; + low + &quot;] more than high disk watermark [&quot; + high + &quot;]&quot;);
+<i>211</i>&nbsp;        }
+<b class="nc"><i>212</i>&nbsp;        if (highWatermarkThreshold &gt; floodThreshold) {</b>
+<b class="nc"><i>213</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>214</i>&nbsp;                    &quot;high disk watermark [&quot; + high + &quot;] more than flood stage disk watermark [&quot; + flood + &quot;]&quot;);
+<i>215</i>&nbsp;        }
+<b class="nc"><i>216</i>&nbsp;    }</b>
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    private static void doValidateAsBytes(final String low, final String high, final String flood) {
+<b class="fc"><i>219</i>&nbsp;        final ByteSizeValue lowWatermarkBytes =</b>
+<b class="fc"><i>220</i>&nbsp;                thresholdBytesFromWatermark(low, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), false);</b>
+<b class="fc"><i>221</i>&nbsp;        final ByteSizeValue highWatermarkBytes =</b>
+<b class="fc"><i>222</i>&nbsp;                thresholdBytesFromWatermark(high, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), false);</b>
+<b class="fc"><i>223</i>&nbsp;        final ByteSizeValue floodStageBytes =</b>
+<b class="fc"><i>224</i>&nbsp;                thresholdBytesFromWatermark(flood, CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), false);</b>
+<b class="fc"><i>225</i>&nbsp;        if (lowWatermarkBytes.getBytes() &lt; highWatermarkBytes.getBytes()) {</b>
+<b class="nc"><i>226</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>227</i>&nbsp;                    &quot;low disk watermark [&quot; + low + &quot;] less than high disk watermark [&quot; + high + &quot;]&quot;);
+<i>228</i>&nbsp;        }
+<b class="fc"><i>229</i>&nbsp;        if (highWatermarkBytes.getBytes() &lt; floodStageBytes.getBytes()) {</b>
+<b class="nc"><i>230</i>&nbsp;            throw new IllegalArgumentException(</b>
+<i>231</i>&nbsp;                    &quot;high disk watermark [&quot; + high + &quot;] less than flood stage disk watermark [&quot; + flood + &quot;]&quot;);
+<i>232</i>&nbsp;        }
+<b class="fc"><i>233</i>&nbsp;    }</b>
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;    private void setIncludeRelocations(boolean includeRelocations) {
+<b class="nc"><i>236</i>&nbsp;        this.includeRelocations = includeRelocations;</b>
+<b class="nc"><i>237</i>&nbsp;    }</b>
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    private void setRerouteInterval(TimeValue rerouteInterval) {
+<b class="nc"><i>240</i>&nbsp;        this.rerouteInterval = rerouteInterval;</b>
+<b class="nc"><i>241</i>&nbsp;    }</b>
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    private void setEnabled(boolean enabled) {
+<b class="nc"><i>244</i>&nbsp;        this.enabled = enabled;</b>
+<b class="nc"><i>245</i>&nbsp;    }</b>
+<i>246</i>&nbsp;
+<i>247</i>&nbsp;    private void setLowWatermark(String lowWatermark) {
+<i>248</i>&nbsp;        // Watermark is expressed in terms of used data, but we need &quot;free&quot; data watermark
+<b class="fc"><i>249</i>&nbsp;        this.lowWatermarkRaw = lowWatermark;</b>
+<b class="fc"><i>250</i>&nbsp;        this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(lowWatermark);</b>
+<b class="fc"><i>251</i>&nbsp;        this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark,</b>
+<b class="fc"><i>252</i>&nbsp;            CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey());</b>
+<b class="fc"><i>253</i>&nbsp;    }</b>
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    private void setHighWatermark(String highWatermark) {
+<i>256</i>&nbsp;        // Watermark is expressed in terms of used data, but we need &quot;free&quot; data watermark
+<b class="fc"><i>257</i>&nbsp;        this.highWatermarkRaw = highWatermark;</b>
+<b class="fc"><i>258</i>&nbsp;        this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(highWatermark);</b>
+<b class="fc"><i>259</i>&nbsp;        this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark,</b>
+<b class="fc"><i>260</i>&nbsp;            CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey());</b>
+<b class="fc"><i>261</i>&nbsp;    }</b>
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    private void setFloodStage(String floodStageRaw) {
+<i>264</i>&nbsp;        // Watermark is expressed in terms of used data, but we need &quot;free&quot; data watermark
+<b class="fc"><i>265</i>&nbsp;        this.freeDiskThresholdFloodStage = 100.0 - thresholdPercentageFromWatermark(floodStageRaw);</b>
+<b class="fc"><i>266</i>&nbsp;        this.freeBytesThresholdFloodStage = thresholdBytesFromWatermark(floodStageRaw,</b>
+<b class="fc"><i>267</i>&nbsp;            CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey());</b>
+<b class="fc"><i>268</i>&nbsp;    }</b>
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;    /**
+<i>271</i>&nbsp;     * Gets the raw (uninterpreted) low watermark value as found in the settings.
+<i>272</i>&nbsp;     */
+<i>273</i>&nbsp;    public String getLowWatermarkRaw() {
+<b class="nc"><i>274</i>&nbsp;        return lowWatermarkRaw;</b>
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;    /**
+<i>278</i>&nbsp;     * Gets the raw (uninterpreted) high watermark value as found in the settings.
+<i>279</i>&nbsp;     */
+<i>280</i>&nbsp;    public String getHighWatermarkRaw() {
+<b class="nc"><i>281</i>&nbsp;        return highWatermarkRaw;</b>
+<i>282</i>&nbsp;    }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;    public Double getFreeDiskThresholdLow() {
+<b class="nc"><i>285</i>&nbsp;        return freeDiskThresholdLow;</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    public Double getFreeDiskThresholdHigh() {
+<b class="nc"><i>289</i>&nbsp;        return freeDiskThresholdHigh;</b>
+<i>290</i>&nbsp;    }
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;    public ByteSizeValue getFreeBytesThresholdLow() {
+<b class="nc"><i>293</i>&nbsp;        return freeBytesThresholdLow;</b>
+<i>294</i>&nbsp;    }
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;    public ByteSizeValue getFreeBytesThresholdHigh() {
+<b class="nc"><i>297</i>&nbsp;        return freeBytesThresholdHigh;</b>
+<i>298</i>&nbsp;    }
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    public Double getFreeDiskThresholdFloodStage() {
+<b class="nc"><i>301</i>&nbsp;        return freeDiskThresholdFloodStage;</b>
+<i>302</i>&nbsp;    }
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;    public ByteSizeValue getFreeBytesThresholdFloodStage() {
+<b class="nc"><i>305</i>&nbsp;        return freeBytesThresholdFloodStage;</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    public boolean isAutoReleaseIndexEnabled() {
+<b class="fc"><i>309</i>&nbsp;        return autoReleaseIndexEnabled;</b>
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    public boolean includeRelocations() {
+<b class="nc"><i>313</i>&nbsp;        return includeRelocations;</b>
+<i>314</i>&nbsp;    }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;    public boolean isEnabled() {
+<b class="fc"><i>317</i>&nbsp;        return enabled;</b>
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    public TimeValue getRerouteInterval() {
+<b class="nc"><i>321</i>&nbsp;        return rerouteInterval;</b>
+<i>322</i>&nbsp;    }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;    /**
+<i>325</i>&nbsp;     * Attempts to parse the watermark into a percentage, returning 100.0% if
+<i>326</i>&nbsp;     * it cannot be parsed.
+<i>327</i>&nbsp;     */
+<i>328</i>&nbsp;    private static double thresholdPercentageFromWatermark(String watermark) {
+<b class="fc"><i>329</i>&nbsp;        return thresholdPercentageFromWatermark(watermark, true);</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    /**
+<i>333</i>&nbsp;     * Attempts to parse the watermark into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
+<i>334</i>&nbsp;     * true, otherwise throwing an {@link ElasticsearchParseException}.
+<i>335</i>&nbsp;     *
+<i>336</i>&nbsp;     * @param watermark the watermark to parse as a percentage
+<i>337</i>&nbsp;     * @param lenient true if lenient parsing should be applied
+<i>338</i>&nbsp;     * @return the parsed percentage
+<i>339</i>&nbsp;     */
+<i>340</i>&nbsp;    private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
+<i>341</i>&nbsp;        try {
+<b class="fc"><i>342</i>&nbsp;            return RatioValue.parseRatioValue(watermark).getAsPercent();</b>
+<b class="fc"><i>343</i>&nbsp;        } catch (ElasticsearchParseException ex) {</b>
+<i>344</i>&nbsp;            // NOTE: this is not end-user leniency, since up above we check that it&#39;s a valid byte or percentage, and then store the two
+<i>345</i>&nbsp;            // cases separately
+<b class="fc"><i>346</i>&nbsp;            if (lenient) {</b>
+<b class="fc"><i>347</i>&nbsp;                return 100.0;</b>
+<i>348</i>&nbsp;            }
+<b class="fc"><i>349</i>&nbsp;            throw ex;</b>
+<i>350</i>&nbsp;        }
+<i>351</i>&nbsp;    }
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    /**
+<i>354</i>&nbsp;     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
+<i>355</i>&nbsp;     * a ByteSizeValue of 0 bytes if the value cannot be parsed.
+<i>356</i>&nbsp;     */
+<i>357</i>&nbsp;    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
+<b class="fc"><i>358</i>&nbsp;        return thresholdBytesFromWatermark(watermark, settingName, true);</b>
+<i>359</i>&nbsp;    }
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;    /**
+<i>362</i>&nbsp;     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
+<i>363</i>&nbsp;     * parameter is true, otherwise throwing an {@link ElasticsearchParseException}.
+<i>364</i>&nbsp;     *
+<i>365</i>&nbsp;     * @param watermark the watermark to parse as a byte size
+<i>366</i>&nbsp;     * @param settingName the name of the setting
+<i>367</i>&nbsp;     * @param lenient true if lenient parsing should be applied
+<i>368</i>&nbsp;     * @return the parsed byte size value
+<i>369</i>&nbsp;     */
+<i>370</i>&nbsp;    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName, boolean lenient) {
+<i>371</i>&nbsp;        try {
+<b class="fc"><i>372</i>&nbsp;            return ByteSizeValue.parseBytesSizeValue(watermark, settingName);</b>
+<b class="nc"><i>373</i>&nbsp;        } catch (ElasticsearchParseException ex) {</b>
+<i>374</i>&nbsp;            // NOTE: this is not end-user leniency, since up above we check that it&#39;s a valid byte or percentage, and then store the two
+<i>375</i>&nbsp;            // cases separately
+<b class="nc"><i>376</i>&nbsp;            if (lenient) {</b>
+<b class="nc"><i>377</i>&nbsp;                return ByteSizeValue.parseBytesSizeValue(&quot;0b&quot;, settingName);</b>
+<i>378</i>&nbsp;            }
+<b class="nc"><i>379</i>&nbsp;            throw ex;</b>
+<i>380</i>&nbsp;        }
+<i>381</i>&nbsp;    }
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;    /**
+<i>384</i>&nbsp;     * Checks if a watermark string is a valid percentage or byte size value,
+<i>385</i>&nbsp;     * @return the watermark value given
+<i>386</i>&nbsp;     */
+<i>387</i>&nbsp;    private static String validWatermarkSetting(String watermark, String settingName) {
+<i>388</i>&nbsp;        try {
+<b class="fc"><i>389</i>&nbsp;            RatioValue.parseRatioValue(watermark);</b>
+<b class="fc"><i>390</i>&nbsp;        } catch (ElasticsearchParseException e) {</b>
+<i>391</i>&nbsp;            try {
+<b class="fc"><i>392</i>&nbsp;                ByteSizeValue.parseBytesSizeValue(watermark, settingName);</b>
+<b class="nc"><i>393</i>&nbsp;            } catch (ElasticsearchParseException ex) {</b>
+<b class="nc"><i>394</i>&nbsp;                ex.addSuppressed(e);</b>
+<b class="nc"><i>395</i>&nbsp;                throw ex;</b>
+<b class="fc"><i>396</i>&nbsp;            }</b>
+<b class="fc"><i>397</i>&nbsp;        }</b>
+<b class="fc"><i>398</i>&nbsp;        return watermark;</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

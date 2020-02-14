@@ -1,0 +1,306 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ElectMasterService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery.zen</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ElectMasterService (org.elasticsearch.discovery.zen)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ElectMasterService</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    18.8%
+  </span>
+  <span class="absValue">
+    (3/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.9%
+  </span>
+  <span class="absValue">
+    (8/ 62)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery.zen;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectContainer;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.lucene.util.CollectionUtil;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>31</i>&nbsp;import org.elasticsearch.common.util.CollectionUtils;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.util.ArrayList;
+<i>34</i>&nbsp;import java.util.Arrays;
+<i>35</i>&nbsp;import java.util.Collection;
+<i>36</i>&nbsp;import java.util.List;
+<i>37</i>&nbsp;import java.util.Objects;
+<i>38</i>&nbsp;import java.util.stream.Collectors;
+<i>39</i>&nbsp;
+<b class="fc"><i>40</i>&nbsp;public class ElectMasterService {</b>
+<i>41</i>&nbsp;
+<b class="fc"><i>42</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ElectMasterService.class);</b>
+<i>43</i>&nbsp;
+<b class="fc"><i>44</i>&nbsp;    public static final Setting&lt;Integer&gt; DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =</b>
+<b class="fc"><i>45</i>&nbsp;        Setting.intSetting(&quot;discovery.zen.minimum_master_nodes&quot;, -1, Property.Dynamic, Property.NodeScope, Property.Deprecated);</b>
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    private volatile int minimumMasterNodes;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    /**
+<i>50</i>&nbsp;     * a class to encapsulate all the information about a candidate in a master election
+<i>51</i>&nbsp;     * that is needed to decided which of the candidates should win
+<i>52</i>&nbsp;     */
+<i>53</i>&nbsp;    public static class MasterCandidate {
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;        public static final long UNRECOVERED_CLUSTER_VERSION = -1;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;        final DiscoveryNode node;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;        final long clusterStateVersion;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;        public MasterCandidate(DiscoveryNode node, long clusterStateVersion) {
+<i>62</i>&nbsp;            Objects.requireNonNull(node);
+<i>63</i>&nbsp;            assert clusterStateVersion &gt;= -1 : &quot;got: &quot; + clusterStateVersion;
+<i>64</i>&nbsp;            assert node.isMasterNode();
+<i>65</i>&nbsp;            this.node = node;
+<i>66</i>&nbsp;            this.clusterStateVersion = clusterStateVersion;
+<i>67</i>&nbsp;        }
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;        public DiscoveryNode getNode() {
+<i>70</i>&nbsp;            return node;
+<i>71</i>&nbsp;        }
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;        public long getClusterStateVersion() {
+<i>74</i>&nbsp;            return clusterStateVersion;
+<i>75</i>&nbsp;        }
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;        @Override
+<i>78</i>&nbsp;        public String toString() {
+<i>79</i>&nbsp;            return &quot;Candidate{&quot; +
+<i>80</i>&nbsp;                &quot;node=&quot; + node +
+<i>81</i>&nbsp;                &quot;, clusterStateVersion=&quot; + clusterStateVersion +
+<i>82</i>&nbsp;                &#39;}&#39;;
+<i>83</i>&nbsp;        }
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;        /**
+<i>86</i>&nbsp;         * compares two candidates to indicate which the a better master.
+<i>87</i>&nbsp;         * A higher cluster state version is better
+<i>88</i>&nbsp;         *
+<i>89</i>&nbsp;         * @return -1 if c1 is a batter candidate, 1 if c2.
+<i>90</i>&nbsp;         */
+<i>91</i>&nbsp;        public static int compare(MasterCandidate c1, MasterCandidate c2) {
+<i>92</i>&nbsp;            // we explicitly swap c1 and c2 here. the code expects &quot;better&quot; is lower in a sorted
+<i>93</i>&nbsp;            // list, so if c2 has a higher cluster state version, it needs to come first.
+<i>94</i>&nbsp;            int ret = Long.compare(c2.clusterStateVersion, c1.clusterStateVersion);
+<i>95</i>&nbsp;            if (ret == 0) {
+<i>96</i>&nbsp;                ret = compareNodes(c1.getNode(), c2.getNode());
+<i>97</i>&nbsp;            }
+<i>98</i>&nbsp;            return ret;
+<i>99</i>&nbsp;        }
+<i>100</i>&nbsp;    }
+<i>101</i>&nbsp;
+<b class="fc"><i>102</i>&nbsp;    public ElectMasterService(Settings settings) {</b>
+<b class="fc"><i>103</i>&nbsp;        this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>104</i>&nbsp;        logger.debug(&quot;using minimum_master_nodes [{}]&quot;, minimumMasterNodes);</b>
+<b class="fc"><i>105</i>&nbsp;    }</b>
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    public void minimumMasterNodes(int minimumMasterNodes) {
+<b class="nc"><i>108</i>&nbsp;        this.minimumMasterNodes = minimumMasterNodes;</b>
+<b class="nc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    public int minimumMasterNodes() {
+<b class="nc"><i>112</i>&nbsp;        return minimumMasterNodes;</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    public int countMasterNodes(Iterable&lt;DiscoveryNode&gt; nodes) {
+<b class="nc"><i>116</i>&nbsp;        int count = 0;</b>
+<b class="nc"><i>117</i>&nbsp;        for (DiscoveryNode node : nodes) {</b>
+<b class="nc"><i>118</i>&nbsp;            if (node.isMasterNode()) {</b>
+<b class="nc"><i>119</i>&nbsp;                count++;</b>
+<i>120</i>&nbsp;            }
+<b class="nc"><i>121</i>&nbsp;        }</b>
+<b class="nc"><i>122</i>&nbsp;        return count;</b>
+<i>123</i>&nbsp;    }
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;    public boolean hasEnoughCandidates(Collection&lt;MasterCandidate&gt; candidates) {
+<b class="nc"><i>126</i>&nbsp;        if (candidates.isEmpty()) {</b>
+<b class="nc"><i>127</i>&nbsp;            return false;</b>
+<i>128</i>&nbsp;        }
+<b class="nc"><i>129</i>&nbsp;        if (minimumMasterNodes &lt; 1) {</b>
+<b class="nc"><i>130</i>&nbsp;            return true;</b>
+<i>131</i>&nbsp;        }
+<b class="nc"><i>132</i>&nbsp;        assert candidates.stream().map(MasterCandidate::getNode).collect(Collectors.toSet()).size() == candidates.size() :</b>
+<i>133</i>&nbsp;            &quot;duplicates ahead: &quot; + candidates;
+<b class="nc"><i>134</i>&nbsp;        return candidates.size() &gt;= minimumMasterNodes;</b>
+<i>135</i>&nbsp;    }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    /**
+<i>138</i>&nbsp;     * Elects a new master out of the possible nodes, returning it. Returns {@code null}
+<i>139</i>&nbsp;     * if no master has been elected.
+<i>140</i>&nbsp;     */
+<i>141</i>&nbsp;    public MasterCandidate electMaster(Collection&lt;MasterCandidate&gt; candidates) {
+<b class="nc"><i>142</i>&nbsp;        assert hasEnoughCandidates(candidates);</b>
+<b class="nc"><i>143</i>&nbsp;        List&lt;MasterCandidate&gt; sortedCandidates = new ArrayList&lt;&gt;(candidates);</b>
+<b class="nc"><i>144</i>&nbsp;        sortedCandidates.sort(MasterCandidate::compare);</b>
+<b class="nc"><i>145</i>&nbsp;        return sortedCandidates.get(0);</b>
+<i>146</i>&nbsp;    }
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    /** selects the best active master to join, where multiple are discovered */
+<i>149</i>&nbsp;    public DiscoveryNode tieBreakActiveMasters(Collection&lt;DiscoveryNode&gt; activeMasters) {
+<b class="nc"><i>150</i>&nbsp;        return activeMasters.stream().min(ElectMasterService::compareNodes).get();</b>
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    public boolean hasEnoughMasterNodes(Iterable&lt;DiscoveryNode&gt; nodes) {
+<b class="nc"><i>154</i>&nbsp;        final int count = countMasterNodes(nodes);</b>
+<b class="nc"><i>155</i>&nbsp;        return count &gt; 0 &amp;&amp; (minimumMasterNodes &lt; 0 || count &gt;= minimumMasterNodes);</b>
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    public boolean hasTooManyMasterNodes(Iterable&lt;DiscoveryNode&gt; nodes) {
+<b class="nc"><i>159</i>&nbsp;        final int count = countMasterNodes(nodes);</b>
+<b class="nc"><i>160</i>&nbsp;        return count &gt; 1 &amp;&amp; minimumMasterNodes &lt;= count / 2;</b>
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
+<i>164</i>&nbsp;        // check if min_master_nodes setting is too low and log warning
+<b class="nc"><i>165</i>&nbsp;        if (hasTooManyMasterNodes(oldState.nodes()) == false &amp;&amp; hasTooManyMasterNodes(newState.nodes())) {</b>
+<b class="nc"><i>166</i>&nbsp;            logger.warn(&quot;value for setting \&quot;{}\&quot; is too low. This can result in data loss! Please set it to at least a quorum of master-&quot; +</b>
+<i>167</i>&nbsp;                    &quot;eligible nodes (current value: [{}], total number of master-eligible nodes used for publishing in this round: [{}])&quot;,
+<b class="nc"><i>168</i>&nbsp;                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNodes(),</b>
+<b class="nc"><i>169</i>&nbsp;                newState.getNodes().getMasterNodes().size());</b>
+<i>170</i>&nbsp;        }
+<b class="nc"><i>171</i>&nbsp;    }</b>
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;    /**
+<i>174</i>&nbsp;     * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
+<i>175</i>&nbsp;     * Non-master nodes are not removed but are rather put in the end
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    static List&lt;DiscoveryNode&gt; sortByMasterLikelihood(Iterable&lt;DiscoveryNode&gt; nodes) {
+<b class="nc"><i>178</i>&nbsp;        ArrayList&lt;DiscoveryNode&gt; sortedNodes = CollectionUtils.iterableAsArrayList(nodes);</b>
+<b class="nc"><i>179</i>&nbsp;        CollectionUtil.introSort(sortedNodes, ElectMasterService::compareNodes);</b>
+<b class="nc"><i>180</i>&nbsp;        return sortedNodes;</b>
+<i>181</i>&nbsp;    }
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    /**
+<i>184</i>&nbsp;     * Returns a list of the next possible masters.
+<i>185</i>&nbsp;     */
+<i>186</i>&nbsp;    public DiscoveryNode[] nextPossibleMasters(ObjectContainer&lt;DiscoveryNode&gt; nodes, int numberOfPossibleMasters) {
+<b class="nc"><i>187</i>&nbsp;        List&lt;DiscoveryNode&gt; sortedNodes = sortedMasterNodes(Arrays.asList(nodes.toArray(DiscoveryNode.class)));</b>
+<b class="nc"><i>188</i>&nbsp;        if (sortedNodes == null) {</b>
+<b class="nc"><i>189</i>&nbsp;            return new DiscoveryNode[0];</b>
+<i>190</i>&nbsp;        }
+<b class="nc"><i>191</i>&nbsp;        List&lt;DiscoveryNode&gt; nextPossibleMasters = new ArrayList&lt;&gt;(numberOfPossibleMasters);</b>
+<b class="nc"><i>192</i>&nbsp;        int counter = 0;</b>
+<b class="nc"><i>193</i>&nbsp;        for (DiscoveryNode nextPossibleMaster : sortedNodes) {</b>
+<b class="nc"><i>194</i>&nbsp;            if (++counter &gt;= numberOfPossibleMasters) {</b>
+<b class="nc"><i>195</i>&nbsp;                break;</b>
+<i>196</i>&nbsp;            }
+<b class="nc"><i>197</i>&nbsp;            nextPossibleMasters.add(nextPossibleMaster);</b>
+<b class="nc"><i>198</i>&nbsp;        }</b>
+<b class="nc"><i>199</i>&nbsp;        return nextPossibleMasters.toArray(new DiscoveryNode[nextPossibleMasters.size()]);</b>
+<i>200</i>&nbsp;    }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;    private List&lt;DiscoveryNode&gt; sortedMasterNodes(Iterable&lt;DiscoveryNode&gt; nodes) {
+<b class="nc"><i>203</i>&nbsp;        List&lt;DiscoveryNode&gt; possibleNodes = CollectionUtils.iterableAsArrayList(nodes);</b>
+<b class="nc"><i>204</i>&nbsp;        if (possibleNodes.isEmpty()) {</b>
+<b class="nc"><i>205</i>&nbsp;            return null;</b>
+<i>206</i>&nbsp;        }
+<i>207</i>&nbsp;        // clean non master nodes
+<b class="nc"><i>208</i>&nbsp;        possibleNodes.removeIf(node -&gt; !node.isMasterNode());</b>
+<b class="nc"><i>209</i>&nbsp;        CollectionUtil.introSort(possibleNodes, ElectMasterService::compareNodes);</b>
+<b class="nc"><i>210</i>&nbsp;        return possibleNodes;</b>
+<i>211</i>&nbsp;    }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    /** master nodes go before other nodes, with a secondary sort by id **/
+<i>214</i>&nbsp;     private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
+<b class="nc"><i>215</i>&nbsp;        if (o1.isMasterNode() &amp;&amp; !o2.isMasterNode()) {</b>
+<b class="nc"><i>216</i>&nbsp;            return -1;</b>
+<i>217</i>&nbsp;        }
+<b class="nc"><i>218</i>&nbsp;        if (!o1.isMasterNode() &amp;&amp; o2.isMasterNode()) {</b>
+<b class="nc"><i>219</i>&nbsp;            return 1;</b>
+<i>220</i>&nbsp;        }
+<b class="nc"><i>221</i>&nbsp;        return o1.getId().compareTo(o2.getId());</b>
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

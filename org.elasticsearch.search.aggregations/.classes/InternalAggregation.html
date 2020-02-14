@@ -1,0 +1,352 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InternalAggregation</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InternalAggregation (org.elasticsearch.search.aggregations)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InternalAggregation</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (12/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (39/ 52)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">InternalAggregation$ReduceContext</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (2/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    53.8%
+  </span>
+  <span class="absValue">
+    (7/ 13)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    63.6%
+  </span>
+  <span class="absValue">
+    (14/ 22)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    70.8%
+  </span>
+  <span class="absValue">
+    (46/ 65)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.search.aggregations;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>22</i>&nbsp;import org.elasticsearch.common.io.stream.NamedWriteable;
+<i>23</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>25</i>&nbsp;import org.elasticsearch.common.util.BigArrays;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>27</i>&nbsp;import org.elasticsearch.rest.action.search.RestSearchAction;
+<i>28</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>29</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+<i>30</i>&nbsp;import org.elasticsearch.search.aggregations.support.AggregationPath;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;import java.util.List;
+<i>34</i>&nbsp;import java.util.Map;
+<i>35</i>&nbsp;import java.util.Objects;
+<i>36</i>&nbsp;import java.util.function.IntConsumer;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;/**
+<i>39</i>&nbsp; * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
+<i>40</i>&nbsp; */
+<i>41</i>&nbsp;public abstract class InternalAggregation implements Aggregation, NamedWriteable {
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;    public static class ReduceContext {
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;        private final BigArrays bigArrays;
+<i>46</i>&nbsp;        private final ScriptService scriptService;
+<i>47</i>&nbsp;        private final IntConsumer multiBucketConsumer;
+<i>48</i>&nbsp;        private final boolean isFinalReduce;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, boolean isFinalReduce) {
+<b class="nc"><i>51</i>&nbsp;            this(bigArrays, scriptService, (s) -&gt; {}, isFinalReduce);</b>
+<b class="nc"><i>52</i>&nbsp;        }</b>
+<i>53</i>&nbsp;
+<b class="fc"><i>54</i>&nbsp;        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer, boolean isFinalReduce) {</b>
+<b class="fc"><i>55</i>&nbsp;            this.bigArrays = bigArrays;</b>
+<b class="fc"><i>56</i>&nbsp;            this.scriptService = scriptService;</b>
+<b class="fc"><i>57</i>&nbsp;            this.multiBucketConsumer = multiBucketConsumer;</b>
+<b class="fc"><i>58</i>&nbsp;            this.isFinalReduce = isFinalReduce;</b>
+<b class="fc"><i>59</i>&nbsp;        }</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;        /**
+<i>62</i>&nbsp;         * Returns &lt;code&gt;true&lt;/code&gt; iff the current reduce phase is the final reduce phase. This indicates if operations like
+<i>63</i>&nbsp;         * pipeline aggregations should be applied or if specific features like {@code minDocCount} should be taken into account.
+<i>64</i>&nbsp;         * Operations that are potentially losing information can only be applied during the final reduce phase.
+<i>65</i>&nbsp;         */
+<i>66</i>&nbsp;        public boolean isFinalReduce() {
+<b class="fc"><i>67</i>&nbsp;            return isFinalReduce;</b>
+<i>68</i>&nbsp;        }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;        public BigArrays bigArrays() {
+<b class="nc"><i>71</i>&nbsp;            return bigArrays;</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;        public ScriptService scriptService() {
+<b class="nc"><i>75</i>&nbsp;            return scriptService;</b>
+<i>76</i>&nbsp;        }
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;        /**
+<i>79</i>&nbsp;         * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
+<i>80</i>&nbsp;         * the maximum number of buckets allowed in a response
+<i>81</i>&nbsp;         */
+<i>82</i>&nbsp;        public void consumeBucketsAndMaybeBreak(int size) {
+<b class="nc"><i>83</i>&nbsp;            multiBucketConsumer.accept(size);</b>
+<b class="nc"><i>84</i>&nbsp;        }</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    protected final String name;
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    protected final Map&lt;String, Object&gt; metaData;
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    private final List&lt;PipelineAggregator&gt; pipelineAggregators;
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    /**
+<i>95</i>&nbsp;     * Constructs an get with a given name.
+<i>96</i>&nbsp;     *
+<i>97</i>&nbsp;     * @param name The name of the get.
+<i>98</i>&nbsp;     */
+<b class="fc"><i>99</i>&nbsp;    protected InternalAggregation(String name, List&lt;PipelineAggregator&gt; pipelineAggregators, Map&lt;String, Object&gt; metaData) {</b>
+<b class="fc"><i>100</i>&nbsp;        this.name = name;</b>
+<b class="fc"><i>101</i>&nbsp;        this.pipelineAggregators = pipelineAggregators;</b>
+<b class="fc"><i>102</i>&nbsp;        this.metaData = metaData;</b>
+<b class="fc"><i>103</i>&nbsp;    }</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    /**
+<i>106</i>&nbsp;     * Read from a stream.
+<i>107</i>&nbsp;     */
+<b class="fc"><i>108</i>&nbsp;    protected InternalAggregation(StreamInput in) throws IOException {</b>
+<b class="fc"><i>109</i>&nbsp;        name = in.readString();</b>
+<b class="fc"><i>110</i>&nbsp;        metaData = in.readMap();</b>
+<b class="fc"><i>111</i>&nbsp;        pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);</b>
+<b class="fc"><i>112</i>&nbsp;    }</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    @Override
+<i>115</i>&nbsp;    public final void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>116</i>&nbsp;        out.writeString(name);</b>
+<b class="fc"><i>117</i>&nbsp;        out.writeGenericValue(metaData);</b>
+<b class="fc"><i>118</i>&nbsp;        out.writeNamedWriteableList(pipelineAggregators);</b>
+<b class="fc"><i>119</i>&nbsp;        doWriteTo(out);</b>
+<b class="fc"><i>120</i>&nbsp;    }</b>
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;    @Override
+<i>125</i>&nbsp;    public String getName() {
+<b class="fc"><i>126</i>&nbsp;        return name;</b>
+<i>127</i>&nbsp;    }
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    /**
+<i>130</i>&nbsp;     * Reduces the given aggregations to a single one and returns it. In &lt;b&gt;most&lt;/b&gt; cases, the assumption will be the all given
+<i>131</i>&nbsp;     * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
+<i>132</i>&nbsp;     * try reusing an existing instance (typically the first in the given list) to save on redundant object
+<i>133</i>&nbsp;     * construction.
+<i>134</i>&nbsp;     */
+<i>135</i>&nbsp;    public final InternalAggregation reduce(List&lt;InternalAggregation&gt; aggregations, ReduceContext reduceContext) {
+<b class="fc"><i>136</i>&nbsp;        InternalAggregation aggResult = doReduce(aggregations, reduceContext);</b>
+<b class="fc"><i>137</i>&nbsp;        if (reduceContext.isFinalReduce()) {</b>
+<b class="fc"><i>138</i>&nbsp;            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {</b>
+<b class="nc"><i>139</i>&nbsp;                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);</b>
+<b class="nc"><i>140</i>&nbsp;            }</b>
+<i>141</i>&nbsp;        }
+<b class="fc"><i>142</i>&nbsp;        return aggResult;</b>
+<i>143</i>&nbsp;    }
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;    public abstract InternalAggregation doReduce(List&lt;InternalAggregation&gt; aggregations, ReduceContext reduceContext);
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;    /**
+<i>148</i>&nbsp;     * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
+<i>149</i>&nbsp;     * false, it should return itself if asked to lead a reduction
+<i>150</i>&nbsp;     */
+<i>151</i>&nbsp;    public boolean isMapped() {
+<b class="fc"><i>152</i>&nbsp;        return true;</b>
+<i>153</i>&nbsp;    }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    /**
+<i>156</i>&nbsp;     * Get the value of specified path in the aggregation.
+<i>157</i>&nbsp;     *
+<i>158</i>&nbsp;     * @param path
+<i>159</i>&nbsp;     *            the path to the property in the aggregation tree
+<i>160</i>&nbsp;     * @return the value of the property
+<i>161</i>&nbsp;     */
+<i>162</i>&nbsp;    public Object getProperty(String path) {
+<b class="nc"><i>163</i>&nbsp;        AggregationPath aggPath = AggregationPath.parse(path);</b>
+<b class="nc"><i>164</i>&nbsp;        return getProperty(aggPath.getPathElementsAsStringList());</b>
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    public abstract Object getProperty(List&lt;String&gt; path);
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    /**
+<i>170</i>&nbsp;     * Read a size under the assumption that a value of 0 means unlimited.
+<i>171</i>&nbsp;     */
+<i>172</i>&nbsp;    protected static int readSize(StreamInput in) throws IOException {
+<b class="nc"><i>173</i>&nbsp;        final int size = in.readVInt();</b>
+<b class="nc"><i>174</i>&nbsp;        return size == 0 ? Integer.MAX_VALUE : size;</b>
+<i>175</i>&nbsp;    }
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;    /**
+<i>178</i>&nbsp;     * Write a size under the assumption that a value of 0 means unlimited.
+<i>179</i>&nbsp;     */
+<i>180</i>&nbsp;    protected static void writeSize(int size, StreamOutput out) throws IOException {
+<b class="nc"><i>181</i>&nbsp;        if (size == Integer.MAX_VALUE) {</b>
+<b class="nc"><i>182</i>&nbsp;            size = 0;</b>
+<i>183</i>&nbsp;        }
+<b class="nc"><i>184</i>&nbsp;        out.writeVInt(size);</b>
+<b class="nc"><i>185</i>&nbsp;    }</b>
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;    @Override
+<i>188</i>&nbsp;    public Map&lt;String, Object&gt; getMetaData() {
+<b class="fc"><i>189</i>&nbsp;        return metaData;</b>
+<i>190</i>&nbsp;    }
+<i>191</i>&nbsp;
+<i>192</i>&nbsp;    public List&lt;PipelineAggregator&gt; pipelineAggregators() {
+<b class="fc"><i>193</i>&nbsp;        return pipelineAggregators;</b>
+<i>194</i>&nbsp;    }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    @Override
+<i>197</i>&nbsp;    public String getType() {
+<b class="fc"><i>198</i>&nbsp;        return getWriteableName();</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    @Override
+<i>202</i>&nbsp;    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="fc"><i>203</i>&nbsp;        if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {</b>
+<i>204</i>&nbsp;            // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+<b class="fc"><i>205</i>&nbsp;            builder.startObject(String.join(TYPED_KEYS_DELIMITER, getType(), getName()));</b>
+<i>206</i>&nbsp;        } else {
+<b class="nc"><i>207</i>&nbsp;            builder.startObject(getName());</b>
+<i>208</i>&nbsp;        }
+<b class="fc"><i>209</i>&nbsp;        if (this.metaData != null) {</b>
+<b class="fc"><i>210</i>&nbsp;            builder.field(CommonFields.META.getPreferredName());</b>
+<b class="fc"><i>211</i>&nbsp;            builder.map(this.metaData);</b>
+<i>212</i>&nbsp;        }
+<b class="fc"><i>213</i>&nbsp;        doXContentBody(builder, params);</b>
+<b class="fc"><i>214</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>215</i>&nbsp;        return builder;</b>
+<i>216</i>&nbsp;    }
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;    @Override
+<i>221</i>&nbsp;    public int hashCode() {
+<b class="fc"><i>222</i>&nbsp;        return Objects.hash(name, metaData, pipelineAggregators);</b>
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    @Override
+<i>226</i>&nbsp;    public boolean equals(Object obj) {
+<b class="fc"><i>227</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="nc"><i>228</i>&nbsp;            return false;</b>
+<i>229</i>&nbsp;        }
+<b class="fc"><i>230</i>&nbsp;        if (obj == this) { return true; }</b>
+<i>231</i>&nbsp;
+<b class="fc"><i>232</i>&nbsp;        InternalAggregation other = (InternalAggregation) obj;</b>
+<b class="fc"><i>233</i>&nbsp;        return Objects.equals(name, other.name) &amp;&amp;</b>
+<b class="fc"><i>234</i>&nbsp;                Objects.equals(pipelineAggregators, other.pipelineAggregators) &amp;&amp;</b>
+<b class="fc"><i>235</i>&nbsp;                Objects.equals(metaData, other.metaData);</b>
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    @Override
+<i>239</i>&nbsp;    public String toString() {
+<b class="nc"><i>240</i>&nbsp;        return Strings.toString(this);</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

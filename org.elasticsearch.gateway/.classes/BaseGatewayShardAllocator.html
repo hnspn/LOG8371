@@ -1,0 +1,187 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BaseGatewayShardAllocator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BaseGatewayShardAllocator (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BaseGatewayShardAllocator</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    41.7%
+  </span>
+  <span class="absValue">
+    (10/ 24)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNodes;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.util.ArrayList;
+<i>34</i>&nbsp;import java.util.List;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * An abstract class that implements basic functionality for allocating
+<i>38</i>&nbsp; * shards to nodes based on shard copies that already exist in the cluster.
+<i>39</i>&nbsp; *
+<i>40</i>&nbsp; * Individual implementations of this class are responsible for providing
+<i>41</i>&nbsp; * the logic to determine to which nodes (if any) those shards are allocated.
+<i>42</i>&nbsp; */
+<b class="fc"><i>43</i>&nbsp;public abstract class BaseGatewayShardAllocator {</b>
+<i>44</i>&nbsp;
+<b class="fc"><i>45</i>&nbsp;    protected final Logger logger = LogManager.getLogger(this.getClass());</b>
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    /**
+<i>48</i>&nbsp;     * Allocate unassigned shards to nodes (if any) where valid copies of the shard already exist.
+<i>49</i>&nbsp;     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}
+<i>50</i>&nbsp;     * to make decisions on assigning shards to nodes.
+<i>51</i>&nbsp;     *
+<i>52</i>&nbsp;     * @param allocation the allocation state container object
+<i>53</i>&nbsp;     */
+<i>54</i>&nbsp;    public void allocateUnassigned(RoutingAllocation allocation) {
+<b class="fc"><i>55</i>&nbsp;        final RoutingNodes routingNodes = allocation.routingNodes();</b>
+<b class="fc"><i>56</i>&nbsp;        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();</b>
+<b class="fc"><i>57</i>&nbsp;        while (unassignedIterator.hasNext()) {</b>
+<b class="fc"><i>58</i>&nbsp;            final ShardRouting shard = unassignedIterator.next();</b>
+<b class="fc"><i>59</i>&nbsp;            final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shard, allocation, logger);</b>
+<i>60</i>&nbsp;
+<b class="fc"><i>61</i>&nbsp;            if (allocateUnassignedDecision.isDecisionTaken() == false) {</b>
+<i>62</i>&nbsp;                // no decision was taken by this allocator
+<b class="fc"><i>63</i>&nbsp;                continue;</b>
+<i>64</i>&nbsp;            }
+<i>65</i>&nbsp;
+<b class="nc"><i>66</i>&nbsp;            if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {</b>
+<b class="nc"><i>67</i>&nbsp;                unassignedIterator.initialize(allocateUnassignedDecision.getTargetNode().getId(),</b>
+<b class="nc"><i>68</i>&nbsp;                    allocateUnassignedDecision.getAllocationId(),</b>
+<b class="nc"><i>69</i>&nbsp;                    shard.primary() ? ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE :</b>
+<b class="nc"><i>70</i>&nbsp;                                      allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),</b>
+<b class="nc"><i>71</i>&nbsp;                    allocation.changes());</b>
+<i>72</i>&nbsp;            } else {
+<b class="nc"><i>73</i>&nbsp;                unassignedIterator.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());</b>
+<i>74</i>&nbsp;            }
+<b class="nc"><i>75</i>&nbsp;        }</b>
+<b class="fc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    /**
+<i>79</i>&nbsp;     * Make a decision on the allocation of an unassigned shard.  This method is used by
+<i>80</i>&nbsp;     * {@link #allocateUnassigned(RoutingAllocation)} to make decisions about whether or not
+<i>81</i>&nbsp;     * the shard can be allocated by this allocator and if so, to which node it will be allocated.
+<i>82</i>&nbsp;     *
+<i>83</i>&nbsp;     * @param unassignedShard  the unassigned shard to allocate
+<i>84</i>&nbsp;     * @param allocation       the current routing state
+<i>85</i>&nbsp;     * @param logger           the logger
+<i>86</i>&nbsp;     * @return an {@link AllocateUnassignedDecision} with the final decision of whether to allocate and details of the decision
+<i>87</i>&nbsp;     */
+<i>88</i>&nbsp;    public abstract AllocateUnassignedDecision makeAllocationDecision(ShardRouting unassignedShard,
+<i>89</i>&nbsp;                                                                      RoutingAllocation allocation,
+<i>90</i>&nbsp;                                                                      Logger logger);
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    /**
+<i>93</i>&nbsp;     * Builds decisions for all nodes in the cluster, so that the explain API can provide information on
+<i>94</i>&nbsp;     * allocation decisions for each node, while still waiting to allocate the shard (e.g. due to fetching shard data).
+<i>95</i>&nbsp;     */
+<i>96</i>&nbsp;    protected static List&lt;NodeAllocationResult&gt; buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
+<b class="nc"><i>97</i>&nbsp;        List&lt;NodeAllocationResult&gt; results = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>98</i>&nbsp;        for (RoutingNode node : allocation.routingNodes()) {</b>
+<b class="nc"><i>99</i>&nbsp;            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);</b>
+<b class="nc"><i>100</i>&nbsp;            results.add(new NodeAllocationResult(node.node(), null, decision));</b>
+<b class="nc"><i>101</i>&nbsp;        }</b>
+<b class="nc"><i>102</i>&nbsp;        return results;</b>
+<i>103</i>&nbsp;    }
+<i>104</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

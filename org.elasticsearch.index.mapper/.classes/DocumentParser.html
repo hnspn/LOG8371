@@ -1,0 +1,1064 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: DocumentParser</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.mapper</a> ]
+</div>
+
+<h1>Coverage Summary for Class: DocumentParser (org.elasticsearch.index.mapper)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">DocumentParser</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    48.8%
+  </span>
+  <span class="absValue">
+    (20/ 41)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.2%
+  </span>
+  <span class="absValue">
+    (118/ 532)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.mapper;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.document.Field;
+<i>23</i>&nbsp;import org.apache.lucene.index.IndexableField;
+<i>24</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>25</i>&nbsp;import org.elasticsearch.Version;
+<i>26</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>27</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>28</i>&nbsp;import org.elasticsearch.common.time.DateFormatter;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.XContentHelper;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>33</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>34</i>&nbsp;import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
+<i>35</i>&nbsp;import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+<i>36</i>&nbsp;import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.IOException;
+<i>39</i>&nbsp;import java.time.format.DateTimeParseException;
+<i>40</i>&nbsp;import java.util.ArrayList;
+<i>41</i>&nbsp;import java.util.Collections;
+<i>42</i>&nbsp;import java.util.HashMap;
+<i>43</i>&nbsp;import java.util.Iterator;
+<i>44</i>&nbsp;import java.util.List;
+<i>45</i>&nbsp;import java.util.Objects;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;/** A parser for documents, given mappings from a DocumentMapper */
+<b class="fc"><i>48</i>&nbsp;final class DocumentParser {</b>
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;    private final IndexSettings indexSettings;
+<i>51</i>&nbsp;    private final DocumentMapperParser docMapperParser;
+<i>52</i>&nbsp;    private final DocumentMapper docMapper;
+<i>53</i>&nbsp;
+<b class="fc"><i>54</i>&nbsp;    DocumentParser(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper) {</b>
+<b class="fc"><i>55</i>&nbsp;        this.indexSettings = indexSettings;</b>
+<b class="fc"><i>56</i>&nbsp;        this.docMapperParser = docMapperParser;</b>
+<b class="fc"><i>57</i>&nbsp;        this.docMapper = docMapper;</b>
+<b class="fc"><i>58</i>&nbsp;    }</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+<b class="fc"><i>61</i>&nbsp;        validateType(source);</b>
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;        final Mapping mapping = docMapper.mapping();</b>
+<i>64</i>&nbsp;        final ParseContext.InternalParseContext context;
+<b class="fc"><i>65</i>&nbsp;        final XContentType xContentType = source.getXContentType();</b>
+<i>66</i>&nbsp;
+<b class="fc"><i>67</i>&nbsp;        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),</b>
+<b class="fc"><i>68</i>&nbsp;            LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {</b>
+<b class="fc"><i>69</i>&nbsp;            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);</b>
+<b class="fc"><i>70</i>&nbsp;            validateStart(parser);</b>
+<b class="fc"><i>71</i>&nbsp;            internalParseDocument(mapping, metadataFieldsMappers, context, parser);</b>
+<b class="fc"><i>72</i>&nbsp;            validateEnd(parser);</b>
+<b class="fc"><i>73</i>&nbsp;        } catch (Exception e) {</b>
+<b class="fc"><i>74</i>&nbsp;            throw wrapInMapperParsingException(source, e);</b>
+<b class="fc"><i>75</i>&nbsp;        }</b>
+<b class="fc"><i>76</i>&nbsp;        String remainingPath = context.path().pathAsText(&quot;&quot;);</b>
+<b class="fc"><i>77</i>&nbsp;        if (remainingPath.isEmpty() == false) {</b>
+<b class="nc"><i>78</i>&nbsp;            throw new IllegalStateException(&quot;found leftover path elements: &quot; + remainingPath);</b>
+<i>79</i>&nbsp;        }
+<i>80</i>&nbsp;
+<b class="fc"><i>81</i>&nbsp;        context.postParse();</b>
+<i>82</i>&nbsp;
+<b class="fc"><i>83</i>&nbsp;        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));</b>
+<i>84</i>&nbsp;    }
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
+<b class="fc"><i>87</i>&nbsp;        for (int i = 0; i &lt; subfields.length - 1; ++i) {</b>
+<b class="nc"><i>88</i>&nbsp;            Mapper mapper = objectMapper.getMapper(subfields[i]);</b>
+<b class="nc"><i>89</i>&nbsp;            if (mapper instanceof ObjectMapper == false) {</b>
+<b class="nc"><i>90</i>&nbsp;                break;</b>
+<i>91</i>&nbsp;            }
+<b class="nc"><i>92</i>&nbsp;            objectMapper = (ObjectMapper) mapper;</b>
+<b class="nc"><i>93</i>&nbsp;            if (objectMapper.isEnabled() == false) {</b>
+<b class="nc"><i>94</i>&nbsp;                return true;</b>
+<i>95</i>&nbsp;            }
+<i>96</i>&nbsp;        }
+<b class="fc"><i>97</i>&nbsp;        return false;</b>
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataFieldsMappers,
+<i>101</i>&nbsp;                                              ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
+<b class="fc"><i>102</i>&nbsp;        final boolean emptyDoc = isEmptyDoc(mapping, parser);</b>
+<i>103</i>&nbsp;
+<b class="fc"><i>104</i>&nbsp;        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {</b>
+<b class="fc"><i>105</i>&nbsp;            metadataMapper.preParse(context);</b>
+<i>106</i>&nbsp;        }
+<i>107</i>&nbsp;
+<b class="fc"><i>108</i>&nbsp;        if (mapping.root.isEnabled() == false) {</b>
+<i>109</i>&nbsp;            // entire type is disabled
+<b class="nc"><i>110</i>&nbsp;            parser.skipChildren();</b>
+<b class="fc"><i>111</i>&nbsp;        } else if (emptyDoc == false) {</b>
+<b class="fc"><i>112</i>&nbsp;            parseObjectOrNested(context, mapping.root);</b>
+<i>113</i>&nbsp;        }
+<i>114</i>&nbsp;
+<b class="fc"><i>115</i>&nbsp;        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {</b>
+<b class="fc"><i>116</i>&nbsp;            metadataMapper.postParse(context);</b>
+<i>117</i>&nbsp;        }
+<b class="fc"><i>118</i>&nbsp;    }</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    private void validateType(SourceToParse source) {
+<b class="fc"><i>121</i>&nbsp;        if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {</b>
+<b class="nc"><i>122</i>&nbsp;            throw new IllegalArgumentException(&quot;It is forbidden to index into the default mapping [&quot; + MapperService.DEFAULT_MAPPING + &quot;]&quot;);</b>
+<i>123</i>&nbsp;        }
+<i>124</i>&nbsp;
+<b class="fc"><i>125</i>&nbsp;        if (Objects.equals(source.type(), docMapper.type()) == false &amp;&amp;</b>
+<b class="nc"><i>126</i>&nbsp;                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs</b>
+<b class="nc"><i>127</i>&nbsp;            throw new MapperParsingException(&quot;Type mismatch, provide type [&quot; + source.type() + &quot;] but mapper is of type [&quot;</b>
+<b class="nc"><i>128</i>&nbsp;                + docMapper.type() + &quot;]&quot;);</b>
+<i>129</i>&nbsp;        }
+<b class="fc"><i>130</i>&nbsp;    }</b>
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    private static void validateStart(XContentParser parser) throws IOException {
+<i>133</i>&nbsp;        // will result in START_OBJECT
+<b class="fc"><i>134</i>&nbsp;        XContentParser.Token token = parser.nextToken();</b>
+<b class="fc"><i>135</i>&nbsp;        if (token != XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>136</i>&nbsp;            throw new MapperParsingException(&quot;Malformed content, must start with an object&quot;);</b>
+<i>137</i>&nbsp;        }
+<b class="fc"><i>138</i>&nbsp;    }</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    private static void validateEnd(XContentParser parser) throws IOException {
+<i>141</i>&nbsp;        XContentParser.Token token;// only check for end of tokens if we created the parser here
+<i>142</i>&nbsp;        // try to parse the next token, this should be null if the object is ended properly
+<i>143</i>&nbsp;        // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
+<b class="fc"><i>144</i>&nbsp;        token = parser.nextToken();</b>
+<b class="fc"><i>145</i>&nbsp;        if (token != null) {</b>
+<b class="nc"><i>146</i>&nbsp;            throw new IllegalArgumentException(&quot;Malformed content, found extra data after parsing: &quot; + token);</b>
+<i>147</i>&nbsp;        }
+<b class="fc"><i>148</i>&nbsp;    }</b>
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    private static boolean isEmptyDoc(Mapping mapping, XContentParser parser) throws IOException {
+<b class="fc"><i>151</i>&nbsp;        if (mapping.root.isEnabled()) {</b>
+<b class="fc"><i>152</i>&nbsp;            final XContentParser.Token token = parser.nextToken();</b>
+<b class="fc"><i>153</i>&nbsp;            if (token == XContentParser.Token.END_OBJECT) {</b>
+<i>154</i>&nbsp;                // empty doc, we can handle it...
+<b class="fc"><i>155</i>&nbsp;                return true;</b>
+<b class="fc"><i>156</i>&nbsp;            } else if (token != XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>157</i>&nbsp;                throw new MapperParsingException(&quot;Malformed content, after first object, either the type field&quot;</b>
+<i>158</i>&nbsp;                    + &quot; or the actual properties should exist&quot;);
+<i>159</i>&nbsp;            }
+<i>160</i>&nbsp;        }
+<b class="fc"><i>161</i>&nbsp;        return false;</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
+<b class="fc"><i>166</i>&nbsp;        return new ParsedDocument(</b>
+<b class="fc"><i>167</i>&nbsp;            context.version(),</b>
+<b class="fc"><i>168</i>&nbsp;            context.seqID(),</b>
+<b class="fc"><i>169</i>&nbsp;            context.sourceToParse().id(),</b>
+<b class="fc"><i>170</i>&nbsp;            context.sourceToParse().type(),</b>
+<b class="fc"><i>171</i>&nbsp;            source.routing(),</b>
+<b class="fc"><i>172</i>&nbsp;            context.docs(),</b>
+<b class="fc"><i>173</i>&nbsp;            context.sourceToParse().source(),</b>
+<b class="fc"><i>174</i>&nbsp;            context.sourceToParse().getXContentType(),</b>
+<i>175</i>&nbsp;            update
+<i>176</i>&nbsp;        );
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;
+<i>180</i>&nbsp;    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
+<i>181</i>&nbsp;        // if its already a mapper parsing exception, no need to wrap it...
+<b class="fc"><i>182</i>&nbsp;        if (e instanceof MapperParsingException) {</b>
+<b class="nc"><i>183</i>&nbsp;            return (MapperParsingException) e;</b>
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        // Throw a more meaningful message if the document is empty.
+<b class="fc"><i>187</i>&nbsp;        if (source.source() != null &amp;&amp; source.source().length() == 0) {</b>
+<b class="nc"><i>188</i>&nbsp;            return new MapperParsingException(&quot;failed to parse, document is empty&quot;);</b>
+<i>189</i>&nbsp;        }
+<i>190</i>&nbsp;
+<b class="fc"><i>191</i>&nbsp;        return new MapperParsingException(&quot;failed to parse&quot;, e);</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    private static String[] splitAndValidatePath(String fullFieldPath) {
+<b class="fc"><i>195</i>&nbsp;        if (fullFieldPath.contains(&quot;.&quot;)) {</b>
+<b class="nc"><i>196</i>&nbsp;            String[] parts = fullFieldPath.split(&quot;\\.&quot;);</b>
+<b class="nc"><i>197</i>&nbsp;            for (String part : parts) {</b>
+<b class="nc"><i>198</i>&nbsp;                if (Strings.hasText(part) == false) {</b>
+<i>199</i>&nbsp;                    // check if the field name contains only whitespace
+<b class="nc"><i>200</i>&nbsp;                    if (Strings.isEmpty(part) == false) {</b>
+<b class="nc"><i>201</i>&nbsp;                        throw new IllegalArgumentException(</b>
+<i>202</i>&nbsp;                                &quot;object field cannot contain only whitespace: [&#39;&quot; + fullFieldPath + &quot;&#39;]&quot;);
+<i>203</i>&nbsp;                    }
+<b class="nc"><i>204</i>&nbsp;                    throw new IllegalArgumentException(</b>
+<i>205</i>&nbsp;                            &quot;object field starting or ending with a [.] makes object resolution ambiguous: [&quot; + fullFieldPath + &quot;]&quot;);
+<i>206</i>&nbsp;                }
+<i>207</i>&nbsp;            }
+<b class="nc"><i>208</i>&nbsp;            return parts;</b>
+<i>209</i>&nbsp;        } else {
+<b class="fc"><i>210</i>&nbsp;            if (Strings.isEmpty(fullFieldPath)) {</b>
+<b class="nc"><i>211</i>&nbsp;                throw new IllegalArgumentException(&quot;field name cannot be an empty string&quot;);</b>
+<i>212</i>&nbsp;            }
+<b class="fc"><i>213</i>&nbsp;            return new String[] {fullFieldPath};</b>
+<i>214</i>&nbsp;        }
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
+<i>218</i>&nbsp;    static Mapping createDynamicUpdate(Mapping mapping, DocumentMapper docMapper, List&lt;Mapper&gt; dynamicMappers) {
+<b class="fc"><i>219</i>&nbsp;        if (dynamicMappers.isEmpty()) {</b>
+<b class="fc"><i>220</i>&nbsp;            return null;</b>
+<i>221</i>&nbsp;        }
+<i>222</i>&nbsp;        // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
+<i>223</i>&nbsp;        // will be processed in a contiguous block. When the prefix is no longer seen, we pop the extra elements
+<i>224</i>&nbsp;        // off the stack, merging them upwards into the existing mappers.
+<b class="nc"><i>225</i>&nbsp;        Collections.sort(dynamicMappers, (Mapper o1, Mapper o2) -&gt; o1.name().compareTo(o2.name()));</b>
+<b class="nc"><i>226</i>&nbsp;        Iterator&lt;Mapper&gt; dynamicMapperItr = dynamicMappers.iterator();</b>
+<b class="nc"><i>227</i>&nbsp;        List&lt;ObjectMapper&gt; parentMappers = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>228</i>&nbsp;        Mapper firstUpdate = dynamicMapperItr.next();</b>
+<b class="nc"><i>229</i>&nbsp;        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));</b>
+<b class="nc"><i>230</i>&nbsp;        Mapper previousMapper = null;</b>
+<b class="nc"><i>231</i>&nbsp;        while (dynamicMapperItr.hasNext()) {</b>
+<b class="nc"><i>232</i>&nbsp;            Mapper newMapper = dynamicMapperItr.next();</b>
+<b class="nc"><i>233</i>&nbsp;            if (previousMapper != null &amp;&amp; newMapper.name().equals(previousMapper.name())) {</b>
+<i>234</i>&nbsp;                // We can see the same mapper more than once, for example, if we had foo.bar and foo.baz, where
+<i>235</i>&nbsp;                // foo did not yet exist. This will create 2 copies in dynamic mappings, which should be identical.
+<i>236</i>&nbsp;                // Here we just skip over the duplicates, but we merge them to ensure there are no conflicts.
+<b class="nc"><i>237</i>&nbsp;                newMapper.merge(previousMapper);</b>
+<b class="nc"><i>238</i>&nbsp;                continue;</b>
+<i>239</i>&nbsp;            }
+<b class="nc"><i>240</i>&nbsp;            previousMapper = newMapper;</b>
+<b class="nc"><i>241</i>&nbsp;            String[] nameParts = splitAndValidatePath(newMapper.name());</b>
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;            // We first need the stack to only contain mappers in common with the previously processed mapper
+<i>244</i>&nbsp;            // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
+<i>245</i>&nbsp;            // a.b, and we want to merge b back into the stack so it just contains a
+<b class="nc"><i>246</i>&nbsp;            int i = removeUncommonMappers(parentMappers, nameParts);</b>
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;            // Then we need to add back mappers that may already exist within the stack, but are not on it.
+<i>249</i>&nbsp;            // For example, if we processed a.b, followed by an object mapper a.c.d, and now are adding a.c.d.e
+<i>250</i>&nbsp;            // then the stack will only have a on it because we will have already merged a.c.d into the stack.
+<i>251</i>&nbsp;            // So we need to pull a.c, followed by a.c.d, onto the stack so e can be added to the end.
+<b class="nc"><i>252</i>&nbsp;            i = expandCommonMappers(parentMappers, nameParts, i);</b>
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;            // If there are still parents of the new mapper which are not on the stack, we need to pull them
+<i>255</i>&nbsp;            // from the existing mappings. In order to maintain the invariant that the stack only contains
+<i>256</i>&nbsp;            // fields which are updated, we cannot simply add the existing mappers to the stack, since they
+<i>257</i>&nbsp;            // may have other subfields which will not be updated. Instead, we pull the mapper from the existing
+<i>258</i>&nbsp;            // mappings, and build an update with only the new mapper and its parents. This then becomes our
+<i>259</i>&nbsp;            // &quot;new mapper&quot;, and can be added to the stack.
+<b class="nc"><i>260</i>&nbsp;            if (i &lt; nameParts.length - 1) {</b>
+<b class="nc"><i>261</i>&nbsp;                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, docMapper, newMapper);</b>
+<i>262</i>&nbsp;            }
+<i>263</i>&nbsp;
+<b class="nc"><i>264</i>&nbsp;            if (newMapper instanceof ObjectMapper) {</b>
+<b class="nc"><i>265</i>&nbsp;                parentMappers.add((ObjectMapper)newMapper);</b>
+<i>266</i>&nbsp;            } else {
+<b class="nc"><i>267</i>&nbsp;                addToLastMapper(parentMappers, newMapper, true);</b>
+<i>268</i>&nbsp;            }
+<b class="nc"><i>269</i>&nbsp;        }</b>
+<b class="nc"><i>270</i>&nbsp;        popMappers(parentMappers, 1, true);</b>
+<b class="nc"><i>271</i>&nbsp;        assert parentMappers.size() == 1;</b>
+<i>272</i>&nbsp;
+<b class="nc"><i>273</i>&nbsp;        return mapping.mappingUpdate(parentMappers.get(0));</b>
+<i>274</i>&nbsp;    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    private static void popMappers(List&lt;ObjectMapper&gt; parentMappers, int keepBefore, boolean merge) {
+<b class="nc"><i>277</i>&nbsp;        assert keepBefore &gt;= 1; // never remove the root mapper</b>
+<i>278</i>&nbsp;        // pop off parent mappers not needed by the current mapper,
+<i>279</i>&nbsp;        // merging them backwards since they are immutable
+<b class="nc"><i>280</i>&nbsp;        for (int i = parentMappers.size() - 1; i &gt;= keepBefore; --i) {</b>
+<b class="nc"><i>281</i>&nbsp;            addToLastMapper(parentMappers, parentMappers.remove(i), merge);</b>
+<i>282</i>&nbsp;        }
+<b class="nc"><i>283</i>&nbsp;    }</b>
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    /**
+<i>286</i>&nbsp;     * Adds a mapper as an update into the last mapper. If merge is true, the new mapper
+<i>287</i>&nbsp;     * will be merged in with other child mappers of the last parent, otherwise it will be a new update.
+<i>288</i>&nbsp;     */
+<i>289</i>&nbsp;    private static void addToLastMapper(List&lt;ObjectMapper&gt; parentMappers, Mapper mapper, boolean merge) {
+<b class="nc"><i>290</i>&nbsp;        assert parentMappers.size() &gt;= 1;</b>
+<b class="nc"><i>291</i>&nbsp;        int lastIndex = parentMappers.size() - 1;</b>
+<b class="nc"><i>292</i>&nbsp;        ObjectMapper withNewMapper = parentMappers.get(lastIndex).mappingUpdate(mapper);</b>
+<b class="nc"><i>293</i>&nbsp;        if (merge) {</b>
+<b class="nc"><i>294</i>&nbsp;            withNewMapper = parentMappers.get(lastIndex).merge(withNewMapper);</b>
+<i>295</i>&nbsp;        }
+<b class="nc"><i>296</i>&nbsp;        parentMappers.set(lastIndex, withNewMapper);</b>
+<b class="nc"><i>297</i>&nbsp;    }</b>
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    /**
+<i>300</i>&nbsp;     * Removes mappers that exist on the stack, but are not part of the path of the current nameParts,
+<i>301</i>&nbsp;     * Returns the next unprocessed index from nameParts.
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    private static int removeUncommonMappers(List&lt;ObjectMapper&gt; parentMappers, String[] nameParts) {
+<b class="nc"><i>304</i>&nbsp;        int keepBefore = 1;</b>
+<b class="nc"><i>305</i>&nbsp;        while (keepBefore &lt; parentMappers.size() &amp;&amp;</b>
+<b class="nc"><i>306</i>&nbsp;            parentMappers.get(keepBefore).simpleName().equals(nameParts[keepBefore - 1])) {</b>
+<b class="nc"><i>307</i>&nbsp;            ++keepBefore;</b>
+<i>308</i>&nbsp;        }
+<b class="nc"><i>309</i>&nbsp;        popMappers(parentMappers, keepBefore, true);</b>
+<b class="nc"><i>310</i>&nbsp;        return keepBefore - 1;</b>
+<i>311</i>&nbsp;    }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;    /**
+<i>314</i>&nbsp;     * Adds mappers from the end of the stack that exist as updates within those mappers.
+<i>315</i>&nbsp;     * Returns the next unprocessed index from nameParts.
+<i>316</i>&nbsp;     */
+<i>317</i>&nbsp;    private static int expandCommonMappers(List&lt;ObjectMapper&gt; parentMappers, String[] nameParts, int i) {
+<b class="nc"><i>318</i>&nbsp;        ObjectMapper last = parentMappers.get(parentMappers.size() - 1);</b>
+<b class="nc"><i>319</i>&nbsp;        while (i &lt; nameParts.length - 1 &amp;&amp; last.getMapper(nameParts[i]) != null) {</b>
+<b class="nc"><i>320</i>&nbsp;            Mapper newLast = last.getMapper(nameParts[i]);</b>
+<b class="nc"><i>321</i>&nbsp;            assert newLast instanceof ObjectMapper;</b>
+<b class="nc"><i>322</i>&nbsp;            last = (ObjectMapper) newLast;</b>
+<b class="nc"><i>323</i>&nbsp;            parentMappers.add(last);</b>
+<b class="nc"><i>324</i>&nbsp;            ++i;</b>
+<b class="nc"><i>325</i>&nbsp;        }</b>
+<b class="nc"><i>326</i>&nbsp;        return i;</b>
+<i>327</i>&nbsp;    }
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;    /** Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper. */
+<i>330</i>&nbsp;    private static ObjectMapper createExistingMapperUpdate(List&lt;ObjectMapper&gt; parentMappers, String[] nameParts, int i,
+<i>331</i>&nbsp;                                                           DocumentMapper docMapper, Mapper newMapper) {
+<b class="nc"><i>332</i>&nbsp;        String updateParentName = nameParts[i];</b>
+<b class="nc"><i>333</i>&nbsp;        final ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);</b>
+<b class="nc"><i>334</i>&nbsp;        if (parentMappers.size() &gt; 1) {</b>
+<i>335</i>&nbsp;            // only prefix with parent mapper if the parent mapper isn&#39;t the root (which has a fake name)
+<b class="nc"><i>336</i>&nbsp;            updateParentName = lastParent.name() + &#39;.&#39; + nameParts[i];</b>
+<i>337</i>&nbsp;        }
+<b class="nc"><i>338</i>&nbsp;        ObjectMapper updateParent = docMapper.objectMappers().get(updateParentName);</b>
+<b class="nc"><i>339</i>&nbsp;        assert updateParent != null : updateParentName + &quot; doesn&#39;t exist&quot;;</b>
+<b class="nc"><i>340</i>&nbsp;        return createUpdate(updateParent, nameParts, i + 1, newMapper);</b>
+<i>341</i>&nbsp;    }
+<i>342</i>&nbsp;
+<i>343</i>&nbsp;    /** Build an update for the parent which will contain the given mapper and any intermediate fields. */
+<i>344</i>&nbsp;    private static ObjectMapper createUpdate(ObjectMapper parent, String[] nameParts, int i, Mapper mapper) {
+<b class="nc"><i>345</i>&nbsp;        List&lt;ObjectMapper&gt; parentMappers = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>346</i>&nbsp;        ObjectMapper previousIntermediate = parent;</b>
+<b class="nc"><i>347</i>&nbsp;        for (; i &lt; nameParts.length - 1; ++i) {</b>
+<b class="nc"><i>348</i>&nbsp;            Mapper intermediate = previousIntermediate.getMapper(nameParts[i]);</b>
+<b class="nc"><i>349</i>&nbsp;            assert intermediate != null : &quot;Field &quot; + previousIntermediate.name() + &quot; does not have a subfield &quot; + nameParts[i];</b>
+<b class="nc"><i>350</i>&nbsp;            assert intermediate instanceof ObjectMapper;</b>
+<b class="nc"><i>351</i>&nbsp;            parentMappers.add((ObjectMapper)intermediate);</b>
+<b class="nc"><i>352</i>&nbsp;            previousIntermediate = (ObjectMapper)intermediate;</b>
+<i>353</i>&nbsp;        }
+<b class="nc"><i>354</i>&nbsp;        if (parentMappers.isEmpty() == false) {</b>
+<i>355</i>&nbsp;            // add the new mapper to the stack, and pop down to the original parent level
+<b class="nc"><i>356</i>&nbsp;            addToLastMapper(parentMappers, mapper, false);</b>
+<b class="nc"><i>357</i>&nbsp;            popMappers(parentMappers, 1, false);</b>
+<b class="nc"><i>358</i>&nbsp;            mapper = parentMappers.get(0);</b>
+<i>359</i>&nbsp;        }
+<b class="nc"><i>360</i>&nbsp;        return parent.mappingUpdate(mapper);</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper) throws IOException {
+<b class="fc"><i>364</i>&nbsp;        if (mapper.isEnabled() == false) {</b>
+<b class="nc"><i>365</i>&nbsp;            context.parser().skipChildren();</b>
+<b class="nc"><i>366</i>&nbsp;            return;</b>
+<i>367</i>&nbsp;        }
+<b class="fc"><i>368</i>&nbsp;        XContentParser parser = context.parser();</b>
+<b class="fc"><i>369</i>&nbsp;        XContentParser.Token token = parser.currentToken();</b>
+<b class="fc"><i>370</i>&nbsp;        if (token == XContentParser.Token.VALUE_NULL) {</b>
+<i>371</i>&nbsp;            // the object is null (&quot;obj1&quot; : null), simply bail
+<b class="nc"><i>372</i>&nbsp;            return;</b>
+<i>373</i>&nbsp;        }
+<i>374</i>&nbsp;
+<b class="fc"><i>375</i>&nbsp;        String currentFieldName = parser.currentName();</b>
+<b class="fc"><i>376</i>&nbsp;        if (token.isValue()) {</b>
+<b class="nc"><i>377</i>&nbsp;            throw new MapperParsingException(&quot;object mapping for [&quot; + mapper.name() + &quot;] tried to parse field [&quot; + currentFieldName</b>
+<i>378</i>&nbsp;                + &quot;] as object, but found a concrete value&quot;);
+<i>379</i>&nbsp;        }
+<i>380</i>&nbsp;
+<b class="fc"><i>381</i>&nbsp;        ObjectMapper.Nested nested = mapper.nested();</b>
+<b class="fc"><i>382</i>&nbsp;        if (nested.isNested()) {</b>
+<b class="nc"><i>383</i>&nbsp;            context = nestedContext(context, mapper);</b>
+<i>384</i>&nbsp;        }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;        // if we are at the end of the previous object, advance
+<b class="fc"><i>387</i>&nbsp;        if (token == XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>388</i>&nbsp;            token = parser.nextToken();</b>
+<i>389</i>&nbsp;        }
+<b class="fc"><i>390</i>&nbsp;        if (token == XContentParser.Token.START_OBJECT) {</b>
+<i>391</i>&nbsp;            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+<b class="nc"><i>392</i>&nbsp;            token = parser.nextToken();</b>
+<i>393</i>&nbsp;        }
+<i>394</i>&nbsp;
+<b class="fc"><i>395</i>&nbsp;        innerParseObject(context, mapper, parser, currentFieldName, token);</b>
+<i>396</i>&nbsp;        // restore the enable path flag
+<b class="fc"><i>397</i>&nbsp;        if (nested.isNested()) {</b>
+<b class="nc"><i>398</i>&nbsp;            nested(context, nested);</b>
+<i>399</i>&nbsp;        }
+<b class="fc"><i>400</i>&nbsp;    }</b>
+<i>401</i>&nbsp;
+<i>402</i>&nbsp;    private static void innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser,
+<i>403</i>&nbsp;                                         String currentFieldName, XContentParser.Token token) throws IOException {
+<b class="fc"><i>404</i>&nbsp;        assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;</b>
+<b class="fc"><i>405</i>&nbsp;        String[] paths = null;</b>
+<b class="fc"><i>406</i>&nbsp;        while (token != XContentParser.Token.END_OBJECT) {</b>
+<b class="fc"><i>407</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="fc"><i>408</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="fc"><i>409</i>&nbsp;                paths = splitAndValidatePath(currentFieldName);</b>
+<b class="fc"><i>410</i>&nbsp;                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {</b>
+<b class="nc"><i>411</i>&nbsp;                    throw new MapperParsingException(&quot;Field [&quot; + currentFieldName + &quot;] is a metadata field and cannot be added inside&quot;</b>
+<i>412</i>&nbsp;                        + &quot; a document. Use the index API request parameters.&quot;);
+<b class="fc"><i>413</i>&nbsp;                } else if (containsDisabledObjectMapper(mapper, paths)) {</b>
+<b class="nc"><i>414</i>&nbsp;                    parser.nextToken();</b>
+<b class="nc"><i>415</i>&nbsp;                    parser.skipChildren();</b>
+<i>416</i>&nbsp;                }
+<b class="fc"><i>417</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="fc"><i>418</i>&nbsp;                parseObject(context, mapper, currentFieldName, paths);</b>
+<b class="fc"><i>419</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>420</i>&nbsp;                parseArray(context, mapper, currentFieldName, paths);</b>
+<b class="fc"><i>421</i>&nbsp;            } else if (token == XContentParser.Token.VALUE_NULL) {</b>
+<b class="nc"><i>422</i>&nbsp;                parseNullValue(context, mapper, currentFieldName, paths);</b>
+<b class="fc"><i>423</i>&nbsp;            } else if (token == null) {</b>
+<b class="nc"><i>424</i>&nbsp;                throw new MapperParsingException(&quot;object mapping for [&quot; + mapper.name() + &quot;] tried to parse field [&quot; + currentFieldName</b>
+<i>425</i>&nbsp;                    + &quot;] as object, but got EOF, has a concrete value been provided to it?&quot;);
+<b class="fc"><i>426</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="fc"><i>427</i>&nbsp;                parseValue(context, mapper, currentFieldName, token, paths);</b>
+<i>428</i>&nbsp;            }
+<b class="fc"><i>429</i>&nbsp;            token = parser.nextToken();</b>
+<i>430</i>&nbsp;        }
+<b class="fc"><i>431</i>&nbsp;    }</b>
+<i>432</i>&nbsp;
+<i>433</i>&nbsp;    private static void nested(ParseContext context, ObjectMapper.Nested nested) {
+<b class="nc"><i>434</i>&nbsp;        ParseContext.Document nestedDoc = context.doc();</b>
+<b class="nc"><i>435</i>&nbsp;        ParseContext.Document parentDoc = nestedDoc.getParent();</b>
+<b class="nc"><i>436</i>&nbsp;        if (nested.isIncludeInParent()) {</b>
+<b class="nc"><i>437</i>&nbsp;            addFields(nestedDoc, parentDoc);</b>
+<i>438</i>&nbsp;        }
+<b class="nc"><i>439</i>&nbsp;        if (nested.isIncludeInRoot()) {</b>
+<b class="nc"><i>440</i>&nbsp;            ParseContext.Document rootDoc = context.rootDoc();</b>
+<i>441</i>&nbsp;            // don&#39;t add it twice, if its included in parent, and we are handling the master doc...
+<b class="nc"><i>442</i>&nbsp;            if (!nested.isIncludeInParent() || parentDoc != rootDoc) {</b>
+<b class="nc"><i>443</i>&nbsp;                addFields(nestedDoc, rootDoc);</b>
+<i>444</i>&nbsp;            }
+<i>445</i>&nbsp;        }
+<b class="nc"><i>446</i>&nbsp;    }</b>
+<i>447</i>&nbsp;
+<i>448</i>&nbsp;    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+<b class="nc"><i>449</i>&nbsp;        for (IndexableField field : nestedDoc.getFields()) {</b>
+<b class="nc"><i>450</i>&nbsp;            if (!field.name().equals(TypeFieldMapper.NAME)) {</b>
+<b class="nc"><i>451</i>&nbsp;                rootDoc.add(field);</b>
+<i>452</i>&nbsp;            }
+<b class="nc"><i>453</i>&nbsp;        }</b>
+<b class="nc"><i>454</i>&nbsp;    }</b>
+<i>455</i>&nbsp;
+<i>456</i>&nbsp;    private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
+<b class="nc"><i>457</i>&nbsp;        context = context.createNestedContext(mapper.fullPath());</b>
+<b class="nc"><i>458</i>&nbsp;        ParseContext.Document nestedDoc = context.doc();</b>
+<b class="nc"><i>459</i>&nbsp;        ParseContext.Document parentDoc = nestedDoc.getParent();</b>
+<i>460</i>&nbsp;
+<i>461</i>&nbsp;        // We need to add the uid or id to this nested Lucene document too,
+<i>462</i>&nbsp;        // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
+<i>463</i>&nbsp;        // not the nested Lucene documents! Besides the fact that we would have zombie Lucene documents, the ordering of
+<i>464</i>&nbsp;        // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
+<i>465</i>&nbsp;        // documents are then aligned with other root documents. This will lead tothe nested query, sorting, aggregations
+<i>466</i>&nbsp;        // and inner hits to fail or yield incorrect results.
+<b class="nc"><i>467</i>&nbsp;        IndexableField idField = parentDoc.getField(IdFieldMapper.NAME);</b>
+<b class="nc"><i>468</i>&nbsp;        if (idField != null) {</b>
+<i>469</i>&nbsp;            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
+<i>470</i>&nbsp;            // delete it when the root document is deleted too.
+<b class="nc"><i>471</i>&nbsp;            nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));</b>
+<i>472</i>&nbsp;        } else {
+<b class="nc"><i>473</i>&nbsp;            throw new IllegalStateException(&quot;The root document of a nested document should have an _id field&quot;);</b>
+<i>474</i>&nbsp;        }
+<i>475</i>&nbsp;
+<i>476</i>&nbsp;        // the type of the nested doc starts with __, so we can identify that its a nested one in filters
+<i>477</i>&nbsp;        // note, we don&#39;t prefix it with the type of the doc since it allows us to execute a nested query
+<i>478</i>&nbsp;        // across types (for example, with similar nested objects)
+<b class="nc"><i>479</i>&nbsp;        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.FIELD_TYPE));</b>
+<b class="nc"><i>480</i>&nbsp;        return context;</b>
+<i>481</i>&nbsp;    }
+<i>482</i>&nbsp;
+<i>483</i>&nbsp;    private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
+<b class="fc"><i>484</i>&nbsp;        if (mapper instanceof ObjectMapper) {</b>
+<b class="nc"><i>485</i>&nbsp;            parseObjectOrNested(context, (ObjectMapper) mapper);</b>
+<b class="fc"><i>486</i>&nbsp;        } else if (mapper instanceof FieldMapper) {</b>
+<b class="fc"><i>487</i>&nbsp;            FieldMapper fieldMapper = (FieldMapper) mapper;</b>
+<b class="fc"><i>488</i>&nbsp;            fieldMapper.parse(context);</b>
+<b class="fc"><i>489</i>&nbsp;            parseCopyFields(context, fieldMapper.copyTo().copyToFields());</b>
+<b class="fc"><i>490</i>&nbsp;        } else if (mapper instanceof FieldAliasMapper) {</b>
+<b class="nc"><i>491</i>&nbsp;            throw new IllegalArgumentException(&quot;Cannot write to a field alias [&quot; + mapper.name() + &quot;].&quot;);</b>
+<i>492</i>&nbsp;        } else {
+<b class="nc"><i>493</i>&nbsp;            throw new IllegalStateException(&quot;The provided mapper [&quot; + mapper.name() + &quot;] has an unrecognized type [&quot; +</b>
+<b class="nc"><i>494</i>&nbsp;                mapper.getClass().getSimpleName() + &quot;].&quot;);</b>
+<i>495</i>&nbsp;        }
+<b class="fc"><i>496</i>&nbsp;    }</b>
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;    private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName,
+<i>499</i>&nbsp;                                    String[] paths) throws IOException {
+<b class="fc"><i>500</i>&nbsp;        assert currentFieldName != null;</b>
+<i>501</i>&nbsp;
+<b class="fc"><i>502</i>&nbsp;        Mapper objectMapper = getMapper(mapper, currentFieldName, paths);</b>
+<b class="fc"><i>503</i>&nbsp;        if (objectMapper != null) {</b>
+<b class="fc"><i>504</i>&nbsp;            context.path().add(currentFieldName);</b>
+<b class="fc"><i>505</i>&nbsp;            parseObjectOrField(context, objectMapper);</b>
+<b class="fc"><i>506</i>&nbsp;            context.path().remove();</b>
+<i>507</i>&nbsp;        } else {
+<b class="nc"><i>508</i>&nbsp;            currentFieldName = paths[paths.length - 1];</b>
+<b class="nc"><i>509</i>&nbsp;            Tuple&lt;Integer, ObjectMapper&gt; parentMapperTuple = getDynamicParentMapper(context, paths, mapper);</b>
+<b class="nc"><i>510</i>&nbsp;            ObjectMapper parentMapper = parentMapperTuple.v2();</b>
+<b class="nc"><i>511</i>&nbsp;            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);</b>
+<b class="nc"><i>512</i>&nbsp;            if (dynamic == ObjectMapper.Dynamic.STRICT) {</b>
+<b class="nc"><i>513</i>&nbsp;                throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);</b>
+<b class="nc"><i>514</i>&nbsp;            } else if (dynamic == ObjectMapper.Dynamic.TRUE) {</b>
+<b class="nc"><i>515</i>&nbsp;                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.OBJECT);</b>
+<b class="nc"><i>516</i>&nbsp;                if (builder == null) {</b>
+<b class="nc"><i>517</i>&nbsp;                    builder = new ObjectMapper.Builder(currentFieldName).enabled(true);</b>
+<i>518</i>&nbsp;                }
+<b class="nc"><i>519</i>&nbsp;                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());</b>
+<b class="nc"><i>520</i>&nbsp;                objectMapper = builder.build(builderContext);</b>
+<b class="nc"><i>521</i>&nbsp;                context.addDynamicMapper(objectMapper);</b>
+<b class="nc"><i>522</i>&nbsp;                context.path().add(currentFieldName);</b>
+<b class="nc"><i>523</i>&nbsp;                parseObjectOrField(context, objectMapper);</b>
+<b class="nc"><i>524</i>&nbsp;                context.path().remove();</b>
+<b class="nc"><i>525</i>&nbsp;            } else {</b>
+<i>526</i>&nbsp;                // not dynamic, read everything up to end object
+<b class="nc"><i>527</i>&nbsp;                context.parser().skipChildren();</b>
+<i>528</i>&nbsp;            }
+<b class="nc"><i>529</i>&nbsp;            for (int i = 0; i &lt; parentMapperTuple.v1(); i++) {</b>
+<b class="nc"><i>530</i>&nbsp;                context.path().remove();</b>
+<i>531</i>&nbsp;            }
+<i>532</i>&nbsp;        }
+<b class="fc"><i>533</i>&nbsp;    }</b>
+<i>534</i>&nbsp;
+<i>535</i>&nbsp;    private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
+<i>536</i>&nbsp;                                   String[] paths) throws IOException {
+<b class="nc"><i>537</i>&nbsp;        String arrayFieldName = lastFieldName;</b>
+<i>538</i>&nbsp;
+<b class="nc"><i>539</i>&nbsp;        Mapper mapper = getMapper(parentMapper, lastFieldName, paths);</b>
+<b class="nc"><i>540</i>&nbsp;        if (mapper != null) {</b>
+<i>541</i>&nbsp;            // There is a concrete mapper for this field already. Need to check if the mapper
+<i>542</i>&nbsp;            // expects an array, if so we pass the context straight to the mapper and if not
+<i>543</i>&nbsp;            // we serialize the array components
+<b class="nc"><i>544</i>&nbsp;            if (mapper instanceof ArrayValueMapperParser) {</b>
+<b class="nc"><i>545</i>&nbsp;                parseObjectOrField(context, mapper);</b>
+<i>546</i>&nbsp;            } else {
+<b class="nc"><i>547</i>&nbsp;                parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);</b>
+<i>548</i>&nbsp;            }
+<i>549</i>&nbsp;        } else {
+<b class="nc"><i>550</i>&nbsp;            arrayFieldName = paths[paths.length - 1];</b>
+<b class="nc"><i>551</i>&nbsp;            lastFieldName = arrayFieldName;</b>
+<b class="nc"><i>552</i>&nbsp;            Tuple&lt;Integer, ObjectMapper&gt; parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);</b>
+<b class="nc"><i>553</i>&nbsp;            parentMapper = parentMapperTuple.v2();</b>
+<b class="nc"><i>554</i>&nbsp;            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);</b>
+<b class="nc"><i>555</i>&nbsp;            if (dynamic == ObjectMapper.Dynamic.STRICT) {</b>
+<b class="nc"><i>556</i>&nbsp;                throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);</b>
+<b class="nc"><i>557</i>&nbsp;            } else if (dynamic == ObjectMapper.Dynamic.TRUE) {</b>
+<b class="nc"><i>558</i>&nbsp;                Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, XContentFieldType.OBJECT);</b>
+<b class="nc"><i>559</i>&nbsp;                if (builder == null) {</b>
+<b class="nc"><i>560</i>&nbsp;                    parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);</b>
+<i>561</i>&nbsp;                } else {
+<b class="nc"><i>562</i>&nbsp;                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());</b>
+<b class="nc"><i>563</i>&nbsp;                    mapper = builder.build(builderContext);</b>
+<b class="nc"><i>564</i>&nbsp;                    assert mapper != null;</b>
+<b class="nc"><i>565</i>&nbsp;                    if (mapper instanceof ArrayValueMapperParser) {</b>
+<b class="nc"><i>566</i>&nbsp;                        context.addDynamicMapper(mapper);</b>
+<b class="nc"><i>567</i>&nbsp;                        context.path().add(arrayFieldName);</b>
+<b class="nc"><i>568</i>&nbsp;                        parseObjectOrField(context, mapper);</b>
+<b class="nc"><i>569</i>&nbsp;                        context.path().remove();</b>
+<i>570</i>&nbsp;                    } else {
+<b class="nc"><i>571</i>&nbsp;                        parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);</b>
+<i>572</i>&nbsp;                    }
+<i>573</i>&nbsp;                }
+<b class="nc"><i>574</i>&nbsp;            } else {</b>
+<i>575</i>&nbsp;                // TODO: shouldn&#39;t this skip, not parse?
+<b class="nc"><i>576</i>&nbsp;                parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);</b>
+<i>577</i>&nbsp;            }
+<b class="nc"><i>578</i>&nbsp;            for (int i = 0; i &lt; parentMapperTuple.v1(); i++) {</b>
+<b class="nc"><i>579</i>&nbsp;                context.path().remove();</b>
+<i>580</i>&nbsp;            }
+<i>581</i>&nbsp;        }
+<b class="nc"><i>582</i>&nbsp;    }</b>
+<i>583</i>&nbsp;
+<i>584</i>&nbsp;    private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper,
+<i>585</i>&nbsp;                                             final String lastFieldName, String arrayFieldName) throws IOException {
+<b class="nc"><i>586</i>&nbsp;        XContentParser parser = context.parser();</b>
+<i>587</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>588</i>&nbsp;        final String[] paths = splitAndValidatePath(lastFieldName);</b>
+<b class="nc"><i>589</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>590</i>&nbsp;            if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>591</i>&nbsp;                parseObject(context, mapper, lastFieldName, paths);</b>
+<b class="nc"><i>592</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>593</i>&nbsp;                parseArray(context, mapper, lastFieldName, paths);</b>
+<b class="nc"><i>594</i>&nbsp;            } else if (token == XContentParser.Token.VALUE_NULL) {</b>
+<b class="nc"><i>595</i>&nbsp;                parseNullValue(context, mapper, lastFieldName, paths);</b>
+<b class="nc"><i>596</i>&nbsp;            } else if (token == null) {</b>
+<b class="nc"><i>597</i>&nbsp;                throw new MapperParsingException(&quot;object mapping for [&quot; + mapper.name() + &quot;] with array for [&quot; + arrayFieldName</b>
+<i>598</i>&nbsp;                    + &quot;] tried to parse as array, but got EOF, is there a mismatch in types for the same field?&quot;);
+<i>599</i>&nbsp;            } else {
+<b class="nc"><i>600</i>&nbsp;                assert token.isValue();</b>
+<b class="nc"><i>601</i>&nbsp;                parseValue(context, mapper, lastFieldName, token, paths);</b>
+<i>602</i>&nbsp;            }
+<i>603</i>&nbsp;        }
+<b class="nc"><i>604</i>&nbsp;    }</b>
+<i>605</i>&nbsp;
+<i>606</i>&nbsp;    private static void parseValue(final ParseContext context, ObjectMapper parentMapper,
+<i>607</i>&nbsp;                                   String currentFieldName, XContentParser.Token token, String[] paths) throws IOException {
+<b class="fc"><i>608</i>&nbsp;        if (currentFieldName == null) {</b>
+<b class="nc"><i>609</i>&nbsp;            throw new MapperParsingException(&quot;object mapping [&quot; + parentMapper.name() + &quot;] trying to serialize a value with&quot;</b>
+<b class="nc"><i>610</i>&nbsp;                + &quot; no field associated with it, current value [&quot; + context.parser().textOrNull() + &quot;]&quot;);</b>
+<i>611</i>&nbsp;        }
+<b class="fc"><i>612</i>&nbsp;        Mapper mapper = getMapper(parentMapper, currentFieldName, paths);</b>
+<b class="fc"><i>613</i>&nbsp;        if (mapper != null) {</b>
+<b class="fc"><i>614</i>&nbsp;            parseObjectOrField(context, mapper);</b>
+<i>615</i>&nbsp;        } else {
+<b class="nc"><i>616</i>&nbsp;            currentFieldName = paths[paths.length - 1];</b>
+<b class="nc"><i>617</i>&nbsp;            Tuple&lt;Integer, ObjectMapper&gt; parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);</b>
+<b class="nc"><i>618</i>&nbsp;            parentMapper = parentMapperTuple.v2();</b>
+<b class="nc"><i>619</i>&nbsp;            parseDynamicValue(context, parentMapper, currentFieldName, token);</b>
+<b class="nc"><i>620</i>&nbsp;            for (int i = 0; i &lt; parentMapperTuple.v1(); i++) {</b>
+<b class="nc"><i>621</i>&nbsp;                context.path().remove();</b>
+<i>622</i>&nbsp;            }
+<i>623</i>&nbsp;        }
+<b class="fc"><i>624</i>&nbsp;    }</b>
+<i>625</i>&nbsp;
+<i>626</i>&nbsp;    private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName,
+<i>627</i>&nbsp;                                       String[] paths) throws IOException {
+<i>628</i>&nbsp;        // we can only handle null values if we have mappings for them
+<b class="nc"><i>629</i>&nbsp;        Mapper mapper = getMapper(parentMapper, lastFieldName, paths);</b>
+<b class="nc"><i>630</i>&nbsp;        if (mapper != null) {</b>
+<i>631</i>&nbsp;            // TODO: passing null to an object seems bogus?
+<b class="nc"><i>632</i>&nbsp;            parseObjectOrField(context, mapper);</b>
+<b class="nc"><i>633</i>&nbsp;        } else if (parentMapper.dynamic() == ObjectMapper.Dynamic.STRICT) {</b>
+<b class="nc"><i>634</i>&nbsp;            throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);</b>
+<i>635</i>&nbsp;        }
+<b class="nc"><i>636</i>&nbsp;    }</b>
+<i>637</i>&nbsp;
+<i>638</i>&nbsp;    private static Mapper.Builder&lt;?,?&gt; createBuilderFromFieldType(final ParseContext context,
+<i>639</i>&nbsp;                                                                  MappedFieldType fieldType, String currentFieldName) {
+<b class="nc"><i>640</i>&nbsp;        Mapper.Builder builder = null;</b>
+<b class="nc"><i>641</i>&nbsp;        if (fieldType instanceof TextFieldType) {</b>
+<b class="nc"><i>642</i>&nbsp;            builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;text&quot;, XContentFieldType.STRING);</b>
+<b class="nc"><i>643</i>&nbsp;            if (builder == null) {</b>
+<b class="nc"><i>644</i>&nbsp;                builder = new TextFieldMapper.Builder(currentFieldName)</b>
+<b class="nc"><i>645</i>&nbsp;                        .addMultiField(new KeywordFieldMapper.Builder(&quot;keyword&quot;).ignoreAbove(256));</b>
+<i>646</i>&nbsp;            }
+<b class="nc"><i>647</i>&nbsp;        } else if (fieldType instanceof KeywordFieldType) {</b>
+<b class="nc"><i>648</i>&nbsp;            builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;keyword&quot;, XContentFieldType.STRING);</b>
+<i>649</i>&nbsp;        } else {
+<b class="nc"><i>650</i>&nbsp;            switch (fieldType.typeName()) {</b>
+<i>651</i>&nbsp;            case DateFieldMapper.CONTENT_TYPE:
+<b class="nc"><i>652</i>&nbsp;                builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);</b>
+<b class="nc"><i>653</i>&nbsp;                break;</b>
+<i>654</i>&nbsp;            case &quot;long&quot;:
+<b class="nc"><i>655</i>&nbsp;                builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;long&quot;, XContentFieldType.LONG);</b>
+<b class="nc"><i>656</i>&nbsp;                break;</b>
+<i>657</i>&nbsp;            case &quot;double&quot;:
+<b class="nc"><i>658</i>&nbsp;                builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;double&quot;, XContentFieldType.DOUBLE);</b>
+<b class="nc"><i>659</i>&nbsp;                break;</b>
+<i>660</i>&nbsp;            case &quot;integer&quot;:
+<b class="nc"><i>661</i>&nbsp;                builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;integer&quot;, XContentFieldType.LONG);</b>
+<b class="nc"><i>662</i>&nbsp;                break;</b>
+<i>663</i>&nbsp;            case &quot;float&quot;:
+<b class="nc"><i>664</i>&nbsp;                builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;float&quot;, XContentFieldType.DOUBLE);</b>
+<b class="nc"><i>665</i>&nbsp;                break;</b>
+<i>666</i>&nbsp;            case BooleanFieldMapper.CONTENT_TYPE:
+<b class="nc"><i>667</i>&nbsp;                builder = context.root().findTemplateBuilder(context, currentFieldName, &quot;boolean&quot;, XContentFieldType.BOOLEAN);</b>
+<b class="nc"><i>668</i>&nbsp;                break;</b>
+<i>669</i>&nbsp;            default:
+<i>670</i>&nbsp;                break;
+<i>671</i>&nbsp;            }
+<i>672</i>&nbsp;        }
+<b class="nc"><i>673</i>&nbsp;        if (builder == null) {</b>
+<b class="nc"><i>674</i>&nbsp;            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();</b>
+<b class="nc"><i>675</i>&nbsp;            Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());</b>
+<b class="nc"><i>676</i>&nbsp;            if (typeParser == null) {</b>
+<b class="nc"><i>677</i>&nbsp;                throw new MapperParsingException(&quot;Cannot generate dynamic mappings of type [&quot; + fieldType.typeName()</b>
+<i>678</i>&nbsp;                    + &quot;] for [&quot; + currentFieldName + &quot;]&quot;);
+<i>679</i>&nbsp;            }
+<b class="nc"><i>680</i>&nbsp;            builder = typeParser.parse(currentFieldName, new HashMap&lt;&gt;(), parserContext);</b>
+<i>681</i>&nbsp;        }
+<b class="nc"><i>682</i>&nbsp;        return builder;</b>
+<i>683</i>&nbsp;    }
+<i>684</i>&nbsp;
+<i>685</i>&nbsp;    private static Mapper.Builder&lt;?, ?&gt; newLongBuilder(String name, Version indexCreated) {
+<b class="nc"><i>686</i>&nbsp;        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);</b>
+<i>687</i>&nbsp;    }
+<i>688</i>&nbsp;
+<i>689</i>&nbsp;    private static Mapper.Builder&lt;?, ?&gt; newFloatBuilder(String name, Version indexCreated) {
+<b class="nc"><i>690</i>&nbsp;        return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);</b>
+<i>691</i>&nbsp;    }
+<i>692</i>&nbsp;
+<i>693</i>&nbsp;    private static Mapper.Builder&lt;?, ?&gt; newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
+<b class="nc"><i>694</i>&nbsp;        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);</b>
+<b class="nc"><i>695</i>&nbsp;        if (dateTimeFormatter != null) {</b>
+<b class="nc"><i>696</i>&nbsp;            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());</b>
+<i>697</i>&nbsp;        }
+<b class="nc"><i>698</i>&nbsp;        return builder;</b>
+<i>699</i>&nbsp;    }
+<i>700</i>&nbsp;
+<i>701</i>&nbsp;    private static Mapper.Builder&lt;?,?&gt; createBuilderFromDynamicValue(final ParseContext context,
+<i>702</i>&nbsp;                                                                     XContentParser.Token token,
+<i>703</i>&nbsp;                                                                     String currentFieldName) throws IOException {
+<b class="nc"><i>704</i>&nbsp;        if (token == XContentParser.Token.VALUE_STRING) {</b>
+<b class="nc"><i>705</i>&nbsp;            String text = context.parser().text();</b>
+<i>706</i>&nbsp;
+<b class="nc"><i>707</i>&nbsp;            boolean parseableAsLong = false;</b>
+<i>708</i>&nbsp;            try {
+<b class="nc"><i>709</i>&nbsp;                Long.parseLong(text);</b>
+<b class="nc"><i>710</i>&nbsp;                parseableAsLong = true;</b>
+<b class="nc"><i>711</i>&nbsp;            } catch (NumberFormatException e) {</b>
+<i>712</i>&nbsp;                // not a long number
+<b class="nc"><i>713</i>&nbsp;            }</b>
+<i>714</i>&nbsp;
+<b class="nc"><i>715</i>&nbsp;            boolean parseableAsDouble = false;</b>
+<i>716</i>&nbsp;            try {
+<b class="nc"><i>717</i>&nbsp;                Double.parseDouble(text);</b>
+<b class="nc"><i>718</i>&nbsp;                parseableAsDouble = true;</b>
+<b class="nc"><i>719</i>&nbsp;            } catch (NumberFormatException e) {</b>
+<i>720</i>&nbsp;                // not a double number
+<b class="nc"><i>721</i>&nbsp;            }</b>
+<i>722</i>&nbsp;
+<b class="nc"><i>723</i>&nbsp;            if (parseableAsLong &amp;&amp; context.root().numericDetection()) {</b>
+<b class="nc"><i>724</i>&nbsp;                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);</b>
+<b class="nc"><i>725</i>&nbsp;                if (builder == null) {</b>
+<b class="nc"><i>726</i>&nbsp;                    builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());</b>
+<i>727</i>&nbsp;                }
+<b class="nc"><i>728</i>&nbsp;                return builder;</b>
+<b class="nc"><i>729</i>&nbsp;            } else if (parseableAsDouble &amp;&amp; context.root().numericDetection()) {</b>
+<b class="nc"><i>730</i>&nbsp;                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);</b>
+<b class="nc"><i>731</i>&nbsp;                if (builder == null) {</b>
+<b class="nc"><i>732</i>&nbsp;                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());</b>
+<i>733</i>&nbsp;                }
+<b class="nc"><i>734</i>&nbsp;                return builder;</b>
+<b class="nc"><i>735</i>&nbsp;            } else if (parseableAsLong == false &amp;&amp; parseableAsDouble == false &amp;&amp; context.root().dateDetection()) {</b>
+<i>736</i>&nbsp;                // We refuse to match pure numbers, which are too likely to be
+<i>737</i>&nbsp;                // false positives with date formats that include eg.
+<i>738</i>&nbsp;                // `epoch_millis` or `YYYY`
+<b class="nc"><i>739</i>&nbsp;                for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {</b>
+<i>740</i>&nbsp;                    try {
+<b class="nc"><i>741</i>&nbsp;                        dateTimeFormatter.parse(text);</b>
+<b class="nc"><i>742</i>&nbsp;                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {</b>
+<i>743</i>&nbsp;                        // failure to parse this, continue
+<b class="nc"><i>744</i>&nbsp;                        continue;</b>
+<b class="nc"><i>745</i>&nbsp;                    }</b>
+<b class="nc"><i>746</i>&nbsp;                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);</b>
+<b class="nc"><i>747</i>&nbsp;                    if (builder == null) {</b>
+<b class="nc"><i>748</i>&nbsp;                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, context.indexSettings().getIndexVersionCreated());</b>
+<i>749</i>&nbsp;                    }
+<b class="nc"><i>750</i>&nbsp;                    if (builder instanceof DateFieldMapper.Builder) {</b>
+<b class="nc"><i>751</i>&nbsp;                        DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;</b>
+<b class="nc"><i>752</i>&nbsp;                        if (dateBuilder.isFormatterSet() == false) {</b>
+<b class="nc"><i>753</i>&nbsp;                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());</b>
+<i>754</i>&nbsp;                        }
+<i>755</i>&nbsp;                    }
+<b class="nc"><i>756</i>&nbsp;                    return builder;</b>
+<i>757</i>&nbsp;                }
+<i>758</i>&nbsp;            }
+<i>759</i>&nbsp;
+<b class="nc"><i>760</i>&nbsp;            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);</b>
+<b class="nc"><i>761</i>&nbsp;            if (builder == null) {</b>
+<b class="nc"><i>762</i>&nbsp;                builder = new TextFieldMapper.Builder(currentFieldName)</b>
+<b class="nc"><i>763</i>&nbsp;                        .addMultiField(new KeywordFieldMapper.Builder(&quot;keyword&quot;).ignoreAbove(256));</b>
+<i>764</i>&nbsp;            }
+<b class="nc"><i>765</i>&nbsp;            return builder;</b>
+<b class="nc"><i>766</i>&nbsp;        } else if (token == XContentParser.Token.VALUE_NUMBER) {</b>
+<b class="nc"><i>767</i>&nbsp;            XContentParser.NumberType numberType = context.parser().numberType();</b>
+<b class="nc"><i>768</i>&nbsp;            if (numberType == XContentParser.NumberType.INT</b>
+<i>769</i>&nbsp;                    || numberType == XContentParser.NumberType.LONG
+<i>770</i>&nbsp;                    || numberType == XContentParser.NumberType.BIG_INTEGER) {
+<b class="nc"><i>771</i>&nbsp;                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);</b>
+<b class="nc"><i>772</i>&nbsp;                if (builder == null) {</b>
+<b class="nc"><i>773</i>&nbsp;                    builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());</b>
+<i>774</i>&nbsp;                }
+<b class="nc"><i>775</i>&nbsp;                return builder;</b>
+<b class="nc"><i>776</i>&nbsp;            } else if (numberType == XContentParser.NumberType.FLOAT</b>
+<i>777</i>&nbsp;                    || numberType == XContentParser.NumberType.DOUBLE
+<i>778</i>&nbsp;                    || numberType == XContentParser.NumberType.BIG_DECIMAL) {
+<b class="nc"><i>779</i>&nbsp;                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);</b>
+<b class="nc"><i>780</i>&nbsp;                if (builder == null) {</b>
+<i>781</i>&nbsp;                    // no templates are defined, we use float by default instead of double
+<i>782</i>&nbsp;                    // since this is much more space-efficient and should be enough most of
+<i>783</i>&nbsp;                    // the time
+<b class="nc"><i>784</i>&nbsp;                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());</b>
+<i>785</i>&nbsp;                }
+<b class="nc"><i>786</i>&nbsp;                return builder;</b>
+<i>787</i>&nbsp;            }
+<b class="nc"><i>788</i>&nbsp;        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {</b>
+<b class="nc"><i>789</i>&nbsp;            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.BOOLEAN);</b>
+<b class="nc"><i>790</i>&nbsp;            if (builder == null) {</b>
+<b class="nc"><i>791</i>&nbsp;                builder = new BooleanFieldMapper.Builder(currentFieldName);</b>
+<i>792</i>&nbsp;            }
+<b class="nc"><i>793</i>&nbsp;            return builder;</b>
+<b class="nc"><i>794</i>&nbsp;        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {</b>
+<b class="nc"><i>795</i>&nbsp;            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.BINARY);</b>
+<b class="nc"><i>796</i>&nbsp;            if (builder == null) {</b>
+<b class="nc"><i>797</i>&nbsp;                builder = new BinaryFieldMapper.Builder(currentFieldName);</b>
+<i>798</i>&nbsp;            }
+<b class="nc"><i>799</i>&nbsp;            return builder;</b>
+<i>800</i>&nbsp;        } else {
+<b class="nc"><i>801</i>&nbsp;            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);</b>
+<b class="nc"><i>802</i>&nbsp;            if (builder != null) {</b>
+<b class="nc"><i>803</i>&nbsp;                return builder;</b>
+<i>804</i>&nbsp;            }
+<i>805</i>&nbsp;        }
+<i>806</i>&nbsp;        // TODO how do we identify dynamically that its a binary value?
+<b class="nc"><i>807</i>&nbsp;        throw new IllegalStateException(&quot;Can&#39;t handle serializing a dynamic type with content token [&quot; + token + &quot;] and field name [&quot;</b>
+<i>808</i>&nbsp;            + currentFieldName + &quot;]&quot;);
+<i>809</i>&nbsp;    }
+<i>810</i>&nbsp;
+<i>811</i>&nbsp;    private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper,
+<i>812</i>&nbsp;                                          String currentFieldName, XContentParser.Token token) throws IOException {
+<b class="nc"><i>813</i>&nbsp;        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);</b>
+<b class="nc"><i>814</i>&nbsp;        if (dynamic == ObjectMapper.Dynamic.STRICT) {</b>
+<b class="nc"><i>815</i>&nbsp;            throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);</b>
+<i>816</i>&nbsp;        }
+<b class="nc"><i>817</i>&nbsp;        if (dynamic == ObjectMapper.Dynamic.FALSE) {</b>
+<b class="nc"><i>818</i>&nbsp;            return;</b>
+<i>819</i>&nbsp;        }
+<b class="nc"><i>820</i>&nbsp;        final String path = context.path().pathAsText(currentFieldName);</b>
+<b class="nc"><i>821</i>&nbsp;        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());</b>
+<b class="nc"><i>822</i>&nbsp;        final MappedFieldType existingFieldType = context.mapperService().fullName(path);</b>
+<i>823</i>&nbsp;        final Mapper.Builder builder;
+<b class="nc"><i>824</i>&nbsp;        if (existingFieldType != null) {</b>
+<i>825</i>&nbsp;            // create a builder of the same type
+<b class="nc"><i>826</i>&nbsp;            builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);</b>
+<i>827</i>&nbsp;        } else {
+<b class="nc"><i>828</i>&nbsp;            builder = createBuilderFromDynamicValue(context, token, currentFieldName);</b>
+<i>829</i>&nbsp;        }
+<b class="nc"><i>830</i>&nbsp;        Mapper mapper = builder.build(builderContext);</b>
+<b class="nc"><i>831</i>&nbsp;        if (existingFieldType != null) {</b>
+<i>832</i>&nbsp;            // try to not introduce a conflict
+<b class="nc"><i>833</i>&nbsp;            mapper = mapper.updateFieldType(Collections.singletonMap(path, existingFieldType));</b>
+<i>834</i>&nbsp;        }
+<b class="nc"><i>835</i>&nbsp;        context.addDynamicMapper(mapper);</b>
+<i>836</i>&nbsp;
+<b class="nc"><i>837</i>&nbsp;        parseObjectOrField(context, mapper);</b>
+<b class="nc"><i>838</i>&nbsp;    }</b>
+<i>839</i>&nbsp;
+<i>840</i>&nbsp;    /** Creates instances of the fields that the current field should be copied to */
+<i>841</i>&nbsp;    private static void parseCopyFields(ParseContext context, List&lt;String&gt; copyToFields) throws IOException {
+<b class="fc"><i>842</i>&nbsp;        if (!context.isWithinCopyTo() &amp;&amp; copyToFields.isEmpty() == false) {</b>
+<b class="nc"><i>843</i>&nbsp;            context = context.createCopyToContext();</b>
+<b class="nc"><i>844</i>&nbsp;            for (String field : copyToFields) {</b>
+<i>845</i>&nbsp;                // In case of a hierarchy of nested documents, we need to figure out
+<i>846</i>&nbsp;                // which document the field should go to
+<b class="nc"><i>847</i>&nbsp;                ParseContext.Document targetDoc = null;</b>
+<b class="nc"><i>848</i>&nbsp;                for (ParseContext.Document doc = context.doc(); doc != null; doc = doc.getParent()) {</b>
+<b class="nc"><i>849</i>&nbsp;                    if (field.startsWith(doc.getPrefix())) {</b>
+<b class="nc"><i>850</i>&nbsp;                        targetDoc = doc;</b>
+<b class="nc"><i>851</i>&nbsp;                        break;</b>
+<i>852</i>&nbsp;                    }
+<i>853</i>&nbsp;                }
+<b class="nc"><i>854</i>&nbsp;                assert targetDoc != null;</b>
+<i>855</i>&nbsp;                final ParseContext copyToContext;
+<b class="nc"><i>856</i>&nbsp;                if (targetDoc == context.doc()) {</b>
+<b class="nc"><i>857</i>&nbsp;                    copyToContext = context;</b>
+<i>858</i>&nbsp;                } else {
+<b class="nc"><i>859</i>&nbsp;                    copyToContext = context.switchDoc(targetDoc);</b>
+<i>860</i>&nbsp;                }
+<b class="nc"><i>861</i>&nbsp;                parseCopy(field, copyToContext);</b>
+<b class="nc"><i>862</i>&nbsp;            }</b>
+<i>863</i>&nbsp;        }
+<b class="fc"><i>864</i>&nbsp;    }</b>
+<i>865</i>&nbsp;
+<i>866</i>&nbsp;    /** Creates an copy of the current field with given field name and boost */
+<i>867</i>&nbsp;    private static void parseCopy(String field, ParseContext context) throws IOException {
+<b class="nc"><i>868</i>&nbsp;        Mapper mapper = context.docMapper().mappers().getMapper(field);</b>
+<b class="nc"><i>869</i>&nbsp;        if (mapper != null) {</b>
+<b class="nc"><i>870</i>&nbsp;            if (mapper instanceof FieldMapper) {</b>
+<b class="nc"><i>871</i>&nbsp;                ((FieldMapper) mapper).parse(context);</b>
+<b class="nc"><i>872</i>&nbsp;            } else if (mapper instanceof FieldAliasMapper) {</b>
+<b class="nc"><i>873</i>&nbsp;                throw new IllegalArgumentException(&quot;Cannot copy to a field alias [&quot; + mapper.name() + &quot;].&quot;);</b>
+<i>874</i>&nbsp;            } else {
+<b class="nc"><i>875</i>&nbsp;                throw new IllegalStateException(&quot;The provided mapper [&quot; + mapper.name() +</b>
+<b class="nc"><i>876</i>&nbsp;                    &quot;] has an unrecognized type [&quot; + mapper.getClass().getSimpleName() + &quot;].&quot;);</b>
+<i>877</i>&nbsp;            }
+<i>878</i>&nbsp;        } else {
+<i>879</i>&nbsp;            // The path of the dest field might be completely different from the current one so we need to reset it
+<b class="nc"><i>880</i>&nbsp;            context = context.overridePath(new ContentPath(0));</b>
+<i>881</i>&nbsp;
+<b class="nc"><i>882</i>&nbsp;            final String[] paths = splitAndValidatePath(field);</b>
+<b class="nc"><i>883</i>&nbsp;            final String fieldName = paths[paths.length-1];</b>
+<b class="nc"><i>884</i>&nbsp;            Tuple&lt;Integer, ObjectMapper&gt; parentMapperTuple = getDynamicParentMapper(context, paths, null);</b>
+<b class="nc"><i>885</i>&nbsp;            ObjectMapper objectMapper = parentMapperTuple.v2();</b>
+<b class="nc"><i>886</i>&nbsp;            parseDynamicValue(context, objectMapper, fieldName, context.parser().currentToken());</b>
+<b class="nc"><i>887</i>&nbsp;            for (int i = 0; i &lt; parentMapperTuple.v1(); i++) {</b>
+<b class="nc"><i>888</i>&nbsp;                context.path().remove();</b>
+<i>889</i>&nbsp;            }
+<i>890</i>&nbsp;        }
+<b class="nc"><i>891</i>&nbsp;    }</b>
+<i>892</i>&nbsp;
+<i>893</i>&nbsp;    private static Tuple&lt;Integer, ObjectMapper&gt; getDynamicParentMapper(ParseContext context, final String[] paths,
+<i>894</i>&nbsp;            ObjectMapper currentParent) {
+<b class="nc"><i>895</i>&nbsp;        ObjectMapper mapper = currentParent == null ? context.root() : currentParent;</b>
+<b class="nc"><i>896</i>&nbsp;        int pathsAdded = 0;</b>
+<b class="nc"><i>897</i>&nbsp;        ObjectMapper parent = mapper;</b>
+<b class="nc"><i>898</i>&nbsp;        for (int i = 0; i &lt; paths.length-1; i++) {</b>
+<b class="nc"><i>899</i>&nbsp;        String currentPath = context.path().pathAsText(paths[i]);</b>
+<b class="nc"><i>900</i>&nbsp;        Mapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);</b>
+<b class="nc"><i>901</i>&nbsp;        if (existingFieldMapper != null) {</b>
+<b class="nc"><i>902</i>&nbsp;            throw new MapperParsingException(</b>
+<i>903</i>&nbsp;                    &quot;Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].&quot;,
+<b class="nc"><i>904</i>&nbsp;                    null, String.join(&quot;.&quot;, paths), currentPath, existingFieldMapper.typeName());</b>
+<i>905</i>&nbsp;        }
+<b class="nc"><i>906</i>&nbsp;        mapper = context.docMapper().objectMappers().get(currentPath);</b>
+<b class="nc"><i>907</i>&nbsp;            if (mapper == null) {</b>
+<i>908</i>&nbsp;                // One mapping is missing, check if we are allowed to create a dynamic one.
+<b class="nc"><i>909</i>&nbsp;                ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);</b>
+<i>910</i>&nbsp;
+<b class="nc"><i>911</i>&nbsp;                switch (dynamic) {</b>
+<i>912</i>&nbsp;                    case STRICT:
+<b class="nc"><i>913</i>&nbsp;                        throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);</b>
+<i>914</i>&nbsp;                    case TRUE:
+<b class="nc"><i>915</i>&nbsp;                        Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);</b>
+<b class="nc"><i>916</i>&nbsp;                        if (builder == null) {</b>
+<b class="nc"><i>917</i>&nbsp;                            builder = new ObjectMapper.Builder(paths[i]).enabled(true);</b>
+<i>918</i>&nbsp;                        }
+<b class="nc"><i>919</i>&nbsp;                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(),</b>
+<b class="nc"><i>920</i>&nbsp;                            context.path());</b>
+<b class="nc"><i>921</i>&nbsp;                        mapper = (ObjectMapper) builder.build(builderContext);</b>
+<b class="nc"><i>922</i>&nbsp;                        if (mapper.nested() != ObjectMapper.Nested.NO) {</b>
+<b class="nc"><i>923</i>&nbsp;                            throw new MapperParsingException(&quot;It is forbidden to create dynamic nested objects ([&quot;</b>
+<b class="nc"><i>924</i>&nbsp;                                + context.path().pathAsText(paths[i]) + &quot;]) through `copy_to` or dots in field names&quot;);</b>
+<i>925</i>&nbsp;                        }
+<b class="nc"><i>926</i>&nbsp;                        context.addDynamicMapper(mapper);</b>
+<b class="nc"><i>927</i>&nbsp;                        break;</b>
+<i>928</i>&nbsp;                    case FALSE:
+<i>929</i>&nbsp;                       // Should not dynamically create any more mappers so return the last mapper
+<b class="nc"><i>930</i>&nbsp;                    return new Tuple&lt;&gt;(pathsAdded, parent);</b>
+<i>931</i>&nbsp;
+<i>932</i>&nbsp;                }
+<i>933</i>&nbsp;            }
+<b class="nc"><i>934</i>&nbsp;            context.path().add(paths[i]);</b>
+<b class="nc"><i>935</i>&nbsp;            pathsAdded++;</b>
+<b class="nc"><i>936</i>&nbsp;            parent = mapper;</b>
+<i>937</i>&nbsp;        }
+<b class="nc"><i>938</i>&nbsp;        return new Tuple&lt;&gt;(pathsAdded, mapper);</b>
+<i>939</i>&nbsp;    }
+<i>940</i>&nbsp;
+<i>941</i>&nbsp;    // find what the dynamic setting is given the current parse context and parent
+<i>942</i>&nbsp;    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ParseContext context) {
+<b class="nc"><i>943</i>&nbsp;        ObjectMapper.Dynamic dynamic = parentMapper.dynamic();</b>
+<b class="nc"><i>944</i>&nbsp;        while (dynamic == null) {</b>
+<b class="nc"><i>945</i>&nbsp;            int lastDotNdx = parentMapper.name().lastIndexOf(&#39;.&#39;);</b>
+<b class="nc"><i>946</i>&nbsp;            if (lastDotNdx == -1) {</b>
+<i>947</i>&nbsp;                // no dot means we the parent is the root, so just delegate to the default outside the loop
+<b class="nc"><i>948</i>&nbsp;                break;</b>
+<i>949</i>&nbsp;            }
+<b class="nc"><i>950</i>&nbsp;            String parentName = parentMapper.name().substring(0, lastDotNdx);</b>
+<b class="nc"><i>951</i>&nbsp;            parentMapper = context.docMapper().objectMappers().get(parentName);</b>
+<b class="nc"><i>952</i>&nbsp;            if (parentMapper == null) {</b>
+<i>953</i>&nbsp;                // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
+<i>954</i>&nbsp;                // But in order to be created dynamically, the dynamic setting of that parent was necessarily true
+<b class="nc"><i>955</i>&nbsp;                return ObjectMapper.Dynamic.TRUE;</b>
+<i>956</i>&nbsp;            }
+<b class="nc"><i>957</i>&nbsp;            dynamic = parentMapper.dynamic();</b>
+<b class="nc"><i>958</i>&nbsp;        }</b>
+<b class="nc"><i>959</i>&nbsp;        if (dynamic == null) {</b>
+<b class="nc"><i>960</i>&nbsp;            return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();</b>
+<i>961</i>&nbsp;        }
+<b class="nc"><i>962</i>&nbsp;        return dynamic;</b>
+<i>963</i>&nbsp;    }
+<i>964</i>&nbsp;
+<i>965</i>&nbsp;    // looks up a child mapper, but takes into account field names that expand to objects
+<i>966</i>&nbsp;    private static Mapper getMapper(ObjectMapper objectMapper, String fieldName, String[] subfields) {
+<b class="fc"><i>967</i>&nbsp;        for (int i = 0; i &lt; subfields.length - 1; ++i) {</b>
+<b class="nc"><i>968</i>&nbsp;            Mapper mapper = objectMapper.getMapper(subfields[i]);</b>
+<b class="nc"><i>969</i>&nbsp;            if (mapper == null || (mapper instanceof ObjectMapper) == false) {</b>
+<b class="nc"><i>970</i>&nbsp;                return null;</b>
+<i>971</i>&nbsp;            }
+<b class="nc"><i>972</i>&nbsp;            objectMapper = (ObjectMapper)mapper;</b>
+<b class="nc"><i>973</i>&nbsp;            if (objectMapper.nested().isNested()) {</b>
+<b class="nc"><i>974</i>&nbsp;                throw new MapperParsingException(&quot;Cannot add a value for field [&quot;</b>
+<i>975</i>&nbsp;                        + fieldName + &quot;] since one of the intermediate objects is mapped as a nested object: [&quot;
+<b class="nc"><i>976</i>&nbsp;                        + mapper.name() + &quot;]&quot;);</b>
+<i>977</i>&nbsp;            }
+<i>978</i>&nbsp;        }
+<b class="fc"><i>979</i>&nbsp;        return objectMapper.getMapper(subfields[subfields.length - 1]);</b>
+<i>980</i>&nbsp;    }
+<i>981</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

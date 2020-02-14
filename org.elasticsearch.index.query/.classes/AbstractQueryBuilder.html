@@ -1,0 +1,448 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AbstractQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AbstractQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AbstractQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    86.2%
+  </span>
+  <span class="absValue">
+    (25/ 29)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    74.2%
+  </span>
+  <span class="absValue">
+    (89/ 120)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.BoostQuery;
+<i>23</i>&nbsp;import org.apache.lucene.search.Query;
+<i>24</i>&nbsp;import org.apache.lucene.search.spans.SpanBoostQuery;
+<i>25</i>&nbsp;import org.apache.lucene.search.spans.SpanQuery;
+<i>26</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>27</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>28</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>29</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>32</i>&nbsp;import org.elasticsearch.common.lucene.BytesRefs;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.AbstractObjectParser;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentLocation;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.nio.CharBuffer;
+<i>41</i>&nbsp;import java.util.ArrayList;
+<i>42</i>&nbsp;import java.util.Collection;
+<i>43</i>&nbsp;import java.util.List;
+<i>44</i>&nbsp;import java.util.Map;
+<i>45</i>&nbsp;import java.util.Objects;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;/**
+<i>48</i>&nbsp; * Base class for all classes producing lucene queries.
+<i>49</i>&nbsp; * Supports conversion to BytesReference and creation of lucene Query objects.
+<i>50</i>&nbsp; */
+<i>51</i>&nbsp;public abstract class AbstractQueryBuilder&lt;QB extends AbstractQueryBuilder&lt;QB&gt;&gt; implements QueryBuilder {
+<i>52</i>&nbsp;
+<i>53</i>&nbsp;    /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
+<i>54</i>&nbsp;    public static final float DEFAULT_BOOST = 1.0f;
+<b class="fc"><i>55</i>&nbsp;    public static final ParseField NAME_FIELD = new ParseField(&quot;_name&quot;);</b>
+<b class="fc"><i>56</i>&nbsp;    public static final ParseField BOOST_FIELD = new ParseField(&quot;boost&quot;);</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    protected String queryName;
+<b class="fc"><i>59</i>&nbsp;    protected float boost = DEFAULT_BOOST;</b>
+<i>60</i>&nbsp;
+<b class="fc"><i>61</i>&nbsp;    protected AbstractQueryBuilder() {</b>
+<i>62</i>&nbsp;
+<b class="fc"><i>63</i>&nbsp;    }</b>
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    protected AbstractQueryBuilder(StreamInput in) throws IOException {</b>
+<b class="fc"><i>66</i>&nbsp;        boost = in.readFloat();</b>
+<b class="fc"><i>67</i>&nbsp;        checkNegativeBoost(boost);</b>
+<b class="fc"><i>68</i>&nbsp;        queryName = in.readOptionalString();</b>
+<b class="fc"><i>69</i>&nbsp;    }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    @Override
+<i>72</i>&nbsp;    public final void writeTo(StreamOutput out) throws IOException {
+<b class="fc"><i>73</i>&nbsp;        out.writeFloat(boost);</b>
+<b class="fc"><i>74</i>&nbsp;        out.writeOptionalString(queryName);</b>
+<b class="fc"><i>75</i>&nbsp;        doWriteTo(out);</b>
+<b class="fc"><i>76</i>&nbsp;    }</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    @Override
+<i>81</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="fc"><i>82</i>&nbsp;        builder.startObject();</b>
+<b class="fc"><i>83</i>&nbsp;        doXContent(builder, params);</b>
+<b class="fc"><i>84</i>&nbsp;        builder.endObject();</b>
+<b class="fc"><i>85</i>&nbsp;        return builder;</b>
+<i>86</i>&nbsp;    }
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
+<b class="fc"><i>91</i>&nbsp;        builder.field(BOOST_FIELD.getPreferredName(), boost);</b>
+<b class="fc"><i>92</i>&nbsp;        if (queryName != null) {</b>
+<b class="fc"><i>93</i>&nbsp;            builder.field(NAME_FIELD.getPreferredName(), queryName);</b>
+<i>94</i>&nbsp;        }
+<b class="fc"><i>95</i>&nbsp;    }</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    @Override
+<i>98</i>&nbsp;    public final Query toQuery(QueryShardContext context) throws IOException {
+<b class="fc"><i>99</i>&nbsp;        Query query = doToQuery(context);</b>
+<b class="fc"><i>100</i>&nbsp;        if (query != null) {</b>
+<b class="fc"><i>101</i>&nbsp;            if (boost != DEFAULT_BOOST) {</b>
+<b class="fc"><i>102</i>&nbsp;                if (query instanceof SpanQuery) {</b>
+<b class="nc"><i>103</i>&nbsp;                    query = new SpanBoostQuery((SpanQuery) query, boost);</b>
+<i>104</i>&nbsp;                } else {
+<b class="fc"><i>105</i>&nbsp;                    query = new BoostQuery(query, boost);</b>
+<i>106</i>&nbsp;                }
+<i>107</i>&nbsp;            }
+<b class="fc"><i>108</i>&nbsp;            if (queryName != null) {</b>
+<b class="fc"><i>109</i>&nbsp;                context.addNamedQuery(queryName, query);</b>
+<i>110</i>&nbsp;            }
+<i>111</i>&nbsp;        }
+<b class="fc"><i>112</i>&nbsp;        return query;</b>
+<i>113</i>&nbsp;    }
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    protected abstract Query doToQuery(QueryShardContext context) throws IOException;
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    /**
+<i>118</i>&nbsp;     * Sets the query name for the query.
+<i>119</i>&nbsp;     */
+<i>120</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>121</i>&nbsp;    @Override
+<i>122</i>&nbsp;    public final QB queryName(String queryName) {
+<b class="fc"><i>123</i>&nbsp;        this.queryName = queryName;</b>
+<b class="fc"><i>124</i>&nbsp;        return (QB) this;</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /**
+<i>128</i>&nbsp;     * Returns the query name for the query.
+<i>129</i>&nbsp;     */
+<i>130</i>&nbsp;    @Override
+<i>131</i>&nbsp;    public final String queryName() {
+<b class="fc"><i>132</i>&nbsp;        return queryName;</b>
+<i>133</i>&nbsp;    }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Returns the boost for this query.
+<i>137</i>&nbsp;     */
+<i>138</i>&nbsp;    @Override
+<i>139</i>&nbsp;    public final float boost() {
+<b class="fc"><i>140</i>&nbsp;        return this.boost;</b>
+<i>141</i>&nbsp;    }
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    protected final void checkNegativeBoost(float boost) {
+<b class="fc"><i>144</i>&nbsp;        if (Float.compare(boost, 0f) &lt; 0) {</b>
+<b class="fc"><i>145</i>&nbsp;            throw new IllegalArgumentException(&quot;negative [boost] are not allowed in [&quot; + toString() + &quot;], &quot; +</b>
+<i>146</i>&nbsp;                &quot;use a value between 0 and 1 to deboost&quot;);
+<i>147</i>&nbsp;        }
+<b class="fc"><i>148</i>&nbsp;    }</b>
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    /**
+<i>151</i>&nbsp;     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+<i>152</i>&nbsp;     * weightings) have their score multiplied by the boost provided.
+<i>153</i>&nbsp;     */
+<i>154</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>155</i>&nbsp;    @Override
+<i>156</i>&nbsp;    public final QB boost(float boost) {
+<b class="fc"><i>157</i>&nbsp;        checkNegativeBoost(boost);</b>
+<b class="fc"><i>158</i>&nbsp;        this.boost = boost;</b>
+<b class="fc"><i>159</i>&nbsp;        return (QB) this;</b>
+<i>160</i>&nbsp;    }
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;    protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
+<b class="nc"><i>163</i>&nbsp;        return QueryValidationException.addValidationError(getName(), validationError, validationException);</b>
+<i>164</i>&nbsp;    }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    @Override
+<i>167</i>&nbsp;    public final boolean equals(Object obj) {
+<b class="fc"><i>168</i>&nbsp;        if (this == obj) {</b>
+<b class="fc"><i>169</i>&nbsp;            return true;</b>
+<i>170</i>&nbsp;        }
+<b class="fc"><i>171</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="fc"><i>172</i>&nbsp;            return false;</b>
+<i>173</i>&nbsp;        }
+<i>174</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<b class="fc"><i>175</i>&nbsp;        QB other = (QB) obj;</b>
+<b class="fc"><i>176</i>&nbsp;        return Objects.equals(queryName, other.queryName) &amp;&amp;</b>
+<b class="fc"><i>177</i>&nbsp;                Objects.equals(boost, other.boost) &amp;&amp;</b>
+<b class="fc"><i>178</i>&nbsp;                doEquals(other);</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Indicates whether some other {@link QueryBuilder} object of the same type is &quot;equal to&quot; this one.
+<i>183</i>&nbsp;     */
+<i>184</i>&nbsp;    protected abstract boolean doEquals(QB other);
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;    @Override
+<i>187</i>&nbsp;    public final int hashCode() {
+<b class="fc"><i>188</i>&nbsp;        return Objects.hash(getClass(), queryName, boost, doHashCode());</b>
+<i>189</i>&nbsp;    }
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;    protected abstract int doHashCode();
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    /**
+<i>194</i>&nbsp;     * This helper method checks if the object passed in is a string or {@link CharBuffer},
+<i>195</i>&nbsp;     * if so it converts it to a {@link BytesRef}.
+<i>196</i>&nbsp;     * @param obj the input object
+<i>197</i>&nbsp;     * @return the same input object or a {@link BytesRef} representation if input was of type string
+<i>198</i>&nbsp;     */
+<i>199</i>&nbsp;    static Object maybeConvertToBytesRef(Object obj) {
+<b class="fc"><i>200</i>&nbsp;        if (obj instanceof String) {</b>
+<b class="nc"><i>201</i>&nbsp;            return BytesRefs.toBytesRef(obj);</b>
+<b class="fc"><i>202</i>&nbsp;        } else if (obj instanceof CharBuffer) {</b>
+<b class="fc"><i>203</i>&nbsp;            return new BytesRef((CharBuffer) obj);</b>
+<i>204</i>&nbsp;        }
+<b class="fc"><i>205</i>&nbsp;        return obj;</b>
+<i>206</i>&nbsp;    }
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;    /**
+<i>209</i>&nbsp;     * This helper method checks if the object passed in is a {@link BytesRef} or {@link CharBuffer},
+<i>210</i>&nbsp;     * if so it converts it to a utf8 string.
+<i>211</i>&nbsp;     * @param obj the input object
+<i>212</i>&nbsp;     * @return the same input object or a utf8 string if input was of type {@link BytesRef} or {@link CharBuffer}
+<i>213</i>&nbsp;     */
+<i>214</i>&nbsp;    static Object maybeConvertToString(Object obj) {
+<b class="fc"><i>215</i>&nbsp;        if (obj instanceof BytesRef) {</b>
+<b class="fc"><i>216</i>&nbsp;            return ((BytesRef) obj).utf8ToString();</b>
+<b class="nc"><i>217</i>&nbsp;        } else if (obj instanceof CharBuffer) {</b>
+<b class="nc"><i>218</i>&nbsp;            return new BytesRef((CharBuffer) obj).utf8ToString();</b>
+<i>219</i>&nbsp;        }
+<b class="nc"><i>220</i>&nbsp;        return obj;</b>
+<i>221</i>&nbsp;    }
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;    /**
+<i>224</i>&nbsp;     * Helper method to convert collection of {@link QueryBuilder} instances to lucene
+<i>225</i>&nbsp;     * {@link Query} instances. {@link QueryBuilder} that return {@code null} calling
+<i>226</i>&nbsp;     * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
+<i>227</i>&nbsp;     * resulting collection.
+<i>228</i>&nbsp;     */
+<i>229</i>&nbsp;    static Collection&lt;Query&gt; toQueries(Collection&lt;QueryBuilder&gt; queryBuilders, QueryShardContext context) throws QueryShardException,
+<i>230</i>&nbsp;            IOException {
+<b class="nc"><i>231</i>&nbsp;        List&lt;Query&gt; queries = new ArrayList&lt;&gt;(queryBuilders.size());</b>
+<b class="nc"><i>232</i>&nbsp;        for (QueryBuilder queryBuilder : queryBuilders) {</b>
+<b class="nc"><i>233</i>&nbsp;            Query query = queryBuilder.toQuery(context);</b>
+<b class="nc"><i>234</i>&nbsp;            if (query != null) {</b>
+<b class="nc"><i>235</i>&nbsp;                queries.add(query);</b>
+<i>236</i>&nbsp;            }
+<b class="nc"><i>237</i>&nbsp;        }</b>
+<b class="nc"><i>238</i>&nbsp;        return queries;</b>
+<i>239</i>&nbsp;    }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;    @Override
+<i>242</i>&nbsp;    public String getName() {
+<i>243</i>&nbsp;        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
+<b class="fc"><i>244</i>&nbsp;        return getWriteableName();</b>
+<i>245</i>&nbsp;    }
+<i>246</i>&nbsp;
+<i>247</i>&nbsp;    static void writeQueries(StreamOutput out, List&lt;? extends QueryBuilder&gt; queries) throws IOException {
+<b class="nc"><i>248</i>&nbsp;        out.writeVInt(queries.size());</b>
+<b class="nc"><i>249</i>&nbsp;        for (QueryBuilder query : queries) {</b>
+<b class="nc"><i>250</i>&nbsp;            out.writeNamedWriteable(query);</b>
+<b class="nc"><i>251</i>&nbsp;        }</b>
+<b class="nc"><i>252</i>&nbsp;    }</b>
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    static List&lt;QueryBuilder&gt; readQueries(StreamInput in) throws IOException {
+<b class="nc"><i>255</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>256</i>&nbsp;        List&lt;QueryBuilder&gt; queries = new ArrayList&lt;&gt;(size);</b>
+<b class="nc"><i>257</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>258</i>&nbsp;            queries.add(in.readNamedWriteable(QueryBuilder.class));</b>
+<i>259</i>&nbsp;        }
+<b class="nc"><i>260</i>&nbsp;        return queries;</b>
+<i>261</i>&nbsp;    }
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    @Override
+<i>264</i>&nbsp;    public final QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
+<b class="fc"><i>265</i>&nbsp;        QueryBuilder rewritten = doRewrite(queryShardContext);</b>
+<b class="fc"><i>266</i>&nbsp;        if (rewritten == this) {</b>
+<b class="fc"><i>267</i>&nbsp;            return rewritten;</b>
+<i>268</i>&nbsp;        }
+<b class="fc"><i>269</i>&nbsp;        if (queryName() != null &amp;&amp; rewritten.queryName() == null) { // we inherit the name</b>
+<b class="fc"><i>270</i>&nbsp;            rewritten.queryName(queryName());</b>
+<i>271</i>&nbsp;        }
+<b class="fc"><i>272</i>&nbsp;        if (boost() != DEFAULT_BOOST &amp;&amp; rewritten.boost() == DEFAULT_BOOST) {</b>
+<b class="fc"><i>273</i>&nbsp;            rewritten.boost(boost());</b>
+<i>274</i>&nbsp;        }
+<b class="fc"><i>275</i>&nbsp;        return rewritten;</b>
+<i>276</i>&nbsp;    }
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+<b class="fc"><i>279</i>&nbsp;        return this;</b>
+<i>280</i>&nbsp;    }
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;    /**
+<i>283</i>&nbsp;     * For internal usage only!
+<i>284</i>&nbsp;     *
+<i>285</i>&nbsp;     * Extracts the inner hits from the query tree.
+<i>286</i>&nbsp;     * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
+<i>287</i>&nbsp;     */
+<i>288</i>&nbsp;    protected void extractInnerHitBuilders(Map&lt;String, InnerHitContextBuilder&gt; innerHits) {
+<b class="fc"><i>289</i>&nbsp;    }</b>
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    /**
+<i>292</i>&nbsp;     * Parses a query excluding the query element that wraps it
+<i>293</i>&nbsp;     */
+<i>294</i>&nbsp;    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+<b class="fc"><i>295</i>&nbsp;        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {</b>
+<b class="fc"><i>296</i>&nbsp;            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>297</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(), &quot;[_na] query malformed, must start with start_object&quot;);</b>
+<i>298</i>&nbsp;            }
+<i>299</i>&nbsp;        }
+<b class="fc"><i>300</i>&nbsp;        if (parser.nextToken() == XContentParser.Token.END_OBJECT) {</b>
+<i>301</i>&nbsp;            // we encountered &#39;{}&#39; for a query clause, it used to be supported, deprecated in 5.0 and removed in 6.0
+<b class="nc"><i>302</i>&nbsp;            throw new IllegalArgumentException(&quot;query malformed, empty clause found at [&quot; + parser.getTokenLocation() +&quot;]&quot;);</b>
+<i>303</i>&nbsp;        }
+<b class="fc"><i>304</i>&nbsp;        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>305</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;[_na] query malformed, no field after start_object&quot;);</b>
+<i>306</i>&nbsp;        }
+<b class="fc"><i>307</i>&nbsp;        String queryName = parser.currentName();</b>
+<i>308</i>&nbsp;        // move to the next START_OBJECT
+<b class="fc"><i>309</i>&nbsp;        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {</b>
+<b class="fc"><i>310</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + queryName + &quot;] query malformed, no start_object after query name&quot;);</b>
+<i>311</i>&nbsp;        }
+<i>312</i>&nbsp;        QueryBuilder result;
+<i>313</i>&nbsp;        try {
+<b class="fc"><i>314</i>&nbsp;            result = parser.namedObject(QueryBuilder.class, queryName, null);</b>
+<b class="fc"><i>315</i>&nbsp;        } catch (NamedObjectNotFoundException e) {</b>
+<i>316</i>&nbsp;            // Preserve the error message from 5.0 until we have a compellingly better message so we don&#39;t break BWC.
+<i>317</i>&nbsp;            // This intentionally doesn&#39;t include the causing exception because that&#39;d change the &quot;root_cause&quot; of any unknown query errors
+<b class="fc"><i>318</i>&nbsp;            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),</b>
+<i>319</i>&nbsp;                    &quot;no [query] registered for [&quot; + queryName + &quot;]&quot;);
+<b class="fc"><i>320</i>&nbsp;        }</b>
+<i>321</i>&nbsp;        //end_object of the specific query (e.g. match, multi_match etc.) element
+<b class="fc"><i>322</i>&nbsp;        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>323</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(),</b>
+<b class="nc"><i>324</i>&nbsp;                    &quot;[&quot; + queryName + &quot;] malformed query, expected [END_OBJECT] but found [&quot; + parser.currentToken() + &quot;]&quot;);</b>
+<i>325</i>&nbsp;        }
+<i>326</i>&nbsp;        //end_object of the query object
+<b class="fc"><i>327</i>&nbsp;        if (parser.nextToken() != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>328</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(),</b>
+<b class="nc"><i>329</i>&nbsp;                    &quot;[&quot; + queryName + &quot;] malformed query, expected [END_OBJECT] but found [&quot; + parser.currentToken() + &quot;]&quot;);</b>
+<i>330</i>&nbsp;        }
+<b class="fc"><i>331</i>&nbsp;        return result;</b>
+<i>332</i>&nbsp;    }
+<i>333</i>&nbsp;
+<i>334</i>&nbsp;    // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException
+<i>335</i>&nbsp;    protected static &lt;T&gt; T requireValue(T value, String message) {
+<b class="fc"><i>336</i>&nbsp;        if (value == null) {</b>
+<b class="fc"><i>337</i>&nbsp;            throw new IllegalArgumentException(message);</b>
+<i>338</i>&nbsp;        }
+<b class="fc"><i>339</i>&nbsp;        return value;</b>
+<i>340</i>&nbsp;    }
+<i>341</i>&nbsp;
+<i>342</i>&nbsp;    protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
+<i>343</i>&nbsp;                                                                String processedFieldName, String currentFieldName) {
+<b class="fc"><i>344</i>&nbsp;        if (processedFieldName != null) {</b>
+<b class="nc"><i>345</i>&nbsp;            throw new ParsingException(contentLocation, &quot;[&quot; + queryName + &quot;] query doesn&#39;t support multiple fields, found [&quot;</b>
+<i>346</i>&nbsp;                    + processedFieldName + &quot;] and [&quot; + currentFieldName + &quot;]&quot;);
+<i>347</i>&nbsp;        }
+<b class="fc"><i>348</i>&nbsp;    }</b>
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    /**
+<i>351</i>&nbsp;     * Adds {@code boost} and {@code query_name} parsing to the
+<i>352</i>&nbsp;     * {@link AbstractObjectParser} passed in. All query builders except
+<i>353</i>&nbsp;     * {@link MatchAllQueryBuilder} and {@link MatchNoneQueryBuilder} support these fields so they
+<i>354</i>&nbsp;     * should use this method.
+<i>355</i>&nbsp;     */
+<i>356</i>&nbsp;    protected static void declareStandardFields(AbstractObjectParser&lt;? extends QueryBuilder, ?&gt; parser) {
+<b class="fc"><i>357</i>&nbsp;        parser.declareFloat(QueryBuilder::boost, AbstractQueryBuilder.BOOST_FIELD);</b>
+<b class="fc"><i>358</i>&nbsp;        parser.declareString(QueryBuilder::queryName, AbstractQueryBuilder.NAME_FIELD);</b>
+<b class="fc"><i>359</i>&nbsp;    }</b>
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;    @Override
+<i>362</i>&nbsp;    public final String toString() {
+<b class="fc"><i>363</i>&nbsp;        return Strings.toString(this, true, true);</b>
+<i>364</i>&nbsp;    }
+<i>365</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

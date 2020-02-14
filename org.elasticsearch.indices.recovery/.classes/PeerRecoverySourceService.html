@@ -1,0 +1,361 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PeerRecoverySourceService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.indices.recovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PeerRecoverySourceService (org.elasticsearch.indices.recovery)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PeerRecoverySourceService</td>
+<td class="coverageStat">
+  <span class="percent">
+    77.8%
+  </span>
+  <span class="absValue">
+    (7/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (16/ 32)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PeerRecoverySourceService$OngoingRecoveries</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (3/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    20.5%
+  </span>
+  <span class="absValue">
+    (9/ 44)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">PeerRecoverySourceService$StartRecoveryTransportRequestHandler</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    68.8%
+  </span>
+  <span class="absValue">
+    (11/ 16)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    32.9%
+  </span>
+  <span class="absValue">
+    (26/ 79)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.indices.recovery;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>26</i>&nbsp;import org.elasticsearch.action.support.ChannelActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.PlainActionFuture;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>29</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>30</i>&nbsp;import org.elasticsearch.common.component.AbstractLifecycleComponent;
+<i>31</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>33</i>&nbsp;import org.elasticsearch.common.util.concurrent.FutureUtils;
+<i>34</i>&nbsp;import org.elasticsearch.index.IndexService;
+<i>35</i>&nbsp;import org.elasticsearch.index.shard.IndexEventListener;
+<i>36</i>&nbsp;import org.elasticsearch.index.shard.IndexShard;
+<i>37</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>38</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>39</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>40</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>41</i>&nbsp;import org.elasticsearch.transport.TransportChannel;
+<i>42</i>&nbsp;import org.elasticsearch.transport.TransportRequestHandler;
+<i>43</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;import java.util.ArrayList;
+<i>46</i>&nbsp;import java.util.HashMap;
+<i>47</i>&nbsp;import java.util.HashSet;
+<i>48</i>&nbsp;import java.util.List;
+<i>49</i>&nbsp;import java.util.Map;
+<i>50</i>&nbsp;import java.util.Set;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;/**
+<i>53</i>&nbsp; * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
+<i>54</i>&nbsp; * source shard to the target shard.
+<i>55</i>&nbsp; */
+<b class="fc"><i>56</i>&nbsp;public class PeerRecoverySourceService extends AbstractLifecycleComponent implements IndexEventListener {</b>
+<i>57</i>&nbsp;
+<b class="fc"><i>58</i>&nbsp;    private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    public static class Actions {
+<i>61</i>&nbsp;        public static final String START_RECOVERY = &quot;internal:index/shard/recovery/start_recovery&quot;;
+<i>62</i>&nbsp;    }
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    private final TransportService transportService;
+<i>65</i>&nbsp;    private final IndicesService indicesService;
+<i>66</i>&nbsp;    private final RecoverySettings recoverySettings;
+<i>67</i>&nbsp;
+<b class="fc"><i>68</i>&nbsp;    final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    @Inject
+<i>71</i>&nbsp;    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService,
+<b class="fc"><i>72</i>&nbsp;                                     RecoverySettings recoverySettings) {</b>
+<b class="fc"><i>73</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>74</i>&nbsp;        this.indicesService = indicesService;</b>
+<b class="fc"><i>75</i>&nbsp;        this.recoverySettings = recoverySettings;</b>
+<b class="fc"><i>76</i>&nbsp;        transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, StartRecoveryRequest::new,</b>
+<i>77</i>&nbsp;            new StartRecoveryTransportRequestHandler());
+<b class="fc"><i>78</i>&nbsp;    }</b>
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    @Override
+<i>81</i>&nbsp;    protected void doStart() {
+<b class="fc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    @Override
+<i>85</i>&nbsp;    protected void doStop() {
+<b class="fc"><i>86</i>&nbsp;        ongoingRecoveries.awaitEmpty();</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    @Override
+<i>90</i>&nbsp;    protected void doClose() {
+<b class="fc"><i>91</i>&nbsp;    }</b>
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    @Override
+<i>94</i>&nbsp;    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+<i>95</i>&nbsp;                                       Settings indexSettings) {
+<b class="fc"><i>96</i>&nbsp;        if (indexShard != null) {</b>
+<b class="fc"><i>97</i>&nbsp;            ongoingRecoveries.cancel(indexShard, &quot;shard is closed&quot;);</b>
+<i>98</i>&nbsp;        }
+<b class="fc"><i>99</i>&nbsp;    }</b>
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    private void recover(StartRecoveryRequest request, ActionListener&lt;RecoveryResponse&gt; listener) {
+<b class="nc"><i>102</i>&nbsp;        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());</b>
+<b class="nc"><i>103</i>&nbsp;        final IndexShard shard = indexService.getShard(request.shardId().id());</b>
+<i>104</i>&nbsp;
+<b class="nc"><i>105</i>&nbsp;        final ShardRouting routingEntry = shard.routingEntry();</b>
+<i>106</i>&nbsp;
+<b class="nc"><i>107</i>&nbsp;        if (routingEntry.primary() == false || routingEntry.active() == false) {</b>
+<b class="nc"><i>108</i>&nbsp;            throw new DelayRecoveryException(&quot;source shard [&quot; + routingEntry + &quot;] is not an active primary&quot;);</b>
+<i>109</i>&nbsp;        }
+<i>110</i>&nbsp;
+<b class="nc"><i>111</i>&nbsp;        if (request.isPrimaryRelocation() &amp;&amp; (routingEntry.relocating() == false ||</b>
+<b class="nc"><i>112</i>&nbsp;            routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {</b>
+<b class="nc"><i>113</i>&nbsp;            logger.debug(&quot;delaying recovery of {} as source shard is not marked yet as relocating to {}&quot;,</b>
+<b class="nc"><i>114</i>&nbsp;                request.shardId(), request.targetNode());</b>
+<b class="nc"><i>115</i>&nbsp;            throw new DelayRecoveryException(&quot;source shard is not marked yet as relocating to [&quot; + request.targetNode() + &quot;]&quot;);</b>
+<i>116</i>&nbsp;        }
+<i>117</i>&nbsp;
+<b class="nc"><i>118</i>&nbsp;        RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);</b>
+<b class="nc"><i>119</i>&nbsp;        logger.trace(&quot;[{}][{}] starting recovery to {}&quot;, request.shardId().getIndex().getName(), request.shardId().id(),</b>
+<b class="nc"><i>120</i>&nbsp;            request.targetNode());</b>
+<b class="nc"><i>121</i>&nbsp;        handler.recoverToTarget(ActionListener.runAfter(listener, () -&gt; ongoingRecoveries.remove(shard, handler)));</b>
+<b class="nc"><i>122</i>&nbsp;    }</b>
+<i>123</i>&nbsp;
+<b class="fc"><i>124</i>&nbsp;    class StartRecoveryTransportRequestHandler implements TransportRequestHandler&lt;StartRecoveryRequest&gt; {</b>
+<i>125</i>&nbsp;        @Override
+<i>126</i>&nbsp;        public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
+<b class="nc"><i>127</i>&nbsp;            recover(request, new ChannelActionListener&lt;&gt;(channel, Actions.START_RECOVERY, request));</b>
+<b class="nc"><i>128</i>&nbsp;        }</b>
+<i>129</i>&nbsp;    }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    // exposed for testing
+<i>132</i>&nbsp;    final int numberOfOngoingRecoveries() {
+<b class="nc"><i>133</i>&nbsp;        return ongoingRecoveries.ongoingRecoveries.size();</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<b class="fc"><i>136</i>&nbsp;    final class OngoingRecoveries {</b>
+<i>137</i>&nbsp;
+<b class="fc"><i>138</i>&nbsp;        private final Map&lt;IndexShard, ShardRecoveryContext&gt; ongoingRecoveries = new HashMap&lt;&gt;();</b>
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;        @Nullable
+<i>141</i>&nbsp;        private List&lt;ActionListener&lt;Void&gt;&gt; emptyListeners;
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;        synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+<b class="nc"><i>144</i>&nbsp;            assert lifecycle.started();</b>
+<b class="nc"><i>145</i>&nbsp;            final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -&gt; new ShardRecoveryContext());</b>
+<b class="nc"><i>146</i>&nbsp;            RecoverySourceHandler handler = shardContext.addNewRecovery(request, shard);</b>
+<b class="nc"><i>147</i>&nbsp;            shard.recoveryStats().incCurrentAsSource();</b>
+<b class="nc"><i>148</i>&nbsp;            return handler;</b>
+<i>149</i>&nbsp;        }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;        synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
+<b class="nc"><i>152</i>&nbsp;            final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);</b>
+<b class="nc"><i>153</i>&nbsp;            assert shardRecoveryContext != null : &quot;Shard was not registered [&quot; + shard + &quot;]&quot;;</b>
+<b class="nc"><i>154</i>&nbsp;            boolean remove = shardRecoveryContext.recoveryHandlers.remove(handler);</b>
+<b class="nc"><i>155</i>&nbsp;            assert remove : &quot;Handler was not registered [&quot; + handler + &quot;]&quot;;</b>
+<b class="nc"><i>156</i>&nbsp;            if (remove) {</b>
+<b class="nc"><i>157</i>&nbsp;                shard.recoveryStats().decCurrentAsSource();</b>
+<i>158</i>&nbsp;            }
+<b class="nc"><i>159</i>&nbsp;            if (shardRecoveryContext.recoveryHandlers.isEmpty()) {</b>
+<b class="nc"><i>160</i>&nbsp;                ongoingRecoveries.remove(shard);</b>
+<i>161</i>&nbsp;            }
+<b class="nc"><i>162</i>&nbsp;            if (ongoingRecoveries.isEmpty()) {</b>
+<b class="nc"><i>163</i>&nbsp;                if (emptyListeners != null) {</b>
+<b class="nc"><i>164</i>&nbsp;                    final List&lt;ActionListener&lt;Void&gt;&gt; onEmptyListeners = emptyListeners;</b>
+<b class="nc"><i>165</i>&nbsp;                    emptyListeners = null;</b>
+<b class="nc"><i>166</i>&nbsp;                    ActionListener.onResponse(onEmptyListeners, null);</b>
+<i>167</i>&nbsp;                }
+<i>168</i>&nbsp;            }
+<b class="nc"><i>169</i>&nbsp;        }</b>
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        synchronized void cancel(IndexShard shard, String reason) {
+<b class="fc"><i>172</i>&nbsp;            final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);</b>
+<b class="fc"><i>173</i>&nbsp;            if (shardRecoveryContext != null) {</b>
+<b class="nc"><i>174</i>&nbsp;                final List&lt;Exception&gt; failures = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>175</i>&nbsp;                for (RecoverySourceHandler handlers : shardRecoveryContext.recoveryHandlers) {</b>
+<i>176</i>&nbsp;                    try {
+<b class="nc"><i>177</i>&nbsp;                        handlers.cancel(reason);</b>
+<b class="nc"><i>178</i>&nbsp;                    } catch (Exception ex) {</b>
+<b class="nc"><i>179</i>&nbsp;                        failures.add(ex);</b>
+<i>180</i>&nbsp;                    } finally {
+<b class="nc"><i>181</i>&nbsp;                        shard.recoveryStats().decCurrentAsSource();</b>
+<b class="nc"><i>182</i>&nbsp;                    }</b>
+<b class="nc"><i>183</i>&nbsp;                }</b>
+<b class="nc"><i>184</i>&nbsp;                ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);</b>
+<i>185</i>&nbsp;            }
+<b class="fc"><i>186</i>&nbsp;        }</b>
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;        void awaitEmpty() {
+<b class="fc"><i>189</i>&nbsp;            assert lifecycle.stoppedOrClosed();</b>
+<i>190</i>&nbsp;            final PlainActionFuture&lt;Void&gt; future;
+<b class="fc"><i>191</i>&nbsp;            synchronized (this) {</b>
+<b class="fc"><i>192</i>&nbsp;                if (ongoingRecoveries.isEmpty()) {</b>
+<b class="fc"><i>193</i>&nbsp;                    return;</b>
+<i>194</i>&nbsp;                }
+<b class="nc"><i>195</i>&nbsp;                future = new PlainActionFuture&lt;&gt;();</b>
+<b class="nc"><i>196</i>&nbsp;                if (emptyListeners == null) {</b>
+<b class="nc"><i>197</i>&nbsp;                    emptyListeners = new ArrayList&lt;&gt;();</b>
+<i>198</i>&nbsp;                }
+<b class="nc"><i>199</i>&nbsp;                emptyListeners.add(future);</b>
+<b class="nc"><i>200</i>&nbsp;            }</b>
+<b class="nc"><i>201</i>&nbsp;            FutureUtils.get(future);</b>
+<b class="nc"><i>202</i>&nbsp;        }</b>
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;        private final class ShardRecoveryContext {
+<i>205</i>&nbsp;            final Set&lt;RecoverySourceHandler&gt; recoveryHandlers = new HashSet&lt;&gt;();
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;            /**
+<i>208</i>&nbsp;             * Adds recovery source handler.
+<i>209</i>&nbsp;             */
+<i>210</i>&nbsp;            synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+<i>211</i>&nbsp;                for (RecoverySourceHandler existingHandler : recoveryHandlers) {
+<i>212</i>&nbsp;                    if (existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
+<i>213</i>&nbsp;                        throw new DelayRecoveryException(&quot;recovery with same target already registered, waiting for &quot; +
+<i>214</i>&nbsp;                            &quot;previous recovery attempt to be cancelled or completed&quot;);
+<i>215</i>&nbsp;                    }
+<i>216</i>&nbsp;                }
+<i>217</i>&nbsp;                RecoverySourceHandler handler = createRecoverySourceHandler(request, shard);
+<i>218</i>&nbsp;                recoveryHandlers.add(handler);
+<i>219</i>&nbsp;                return handler;
+<i>220</i>&nbsp;            }
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;            private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, IndexShard shard) {
+<i>223</i>&nbsp;                RecoverySourceHandler handler;
+<i>224</i>&nbsp;                final RemoteRecoveryTargetHandler recoveryTarget =
+<i>225</i>&nbsp;                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
+<i>226</i>&nbsp;                        request.targetNode(), recoverySettings, throttleTime -&gt; shard.recoveryStats().addThrottleTime(throttleTime));
+<i>227</i>&nbsp;                handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
+<i>228</i>&nbsp;                    Math.toIntExact(recoverySettings.getChunkSize().getBytes()), recoverySettings.getMaxConcurrentFileChunks());
+<i>229</i>&nbsp;                return handler;
+<i>230</i>&nbsp;            }
+<i>231</i>&nbsp;        }
+<i>232</i>&nbsp;    }
+<i>233</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

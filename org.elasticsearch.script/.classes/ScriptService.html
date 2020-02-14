@@ -1,0 +1,703 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ScriptService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.script</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ScriptService (org.elasticsearch.script)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ScriptService</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.9%
+  </span>
+  <span class="absValue">
+    (9/ 22)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.2%
+  </span>
+  <span class="absValue">
+    (61/ 216)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">ScriptService$ScriptCacheRemovalListener</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (1/ 5)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    41.7%
+  </span>
+  <span class="absValue">
+    (10/ 24)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.1%
+  </span>
+  <span class="absValue">
+    (62/ 221)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.script;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.ResourceNotFoundException;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.master.AcknowledgedResponse;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.ClusterStateApplier;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>36</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>37</i>&nbsp;import org.elasticsearch.common.breaker.CircuitBreaker;
+<i>38</i>&nbsp;import org.elasticsearch.common.breaker.CircuitBreakingException;
+<i>39</i>&nbsp;import org.elasticsearch.common.cache.Cache;
+<i>40</i>&nbsp;import org.elasticsearch.common.cache.CacheBuilder;
+<i>41</i>&nbsp;import org.elasticsearch.common.cache.RemovalListener;
+<i>42</i>&nbsp;import org.elasticsearch.common.cache.RemovalNotification;
+<i>43</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>45</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>46</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>47</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>48</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>49</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;import java.io.Closeable;
+<i>52</i>&nbsp;import java.io.IOException;
+<i>53</i>&nbsp;import java.nio.charset.StandardCharsets;
+<i>54</i>&nbsp;import java.util.Collections;
+<i>55</i>&nbsp;import java.util.HashSet;
+<i>56</i>&nbsp;import java.util.List;
+<i>57</i>&nbsp;import java.util.Map;
+<i>58</i>&nbsp;import java.util.Objects;
+<i>59</i>&nbsp;import java.util.Set;
+<i>60</i>&nbsp;import java.util.function.Function;
+<i>61</i>&nbsp;
+<b class="nc"><i>62</i>&nbsp;public class ScriptService implements Closeable, ClusterStateApplier {</b>
+<i>63</i>&nbsp;
+<b class="fc"><i>64</i>&nbsp;    private static final Logger logger = LogManager.getLogger(ScriptService.class);</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = &quot;script.disable_dynamic&quot;;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    // a parsing function that requires a non negative int and a timevalue as arguments split by a slash
+<i>69</i>&nbsp;    // this allows you to easily define rates
+<b class="fc"><i>70</i>&nbsp;    static final Function&lt;String, Tuple&lt;Integer, TimeValue&gt;&gt; MAX_COMPILATION_RATE_FUNCTION =</b>
+<i>71</i>&nbsp;            (String value) -&gt; {
+<b class="fc"><i>72</i>&nbsp;                if (value.contains(&quot;/&quot;) == false || value.startsWith(&quot;/&quot;) || value.endsWith(&quot;/&quot;)) {</b>
+<b class="nc"><i>73</i>&nbsp;                    throw new IllegalArgumentException(&quot;parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [&quot; +</b>
+<i>74</i>&nbsp;                            value + &quot;]&quot;);
+<i>75</i>&nbsp;                }
+<b class="fc"><i>76</i>&nbsp;                int idx = value.indexOf(&quot;/&quot;);</b>
+<b class="fc"><i>77</i>&nbsp;                String count = value.substring(0, idx);</b>
+<b class="fc"><i>78</i>&nbsp;                String time = value.substring(idx + 1);</b>
+<i>79</i>&nbsp;                try {
+<i>80</i>&nbsp;
+<b class="fc"><i>81</i>&nbsp;                    int rate = Integer.parseInt(count);</b>
+<b class="fc"><i>82</i>&nbsp;                    if (rate &lt; 0) {</b>
+<b class="nc"><i>83</i>&nbsp;                        throw new IllegalArgumentException(&quot;rate [&quot; + rate + &quot;] must be positive&quot;);</b>
+<i>84</i>&nbsp;                    }
+<b class="fc"><i>85</i>&nbsp;                    TimeValue timeValue = TimeValue.parseTimeValue(time, &quot;script.max_compilations_rate&quot;);</b>
+<b class="fc"><i>86</i>&nbsp;                    if (timeValue.nanos() &lt;= 0) {</b>
+<b class="nc"><i>87</i>&nbsp;                        throw new IllegalArgumentException(&quot;time value [&quot; + time + &quot;] must be positive&quot;);</b>
+<i>88</i>&nbsp;                    }
+<i>89</i>&nbsp;                    // protect against a too hard to check limit, like less than a minute
+<b class="fc"><i>90</i>&nbsp;                    if (timeValue.seconds() &lt; 60) {</b>
+<b class="nc"><i>91</i>&nbsp;                        throw new IllegalArgumentException(&quot;time value [&quot; + time + &quot;] must be at least on a one minute resolution&quot;);</b>
+<i>92</i>&nbsp;                    }
+<b class="fc"><i>93</i>&nbsp;                    return Tuple.tuple(rate, timeValue);</b>
+<b class="nc"><i>94</i>&nbsp;                } catch (NumberFormatException e) {</b>
+<i>95</i>&nbsp;                    // the number format exception message is so confusing, that it makes more sense to wrap it with a useful one
+<b class="nc"><i>96</i>&nbsp;                    throw new IllegalArgumentException(&quot;could not parse [&quot; + count + &quot;] as integer in value [&quot; + value + &quot;]&quot;, e);</b>
+<i>97</i>&nbsp;                }
+<i>98</i>&nbsp;            };
+<i>99</i>&nbsp;
+<b class="fc"><i>100</i>&nbsp;    public static final Setting&lt;Integer&gt; SCRIPT_CACHE_SIZE_SETTING =</b>
+<b class="fc"><i>101</i>&nbsp;        Setting.intSetting(&quot;script.cache.max_size&quot;, 100, 0, Property.NodeScope);</b>
+<b class="fc"><i>102</i>&nbsp;    public static final Setting&lt;TimeValue&gt; SCRIPT_CACHE_EXPIRE_SETTING =</b>
+<b class="fc"><i>103</i>&nbsp;        Setting.positiveTimeSetting(&quot;script.cache.expire&quot;, TimeValue.timeValueMillis(0), Property.NodeScope);</b>
+<b class="fc"><i>104</i>&nbsp;    public static final Setting&lt;Integer&gt; SCRIPT_MAX_SIZE_IN_BYTES =</b>
+<b class="fc"><i>105</i>&nbsp;        Setting.intSetting(&quot;script.max_size_in_bytes&quot;, 65535, 0, Property.Dynamic, Property.NodeScope);</b>
+<b class="fc"><i>106</i>&nbsp;    public static final Setting&lt;Tuple&lt;Integer, TimeValue&gt;&gt; SCRIPT_MAX_COMPILATIONS_RATE =</b>
+<i>107</i>&nbsp;            new Setting&lt;&gt;(&quot;script.max_compilations_rate&quot;, &quot;75/5m&quot;, MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    public static final String ALLOW_NONE = &quot;none&quot;;
+<i>110</i>&nbsp;
+<b class="fc"><i>111</i>&nbsp;    public static final Setting&lt;List&lt;String&gt;&gt; TYPES_ALLOWED_SETTING =</b>
+<b class="fc"><i>112</i>&nbsp;        Setting.listSetting(&quot;script.allowed_types&quot;, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);</b>
+<b class="fc"><i>113</i>&nbsp;    public static final Setting&lt;List&lt;String&gt;&gt; CONTEXTS_ALLOWED_SETTING =</b>
+<b class="fc"><i>114</i>&nbsp;        Setting.listSetting(&quot;script.allowed_contexts&quot;, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);</b>
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;    private final Settings settings;
+<i>117</i>&nbsp;    private final Set&lt;String&gt; typesAllowed;
+<i>118</i>&nbsp;    private final Set&lt;String&gt; contextsAllowed;
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    private final Map&lt;String, ScriptEngine&gt; engines;
+<i>121</i>&nbsp;    private final Map&lt;String, ScriptContext&lt;?&gt;&gt; contexts;
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    private final Cache&lt;CacheKey, Object&gt; cache;
+<i>124</i>&nbsp;
+<b class="fc"><i>125</i>&nbsp;    private final ScriptMetrics scriptMetrics = new ScriptMetrics();</b>
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    private ClusterState clusterState;
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    private int maxSizeInBytes;
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    private Tuple&lt;Integer, TimeValue&gt; rate;
+<i>132</i>&nbsp;    private long lastInlineCompileTime;
+<i>133</i>&nbsp;    private double scriptsPerTimeWindow;
+<i>134</i>&nbsp;    private double compilesAllowedPerNano;
+<i>135</i>&nbsp;
+<b class="fc"><i>136</i>&nbsp;    public ScriptService(Settings settings, Map&lt;String, ScriptEngine&gt; engines, Map&lt;String, ScriptContext&lt;?&gt;&gt; contexts) {</b>
+<b class="fc"><i>137</i>&nbsp;        this.settings = Objects.requireNonNull(settings);</b>
+<b class="fc"><i>138</i>&nbsp;        this.engines = Objects.requireNonNull(engines);</b>
+<b class="fc"><i>139</i>&nbsp;        this.contexts = Objects.requireNonNull(contexts);</b>
+<i>140</i>&nbsp;
+<b class="fc"><i>141</i>&nbsp;        if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {</b>
+<b class="nc"><i>142</i>&nbsp;            throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + &quot; is not a supported setting, replace with &quot; +</b>
+<i>143</i>&nbsp;                    &quot;fine-grained script settings. \n Dynamic scripts can be enabled for all languages and all operations not &quot; +
+<i>144</i>&nbsp;                    &quot;using `script.disable_dynamic: false` in elasticsearch.yml&quot;);
+<i>145</i>&nbsp;        }
+<i>146</i>&nbsp;
+<b class="fc"><i>147</i>&nbsp;        this.typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet&lt;&gt;() : null;</b>
+<i>148</i>&nbsp;
+<b class="fc"><i>149</i>&nbsp;        if (this.typesAllowed != null) {</b>
+<b class="nc"><i>150</i>&nbsp;            List&lt;String&gt; typesAllowedList = TYPES_ALLOWED_SETTING.get(settings);</b>
+<i>151</i>&nbsp;
+<b class="nc"><i>152</i>&nbsp;            if (typesAllowedList.isEmpty()) {</b>
+<b class="nc"><i>153</i>&nbsp;                throw new IllegalArgumentException(</b>
+<b class="nc"><i>154</i>&nbsp;                    &quot;must specify at least one script type or none for setting [&quot; + TYPES_ALLOWED_SETTING.getKey() + &quot;].&quot;);</b>
+<i>155</i>&nbsp;            }
+<i>156</i>&nbsp;
+<b class="nc"><i>157</i>&nbsp;            for (String settingType : typesAllowedList) {</b>
+<b class="nc"><i>158</i>&nbsp;                if (ALLOW_NONE.equals(settingType)) {</b>
+<b class="nc"><i>159</i>&nbsp;                    if (typesAllowedList.size() != 1) {</b>
+<b class="nc"><i>160</i>&nbsp;                        throw new IllegalArgumentException(&quot;cannot specify both [&quot; + ALLOW_NONE + &quot;]&quot; +</b>
+<b class="nc"><i>161</i>&nbsp;                            &quot; and other script types for setting [&quot; + TYPES_ALLOWED_SETTING.getKey() + &quot;].&quot;);</b>
+<i>162</i>&nbsp;                    } else {
+<i>163</i>&nbsp;                        break;
+<i>164</i>&nbsp;                    }
+<i>165</i>&nbsp;                }
+<i>166</i>&nbsp;
+<b class="nc"><i>167</i>&nbsp;                boolean found = false;</b>
+<i>168</i>&nbsp;
+<b class="nc"><i>169</i>&nbsp;                for (ScriptType scriptType : ScriptType.values()) {</b>
+<b class="nc"><i>170</i>&nbsp;                    if (scriptType.getName().equals(settingType)) {</b>
+<b class="nc"><i>171</i>&nbsp;                        found = true;</b>
+<b class="nc"><i>172</i>&nbsp;                        this.typesAllowed.add(settingType);</b>
+<i>173</i>&nbsp;
+<b class="nc"><i>174</i>&nbsp;                        break;</b>
+<i>175</i>&nbsp;                    }
+<i>176</i>&nbsp;                }
+<i>177</i>&nbsp;
+<b class="nc"><i>178</i>&nbsp;                if (found == false) {</b>
+<b class="nc"><i>179</i>&nbsp;                    throw new IllegalArgumentException(</b>
+<b class="nc"><i>180</i>&nbsp;                        &quot;unknown script type [&quot; + settingType + &quot;] found in setting [&quot; + TYPES_ALLOWED_SETTING.getKey() + &quot;].&quot;);</b>
+<i>181</i>&nbsp;                }
+<b class="nc"><i>182</i>&nbsp;            }</b>
+<i>183</i>&nbsp;        }
+<i>184</i>&nbsp;
+<b class="fc"><i>185</i>&nbsp;        this.contextsAllowed = CONTEXTS_ALLOWED_SETTING.exists(settings) ? new HashSet&lt;&gt;() : null;</b>
+<i>186</i>&nbsp;
+<b class="fc"><i>187</i>&nbsp;        if (this.contextsAllowed != null) {</b>
+<b class="nc"><i>188</i>&nbsp;            List&lt;String&gt; contextsAllowedList = CONTEXTS_ALLOWED_SETTING.get(settings);</b>
+<i>189</i>&nbsp;
+<b class="nc"><i>190</i>&nbsp;            if (contextsAllowedList.isEmpty()) {</b>
+<b class="nc"><i>191</i>&nbsp;                throw new IllegalArgumentException(</b>
+<b class="nc"><i>192</i>&nbsp;                    &quot;must specify at least one script context or none for setting [&quot; + CONTEXTS_ALLOWED_SETTING.getKey() + &quot;].&quot;);</b>
+<i>193</i>&nbsp;            }
+<i>194</i>&nbsp;
+<b class="nc"><i>195</i>&nbsp;            for (String settingContext : contextsAllowedList) {</b>
+<b class="nc"><i>196</i>&nbsp;                if (ALLOW_NONE.equals(settingContext)) {</b>
+<b class="nc"><i>197</i>&nbsp;                    if (contextsAllowedList.size() != 1) {</b>
+<b class="nc"><i>198</i>&nbsp;                        throw new IllegalArgumentException(&quot;cannot specify both [&quot; + ALLOW_NONE + &quot;]&quot; +</b>
+<b class="nc"><i>199</i>&nbsp;                            &quot; and other script contexts for setting [&quot; + CONTEXTS_ALLOWED_SETTING.getKey() + &quot;].&quot;);</b>
+<i>200</i>&nbsp;                    } else {
+<i>201</i>&nbsp;                        break;
+<i>202</i>&nbsp;                    }
+<i>203</i>&nbsp;                }
+<i>204</i>&nbsp;
+<b class="nc"><i>205</i>&nbsp;                if (contexts.containsKey(settingContext)) {</b>
+<b class="nc"><i>206</i>&nbsp;                    this.contextsAllowed.add(settingContext);</b>
+<i>207</i>&nbsp;                } else {
+<b class="nc"><i>208</i>&nbsp;                    throw new IllegalArgumentException(</b>
+<b class="nc"><i>209</i>&nbsp;                        &quot;unknown script context [&quot; + settingContext + &quot;] found in setting [&quot; + CONTEXTS_ALLOWED_SETTING.getKey() + &quot;].&quot;);</b>
+<i>210</i>&nbsp;                }
+<b class="nc"><i>211</i>&nbsp;            }</b>
+<i>212</i>&nbsp;        }
+<i>213</i>&nbsp;
+<b class="fc"><i>214</i>&nbsp;        int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);</b>
+<i>215</i>&nbsp;
+<b class="fc"><i>216</i>&nbsp;        CacheBuilder&lt;CacheKey, Object&gt; cacheBuilder = CacheBuilder.builder();</b>
+<b class="fc"><i>217</i>&nbsp;        if (cacheMaxSize &gt;= 0) {</b>
+<b class="fc"><i>218</i>&nbsp;            cacheBuilder.setMaximumWeight(cacheMaxSize);</b>
+<i>219</i>&nbsp;        }
+<i>220</i>&nbsp;
+<b class="fc"><i>221</i>&nbsp;        TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);</b>
+<b class="fc"><i>222</i>&nbsp;        if (cacheExpire.getNanos() != 0) {</b>
+<b class="nc"><i>223</i>&nbsp;            cacheBuilder.setExpireAfterAccess(cacheExpire);</b>
+<i>224</i>&nbsp;        }
+<i>225</i>&nbsp;
+<b class="fc"><i>226</i>&nbsp;        logger.debug(&quot;using script cache with max_size [{}], expire [{}]&quot;, cacheMaxSize, cacheExpire);</b>
+<b class="fc"><i>227</i>&nbsp;        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();</b>
+<i>228</i>&nbsp;
+<b class="fc"><i>229</i>&nbsp;        this.lastInlineCompileTime = System.nanoTime();</b>
+<b class="fc"><i>230</i>&nbsp;        this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));</b>
+<b class="fc"><i>231</i>&nbsp;        this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));</b>
+<b class="fc"><i>232</i>&nbsp;    }</b>
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+<b class="fc"><i>235</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);</b>
+<b class="fc"><i>236</i>&nbsp;        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);</b>
+<b class="fc"><i>237</i>&nbsp;    }</b>
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    @Override
+<i>240</i>&nbsp;    public void close() throws IOException {
+<b class="fc"><i>241</i>&nbsp;        IOUtils.close(engines.values());</b>
+<b class="fc"><i>242</i>&nbsp;    }</b>
+<i>243</i>&nbsp;
+<i>244</i>&nbsp;    private ScriptEngine getEngine(String lang) {
+<b class="nc"><i>245</i>&nbsp;        ScriptEngine scriptEngine = engines.get(lang);</b>
+<b class="nc"><i>246</i>&nbsp;        if (scriptEngine == null) {</b>
+<b class="nc"><i>247</i>&nbsp;            throw new IllegalArgumentException(&quot;script_lang not supported [&quot; + lang + &quot;]&quot;);</b>
+<i>248</i>&nbsp;        }
+<b class="nc"><i>249</i>&nbsp;        return scriptEngine;</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    /**
+<i>253</i>&nbsp;     * Changes the maximum number of bytes a script&#39;s source is allowed to have.
+<i>254</i>&nbsp;     * @param newMaxSizeInBytes The new maximum number of bytes.
+<i>255</i>&nbsp;     */
+<i>256</i>&nbsp;    void setMaxSizeInBytes(int newMaxSizeInBytes) {
+<b class="fc"><i>257</i>&nbsp;        for (Map.Entry&lt;String, StoredScriptSource&gt; source : getScriptsFromClusterState().entrySet()) {</b>
+<b class="nc"><i>258</i>&nbsp;            if (source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length &gt; newMaxSizeInBytes) {</b>
+<b class="nc"><i>259</i>&nbsp;                throw new IllegalArgumentException(&quot;script.max_size_in_bytes cannot be set to [&quot; + newMaxSizeInBytes + &quot;], &quot; +</b>
+<b class="nc"><i>260</i>&nbsp;                        &quot;stored script [&quot; + source.getKey() + &quot;] exceeds the new value with a size of &quot; +</b>
+<b class="nc"><i>261</i>&nbsp;                        &quot;[&quot; + source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length + &quot;]&quot;);</b>
+<i>262</i>&nbsp;            }
+<b class="nc"><i>263</i>&nbsp;        }</b>
+<i>264</i>&nbsp;
+<b class="fc"><i>265</i>&nbsp;        maxSizeInBytes = newMaxSizeInBytes;</b>
+<b class="fc"><i>266</i>&nbsp;    }</b>
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    /**
+<i>269</i>&nbsp;     * This configures the maximum script compilations per five minute window.
+<i>270</i>&nbsp;     *
+<i>271</i>&nbsp;     * @param newRate the new expected maximum number of compilations per five minute window
+<i>272</i>&nbsp;     */
+<i>273</i>&nbsp;    void setMaxCompilationRate(Tuple&lt;Integer, TimeValue&gt; newRate) {
+<b class="fc"><i>274</i>&nbsp;        this.rate = newRate;</b>
+<i>275</i>&nbsp;        // Reset the counter to allow new compilations
+<b class="fc"><i>276</i>&nbsp;        this.scriptsPerTimeWindow = rate.v1();</b>
+<b class="fc"><i>277</i>&nbsp;        this.compilesAllowedPerNano = ((double) rate.v1()) / newRate.v2().nanos();</b>
+<b class="fc"><i>278</i>&nbsp;    }</b>
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    /**
+<i>281</i>&nbsp;     * Compiles a script using the given context.
+<i>282</i>&nbsp;     *
+<i>283</i>&nbsp;     * @return a compiled script which may be used to construct instances of a script for the given context
+<i>284</i>&nbsp;     */
+<i>285</i>&nbsp;    public &lt;FactoryType&gt; FactoryType compile(Script script, ScriptContext&lt;FactoryType&gt; context) {
+<b class="nc"><i>286</i>&nbsp;        Objects.requireNonNull(script);</b>
+<b class="nc"><i>287</i>&nbsp;        Objects.requireNonNull(context);</b>
+<i>288</i>&nbsp;
+<b class="nc"><i>289</i>&nbsp;        ScriptType type = script.getType();</b>
+<b class="nc"><i>290</i>&nbsp;        String lang = script.getLang();</b>
+<b class="nc"><i>291</i>&nbsp;        String idOrCode = script.getIdOrCode();</b>
+<b class="nc"><i>292</i>&nbsp;        Map&lt;String, String&gt; options = script.getOptions();</b>
+<i>293</i>&nbsp;
+<b class="nc"><i>294</i>&nbsp;        String id = idOrCode;</b>
+<i>295</i>&nbsp;
+<b class="nc"><i>296</i>&nbsp;        if (type == ScriptType.STORED) {</b>
+<i>297</i>&nbsp;            // * lang and options will both be null when looking up a stored script,
+<i>298</i>&nbsp;            // so we must get the source to retrieve them before checking if the
+<i>299</i>&nbsp;            // context is supported
+<i>300</i>&nbsp;            // * a stored script must be pulled from the cluster state every time in case
+<i>301</i>&nbsp;            // the script has been updated since the last compilation
+<b class="nc"><i>302</i>&nbsp;            StoredScriptSource source = getScriptFromClusterState(id);</b>
+<b class="nc"><i>303</i>&nbsp;            lang = source.getLang();</b>
+<b class="nc"><i>304</i>&nbsp;            idOrCode = source.getSource();</b>
+<b class="nc"><i>305</i>&nbsp;            options = source.getOptions();</b>
+<i>306</i>&nbsp;        }
+<i>307</i>&nbsp;
+<b class="nc"><i>308</i>&nbsp;        ScriptEngine scriptEngine = getEngine(lang);</b>
+<i>309</i>&nbsp;
+<b class="nc"><i>310</i>&nbsp;        if (isTypeEnabled(type) == false) {</b>
+<b class="nc"><i>311</i>&nbsp;            throw new IllegalArgumentException(&quot;cannot execute [&quot; + type + &quot;] scripts&quot;);</b>
+<i>312</i>&nbsp;        }
+<i>313</i>&nbsp;
+<b class="nc"><i>314</i>&nbsp;        if (contexts.containsKey(context.name) == false) {</b>
+<b class="nc"><i>315</i>&nbsp;            throw new IllegalArgumentException(&quot;script context [&quot; + context.name + &quot;] not supported&quot;);</b>
+<i>316</i>&nbsp;        }
+<i>317</i>&nbsp;
+<b class="nc"><i>318</i>&nbsp;        if (isContextEnabled(context) == false) {</b>
+<b class="nc"><i>319</i>&nbsp;            throw new IllegalArgumentException(&quot;cannot execute scripts using [&quot; + context.name + &quot;] context&quot;);</b>
+<i>320</i>&nbsp;        }
+<i>321</i>&nbsp;
+<b class="nc"><i>322</i>&nbsp;        if (type == ScriptType.INLINE) {</b>
+<b class="nc"><i>323</i>&nbsp;            if (idOrCode.getBytes(StandardCharsets.UTF_8).length &gt; maxSizeInBytes) {</b>
+<b class="nc"><i>324</i>&nbsp;                throw new IllegalArgumentException(&quot;exceeded max allowed inline script size in bytes [&quot; + maxSizeInBytes + &quot;] &quot; +</b>
+<b class="nc"><i>325</i>&nbsp;                        &quot;with size [&quot; + idOrCode.getBytes(StandardCharsets.UTF_8).length + &quot;] for script [&quot; + idOrCode + &quot;]&quot;);</b>
+<i>326</i>&nbsp;            }
+<i>327</i>&nbsp;        }
+<i>328</i>&nbsp;
+<b class="nc"><i>329</i>&nbsp;        if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>330</i>&nbsp;            logger.trace(&quot;compiling lang: [{}] type: [{}] script: {}&quot;, lang, type, idOrCode);</b>
+<i>331</i>&nbsp;        }
+<i>332</i>&nbsp;
+<b class="nc"><i>333</i>&nbsp;        CacheKey cacheKey = new CacheKey(lang, idOrCode, context.name, options);</b>
+<b class="nc"><i>334</i>&nbsp;        Object compiledScript = cache.get(cacheKey);</b>
+<i>335</i>&nbsp;
+<b class="nc"><i>336</i>&nbsp;        if (compiledScript != null) {</b>
+<b class="nc"><i>337</i>&nbsp;            return context.factoryClazz.cast(compiledScript);</b>
+<i>338</i>&nbsp;        }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;        // Synchronize so we don&#39;t compile scripts many times during multiple shards all compiling a script
+<b class="nc"><i>341</i>&nbsp;        synchronized (this) {</b>
+<i>342</i>&nbsp;            // Retrieve it again in case it has been put by a different thread
+<b class="nc"><i>343</i>&nbsp;            compiledScript = cache.get(cacheKey);</b>
+<i>344</i>&nbsp;
+<b class="nc"><i>345</i>&nbsp;            if (compiledScript == null) {</b>
+<i>346</i>&nbsp;                try {
+<i>347</i>&nbsp;                    // Either an un-cached inline script or indexed script
+<i>348</i>&nbsp;                    // If the script type is inline the name will be the same as the code for identification in exceptions
+<i>349</i>&nbsp;                    // but give the script engine the chance to be better, give it separate name + source code
+<i>350</i>&nbsp;                    // for the inline case, then its anonymous: null.
+<b class="nc"><i>351</i>&nbsp;                    if (logger.isTraceEnabled()) {</b>
+<b class="nc"><i>352</i>&nbsp;                        logger.trace(&quot;compiling script, type: [{}], lang: [{}], options: [{}]&quot;, type, lang, options);</b>
+<i>353</i>&nbsp;                    }
+<i>354</i>&nbsp;                    // Check whether too many compilations have happened
+<b class="nc"><i>355</i>&nbsp;                    checkCompilationLimit();</b>
+<b class="nc"><i>356</i>&nbsp;                    compiledScript = scriptEngine.compile(id, idOrCode, context, options);</b>
+<b class="nc"><i>357</i>&nbsp;                } catch (ScriptException good) {</b>
+<i>358</i>&nbsp;                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
+<b class="nc"><i>359</i>&nbsp;                    throw good; // its already good</b>
+<b class="nc"><i>360</i>&nbsp;                } catch (Exception exception) {</b>
+<b class="nc"><i>361</i>&nbsp;                    throw new GeneralScriptException(&quot;Failed to compile &quot; + type + &quot; script [&quot; + id + &quot;] using lang [&quot; + lang + &quot;]&quot;,</b>
+<i>362</i>&nbsp;                            exception);
+<b class="nc"><i>363</i>&nbsp;                }</b>
+<i>364</i>&nbsp;
+<i>365</i>&nbsp;                // Since the cache key is the script content itself we don&#39;t need to
+<i>366</i>&nbsp;                // invalidate/check the cache if an indexed script changes.
+<b class="nc"><i>367</i>&nbsp;                scriptMetrics.onCompilation();</b>
+<b class="nc"><i>368</i>&nbsp;                cache.put(cacheKey, compiledScript);</b>
+<i>369</i>&nbsp;            }
+<i>370</i>&nbsp;
+<b class="nc"><i>371</i>&nbsp;            return context.factoryClazz.cast(compiledScript);</b>
+<b class="nc"><i>372</i>&nbsp;        }</b>
+<i>373</i>&nbsp;    }
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;    /**
+<i>376</i>&nbsp;     * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
+<i>377</i>&nbsp;     * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
+<i>378</i>&nbsp;     *
+<i>379</i>&nbsp;     * It can be thought of as a bucket with water, every time the bucket is checked, water is added proportional to the amount of time that
+<i>380</i>&nbsp;     * elapsed since the last time it was checked. If there is enough water, some is removed and the request is allowed. If there is not
+<i>381</i>&nbsp;     * enough water the request is denied. Just like a normal bucket, if water is added that overflows the bucket, the extra water/capacity
+<i>382</i>&nbsp;     * is discarded - there can never be more water in the bucket than the size of the bucket.
+<i>383</i>&nbsp;     */
+<i>384</i>&nbsp;    void checkCompilationLimit() {
+<b class="nc"><i>385</i>&nbsp;        long now = System.nanoTime();</b>
+<b class="nc"><i>386</i>&nbsp;        long timePassed = now - lastInlineCompileTime;</b>
+<b class="nc"><i>387</i>&nbsp;        lastInlineCompileTime = now;</b>
+<i>388</i>&nbsp;
+<b class="nc"><i>389</i>&nbsp;        scriptsPerTimeWindow += (timePassed) * compilesAllowedPerNano;</b>
+<i>390</i>&nbsp;
+<i>391</i>&nbsp;        // It&#39;s been over the time limit anyway, readjust the bucket to be level
+<b class="nc"><i>392</i>&nbsp;        if (scriptsPerTimeWindow &gt; rate.v1()) {</b>
+<b class="nc"><i>393</i>&nbsp;            scriptsPerTimeWindow = rate.v1();</b>
+<i>394</i>&nbsp;        }
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;        // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
+<b class="nc"><i>397</i>&nbsp;        if (scriptsPerTimeWindow &gt;= 1) {</b>
+<b class="nc"><i>398</i>&nbsp;            scriptsPerTimeWindow -= 1.0;</b>
+<i>399</i>&nbsp;        } else {
+<b class="nc"><i>400</i>&nbsp;            scriptMetrics.onCompilationLimit();</b>
+<i>401</i>&nbsp;            // Otherwise reject the request
+<b class="nc"><i>402</i>&nbsp;            throw new CircuitBreakingException(&quot;[script] Too many dynamic script compilations within, max: [&quot; +</b>
+<b class="nc"><i>403</i>&nbsp;                    rate.v1() + &quot;/&quot; + rate.v2() +&quot;]; please use indexed, or scripts with parameters instead; &quot; +</b>
+<b class="nc"><i>404</i>&nbsp;                            &quot;this limit can be changed by the [&quot; + SCRIPT_MAX_COMPILATIONS_RATE.getKey() + &quot;] setting&quot;,</b>
+<i>405</i>&nbsp;                CircuitBreaker.Durability.TRANSIENT);
+<i>406</i>&nbsp;        }
+<b class="nc"><i>407</i>&nbsp;    }</b>
+<i>408</i>&nbsp;
+<i>409</i>&nbsp;    public boolean isLangSupported(String lang) {
+<b class="nc"><i>410</i>&nbsp;        Objects.requireNonNull(lang);</b>
+<b class="nc"><i>411</i>&nbsp;        return engines.containsKey(lang);</b>
+<i>412</i>&nbsp;    }
+<i>413</i>&nbsp;
+<i>414</i>&nbsp;    public boolean isTypeEnabled(ScriptType scriptType) {
+<b class="nc"><i>415</i>&nbsp;        return typesAllowed == null || typesAllowed.contains(scriptType.getName());</b>
+<i>416</i>&nbsp;    }
+<i>417</i>&nbsp;
+<i>418</i>&nbsp;    public boolean isContextEnabled(ScriptContext scriptContext) {
+<b class="nc"><i>419</i>&nbsp;        return contextsAllowed == null || contextsAllowed.contains(scriptContext.name);</b>
+<i>420</i>&nbsp;    }
+<i>421</i>&nbsp;
+<i>422</i>&nbsp;    public boolean isAnyContextEnabled() {
+<b class="nc"><i>423</i>&nbsp;        return contextsAllowed == null || contextsAllowed.isEmpty() == false;</b>
+<i>424</i>&nbsp;    }
+<i>425</i>&nbsp;
+<i>426</i>&nbsp;    Map&lt;String, StoredScriptSource&gt; getScriptsFromClusterState() {
+<b class="fc"><i>427</i>&nbsp;        if (clusterState == null) {</b>
+<b class="fc"><i>428</i>&nbsp;            return Collections.emptyMap();</b>
+<i>429</i>&nbsp;        }
+<i>430</i>&nbsp;
+<b class="nc"><i>431</i>&nbsp;        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);</b>
+<i>432</i>&nbsp;
+<b class="nc"><i>433</i>&nbsp;        if (scriptMetadata == null) {</b>
+<b class="nc"><i>434</i>&nbsp;            return Collections.emptyMap();</b>
+<i>435</i>&nbsp;        }
+<i>436</i>&nbsp;
+<b class="nc"><i>437</i>&nbsp;        return scriptMetadata.getStoredScripts();</b>
+<i>438</i>&nbsp;    }
+<i>439</i>&nbsp;
+<i>440</i>&nbsp;    StoredScriptSource getScriptFromClusterState(String id) {
+<b class="nc"><i>441</i>&nbsp;        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);</b>
+<i>442</i>&nbsp;
+<b class="nc"><i>443</i>&nbsp;        if (scriptMetadata == null) {</b>
+<b class="nc"><i>444</i>&nbsp;            throw new ResourceNotFoundException(&quot;unable to find script [&quot; + id + &quot;] in cluster state&quot;);</b>
+<i>445</i>&nbsp;        }
+<i>446</i>&nbsp;
+<b class="nc"><i>447</i>&nbsp;        StoredScriptSource source = scriptMetadata.getStoredScript(id);</b>
+<i>448</i>&nbsp;
+<b class="nc"><i>449</i>&nbsp;        if (source == null) {</b>
+<b class="nc"><i>450</i>&nbsp;            throw new ResourceNotFoundException(&quot;unable to find script [&quot; + id + &quot;] in cluster state&quot;);</b>
+<i>451</i>&nbsp;        }
+<i>452</i>&nbsp;
+<b class="nc"><i>453</i>&nbsp;        return source;</b>
+<i>454</i>&nbsp;    }
+<i>455</i>&nbsp;
+<i>456</i>&nbsp;    public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
+<i>457</i>&nbsp;                                ActionListener&lt;AcknowledgedResponse&gt; listener) {
+<b class="nc"><i>458</i>&nbsp;        if (request.content().length() &gt; maxSizeInBytes) {</b>
+<b class="nc"><i>459</i>&nbsp;            throw new IllegalArgumentException(&quot;exceeded max allowed stored script size in bytes [&quot; + maxSizeInBytes + &quot;] with size [&quot; +</b>
+<b class="nc"><i>460</i>&nbsp;                request.content().length() + &quot;] for script [&quot; + request.id() + &quot;]&quot;);</b>
+<i>461</i>&nbsp;        }
+<i>462</i>&nbsp;
+<b class="nc"><i>463</i>&nbsp;        StoredScriptSource source = request.source();</b>
+<i>464</i>&nbsp;
+<b class="nc"><i>465</i>&nbsp;        if (isLangSupported(source.getLang()) == false) {</b>
+<b class="nc"><i>466</i>&nbsp;            throw new IllegalArgumentException(&quot;unable to put stored script with unsupported lang [&quot; + source.getLang() + &quot;]&quot;);</b>
+<i>467</i>&nbsp;        }
+<i>468</i>&nbsp;
+<i>469</i>&nbsp;        try {
+<b class="nc"><i>470</i>&nbsp;            ScriptEngine scriptEngine = getEngine(source.getLang());</b>
+<i>471</i>&nbsp;
+<b class="nc"><i>472</i>&nbsp;            if (isTypeEnabled(ScriptType.STORED) == false) {</b>
+<b class="nc"><i>473</i>&nbsp;                throw new IllegalArgumentException(</b>
+<i>474</i>&nbsp;                    &quot;cannot put [&quot; + ScriptType.STORED + &quot;] script, [&quot; + ScriptType.STORED + &quot;] scripts are not enabled&quot;);
+<b class="nc"><i>475</i>&nbsp;            } else if (isAnyContextEnabled() == false) {</b>
+<b class="nc"><i>476</i>&nbsp;                throw new IllegalArgumentException(</b>
+<i>477</i>&nbsp;                    &quot;cannot put [&quot; + ScriptType.STORED + &quot;] script, no script contexts are enabled&quot;);
+<b class="nc"><i>478</i>&nbsp;            } else if (request.context() != null) {</b>
+<b class="nc"><i>479</i>&nbsp;                ScriptContext&lt;?&gt; context = contexts.get(request.context());</b>
+<b class="nc"><i>480</i>&nbsp;                if (context == null) {</b>
+<b class="nc"><i>481</i>&nbsp;                    throw new IllegalArgumentException(&quot;Unknown context [&quot; + request.context() + &quot;]&quot;);</b>
+<i>482</i>&nbsp;                }
+<b class="nc"><i>483</i>&nbsp;                scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());</b>
+<i>484</i>&nbsp;            }
+<b class="nc"><i>485</i>&nbsp;        } catch (ScriptException good) {</b>
+<b class="nc"><i>486</i>&nbsp;            throw good;</b>
+<b class="nc"><i>487</i>&nbsp;        } catch (Exception exception) {</b>
+<b class="nc"><i>488</i>&nbsp;            throw new IllegalArgumentException(&quot;failed to parse/compile stored script [&quot; + request.id() + &quot;]&quot;, exception);</b>
+<b class="nc"><i>489</i>&nbsp;        }</b>
+<i>490</i>&nbsp;
+<b class="nc"><i>491</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;put-script-&quot; + request.id(),</b>
+<i>492</i>&nbsp;            new AckedClusterStateUpdateTask&lt;AcknowledgedResponse&gt;(request, listener) {
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;            @Override
+<i>495</i>&nbsp;            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+<i>496</i>&nbsp;                return new AcknowledgedResponse(acknowledged);
+<i>497</i>&nbsp;            }
+<i>498</i>&nbsp;
+<i>499</i>&nbsp;            @Override
+<i>500</i>&nbsp;            public ClusterState execute(ClusterState currentState) throws Exception {
+<i>501</i>&nbsp;                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+<i>502</i>&nbsp;                smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
+<i>503</i>&nbsp;                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+<i>504</i>&nbsp;
+<i>505</i>&nbsp;                return ClusterState.builder(currentState).metaData(mdb).build();
+<i>506</i>&nbsp;            }
+<i>507</i>&nbsp;        });
+<b class="nc"><i>508</i>&nbsp;    }</b>
+<i>509</i>&nbsp;
+<i>510</i>&nbsp;    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
+<i>511</i>&nbsp;                                   ActionListener&lt;AcknowledgedResponse&gt; listener) {
+<b class="nc"><i>512</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;delete-script-&quot; + request.id(),</b>
+<i>513</i>&nbsp;            new AckedClusterStateUpdateTask&lt;AcknowledgedResponse&gt;(request, listener) {
+<i>514</i>&nbsp;
+<i>515</i>&nbsp;            @Override
+<i>516</i>&nbsp;            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+<i>517</i>&nbsp;                return new AcknowledgedResponse(acknowledged);
+<i>518</i>&nbsp;            }
+<i>519</i>&nbsp;
+<i>520</i>&nbsp;            @Override
+<i>521</i>&nbsp;            public ClusterState execute(ClusterState currentState) throws Exception {
+<i>522</i>&nbsp;                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+<i>523</i>&nbsp;                smd = ScriptMetaData.deleteStoredScript(smd, request.id());
+<i>524</i>&nbsp;                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+<i>525</i>&nbsp;
+<i>526</i>&nbsp;                return ClusterState.builder(currentState).metaData(mdb).build();
+<i>527</i>&nbsp;            }
+<i>528</i>&nbsp;        });
+<b class="nc"><i>529</i>&nbsp;    }</b>
+<i>530</i>&nbsp;
+<i>531</i>&nbsp;    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+<b class="nc"><i>532</i>&nbsp;        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);</b>
+<i>533</i>&nbsp;
+<b class="nc"><i>534</i>&nbsp;        if (scriptMetadata != null) {</b>
+<b class="nc"><i>535</i>&nbsp;            return scriptMetadata.getStoredScript(request.id());</b>
+<i>536</i>&nbsp;        } else {
+<b class="nc"><i>537</i>&nbsp;            return null;</b>
+<i>538</i>&nbsp;        }
+<i>539</i>&nbsp;    }
+<i>540</i>&nbsp;
+<i>541</i>&nbsp;    public ScriptStats stats() {
+<b class="nc"><i>542</i>&nbsp;        return scriptMetrics.stats();</b>
+<i>543</i>&nbsp;    }
+<i>544</i>&nbsp;
+<i>545</i>&nbsp;    @Override
+<i>546</i>&nbsp;    public void applyClusterState(ClusterChangedEvent event) {
+<b class="fc"><i>547</i>&nbsp;        clusterState = event.state();</b>
+<b class="fc"><i>548</i>&nbsp;    }</b>
+<i>549</i>&nbsp;
+<i>550</i>&nbsp;    /**
+<i>551</i>&nbsp;     * A small listener for the script cache that calls each
+<i>552</i>&nbsp;     * {@code ScriptEngine}&#39;s {@code scriptRemoved} method when the
+<i>553</i>&nbsp;     * script has been removed from the cache
+<i>554</i>&nbsp;     */
+<b class="fc"><i>555</i>&nbsp;    private class ScriptCacheRemovalListener implements RemovalListener&lt;CacheKey, Object&gt; {</b>
+<i>556</i>&nbsp;        @Override
+<i>557</i>&nbsp;        public void onRemoval(RemovalNotification&lt;CacheKey, Object&gt; notification) {
+<b class="nc"><i>558</i>&nbsp;            if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>559</i>&nbsp;                logger.debug(&quot;removed {} from cache, reason: {}&quot;, notification.getValue(), notification.getRemovalReason());</b>
+<i>560</i>&nbsp;            }
+<b class="nc"><i>561</i>&nbsp;            scriptMetrics.onCacheEviction();</b>
+<b class="nc"><i>562</i>&nbsp;        }</b>
+<i>563</i>&nbsp;    }
+<i>564</i>&nbsp;
+<i>565</i>&nbsp;    private static final class CacheKey {
+<i>566</i>&nbsp;        final String lang;
+<i>567</i>&nbsp;        final String idOrCode;
+<i>568</i>&nbsp;        final String context;
+<i>569</i>&nbsp;        final Map&lt;String, String&gt; options;
+<i>570</i>&nbsp;
+<i>571</i>&nbsp;        private CacheKey(String lang, String idOrCode, String context, Map&lt;String, String&gt; options) {
+<i>572</i>&nbsp;            this.lang = lang;
+<i>573</i>&nbsp;            this.idOrCode = idOrCode;
+<i>574</i>&nbsp;            this.context = context;
+<i>575</i>&nbsp;            this.options = options;
+<i>576</i>&nbsp;        }
+<i>577</i>&nbsp;
+<i>578</i>&nbsp;        @Override
+<i>579</i>&nbsp;        public boolean equals(Object o) {
+<i>580</i>&nbsp;            if (this == o) return true;
+<i>581</i>&nbsp;            if (o == null || getClass() != o.getClass()) return false;
+<i>582</i>&nbsp;            CacheKey cacheKey = (CacheKey) o;
+<i>583</i>&nbsp;            return Objects.equals(lang, cacheKey.lang) &amp;&amp;
+<i>584</i>&nbsp;                Objects.equals(idOrCode, cacheKey.idOrCode) &amp;&amp;
+<i>585</i>&nbsp;                Objects.equals(context, cacheKey.context) &amp;&amp;
+<i>586</i>&nbsp;                Objects.equals(options, cacheKey.options);
+<i>587</i>&nbsp;        }
+<i>588</i>&nbsp;
+<i>589</i>&nbsp;        @Override
+<i>590</i>&nbsp;        public int hashCode() {
+<i>591</i>&nbsp;            return Objects.hash(lang, idOrCode, context, options);
+<i>592</i>&nbsp;        }
+<i>593</i>&nbsp;    }
+<i>594</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,198 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FsService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.monitor.fs</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FsService (org.elasticsearch.monitor.fs)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FsService</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (3/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    72.2%
+  </span>
+  <span class="absValue">
+    (13/ 18)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">FsService$FsInfoCache</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (4/ 5)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    57.1%
+  </span>
+  <span class="absValue">
+    (4/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    73.9%
+  </span>
+  <span class="absValue">
+    (17/ 23)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.monitor.fs;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.ClusterInfo;
+<i>25</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>26</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>29</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>30</i>&nbsp;import org.elasticsearch.common.util.SingleObjectCache;
+<i>31</i>&nbsp;import org.elasticsearch.env.NodeEnvironment;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterInfoService;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import java.io.IOException;
+<i>35</i>&nbsp;
+<b class="nc"><i>36</i>&nbsp;public class FsService {</b>
+<i>37</i>&nbsp;
+<b class="fc"><i>38</i>&nbsp;    private static final Logger logger = LogManager.getLogger(FsService.class);</b>
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;    private final FsProbe probe;
+<i>41</i>&nbsp;    private final TimeValue refreshInterval;
+<i>42</i>&nbsp;    private final SingleObjectCache&lt;FsInfo&gt; cache;
+<i>43</i>&nbsp;    private final ClusterInfoService clusterInfoService;
+<i>44</i>&nbsp;
+<b class="fc"><i>45</i>&nbsp;    public static final Setting&lt;TimeValue&gt; REFRESH_INTERVAL_SETTING =</b>
+<b class="fc"><i>46</i>&nbsp;        Setting.timeSetting(</b>
+<i>47</i>&nbsp;            &quot;monitor.fs.refresh_interval&quot;,
+<b class="fc"><i>48</i>&nbsp;            TimeValue.timeValueSeconds(1),</b>
+<b class="fc"><i>49</i>&nbsp;            TimeValue.timeValueSeconds(1),</b>
+<i>50</i>&nbsp;            Property.NodeScope);
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment, ClusterInfoService clusterInfoService) {</b>
+<b class="fc"><i>53</i>&nbsp;        this.probe = new FsProbe(nodeEnvironment);</b>
+<b class="fc"><i>54</i>&nbsp;        this.clusterInfoService = clusterInfoService;</b>
+<b class="fc"><i>55</i>&nbsp;        refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);</b>
+<b class="fc"><i>56</i>&nbsp;        logger.debug(&quot;using refresh_interval [{}]&quot;, refreshInterval);</b>
+<b class="fc"><i>57</i>&nbsp;        cache = new FsInfoCache(refreshInterval, stats(probe, null, logger, null));</b>
+<b class="fc"><i>58</i>&nbsp;    }</b>
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    public FsInfo stats() {
+<b class="nc"><i>61</i>&nbsp;        return cache.getOrRefresh();</b>
+<i>62</i>&nbsp;    }
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    private static FsInfo stats(FsProbe probe, FsInfo initialValue, Logger logger, @Nullable ClusterInfo clusterInfo) {
+<i>65</i>&nbsp;        try {
+<b class="fc"><i>66</i>&nbsp;            return probe.stats(initialValue, clusterInfo);</b>
+<b class="nc"><i>67</i>&nbsp;        } catch (IOException e) {</b>
+<b class="nc"><i>68</i>&nbsp;            logger.debug(&quot;unexpected exception reading filesystem info&quot;, e);</b>
+<b class="nc"><i>69</i>&nbsp;            return null;</b>
+<i>70</i>&nbsp;        }
+<i>71</i>&nbsp;    }
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    private class FsInfoCache extends SingleObjectCache&lt;FsInfo&gt; {
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;        private final FsInfo initialValue;
+<i>76</i>&nbsp;
+<b class="fc"><i>77</i>&nbsp;        FsInfoCache(TimeValue interval, FsInfo initialValue) {</b>
+<b class="fc"><i>78</i>&nbsp;            super(interval, initialValue);</b>
+<b class="fc"><i>79</i>&nbsp;            this.initialValue = initialValue;</b>
+<b class="fc"><i>80</i>&nbsp;        }</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;        @Override
+<i>83</i>&nbsp;        protected FsInfo refresh() {
+<b class="nc"><i>84</i>&nbsp;            return stats(probe, initialValue, logger, clusterInfoService.getClusterInfo());</b>
+<i>85</i>&nbsp;        }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    }
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

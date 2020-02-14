@@ -1,0 +1,1022 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: QueryStringQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: QueryStringQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">QueryStringQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 61)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 471)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.BoostQuery;
+<i>23</i>&nbsp;import org.apache.lucene.search.FuzzyQuery;
+<i>24</i>&nbsp;import org.apache.lucene.search.Query;
+<i>25</i>&nbsp;import org.apache.lucene.util.automaton.Operations;
+<i>26</i>&nbsp;import org.elasticsearch.Version;
+<i>27</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>28</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>31</i>&nbsp;import org.elasticsearch.common.lucene.search.Queries;
+<i>32</i>&nbsp;import org.elasticsearch.common.regex.Regex;
+<i>33</i>&nbsp;import org.elasticsearch.common.unit.Fuzziness;
+<i>34</i>&nbsp;import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+<i>35</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>37</i>&nbsp;import org.elasticsearch.index.analysis.NamedAnalyzer;
+<i>38</i>&nbsp;import org.elasticsearch.index.query.support.QueryParsers;
+<i>39</i>&nbsp;import org.elasticsearch.index.search.QueryParserHelper;
+<i>40</i>&nbsp;import org.elasticsearch.index.search.QueryStringQueryParser;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import java.io.IOException;
+<i>43</i>&nbsp;import java.time.ZoneId;
+<i>44</i>&nbsp;import java.util.ArrayList;
+<i>45</i>&nbsp;import java.util.List;
+<i>46</i>&nbsp;import java.util.Locale;
+<i>47</i>&nbsp;import java.util.Map;
+<i>48</i>&nbsp;import java.util.Objects;
+<i>49</i>&nbsp;import java.util.TreeMap;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;/**
+<i>52</i>&nbsp; * A query that parses a query string and runs it. There are two modes that this operates. The first,
+<i>53</i>&nbsp; * when no field is added (using {@link #field(String)}, will run the query once and non prefixed fields
+<i>54</i>&nbsp; * will use the {@link #defaultField(String)} set. The second, when one or more fields are added
+<i>55</i>&nbsp; * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
+<i>56</i>&nbsp; * them using Dismax.
+<i>57</i>&nbsp; */
+<i>58</i>&nbsp;public class QueryStringQueryBuilder extends AbstractQueryBuilder&lt;QueryStringQueryBuilder&gt; {
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;    public static final String NAME = &quot;query_string&quot;;
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    public static final int DEFAULT_MAX_DETERMINED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+<i>63</i>&nbsp;    public static final boolean DEFAULT_ENABLE_POSITION_INCREMENTS = true;
+<i>64</i>&nbsp;    public static final boolean DEFAULT_ESCAPE = false;
+<i>65</i>&nbsp;    public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
+<i>66</i>&nbsp;    public static final int DEFAULT_FUZZY_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
+<i>67</i>&nbsp;    public static final int DEFAULT_PHRASE_SLOP = 0;
+<b class="nc"><i>68</i>&nbsp;    public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;</b>
+<b class="nc"><i>69</i>&nbsp;    public static final Operator DEFAULT_OPERATOR = Operator.OR;</b>
+<b class="nc"><i>70</i>&nbsp;    public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;</b>
+<i>71</i>&nbsp;    public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
+<i>72</i>&nbsp;
+<b class="nc"><i>73</i>&nbsp;    private static final ParseField QUERY_FIELD = new ParseField(&quot;query&quot;);</b>
+<b class="nc"><i>74</i>&nbsp;    private static final ParseField FIELDS_FIELD = new ParseField(&quot;fields&quot;);</b>
+<b class="nc"><i>75</i>&nbsp;    private static final ParseField DEFAULT_FIELD_FIELD = new ParseField(&quot;default_field&quot;);</b>
+<b class="nc"><i>76</i>&nbsp;    private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField(&quot;default_operator&quot;);</b>
+<b class="nc"><i>77</i>&nbsp;    private static final ParseField ANALYZER_FIELD = new ParseField(&quot;analyzer&quot;);</b>
+<b class="nc"><i>78</i>&nbsp;    private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField(&quot;quote_analyzer&quot;);</b>
+<b class="nc"><i>79</i>&nbsp;    private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField(&quot;allow_leading_wildcard&quot;);</b>
+<b class="nc"><i>80</i>&nbsp;    private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField(&quot;max_determinized_states&quot;);</b>
+<b class="nc"><i>81</i>&nbsp;    private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField(&quot;enable_position_increments&quot;);</b>
+<b class="nc"><i>82</i>&nbsp;    private static final ParseField ESCAPE_FIELD = new ParseField(&quot;escape&quot;);</b>
+<b class="nc"><i>83</i>&nbsp;    private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField(&quot;fuzzy_prefix_length&quot;);</b>
+<b class="nc"><i>84</i>&nbsp;    private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField(&quot;fuzzy_max_expansions&quot;);</b>
+<b class="nc"><i>85</i>&nbsp;    private static final ParseField FUZZY_REWRITE_FIELD = new ParseField(&quot;fuzzy_rewrite&quot;);</b>
+<b class="nc"><i>86</i>&nbsp;    private static final ParseField PHRASE_SLOP_FIELD = new ParseField(&quot;phrase_slop&quot;);</b>
+<b class="nc"><i>87</i>&nbsp;    private static final ParseField TIE_BREAKER_FIELD = new ParseField(&quot;tie_breaker&quot;);</b>
+<b class="nc"><i>88</i>&nbsp;    private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField(&quot;analyze_wildcard&quot;);</b>
+<b class="nc"><i>89</i>&nbsp;    private static final ParseField REWRITE_FIELD = new ParseField(&quot;rewrite&quot;);</b>
+<b class="nc"><i>90</i>&nbsp;    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField(&quot;minimum_should_match&quot;);</b>
+<b class="nc"><i>91</i>&nbsp;    private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField(&quot;quote_field_suffix&quot;);</b>
+<b class="nc"><i>92</i>&nbsp;    private static final ParseField LENIENT_FIELD = new ParseField(&quot;lenient&quot;);</b>
+<b class="nc"><i>93</i>&nbsp;    private static final ParseField TIME_ZONE_FIELD = new ParseField(&quot;time_zone&quot;);</b>
+<b class="nc"><i>94</i>&nbsp;    private static final ParseField TYPE_FIELD = new ParseField(&quot;type&quot;);</b>
+<b class="nc"><i>95</i>&nbsp;    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField(&quot;auto_generate_synonyms_phrase_query&quot;);</b>
+<b class="nc"><i>96</i>&nbsp;    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField(&quot;fuzzy_transpositions&quot;);</b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    private final String queryString;
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    private String defaultField;
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    /**
+<i>103</i>&nbsp;     * Fields to query against. If left empty will query default field,
+<i>104</i>&nbsp;     * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
+<i>105</i>&nbsp;     * always sorted in same order for generated Lucene query for easier
+<i>106</i>&nbsp;     * testing.
+<i>107</i>&nbsp;     *
+<i>108</i>&nbsp;     * Can be changed back to HashMap once https://issues.apache.org/jira/browse/LUCENE-6305 is fixed.
+<i>109</i>&nbsp;     */
+<b class="nc"><i>110</i>&nbsp;    private final Map&lt;String, Float&gt; fieldsAndWeights = new TreeMap&lt;&gt;();</b>
+<i>111</i>&nbsp;
+<b class="nc"><i>112</i>&nbsp;    private Operator defaultOperator = DEFAULT_OPERATOR;</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    private String analyzer;
+<i>115</i>&nbsp;    private String quoteAnalyzer;
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    private String quoteFieldSuffix;
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    private Boolean allowLeadingWildcard;
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    private Boolean analyzeWildcard;
+<i>122</i>&nbsp;
+<b class="nc"><i>123</i>&nbsp;    private boolean enablePositionIncrements = DEFAULT_ENABLE_POSITION_INCREMENTS;</b>
+<i>124</i>&nbsp;
+<b class="nc"><i>125</i>&nbsp;    private Fuzziness fuzziness = DEFAULT_FUZZINESS;</b>
+<i>126</i>&nbsp;
+<b class="nc"><i>127</i>&nbsp;    private int fuzzyPrefixLength = DEFAULT_FUZZY_PREFIX_LENGTH;</b>
+<i>128</i>&nbsp;
+<b class="nc"><i>129</i>&nbsp;    private int fuzzyMaxExpansions = DEFAULT_FUZZY_MAX_EXPANSIONS;</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    private String rewrite;
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    private String fuzzyRewrite;
+<i>134</i>&nbsp;
+<b class="nc"><i>135</i>&nbsp;    private boolean escape = DEFAULT_ESCAPE;</b>
+<i>136</i>&nbsp;
+<b class="nc"><i>137</i>&nbsp;    private int phraseSlop = DEFAULT_PHRASE_SLOP;</b>
+<i>138</i>&nbsp;
+<b class="nc"><i>139</i>&nbsp;    private MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;</b>
+<i>140</i>&nbsp;
+<i>141</i>&nbsp;    private Float tieBreaker;
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    private String minimumShouldMatch;
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;    private Boolean lenient;
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;    private ZoneId timeZone;
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    /** To limit effort spent determinizing regexp queries. */
+<b class="nc"><i>150</i>&nbsp;    private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;</b>
+<i>151</i>&nbsp;
+<b class="nc"><i>152</i>&nbsp;    private boolean autoGenerateSynonymsPhraseQuery = true;</b>
+<i>153</i>&nbsp;
+<b class="nc"><i>154</i>&nbsp;    private boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;</b>
+<i>155</i>&nbsp;
+<b class="nc"><i>156</i>&nbsp;    public QueryStringQueryBuilder(String queryString) {</b>
+<b class="nc"><i>157</i>&nbsp;        if (queryString == null) {</b>
+<b class="nc"><i>158</i>&nbsp;            throw new IllegalArgumentException(&quot;query text missing&quot;);</b>
+<i>159</i>&nbsp;        }
+<b class="nc"><i>160</i>&nbsp;        this.queryString = queryString;</b>
+<b class="nc"><i>161</i>&nbsp;    }</b>
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    /**
+<i>164</i>&nbsp;     * Read from a stream.
+<i>165</i>&nbsp;     */
+<i>166</i>&nbsp;    public QueryStringQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>167</i>&nbsp;        super(in);</b>
+<b class="nc"><i>168</i>&nbsp;        queryString = in.readString();</b>
+<b class="nc"><i>169</i>&nbsp;        defaultField = in.readOptionalString();</b>
+<b class="nc"><i>170</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>171</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>172</i>&nbsp;            String field = in.readString();</b>
+<b class="nc"><i>173</i>&nbsp;            Float weight = in.readFloat();</b>
+<b class="nc"><i>174</i>&nbsp;            checkNegativeBoost(weight);</b>
+<b class="nc"><i>175</i>&nbsp;            fieldsAndWeights.put(field, weight);</b>
+<i>176</i>&nbsp;        }
+<b class="nc"><i>177</i>&nbsp;        defaultOperator = Operator.readFromStream(in);</b>
+<b class="nc"><i>178</i>&nbsp;        analyzer = in.readOptionalString();</b>
+<b class="nc"><i>179</i>&nbsp;        quoteAnalyzer = in.readOptionalString();</b>
+<b class="nc"><i>180</i>&nbsp;        quoteFieldSuffix = in.readOptionalString();</b>
+<b class="nc"><i>181</i>&nbsp;        allowLeadingWildcard = in.readOptionalBoolean();</b>
+<b class="nc"><i>182</i>&nbsp;        analyzeWildcard = in.readOptionalBoolean();</b>
+<b class="nc"><i>183</i>&nbsp;        enablePositionIncrements = in.readBoolean();</b>
+<b class="nc"><i>184</i>&nbsp;        fuzziness = new Fuzziness(in);</b>
+<b class="nc"><i>185</i>&nbsp;        fuzzyPrefixLength = in.readVInt();</b>
+<b class="nc"><i>186</i>&nbsp;        fuzzyMaxExpansions = in.readVInt();</b>
+<b class="nc"><i>187</i>&nbsp;        fuzzyRewrite = in.readOptionalString();</b>
+<b class="nc"><i>188</i>&nbsp;        phraseSlop = in.readVInt();</b>
+<b class="nc"><i>189</i>&nbsp;        type = MultiMatchQueryBuilder.Type.readFromStream(in);</b>
+<b class="nc"><i>190</i>&nbsp;        tieBreaker = in.readOptionalFloat();</b>
+<i>191</i>&nbsp;
+<b class="nc"><i>192</i>&nbsp;        rewrite = in.readOptionalString();</b>
+<b class="nc"><i>193</i>&nbsp;        minimumShouldMatch = in.readOptionalString();</b>
+<b class="nc"><i>194</i>&nbsp;        lenient = in.readOptionalBoolean();</b>
+<b class="nc"><i>195</i>&nbsp;        timeZone = in.readOptionalZoneId();</b>
+<b class="nc"><i>196</i>&nbsp;        escape = in.readBoolean();</b>
+<b class="nc"><i>197</i>&nbsp;        maxDeterminizedStates = in.readVInt();</b>
+<b class="nc"><i>198</i>&nbsp;        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {</b>
+<b class="nc"><i>199</i>&nbsp;            autoGenerateSynonymsPhraseQuery = in.readBoolean();</b>
+<b class="nc"><i>200</i>&nbsp;            fuzzyTranspositions = in.readBoolean();</b>
+<i>201</i>&nbsp;        }
+<b class="nc"><i>202</i>&nbsp;    }</b>
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;    @Override
+<i>205</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>206</i>&nbsp;        out.writeString(this.queryString);</b>
+<b class="nc"><i>207</i>&nbsp;        out.writeOptionalString(this.defaultField);</b>
+<b class="nc"><i>208</i>&nbsp;        out.writeVInt(this.fieldsAndWeights.size());</b>
+<b class="nc"><i>209</i>&nbsp;        for (Map.Entry&lt;String, Float&gt; fieldsEntry : this.fieldsAndWeights.entrySet()) {</b>
+<b class="nc"><i>210</i>&nbsp;            out.writeString(fieldsEntry.getKey());</b>
+<b class="nc"><i>211</i>&nbsp;            out.writeFloat(fieldsEntry.getValue());</b>
+<b class="nc"><i>212</i>&nbsp;        }</b>
+<b class="nc"><i>213</i>&nbsp;        this.defaultOperator.writeTo(out);</b>
+<b class="nc"><i>214</i>&nbsp;        out.writeOptionalString(this.analyzer);</b>
+<b class="nc"><i>215</i>&nbsp;        out.writeOptionalString(this.quoteAnalyzer);</b>
+<b class="nc"><i>216</i>&nbsp;        out.writeOptionalString(this.quoteFieldSuffix);</b>
+<b class="nc"><i>217</i>&nbsp;        out.writeOptionalBoolean(this.allowLeadingWildcard);</b>
+<b class="nc"><i>218</i>&nbsp;        out.writeOptionalBoolean(this.analyzeWildcard);</b>
+<b class="nc"><i>219</i>&nbsp;        out.writeBoolean(this.enablePositionIncrements);</b>
+<b class="nc"><i>220</i>&nbsp;        this.fuzziness.writeTo(out);</b>
+<b class="nc"><i>221</i>&nbsp;        out.writeVInt(this.fuzzyPrefixLength);</b>
+<b class="nc"><i>222</i>&nbsp;        out.writeVInt(this.fuzzyMaxExpansions);</b>
+<b class="nc"><i>223</i>&nbsp;        out.writeOptionalString(this.fuzzyRewrite);</b>
+<b class="nc"><i>224</i>&nbsp;        out.writeVInt(this.phraseSlop);</b>
+<b class="nc"><i>225</i>&nbsp;        type.writeTo(out);</b>
+<b class="nc"><i>226</i>&nbsp;        out.writeOptionalFloat(tieBreaker);</b>
+<b class="nc"><i>227</i>&nbsp;        out.writeOptionalString(this.rewrite);</b>
+<b class="nc"><i>228</i>&nbsp;        out.writeOptionalString(this.minimumShouldMatch);</b>
+<b class="nc"><i>229</i>&nbsp;        out.writeOptionalBoolean(this.lenient);</b>
+<b class="nc"><i>230</i>&nbsp;        out.writeOptionalZoneId(timeZone);</b>
+<b class="nc"><i>231</i>&nbsp;        out.writeBoolean(this.escape);</b>
+<b class="nc"><i>232</i>&nbsp;        out.writeVInt(this.maxDeterminizedStates);</b>
+<b class="nc"><i>233</i>&nbsp;        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {</b>
+<b class="nc"><i>234</i>&nbsp;            out.writeBoolean(autoGenerateSynonymsPhraseQuery);</b>
+<b class="nc"><i>235</i>&nbsp;            out.writeBoolean(fuzzyTranspositions);</b>
+<i>236</i>&nbsp;        }
+<b class="nc"><i>237</i>&nbsp;    }</b>
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    public String queryString() {
+<b class="nc"><i>240</i>&nbsp;        return this.queryString;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * The default field to run against when no prefix field is specified. Only relevant when
+<i>245</i>&nbsp;     * not explicitly adding fields the query string will run against.
+<i>246</i>&nbsp;     */
+<i>247</i>&nbsp;    public QueryStringQueryBuilder defaultField(String defaultField) {
+<b class="nc"><i>248</i>&nbsp;        this.defaultField = defaultField;</b>
+<b class="nc"><i>249</i>&nbsp;        return this;</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    public String defaultField() {
+<b class="nc"><i>253</i>&nbsp;        return this.defaultField;</b>
+<i>254</i>&nbsp;    }
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;    /**
+<i>257</i>&nbsp;     * Adds a field to run the query string against. The field will be associated with the
+<i>258</i>&nbsp;     * default boost of {@link AbstractQueryBuilder#DEFAULT_BOOST}.
+<i>259</i>&nbsp;     * Use {@link #field(String, float)} to set a specific boost for the field.
+<i>260</i>&nbsp;     */
+<i>261</i>&nbsp;    public QueryStringQueryBuilder field(String field) {
+<b class="nc"><i>262</i>&nbsp;        this.fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);</b>
+<b class="nc"><i>263</i>&nbsp;        return this;</b>
+<i>264</i>&nbsp;    }
+<i>265</i>&nbsp;
+<i>266</i>&nbsp;    /**
+<i>267</i>&nbsp;     * Adds a field to run the query string against with a specific boost.
+<i>268</i>&nbsp;     */
+<i>269</i>&nbsp;    public QueryStringQueryBuilder field(String field, float boost) {
+<b class="nc"><i>270</i>&nbsp;        checkNegativeBoost(boost);</b>
+<b class="nc"><i>271</i>&nbsp;        this.fieldsAndWeights.put(field, boost);</b>
+<b class="nc"><i>272</i>&nbsp;        return this;</b>
+<i>273</i>&nbsp;    }
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;    /**
+<i>276</i>&nbsp;     * Add several fields to run the query against with a specific boost.
+<i>277</i>&nbsp;     */
+<i>278</i>&nbsp;    public QueryStringQueryBuilder fields(Map&lt;String, Float&gt; fields) {
+<b class="nc"><i>279</i>&nbsp;        for (float fieldBoost : fields.values()) {</b>
+<b class="nc"><i>280</i>&nbsp;            checkNegativeBoost(fieldBoost);</b>
+<b class="nc"><i>281</i>&nbsp;        }</b>
+<b class="nc"><i>282</i>&nbsp;        this.fieldsAndWeights.putAll(fields);</b>
+<b class="nc"><i>283</i>&nbsp;        return this;</b>
+<i>284</i>&nbsp;    }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;    /** Returns the fields including their respective boosts to run the query against. */
+<i>287</i>&nbsp;    public Map&lt;String, Float&gt; fields() {
+<b class="nc"><i>288</i>&nbsp;        return this.fieldsAndWeights;</b>
+<i>289</i>&nbsp;    }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    /**
+<i>292</i>&nbsp;     * @param type Sets how multiple fields should be combined to build textual part queries.
+<i>293</i>&nbsp;     */
+<i>294</i>&nbsp;    public QueryStringQueryBuilder type(MultiMatchQueryBuilder.Type type) {
+<b class="nc"><i>295</i>&nbsp;        this.type = type;</b>
+<b class="nc"><i>296</i>&nbsp;        return this;</b>
+<i>297</i>&nbsp;    }
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;    /**
+<i>300</i>&nbsp;     * When more than one field is used with the query string, and combined queries are using
+<i>301</i>&nbsp;     * dis max, control the tie breaker for it.
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    public QueryStringQueryBuilder tieBreaker(float tieBreaker) {
+<b class="nc"><i>304</i>&nbsp;        this.tieBreaker = tieBreaker;</b>
+<b class="nc"><i>305</i>&nbsp;        return this;</b>
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    public Float tieBreaker() {
+<b class="nc"><i>309</i>&nbsp;        return this.tieBreaker;</b>
+<i>310</i>&nbsp;    }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;    /**
+<i>313</i>&nbsp;     * Sets the boolean operator of the query parser used to parse the query string.
+<i>314</i>&nbsp;     * &lt;p&gt;
+<i>315</i>&nbsp;     * In default mode ({@link Operator#OR}) terms without any modifiers
+<i>316</i>&nbsp;     * are considered optional: for example &lt;code&gt;capital of Hungary&lt;/code&gt; is equal to
+<i>317</i>&nbsp;     * &lt;code&gt;capital OR of OR Hungary&lt;/code&gt;.
+<i>318</i>&nbsp;     * &lt;p&gt;
+<i>319</i>&nbsp;     * In {@link Operator#AND} mode terms are considered to be in conjunction: the
+<i>320</i>&nbsp;     * above mentioned query is parsed as &lt;code&gt;capital AND of AND Hungary&lt;/code&gt;
+<i>321</i>&nbsp;     */
+<i>322</i>&nbsp;    public QueryStringQueryBuilder defaultOperator(Operator defaultOperator) {
+<b class="nc"><i>323</i>&nbsp;        this.defaultOperator = defaultOperator == null ? DEFAULT_OPERATOR : defaultOperator;</b>
+<b class="nc"><i>324</i>&nbsp;        return this;</b>
+<i>325</i>&nbsp;    }
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;    public Operator defaultOperator() {
+<b class="nc"><i>328</i>&nbsp;        return this.defaultOperator;</b>
+<i>329</i>&nbsp;    }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;    /**
+<i>332</i>&nbsp;     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+<i>333</i>&nbsp;     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+<i>334</i>&nbsp;     */
+<i>335</i>&nbsp;    public QueryStringQueryBuilder analyzer(String analyzer) {
+<b class="nc"><i>336</i>&nbsp;        this.analyzer = analyzer;</b>
+<b class="nc"><i>337</i>&nbsp;        return this;</b>
+<i>338</i>&nbsp;    }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    /**
+<i>341</i>&nbsp;     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+<i>342</i>&nbsp;     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+<i>343</i>&nbsp;     */
+<i>344</i>&nbsp;    public String analyzer() {
+<b class="nc"><i>345</i>&nbsp;        return analyzer;</b>
+<i>346</i>&nbsp;    }
+<i>347</i>&nbsp;
+<i>348</i>&nbsp;    /**
+<i>349</i>&nbsp;     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+<i>350</i>&nbsp;     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+<i>351</i>&nbsp;     */
+<i>352</i>&nbsp;    public String quoteAnalyzer() {
+<b class="nc"><i>353</i>&nbsp;        return quoteAnalyzer;</b>
+<i>354</i>&nbsp;    }
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;    /**
+<i>357</i>&nbsp;     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+<i>358</i>&nbsp;     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+<i>359</i>&nbsp;     */
+<i>360</i>&nbsp;    public QueryStringQueryBuilder quoteAnalyzer(String quoteAnalyzer) {
+<b class="nc"><i>361</i>&nbsp;        this.quoteAnalyzer = quoteAnalyzer;</b>
+<b class="nc"><i>362</i>&nbsp;        return this;</b>
+<i>363</i>&nbsp;    }
+<i>364</i>&nbsp;
+<i>365</i>&nbsp;    /**
+<i>366</i>&nbsp;     * Protects against too-difficult regular expression queries.
+<i>367</i>&nbsp;     */
+<i>368</i>&nbsp;    public QueryStringQueryBuilder maxDeterminizedStates(int maxDeterminizedStates) {
+<b class="nc"><i>369</i>&nbsp;        this.maxDeterminizedStates = maxDeterminizedStates;</b>
+<b class="nc"><i>370</i>&nbsp;        return this;</b>
+<i>371</i>&nbsp;    }
+<i>372</i>&nbsp;
+<i>373</i>&nbsp;    public int maxDeterminizedStates() {
+<b class="nc"><i>374</i>&nbsp;        return this.maxDeterminizedStates;</b>
+<i>375</i>&nbsp;    }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;    /**
+<i>378</i>&nbsp;     * Should leading wildcards be allowed or not. Defaults to {@code true}.
+<i>379</i>&nbsp;     */
+<i>380</i>&nbsp;    public QueryStringQueryBuilder allowLeadingWildcard(Boolean allowLeadingWildcard) {
+<b class="nc"><i>381</i>&nbsp;        this.allowLeadingWildcard = allowLeadingWildcard;</b>
+<b class="nc"><i>382</i>&nbsp;        return this;</b>
+<i>383</i>&nbsp;    }
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;    public Boolean allowLeadingWildcard() {
+<b class="nc"><i>386</i>&nbsp;        return this.allowLeadingWildcard;</b>
+<i>387</i>&nbsp;    }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;    /**
+<i>390</i>&nbsp;     * Set to {@code true} to enable position increments in result query. Defaults to
+<i>391</i>&nbsp;     * {@code true}.
+<i>392</i>&nbsp;     * &lt;p&gt;
+<i>393</i>&nbsp;     * When set, result phrase and multi-phrase queries will be aware of position increments.
+<i>394</i>&nbsp;     * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
+<i>395</i>&nbsp;     */
+<i>396</i>&nbsp;    public QueryStringQueryBuilder enablePositionIncrements(boolean enablePositionIncrements) {
+<b class="nc"><i>397</i>&nbsp;        this.enablePositionIncrements = enablePositionIncrements;</b>
+<b class="nc"><i>398</i>&nbsp;        return this;</b>
+<i>399</i>&nbsp;    }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;    public boolean enablePositionIncrements() {
+<b class="nc"><i>402</i>&nbsp;        return this.enablePositionIncrements;</b>
+<i>403</i>&nbsp;    }
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;    /**
+<i>406</i>&nbsp;     * Set the edit distance for fuzzy queries. Default is &quot;AUTO&quot;.
+<i>407</i>&nbsp;     */
+<i>408</i>&nbsp;    public QueryStringQueryBuilder fuzziness(Fuzziness fuzziness) {
+<b class="nc"><i>409</i>&nbsp;        this.fuzziness = fuzziness == null ? DEFAULT_FUZZINESS : fuzziness;</b>
+<b class="nc"><i>410</i>&nbsp;        return this;</b>
+<i>411</i>&nbsp;    }
+<i>412</i>&nbsp;
+<i>413</i>&nbsp;    public Fuzziness fuzziness() {
+<b class="nc"><i>414</i>&nbsp;        return this.fuzziness;</b>
+<i>415</i>&nbsp;    }
+<i>416</i>&nbsp;
+<i>417</i>&nbsp;    /**
+<i>418</i>&nbsp;     * Set the minimum prefix length for fuzzy queries. Default is 1.
+<i>419</i>&nbsp;     */
+<i>420</i>&nbsp;    public QueryStringQueryBuilder fuzzyPrefixLength(int fuzzyPrefixLength) {
+<b class="nc"><i>421</i>&nbsp;        this.fuzzyPrefixLength = fuzzyPrefixLength;</b>
+<b class="nc"><i>422</i>&nbsp;        return this;</b>
+<i>423</i>&nbsp;    }
+<i>424</i>&nbsp;
+<i>425</i>&nbsp;    public int fuzzyPrefixLength() {
+<b class="nc"><i>426</i>&nbsp;        return fuzzyPrefixLength;</b>
+<i>427</i>&nbsp;    }
+<i>428</i>&nbsp;
+<i>429</i>&nbsp;    public QueryStringQueryBuilder fuzzyMaxExpansions(int fuzzyMaxExpansions) {
+<b class="nc"><i>430</i>&nbsp;        this.fuzzyMaxExpansions = fuzzyMaxExpansions;</b>
+<b class="nc"><i>431</i>&nbsp;        return this;</b>
+<i>432</i>&nbsp;    }
+<i>433</i>&nbsp;
+<i>434</i>&nbsp;    public int fuzzyMaxExpansions() {
+<b class="nc"><i>435</i>&nbsp;        return fuzzyMaxExpansions;</b>
+<i>436</i>&nbsp;    }
+<i>437</i>&nbsp;
+<i>438</i>&nbsp;    public QueryStringQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
+<b class="nc"><i>439</i>&nbsp;        this.fuzzyRewrite = fuzzyRewrite;</b>
+<b class="nc"><i>440</i>&nbsp;        return this;</b>
+<i>441</i>&nbsp;    }
+<i>442</i>&nbsp;
+<i>443</i>&nbsp;    public String fuzzyRewrite() {
+<b class="nc"><i>444</i>&nbsp;        return fuzzyRewrite;</b>
+<i>445</i>&nbsp;    }
+<i>446</i>&nbsp;
+<i>447</i>&nbsp;    /**
+<i>448</i>&nbsp;     * Sets the default slop for phrases.  If zero, then exact phrase matches
+<i>449</i>&nbsp;     * are required. Default value is zero.
+<i>450</i>&nbsp;     */
+<i>451</i>&nbsp;    public QueryStringQueryBuilder phraseSlop(int phraseSlop) {
+<b class="nc"><i>452</i>&nbsp;        this.phraseSlop = phraseSlop;</b>
+<b class="nc"><i>453</i>&nbsp;        return this;</b>
+<i>454</i>&nbsp;    }
+<i>455</i>&nbsp;
+<i>456</i>&nbsp;    public int phraseSlop() {
+<b class="nc"><i>457</i>&nbsp;        return phraseSlop;</b>
+<i>458</i>&nbsp;    }
+<i>459</i>&nbsp;
+<i>460</i>&nbsp;    public QueryStringQueryBuilder rewrite(String rewrite) {
+<b class="nc"><i>461</i>&nbsp;        this.rewrite = rewrite;</b>
+<b class="nc"><i>462</i>&nbsp;        return this;</b>
+<i>463</i>&nbsp;    }
+<i>464</i>&nbsp;
+<i>465</i>&nbsp;    /**
+<i>466</i>&nbsp;     * Set to {@code true} to enable analysis on wildcard and prefix queries.
+<i>467</i>&nbsp;     */
+<i>468</i>&nbsp;    public QueryStringQueryBuilder analyzeWildcard(Boolean analyzeWildcard) {
+<b class="nc"><i>469</i>&nbsp;        this.analyzeWildcard = analyzeWildcard;</b>
+<b class="nc"><i>470</i>&nbsp;        return this;</b>
+<i>471</i>&nbsp;    }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;    public Boolean analyzeWildcard() {
+<b class="nc"><i>474</i>&nbsp;        return this.analyzeWildcard;</b>
+<i>475</i>&nbsp;    }
+<i>476</i>&nbsp;
+<i>477</i>&nbsp;    public String rewrite() {
+<b class="nc"><i>478</i>&nbsp;        return this.rewrite;</b>
+<i>479</i>&nbsp;    }
+<i>480</i>&nbsp;
+<i>481</i>&nbsp;    public QueryStringQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+<b class="nc"><i>482</i>&nbsp;        this.minimumShouldMatch = minimumShouldMatch;</b>
+<b class="nc"><i>483</i>&nbsp;        return this;</b>
+<i>484</i>&nbsp;    }
+<i>485</i>&nbsp;
+<i>486</i>&nbsp;    public String minimumShouldMatch() {
+<b class="nc"><i>487</i>&nbsp;        return this.minimumShouldMatch;</b>
+<i>488</i>&nbsp;    }
+<i>489</i>&nbsp;
+<i>490</i>&nbsp;    /**
+<i>491</i>&nbsp;     * An optional field name suffix to automatically try and add to the field searched when using quoted text.
+<i>492</i>&nbsp;     */
+<i>493</i>&nbsp;    public QueryStringQueryBuilder quoteFieldSuffix(String quoteFieldSuffix) {
+<b class="nc"><i>494</i>&nbsp;        this.quoteFieldSuffix = quoteFieldSuffix;</b>
+<b class="nc"><i>495</i>&nbsp;        return this;</b>
+<i>496</i>&nbsp;    }
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;    public String quoteFieldSuffix() {
+<b class="nc"><i>499</i>&nbsp;        return this.quoteFieldSuffix;</b>
+<i>500</i>&nbsp;    }
+<i>501</i>&nbsp;
+<i>502</i>&nbsp;    /**
+<i>503</i>&nbsp;     * Sets the query string parser to be lenient when parsing field values, defaults to the index
+<i>504</i>&nbsp;     * setting and if not set, defaults to false.
+<i>505</i>&nbsp;     */
+<i>506</i>&nbsp;    public QueryStringQueryBuilder lenient(Boolean lenient) {
+<b class="nc"><i>507</i>&nbsp;        this.lenient = lenient;</b>
+<b class="nc"><i>508</i>&nbsp;        return this;</b>
+<i>509</i>&nbsp;    }
+<i>510</i>&nbsp;
+<i>511</i>&nbsp;    public Boolean lenient() {
+<b class="nc"><i>512</i>&nbsp;        return this.lenient;</b>
+<i>513</i>&nbsp;    }
+<i>514</i>&nbsp;
+<i>515</i>&nbsp;    /**
+<i>516</i>&nbsp;     * In case of date field, we can adjust the from/to fields using a timezone
+<i>517</i>&nbsp;     */
+<i>518</i>&nbsp;    public QueryStringQueryBuilder timeZone(String timeZone) {
+<b class="nc"><i>519</i>&nbsp;        if (timeZone != null) {</b>
+<b class="nc"><i>520</i>&nbsp;            this.timeZone = ZoneId.of(timeZone);</b>
+<i>521</i>&nbsp;        } else {
+<b class="nc"><i>522</i>&nbsp;            this.timeZone = null;</b>
+<i>523</i>&nbsp;        }
+<b class="nc"><i>524</i>&nbsp;        return this;</b>
+<i>525</i>&nbsp;    }
+<i>526</i>&nbsp;
+<i>527</i>&nbsp;    public QueryStringQueryBuilder timeZone(ZoneId timeZone) {
+<b class="nc"><i>528</i>&nbsp;        this.timeZone = timeZone;</b>
+<b class="nc"><i>529</i>&nbsp;        return this;</b>
+<i>530</i>&nbsp;    }
+<i>531</i>&nbsp;
+<i>532</i>&nbsp;    public ZoneId timeZone() {
+<b class="nc"><i>533</i>&nbsp;        return this.timeZone;</b>
+<i>534</i>&nbsp;    }
+<i>535</i>&nbsp;
+<i>536</i>&nbsp;    /**
+<i>537</i>&nbsp;     * Set to {@code true} to enable escaping of the query string
+<i>538</i>&nbsp;     */
+<i>539</i>&nbsp;    public QueryStringQueryBuilder escape(boolean escape) {
+<b class="nc"><i>540</i>&nbsp;        this.escape = escape;</b>
+<b class="nc"><i>541</i>&nbsp;        return this;</b>
+<i>542</i>&nbsp;    }
+<i>543</i>&nbsp;
+<i>544</i>&nbsp;    public boolean escape() {
+<b class="nc"><i>545</i>&nbsp;        return this.escape;</b>
+<i>546</i>&nbsp;    }
+<i>547</i>&nbsp;
+<i>548</i>&nbsp;    public QueryStringQueryBuilder autoGenerateSynonymsPhraseQuery(boolean value) {
+<b class="nc"><i>549</i>&nbsp;        this.autoGenerateSynonymsPhraseQuery = value;</b>
+<b class="nc"><i>550</i>&nbsp;        return this;</b>
+<i>551</i>&nbsp;    }
+<i>552</i>&nbsp;
+<i>553</i>&nbsp;    /**
+<i>554</i>&nbsp;     * Whether phrase queries should be automatically generated for multi terms synonyms.
+<i>555</i>&nbsp;     * Defaults to {@code true}.
+<i>556</i>&nbsp;     */
+<i>557</i>&nbsp;    public boolean autoGenerateSynonymsPhraseQuery() {
+<b class="nc"><i>558</i>&nbsp;        return autoGenerateSynonymsPhraseQuery;</b>
+<i>559</i>&nbsp;    }
+<i>560</i>&nbsp;
+<i>561</i>&nbsp;    public boolean fuzzyTranspositions() {
+<b class="nc"><i>562</i>&nbsp;        return fuzzyTranspositions;</b>
+<i>563</i>&nbsp;    }
+<i>564</i>&nbsp;
+<i>565</i>&nbsp;    /**
+<i>566</i>&nbsp;     * Sets whether transpositions are supported in fuzzy queries.&lt;p&gt;
+<i>567</i>&nbsp;     * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
+<i>568</i>&nbsp;     * distance formula which supports transpositions. Setting transposition to false will
+<i>569</i>&nbsp;     * switch to classic Levenshtein distance.&lt;br&gt;
+<i>570</i>&nbsp;     * If not set, Damerau-Levenshtein distance metric will be used.
+<i>571</i>&nbsp;     */
+<i>572</i>&nbsp;    public QueryStringQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+<b class="nc"><i>573</i>&nbsp;        this.fuzzyTranspositions = fuzzyTranspositions;</b>
+<b class="nc"><i>574</i>&nbsp;        return this;</b>
+<i>575</i>&nbsp;    }
+<i>576</i>&nbsp;
+<i>577</i>&nbsp;    @Override
+<i>578</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>579</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>580</i>&nbsp;        builder.field(QUERY_FIELD.getPreferredName(), this.queryString);</b>
+<b class="nc"><i>581</i>&nbsp;        if (this.defaultField != null) {</b>
+<b class="nc"><i>582</i>&nbsp;            builder.field(DEFAULT_FIELD_FIELD.getPreferredName(), this.defaultField);</b>
+<i>583</i>&nbsp;        }
+<b class="nc"><i>584</i>&nbsp;        builder.startArray(FIELDS_FIELD.getPreferredName());</b>
+<b class="nc"><i>585</i>&nbsp;        for (Map.Entry&lt;String, Float&gt; fieldEntry : this.fieldsAndWeights.entrySet()) {</b>
+<b class="nc"><i>586</i>&nbsp;            builder.value(fieldEntry.getKey() + &quot;^&quot; + fieldEntry.getValue());</b>
+<b class="nc"><i>587</i>&nbsp;        }</b>
+<b class="nc"><i>588</i>&nbsp;        builder.endArray();</b>
+<b class="nc"><i>589</i>&nbsp;        if (this.type != null) {</b>
+<b class="nc"><i>590</i>&nbsp;            builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));</b>
+<i>591</i>&nbsp;        }
+<b class="nc"><i>592</i>&nbsp;        if (tieBreaker != null) {</b>
+<b class="nc"><i>593</i>&nbsp;            builder.field(TIE_BREAKER_FIELD.getPreferredName(), this.tieBreaker);</b>
+<i>594</i>&nbsp;        }
+<b class="nc"><i>595</i>&nbsp;        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(),</b>
+<b class="nc"><i>596</i>&nbsp;                this.defaultOperator.name().toLowerCase(Locale.ROOT));</b>
+<b class="nc"><i>597</i>&nbsp;        if (this.analyzer != null) {</b>
+<b class="nc"><i>598</i>&nbsp;            builder.field(ANALYZER_FIELD.getPreferredName(), this.analyzer);</b>
+<i>599</i>&nbsp;        }
+<b class="nc"><i>600</i>&nbsp;        if (this.quoteAnalyzer != null) {</b>
+<b class="nc"><i>601</i>&nbsp;            builder.field(QUOTE_ANALYZER_FIELD.getPreferredName(), this.quoteAnalyzer);</b>
+<i>602</i>&nbsp;        }
+<b class="nc"><i>603</i>&nbsp;        builder.field(MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), this.maxDeterminizedStates);</b>
+<b class="nc"><i>604</i>&nbsp;        if (this.allowLeadingWildcard != null) {</b>
+<b class="nc"><i>605</i>&nbsp;            builder.field(ALLOW_LEADING_WILDCARD_FIELD.getPreferredName(), this.allowLeadingWildcard);</b>
+<i>606</i>&nbsp;        }
+<b class="nc"><i>607</i>&nbsp;        builder.field(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), this.enablePositionIncrements);</b>
+<b class="nc"><i>608</i>&nbsp;        this.fuzziness.toXContent(builder, params);</b>
+<b class="nc"><i>609</i>&nbsp;        builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), this.fuzzyPrefixLength);</b>
+<b class="nc"><i>610</i>&nbsp;        builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), this.fuzzyMaxExpansions);</b>
+<b class="nc"><i>611</i>&nbsp;        if (this.fuzzyRewrite != null) {</b>
+<b class="nc"><i>612</i>&nbsp;            builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), this.fuzzyRewrite);</b>
+<i>613</i>&nbsp;        }
+<b class="nc"><i>614</i>&nbsp;        builder.field(PHRASE_SLOP_FIELD.getPreferredName(), this.phraseSlop);</b>
+<b class="nc"><i>615</i>&nbsp;        if (this.analyzeWildcard != null) {</b>
+<b class="nc"><i>616</i>&nbsp;            builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), this.analyzeWildcard);</b>
+<i>617</i>&nbsp;        }
+<b class="nc"><i>618</i>&nbsp;        if (this.rewrite != null) {</b>
+<b class="nc"><i>619</i>&nbsp;            builder.field(REWRITE_FIELD.getPreferredName(), this.rewrite);</b>
+<i>620</i>&nbsp;        }
+<b class="nc"><i>621</i>&nbsp;        if (this.minimumShouldMatch != null) {</b>
+<b class="nc"><i>622</i>&nbsp;            builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), this.minimumShouldMatch);</b>
+<i>623</i>&nbsp;        }
+<b class="nc"><i>624</i>&nbsp;        if (this.quoteFieldSuffix != null) {</b>
+<b class="nc"><i>625</i>&nbsp;            builder.field(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), this.quoteFieldSuffix);</b>
+<i>626</i>&nbsp;        }
+<b class="nc"><i>627</i>&nbsp;        if (this.lenient != null) {</b>
+<b class="nc"><i>628</i>&nbsp;            builder.field(LENIENT_FIELD.getPreferredName(), this.lenient);</b>
+<i>629</i>&nbsp;        }
+<b class="nc"><i>630</i>&nbsp;        if (this.timeZone != null) {</b>
+<b class="nc"><i>631</i>&nbsp;            builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getId());</b>
+<i>632</i>&nbsp;        }
+<b class="nc"><i>633</i>&nbsp;        builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);</b>
+<b class="nc"><i>634</i>&nbsp;        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);</b>
+<b class="nc"><i>635</i>&nbsp;        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);</b>
+<b class="nc"><i>636</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>637</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>638</i>&nbsp;    }</b>
+<i>639</i>&nbsp;
+<i>640</i>&nbsp;    public static QueryStringQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>641</i>&nbsp;        String currentFieldName = null;</b>
+<i>642</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>643</i>&nbsp;        String queryString = null;</b>
+<b class="nc"><i>644</i>&nbsp;        String defaultField = null;</b>
+<b class="nc"><i>645</i>&nbsp;        String analyzer = null;</b>
+<b class="nc"><i>646</i>&nbsp;        String quoteAnalyzer = null;</b>
+<b class="nc"><i>647</i>&nbsp;        String queryName = null;</b>
+<b class="nc"><i>648</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>649</i>&nbsp;        int maxDeterminizedStates = QueryStringQueryBuilder.DEFAULT_MAX_DETERMINED_STATES;</b>
+<b class="nc"><i>650</i>&nbsp;        boolean enablePositionIncrements = QueryStringQueryBuilder.DEFAULT_ENABLE_POSITION_INCREMENTS;</b>
+<b class="nc"><i>651</i>&nbsp;        boolean escape = QueryStringQueryBuilder.DEFAULT_ESCAPE;</b>
+<b class="nc"><i>652</i>&nbsp;        int fuzzyPrefixLength = QueryStringQueryBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;</b>
+<b class="nc"><i>653</i>&nbsp;        int fuzzyMaxExpansions = QueryStringQueryBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;</b>
+<b class="nc"><i>654</i>&nbsp;        int phraseSlop = QueryStringQueryBuilder.DEFAULT_PHRASE_SLOP;</b>
+<b class="nc"><i>655</i>&nbsp;        MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;</b>
+<b class="nc"><i>656</i>&nbsp;        Float tieBreaker = null;</b>
+<b class="nc"><i>657</i>&nbsp;        Boolean analyzeWildcard = null;</b>
+<b class="nc"><i>658</i>&nbsp;        Boolean allowLeadingWildcard = null;</b>
+<b class="nc"><i>659</i>&nbsp;        String minimumShouldMatch = null;</b>
+<b class="nc"><i>660</i>&nbsp;        String quoteFieldSuffix = null;</b>
+<b class="nc"><i>661</i>&nbsp;        Boolean lenient = null;</b>
+<b class="nc"><i>662</i>&nbsp;        Operator defaultOperator = QueryStringQueryBuilder.DEFAULT_OPERATOR;</b>
+<b class="nc"><i>663</i>&nbsp;        String timeZone = null;</b>
+<b class="nc"><i>664</i>&nbsp;        Fuzziness fuzziness = QueryStringQueryBuilder.DEFAULT_FUZZINESS;</b>
+<b class="nc"><i>665</i>&nbsp;        String fuzzyRewrite = null;</b>
+<b class="nc"><i>666</i>&nbsp;        String rewrite = null;</b>
+<b class="nc"><i>667</i>&nbsp;        Map&lt;String, Float&gt; fieldsAndWeights = null;</b>
+<b class="nc"><i>668</i>&nbsp;        boolean autoGenerateSynonymsPhraseQuery = true;</b>
+<b class="nc"><i>669</i>&nbsp;        boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;</b>
+<i>670</i>&nbsp;
+<b class="nc"><i>671</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>672</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>673</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>674</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>675</i>&nbsp;                if (FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>676</i>&nbsp;                    List&lt;String&gt; fields = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>677</i>&nbsp;                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>678</i>&nbsp;                        fields.add(parser.text());</b>
+<i>679</i>&nbsp;                    }
+<b class="nc"><i>680</i>&nbsp;                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);</b>
+<b class="nc"><i>681</i>&nbsp;                } else {</b>
+<b class="nc"><i>682</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + QueryStringQueryBuilder.NAME +</b>
+<i>683</i>&nbsp;                            &quot;] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>684</i>&nbsp;                }
+<b class="nc"><i>685</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="nc"><i>686</i>&nbsp;                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>687</i>&nbsp;                    queryString = parser.text();</b>
+<b class="nc"><i>688</i>&nbsp;                } else if (DEFAULT_FIELD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>689</i>&nbsp;                    defaultField = parser.text();</b>
+<b class="nc"><i>690</i>&nbsp;                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>691</i>&nbsp;                    defaultOperator = Operator.fromString(parser.text());</b>
+<b class="nc"><i>692</i>&nbsp;                } else if (ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>693</i>&nbsp;                    analyzer = parser.text();</b>
+<b class="nc"><i>694</i>&nbsp;                } else if (QUOTE_ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>695</i>&nbsp;                    quoteAnalyzer = parser.text();</b>
+<b class="nc"><i>696</i>&nbsp;                } else if (ALLOW_LEADING_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>697</i>&nbsp;                    allowLeadingWildcard = parser.booleanValue();</b>
+<b class="nc"><i>698</i>&nbsp;                } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>699</i>&nbsp;                    maxDeterminizedStates = parser.intValue();</b>
+<b class="nc"><i>700</i>&nbsp;                } else if (ENABLE_POSITION_INCREMENTS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>701</i>&nbsp;                    enablePositionIncrements = parser.booleanValue();</b>
+<b class="nc"><i>702</i>&nbsp;                } else if (ESCAPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>703</i>&nbsp;                    escape = parser.booleanValue();</b>
+<b class="nc"><i>704</i>&nbsp;                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>705</i>&nbsp;                    fuzzyPrefixLength = parser.intValue();</b>
+<b class="nc"><i>706</i>&nbsp;                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>707</i>&nbsp;                    fuzzyMaxExpansions = parser.intValue();</b>
+<b class="nc"><i>708</i>&nbsp;                } else if (FUZZY_REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>709</i>&nbsp;                    fuzzyRewrite = parser.textOrNull();</b>
+<b class="nc"><i>710</i>&nbsp;                } else if (PHRASE_SLOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>711</i>&nbsp;                    phraseSlop = parser.intValue();</b>
+<b class="nc"><i>712</i>&nbsp;                } else if (Fuzziness.FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>713</i>&nbsp;                    fuzziness = Fuzziness.parse(parser);</b>
+<b class="nc"><i>714</i>&nbsp;                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>715</i>&nbsp;                    boost = parser.floatValue();</b>
+<b class="nc"><i>716</i>&nbsp;                } else if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>717</i>&nbsp;                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parser.getDeprecationHandler());</b>
+<b class="nc"><i>718</i>&nbsp;                } else if (TIE_BREAKER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>719</i>&nbsp;                    tieBreaker = parser.floatValue();</b>
+<b class="nc"><i>720</i>&nbsp;                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>721</i>&nbsp;                    analyzeWildcard = parser.booleanValue();</b>
+<b class="nc"><i>722</i>&nbsp;                } else if (REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>723</i>&nbsp;                    rewrite = parser.textOrNull();</b>
+<b class="nc"><i>724</i>&nbsp;                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>725</i>&nbsp;                    minimumShouldMatch = parser.textOrNull();</b>
+<b class="nc"><i>726</i>&nbsp;                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>727</i>&nbsp;                    quoteFieldSuffix = parser.textOrNull();</b>
+<b class="nc"><i>728</i>&nbsp;                } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>729</i>&nbsp;                    lenient = parser.booleanValue();</b>
+<b class="nc"><i>730</i>&nbsp;                } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>731</i>&nbsp;                    maxDeterminizedStates = parser.intValue();</b>
+<b class="nc"><i>732</i>&nbsp;                } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<i>733</i>&nbsp;                    try {
+<b class="nc"><i>734</i>&nbsp;                        timeZone = parser.text();</b>
+<b class="nc"><i>735</i>&nbsp;                    } catch (IllegalArgumentException e) {</b>
+<b class="nc"><i>736</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + QueryStringQueryBuilder.NAME +</b>
+<b class="nc"><i>737</i>&nbsp;                                &quot;] time_zone [&quot; + parser.text() + &quot;] is unknown&quot;);</b>
+<b class="nc"><i>738</i>&nbsp;                    }</b>
+<b class="nc"><i>739</i>&nbsp;                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>740</i>&nbsp;                    queryName = parser.text();</b>
+<b class="nc"><i>741</i>&nbsp;                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>742</i>&nbsp;                    autoGenerateSynonymsPhraseQuery = parser.booleanValue();</b>
+<b class="nc"><i>743</i>&nbsp;                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>744</i>&nbsp;                    fuzzyTranspositions = parser.booleanValue();</b>
+<i>745</i>&nbsp;                } else {
+<b class="nc"><i>746</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + QueryStringQueryBuilder.NAME +</b>
+<i>747</i>&nbsp;                            &quot;] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>748</i>&nbsp;                }
+<i>749</i>&nbsp;            } else {
+<b class="nc"><i>750</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + QueryStringQueryBuilder.NAME +</b>
+<i>751</i>&nbsp;                        &quot;] unknown token [&quot; + token + &quot;] after [&quot; + currentFieldName + &quot;]&quot;);
+<i>752</i>&nbsp;            }
+<i>753</i>&nbsp;        }
+<b class="nc"><i>754</i>&nbsp;        if (queryString == null) {</b>
+<b class="nc"><i>755</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + QueryStringQueryBuilder.NAME + &quot;] must be provided with a [query]&quot;);</b>
+<i>756</i>&nbsp;        }
+<i>757</i>&nbsp;
+<b class="nc"><i>758</i>&nbsp;        QueryStringQueryBuilder queryStringQuery = new QueryStringQueryBuilder(queryString);</b>
+<b class="nc"><i>759</i>&nbsp;        if (fieldsAndWeights != null) {</b>
+<b class="nc"><i>760</i>&nbsp;            queryStringQuery.fields(fieldsAndWeights);</b>
+<i>761</i>&nbsp;        }
+<b class="nc"><i>762</i>&nbsp;        queryStringQuery.defaultField(defaultField);</b>
+<b class="nc"><i>763</i>&nbsp;        queryStringQuery.defaultOperator(defaultOperator);</b>
+<b class="nc"><i>764</i>&nbsp;        queryStringQuery.analyzer(analyzer);</b>
+<b class="nc"><i>765</i>&nbsp;        queryStringQuery.quoteAnalyzer(quoteAnalyzer);</b>
+<b class="nc"><i>766</i>&nbsp;        queryStringQuery.allowLeadingWildcard(allowLeadingWildcard);</b>
+<b class="nc"><i>767</i>&nbsp;        queryStringQuery.maxDeterminizedStates(maxDeterminizedStates);</b>
+<b class="nc"><i>768</i>&nbsp;        queryStringQuery.enablePositionIncrements(enablePositionIncrements);</b>
+<b class="nc"><i>769</i>&nbsp;        queryStringQuery.escape(escape);</b>
+<b class="nc"><i>770</i>&nbsp;        queryStringQuery.fuzzyPrefixLength(fuzzyPrefixLength);</b>
+<b class="nc"><i>771</i>&nbsp;        queryStringQuery.fuzzyMaxExpansions(fuzzyMaxExpansions);</b>
+<b class="nc"><i>772</i>&nbsp;        queryStringQuery.fuzzyRewrite(fuzzyRewrite);</b>
+<b class="nc"><i>773</i>&nbsp;        queryStringQuery.phraseSlop(phraseSlop);</b>
+<b class="nc"><i>774</i>&nbsp;        queryStringQuery.fuzziness(fuzziness);</b>
+<b class="nc"><i>775</i>&nbsp;        queryStringQuery.type(type);</b>
+<b class="nc"><i>776</i>&nbsp;        if (tieBreaker != null) {</b>
+<b class="nc"><i>777</i>&nbsp;            queryStringQuery.tieBreaker(tieBreaker);</b>
+<i>778</i>&nbsp;        }
+<b class="nc"><i>779</i>&nbsp;        queryStringQuery.analyzeWildcard(analyzeWildcard);</b>
+<b class="nc"><i>780</i>&nbsp;        queryStringQuery.rewrite(rewrite);</b>
+<b class="nc"><i>781</i>&nbsp;        queryStringQuery.minimumShouldMatch(minimumShouldMatch);</b>
+<b class="nc"><i>782</i>&nbsp;        queryStringQuery.quoteFieldSuffix(quoteFieldSuffix);</b>
+<b class="nc"><i>783</i>&nbsp;        queryStringQuery.lenient(lenient);</b>
+<b class="nc"><i>784</i>&nbsp;        queryStringQuery.timeZone(timeZone);</b>
+<b class="nc"><i>785</i>&nbsp;        queryStringQuery.boost(boost);</b>
+<b class="nc"><i>786</i>&nbsp;        queryStringQuery.queryName(queryName);</b>
+<b class="nc"><i>787</i>&nbsp;        queryStringQuery.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);</b>
+<b class="nc"><i>788</i>&nbsp;        queryStringQuery.fuzzyTranspositions(fuzzyTranspositions);</b>
+<b class="nc"><i>789</i>&nbsp;        return queryStringQuery;</b>
+<i>790</i>&nbsp;    }
+<i>791</i>&nbsp;
+<i>792</i>&nbsp;    @Override
+<i>793</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>794</i>&nbsp;        return NAME;</b>
+<i>795</i>&nbsp;    }
+<i>796</i>&nbsp;
+<i>797</i>&nbsp;    @Override
+<i>798</i>&nbsp;    protected boolean doEquals(QueryStringQueryBuilder other) {
+<b class="nc"><i>799</i>&nbsp;        return Objects.equals(queryString, other.queryString) &amp;&amp;</b>
+<b class="nc"><i>800</i>&nbsp;                Objects.equals(defaultField, other.defaultField) &amp;&amp;</b>
+<b class="nc"><i>801</i>&nbsp;                Objects.equals(fieldsAndWeights, other.fieldsAndWeights) &amp;&amp;</b>
+<b class="nc"><i>802</i>&nbsp;                Objects.equals(defaultOperator, other.defaultOperator) &amp;&amp;</b>
+<b class="nc"><i>803</i>&nbsp;                Objects.equals(analyzer, other.analyzer) &amp;&amp;</b>
+<b class="nc"><i>804</i>&nbsp;                Objects.equals(quoteAnalyzer, other.quoteAnalyzer) &amp;&amp;</b>
+<b class="nc"><i>805</i>&nbsp;                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &amp;&amp;</b>
+<b class="nc"><i>806</i>&nbsp;                Objects.equals(allowLeadingWildcard, other.allowLeadingWildcard) &amp;&amp;</b>
+<b class="nc"><i>807</i>&nbsp;                Objects.equals(enablePositionIncrements, other.enablePositionIncrements) &amp;&amp;</b>
+<b class="nc"><i>808</i>&nbsp;                Objects.equals(analyzeWildcard, other.analyzeWildcard) &amp;&amp;</b>
+<b class="nc"><i>809</i>&nbsp;                Objects.equals(fuzziness, other.fuzziness) &amp;&amp;</b>
+<b class="nc"><i>810</i>&nbsp;                Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &amp;&amp;</b>
+<b class="nc"><i>811</i>&nbsp;                Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &amp;&amp;</b>
+<b class="nc"><i>812</i>&nbsp;                Objects.equals(fuzzyRewrite, other.fuzzyRewrite) &amp;&amp;</b>
+<b class="nc"><i>813</i>&nbsp;                Objects.equals(phraseSlop, other.phraseSlop) &amp;&amp;</b>
+<b class="nc"><i>814</i>&nbsp;                Objects.equals(type, other.type) &amp;&amp;</b>
+<b class="nc"><i>815</i>&nbsp;                Objects.equals(tieBreaker, other.tieBreaker) &amp;&amp;</b>
+<b class="nc"><i>816</i>&nbsp;                Objects.equals(rewrite, other.rewrite) &amp;&amp;</b>
+<b class="nc"><i>817</i>&nbsp;                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &amp;&amp;</b>
+<b class="nc"><i>818</i>&nbsp;                Objects.equals(lenient, other.lenient) &amp;&amp;</b>
+<b class="nc"><i>819</i>&nbsp;                Objects.equals(</b>
+<b class="nc"><i>820</i>&nbsp;                        timeZone == null ? null : timeZone.getId(),</b>
+<b class="nc"><i>821</i>&nbsp;                        other.timeZone == null ? null : other.timeZone.getId()) &amp;&amp;</b>
+<b class="nc"><i>822</i>&nbsp;                Objects.equals(escape, other.escape) &amp;&amp;</b>
+<b class="nc"><i>823</i>&nbsp;                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &amp;&amp;</b>
+<b class="nc"><i>824</i>&nbsp;                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &amp;&amp;</b>
+<b class="nc"><i>825</i>&nbsp;                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);</b>
+<i>826</i>&nbsp;    }
+<i>827</i>&nbsp;
+<i>828</i>&nbsp;    @Override
+<i>829</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>830</i>&nbsp;        return Objects.hash(queryString, defaultField, fieldsAndWeights, defaultOperator, analyzer, quoteAnalyzer,</b>
+<i>831</i>&nbsp;                quoteFieldSuffix, allowLeadingWildcard, analyzeWildcard,
+<b class="nc"><i>832</i>&nbsp;                enablePositionIncrements, fuzziness, fuzzyPrefixLength,</b>
+<b class="nc"><i>833</i>&nbsp;                fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, type, tieBreaker, rewrite, minimumShouldMatch, lenient,</b>
+<b class="nc"><i>834</i>&nbsp;                timeZone == null ? 0 : timeZone.getId(), escape, maxDeterminizedStates, autoGenerateSynonymsPhraseQuery,</b>
+<b class="nc"><i>835</i>&nbsp;                fuzzyTranspositions);</b>
+<i>836</i>&nbsp;    }
+<i>837</i>&nbsp;
+<i>838</i>&nbsp;    @Override
+<i>839</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>840</i>&nbsp;        String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;</b>
+<b class="nc"><i>841</i>&nbsp;        if (fieldsAndWeights.size() &gt; 0 &amp;&amp; this.defaultField != null) {</b>
+<b class="nc"><i>842</i>&nbsp;            throw addValidationError(&quot;cannot use [fields] parameter in conjunction with [default_field]&quot;, null);</b>
+<i>843</i>&nbsp;        }
+<i>844</i>&nbsp;
+<i>845</i>&nbsp;        QueryStringQueryParser queryParser;
+<b class="nc"><i>846</i>&nbsp;        boolean isLenient = lenient == null ? context.queryStringLenient() : lenient;</b>
+<b class="nc"><i>847</i>&nbsp;        if (defaultField != null) {</b>
+<b class="nc"><i>848</i>&nbsp;            if (Regex.isMatchAllPattern(defaultField)) {</b>
+<b class="nc"><i>849</i>&nbsp;                queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);</b>
+<i>850</i>&nbsp;            } else {
+<b class="nc"><i>851</i>&nbsp;                queryParser = new QueryStringQueryParser(context, defaultField, isLenient);</b>
+<i>852</i>&nbsp;            }
+<b class="nc"><i>853</i>&nbsp;        } else if (fieldsAndWeights.size() &gt; 0) {</b>
+<b class="nc"><i>854</i>&nbsp;            final Map&lt;String, Float&gt; resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);</b>
+<b class="nc"><i>855</i>&nbsp;            if (QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet())) {</b>
+<b class="nc"><i>856</i>&nbsp;                queryParser = new QueryStringQueryParser(context, resolvedFields, lenient == null ? true : lenient);</b>
+<i>857</i>&nbsp;            } else {
+<b class="nc"><i>858</i>&nbsp;                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);</b>
+<i>859</i>&nbsp;            }
+<b class="nc"><i>860</i>&nbsp;        } else {</b>
+<b class="nc"><i>861</i>&nbsp;            List&lt;String&gt; defaultFields = context.defaultFields();</b>
+<b class="nc"><i>862</i>&nbsp;            if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {</b>
+<b class="nc"><i>863</i>&nbsp;                queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);</b>
+<i>864</i>&nbsp;            } else {
+<b class="nc"><i>865</i>&nbsp;                final Map&lt;String, Float&gt; resolvedFields = QueryParserHelper.resolveMappingFields(context,</b>
+<b class="nc"><i>866</i>&nbsp;                    QueryParserHelper.parseFieldsAndWeights(defaultFields));</b>
+<b class="nc"><i>867</i>&nbsp;                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);</b>
+<i>868</i>&nbsp;            }
+<i>869</i>&nbsp;        }
+<i>870</i>&nbsp;
+<b class="nc"><i>871</i>&nbsp;        if (analyzer != null) {</b>
+<b class="nc"><i>872</i>&nbsp;            NamedAnalyzer namedAnalyzer = context.getIndexAnalyzers().get(analyzer);</b>
+<b class="nc"><i>873</i>&nbsp;            if (namedAnalyzer == null) {</b>
+<b class="nc"><i>874</i>&nbsp;                throw new QueryShardException(context, &quot;[query_string] analyzer [&quot; + analyzer + &quot;] not found&quot;);</b>
+<i>875</i>&nbsp;            }
+<b class="nc"><i>876</i>&nbsp;            queryParser.setForceAnalyzer(namedAnalyzer);</b>
+<i>877</i>&nbsp;        }
+<i>878</i>&nbsp;
+<b class="nc"><i>879</i>&nbsp;        if (quoteAnalyzer != null) {</b>
+<b class="nc"><i>880</i>&nbsp;            NamedAnalyzer forceQuoteAnalyzer = context.getIndexAnalyzers().get(quoteAnalyzer);</b>
+<b class="nc"><i>881</i>&nbsp;            if (forceQuoteAnalyzer == null) {</b>
+<b class="nc"><i>882</i>&nbsp;                throw new QueryShardException(context, &quot;[query_string] quote_analyzer [&quot; + quoteAnalyzer + &quot;] not found&quot;);</b>
+<i>883</i>&nbsp;            }
+<b class="nc"><i>884</i>&nbsp;            queryParser.setForceQuoteAnalyzer(forceQuoteAnalyzer);</b>
+<i>885</i>&nbsp;        }
+<i>886</i>&nbsp;
+<b class="nc"><i>887</i>&nbsp;        queryParser.setDefaultOperator(defaultOperator.toQueryParserOperator());</b>
+<b class="nc"><i>888</i>&nbsp;        queryParser.setType(type);</b>
+<b class="nc"><i>889</i>&nbsp;        if (tieBreaker != null) {</b>
+<b class="nc"><i>890</i>&nbsp;            queryParser.setGroupTieBreaker(tieBreaker);</b>
+<i>891</i>&nbsp;        } else {
+<b class="nc"><i>892</i>&nbsp;            queryParser.setGroupTieBreaker(type.tieBreaker());</b>
+<i>893</i>&nbsp;        }
+<b class="nc"><i>894</i>&nbsp;        queryParser.setPhraseSlop(phraseSlop);</b>
+<b class="nc"><i>895</i>&nbsp;        queryParser.setQuoteFieldSuffix(quoteFieldSuffix);</b>
+<b class="nc"><i>896</i>&nbsp;        queryParser.setAllowLeadingWildcard(allowLeadingWildcard == null ?</b>
+<b class="nc"><i>897</i>&nbsp;            context.queryStringAllowLeadingWildcard() : allowLeadingWildcard);</b>
+<b class="nc"><i>898</i>&nbsp;        queryParser.setAnalyzeWildcard(analyzeWildcard == null ? context.queryStringAnalyzeWildcard() : analyzeWildcard);</b>
+<b class="nc"><i>899</i>&nbsp;        queryParser.setEnablePositionIncrements(enablePositionIncrements);</b>
+<b class="nc"><i>900</i>&nbsp;        queryParser.setFuzziness(fuzziness);</b>
+<b class="nc"><i>901</i>&nbsp;        queryParser.setFuzzyPrefixLength(fuzzyPrefixLength);</b>
+<b class="nc"><i>902</i>&nbsp;        queryParser.setFuzzyMaxExpansions(fuzzyMaxExpansions);</b>
+<b class="nc"><i>903</i>&nbsp;        queryParser.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(this.fuzzyRewrite, LoggingDeprecationHandler.INSTANCE));</b>
+<b class="nc"><i>904</i>&nbsp;        queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite, LoggingDeprecationHandler.INSTANCE));</b>
+<b class="nc"><i>905</i>&nbsp;        queryParser.setTimeZone(timeZone);</b>
+<b class="nc"><i>906</i>&nbsp;        queryParser.setMaxDeterminizedStates(maxDeterminizedStates);</b>
+<b class="nc"><i>907</i>&nbsp;        queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);</b>
+<b class="nc"><i>908</i>&nbsp;        queryParser.setFuzzyTranspositions(fuzzyTranspositions);</b>
+<i>909</i>&nbsp;
+<i>910</i>&nbsp;        Query query;
+<i>911</i>&nbsp;        try {
+<b class="nc"><i>912</i>&nbsp;            query = queryParser.parse(rewrittenQueryString);</b>
+<b class="nc"><i>913</i>&nbsp;        } catch (org.apache.lucene.queryparser.classic.ParseException e) {</b>
+<b class="nc"><i>914</i>&nbsp;            throw new QueryShardException(context, &quot;Failed to parse query [&quot; + this.queryString + &quot;]&quot;, e);</b>
+<b class="nc"><i>915</i>&nbsp;        }</b>
+<i>916</i>&nbsp;
+<b class="nc"><i>917</i>&nbsp;        if (query == null) {</b>
+<b class="nc"><i>918</i>&nbsp;            return null;</b>
+<i>919</i>&nbsp;        }
+<i>920</i>&nbsp;
+<i>921</i>&nbsp;        //save the BoostQuery wrapped structure if present
+<b class="nc"><i>922</i>&nbsp;        List&lt;Float&gt; boosts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>923</i>&nbsp;        while(query instanceof BoostQuery) {</b>
+<b class="nc"><i>924</i>&nbsp;            BoostQuery boostQuery = (BoostQuery) query;</b>
+<b class="nc"><i>925</i>&nbsp;            boosts.add(boostQuery.getBoost());</b>
+<b class="nc"><i>926</i>&nbsp;            query = boostQuery.getQuery();</b>
+<b class="nc"><i>927</i>&nbsp;        }</b>
+<i>928</i>&nbsp;
+<b class="nc"><i>929</i>&nbsp;        query = Queries.fixNegativeQueryIfNeeded(query);</b>
+<b class="nc"><i>930</i>&nbsp;        query = Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);</b>
+<i>931</i>&nbsp;
+<i>932</i>&nbsp;        //restore the previous BoostQuery wrapping
+<b class="nc"><i>933</i>&nbsp;        for (int i = boosts.size() - 1; i &gt;= 0; i--) {</b>
+<b class="nc"><i>934</i>&nbsp;            query = new BoostQuery(query, boosts.get(i));</b>
+<i>935</i>&nbsp;        }
+<i>936</i>&nbsp;
+<b class="nc"><i>937</i>&nbsp;        return query;</b>
+<i>938</i>&nbsp;    }
+<i>939</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

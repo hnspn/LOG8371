@@ -1,0 +1,748 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SystemCallFilter</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.bootstrap</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SystemCallFilter (org.elasticsearch.bootstrap)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SystemCallFilter</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (4/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.5%
+  </span>
+  <span class="absValue">
+    (45/ 200)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">SystemCallFilter$Arch</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (9/ 9)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">SystemCallFilter$MacLibrary</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    38.5%
+  </span>
+  <span class="absValue">
+    (5/ 13)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25.8%
+  </span>
+  <span class="absValue">
+    (54/ 209)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.bootstrap;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.sun.jna.Library;
+<i>23</i>&nbsp;import com.sun.jna.Memory;
+<i>24</i>&nbsp;import com.sun.jna.Native;
+<i>25</i>&nbsp;import com.sun.jna.NativeLong;
+<i>26</i>&nbsp;import com.sun.jna.Pointer;
+<i>27</i>&nbsp;import com.sun.jna.Structure;
+<i>28</i>&nbsp;import com.sun.jna.ptr.PointerByReference;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>31</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>32</i>&nbsp;import org.apache.lucene.util.Constants;
+<i>33</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.io.IOException;
+<i>36</i>&nbsp;import java.nio.ByteBuffer;
+<i>37</i>&nbsp;import java.nio.ByteOrder;
+<i>38</i>&nbsp;import java.nio.file.Files;
+<i>39</i>&nbsp;import java.nio.file.Path;
+<i>40</i>&nbsp;import java.util.Arrays;
+<i>41</i>&nbsp;import java.util.Collections;
+<i>42</i>&nbsp;import java.util.HashMap;
+<i>43</i>&nbsp;import java.util.List;
+<i>44</i>&nbsp;import java.util.Map;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;/**
+<i>47</i>&nbsp; * Installs a system call filter to block process execution.
+<i>48</i>&nbsp; * &lt;p&gt;
+<i>49</i>&nbsp; * This is supported on Linux, Solaris, FreeBSD, OpenBSD, Mac OS X, and Windows.
+<i>50</i>&nbsp; * &lt;p&gt;
+<i>51</i>&nbsp; * On Linux it currently supports amd64 and i386 architectures, requires Linux kernel 3.5 or above, and requires
+<i>52</i>&nbsp; * {@code CONFIG_SECCOMP} and {@code CONFIG_SECCOMP_FILTER} compiled into the kernel.
+<i>53</i>&nbsp; * &lt;p&gt;
+<i>54</i>&nbsp; * On Linux BPF Filters are installed using either {@code seccomp(2)} (3.17+) or {@code prctl(2)} (3.5+). {@code seccomp(2)}
+<i>55</i>&nbsp; * is preferred, as it allows filters to be applied to any existing threads in the process, and one motivation
+<i>56</i>&nbsp; * here is to protect against bugs in the JVM. Otherwise, code will fall back to the {@code prctl(2)} method
+<i>57</i>&nbsp; * which will at least protect elasticsearch application threads.
+<i>58</i>&nbsp; * &lt;p&gt;
+<i>59</i>&nbsp; * Linux BPF filters will return {@code EACCES} (Access Denied) for the following system calls:
+<i>60</i>&nbsp; * &lt;ul&gt;
+<i>61</i>&nbsp; *   &lt;li&gt;{@code execve}&lt;/li&gt;
+<i>62</i>&nbsp; *   &lt;li&gt;{@code fork}&lt;/li&gt;
+<i>63</i>&nbsp; *   &lt;li&gt;{@code vfork}&lt;/li&gt;
+<i>64</i>&nbsp; *   &lt;li&gt;{@code execveat}&lt;/li&gt;
+<i>65</i>&nbsp; * &lt;/ul&gt;
+<i>66</i>&nbsp; * &lt;p&gt;
+<i>67</i>&nbsp; * On Solaris 10 or higher, the following privileges are dropped with {@code priv_set(3C)}:
+<i>68</i>&nbsp; * &lt;ul&gt;
+<i>69</i>&nbsp; *   &lt;li&gt;{@code PRIV_PROC_FORK}&lt;/li&gt;
+<i>70</i>&nbsp; *   &lt;li&gt;{@code PRIV_PROC_EXEC}&lt;/li&gt;
+<i>71</i>&nbsp; * &lt;/ul&gt;
+<i>72</i>&nbsp; * &lt;p&gt;
+<i>73</i>&nbsp; * On BSD systems, process creation is restricted with {@code setrlimit(RLIMIT_NPROC)}.
+<i>74</i>&nbsp; * &lt;p&gt;
+<i>75</i>&nbsp; * On Mac OS X Leopard or above, a custom {@code sandbox(7)} (&quot;Seatbelt&quot;) profile is installed that
+<i>76</i>&nbsp; * denies the following rules:
+<i>77</i>&nbsp; * &lt;ul&gt;
+<i>78</i>&nbsp; *   &lt;li&gt;{@code process-fork}&lt;/li&gt;
+<i>79</i>&nbsp; *   &lt;li&gt;{@code process-exec}&lt;/li&gt;
+<i>80</i>&nbsp; * &lt;/ul&gt;
+<i>81</i>&nbsp; * &lt;p&gt;
+<i>82</i>&nbsp; * On Windows, process creation is restricted with {@code SetInformationJobObject/ActiveProcessLimit}.
+<i>83</i>&nbsp; * &lt;p&gt;
+<i>84</i>&nbsp; * This is not intended as a sandbox. It is another level of security, mostly intended to annoy
+<i>85</i>&nbsp; * security researchers and make their lives more difficult in achieving &quot;remote execution&quot; exploits.
+<i>86</i>&nbsp; * @see &lt;a href=&quot;http://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt&quot;&gt;
+<i>87</i>&nbsp; *      http://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt&lt;/a&gt;
+<i>88</i>&nbsp; * @see &lt;a href=&quot;https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf&quot;&gt;
+<i>89</i>&nbsp; *      https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf&lt;/a&gt;
+<i>90</i>&nbsp; * @see &lt;a href=&quot;https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html&quot;&gt;
+<i>91</i>&nbsp; *      https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html&lt;/a&gt;
+<i>92</i>&nbsp; */
+<i>93</i>&nbsp;// not an example of how to write code!!!
+<b class="nc"><i>94</i>&nbsp;final class SystemCallFilter {</b>
+<b class="fc"><i>95</i>&nbsp;    private static final Logger logger = LogManager.getLogger(SystemCallFilter.class);</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;    // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    /** Access to non-standard Linux libc methods */
+<i>100</i>&nbsp;    interface LinuxLibrary extends Library {
+<i>101</i>&nbsp;        /**
+<i>102</i>&nbsp;         * maps to prctl(2)
+<i>103</i>&nbsp;         */
+<i>104</i>&nbsp;        int prctl(int option, NativeLong arg2, NativeLong arg3, NativeLong arg4, NativeLong arg5);
+<i>105</i>&nbsp;        /**
+<i>106</i>&nbsp;         * used to call seccomp(2), its too new...
+<i>107</i>&nbsp;         * this is the only way, DON&#39;T use it on some other architecture unless you know wtf you are doing
+<i>108</i>&nbsp;         */
+<i>109</i>&nbsp;        NativeLong syscall(NativeLong number, Object... args);
+<i>110</i>&nbsp;    }
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    // null if unavailable or something goes wrong.
+<i>113</i>&nbsp;    private static final LinuxLibrary linux_libc;
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    static {
+<b class="fc"><i>116</i>&nbsp;        LinuxLibrary lib = null;</b>
+<b class="fc"><i>117</i>&nbsp;        if (Constants.LINUX) {</b>
+<i>118</i>&nbsp;            try {
+<b class="nc"><i>119</i>&nbsp;                lib = (LinuxLibrary) Native.loadLibrary(&quot;c&quot;, LinuxLibrary.class);</b>
+<b class="nc"><i>120</i>&nbsp;            } catch (UnsatisfiedLinkError e) {</b>
+<b class="nc"><i>121</i>&nbsp;                logger.warn(&quot;unable to link C library. native methods (seccomp) will be disabled.&quot;, e);</b>
+<b class="nc"><i>122</i>&nbsp;            }</b>
+<i>123</i>&nbsp;        }
+<b class="fc"><i>124</i>&nbsp;        linux_libc = lib;</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    /** the preferred method is seccomp(2), since we can apply to all threads of the process */
+<i>128</i>&nbsp;    static final int SECCOMP_SET_MODE_FILTER   =   1;   // since Linux 3.17
+<i>129</i>&nbsp;    static final int SECCOMP_FILTER_FLAG_TSYNC =   1;   // since Linux 3.17
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    /** otherwise, we can use prctl(2), which will at least protect ES application threads */
+<i>132</i>&nbsp;    static final int PR_GET_NO_NEW_PRIVS       =  39;   // since Linux 3.5
+<i>133</i>&nbsp;    static final int PR_SET_NO_NEW_PRIVS       =  38;   // since Linux 3.5
+<i>134</i>&nbsp;    static final int PR_GET_SECCOMP            =  21;   // since Linux 2.6.23
+<i>135</i>&nbsp;    static final int PR_SET_SECCOMP            =  22;   // since Linux 2.6.23
+<i>136</i>&nbsp;    static final long SECCOMP_MODE_FILTER      =   2;   // since Linux Linux 3.5
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /** corresponds to struct sock_filter */
+<i>139</i>&nbsp;    static final class SockFilter {
+<i>140</i>&nbsp;        short code; // insn
+<i>141</i>&nbsp;        byte jt;    // number of insn to jump (skip) if true
+<i>142</i>&nbsp;        byte jf;    // number of insn to jump (skip) if false
+<i>143</i>&nbsp;        int k;      // additional data
+<i>144</i>&nbsp;
+<i>145</i>&nbsp;        SockFilter(short code, byte jt, byte jf, int k) {
+<i>146</i>&nbsp;            this.code = code;
+<i>147</i>&nbsp;            this.jt = jt;
+<i>148</i>&nbsp;            this.jf = jf;
+<i>149</i>&nbsp;            this.k = k;
+<i>150</i>&nbsp;        }
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    /** corresponds to struct sock_fprog */
+<i>154</i>&nbsp;    public static final class SockFProg extends Structure implements Structure.ByReference {
+<i>155</i>&nbsp;        public short   len;           // number of filters
+<i>156</i>&nbsp;        public Pointer filter;        // filters
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;        SockFProg(SockFilter filters[]) {
+<i>159</i>&nbsp;            len = (short) filters.length;
+<i>160</i>&nbsp;            // serialize struct sock_filter * explicitly, its less confusing than the JNA magic we would need
+<i>161</i>&nbsp;            Memory filter = new Memory(len * 8);
+<i>162</i>&nbsp;            ByteBuffer bbuf = filter.getByteBuffer(0, len * 8);
+<i>163</i>&nbsp;            bbuf.order(ByteOrder.nativeOrder()); // little endian
+<i>164</i>&nbsp;            for (SockFilter f : filters) {
+<i>165</i>&nbsp;                bbuf.putShort(f.code);
+<i>166</i>&nbsp;                bbuf.put(f.jt);
+<i>167</i>&nbsp;                bbuf.put(f.jf);
+<i>168</i>&nbsp;                bbuf.putInt(f.k);
+<i>169</i>&nbsp;            }
+<i>170</i>&nbsp;            this.filter = filter;
+<i>171</i>&nbsp;        }
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;        @Override
+<i>174</i>&nbsp;        protected List&lt;String&gt; getFieldOrder() {
+<i>175</i>&nbsp;            return Arrays.asList(&quot;len&quot;, &quot;filter&quot;);
+<i>176</i>&nbsp;        }
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    // BPF &quot;macros&quot; and constants
+<i>180</i>&nbsp;    static final int BPF_LD  = 0x00;
+<i>181</i>&nbsp;    static final int BPF_W   = 0x00;
+<i>182</i>&nbsp;    static final int BPF_ABS = 0x20;
+<i>183</i>&nbsp;    static final int BPF_JMP = 0x05;
+<i>184</i>&nbsp;    static final int BPF_JEQ = 0x10;
+<i>185</i>&nbsp;    static final int BPF_JGE = 0x30;
+<i>186</i>&nbsp;    static final int BPF_JGT = 0x20;
+<i>187</i>&nbsp;    static final int BPF_RET = 0x06;
+<i>188</i>&nbsp;    static final int BPF_K   = 0x00;
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    static SockFilter BPF_STMT(int code, int k) {
+<b class="nc"><i>191</i>&nbsp;        return new SockFilter((short) code, (byte) 0, (byte) 0, k);</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    static SockFilter BPF_JUMP(int code, int k, int jt, int jf) {
+<b class="nc"><i>195</i>&nbsp;        return new SockFilter((short) code, (byte) jt, (byte) jf, k);</b>
+<i>196</i>&nbsp;    }
+<i>197</i>&nbsp;
+<i>198</i>&nbsp;    static final int SECCOMP_RET_ERRNO = 0x00050000;
+<i>199</i>&nbsp;    static final int SECCOMP_RET_DATA  = 0x0000FFFF;
+<i>200</i>&nbsp;    static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;    // some errno constants for error checking/handling
+<i>203</i>&nbsp;    static final int EACCES = 0x0D;
+<i>204</i>&nbsp;    static final int EFAULT = 0x0E;
+<i>205</i>&nbsp;    static final int EINVAL = 0x16;
+<i>206</i>&nbsp;    static final int ENOSYS = 0x26;
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;    // offsets that our BPF checks
+<i>209</i>&nbsp;    // check with offsetof() when adding a new arch, move to Arch if different.
+<i>210</i>&nbsp;    static final int SECCOMP_DATA_NR_OFFSET   = 0x00;
+<i>211</i>&nbsp;    static final int SECCOMP_DATA_ARCH_OFFSET = 0x04;
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    static class Arch {
+<i>214</i>&nbsp;        /** AUDIT_ARCH_XXX constant from linux/audit.h */
+<i>215</i>&nbsp;        final int audit;
+<i>216</i>&nbsp;        /** syscall limit (necessary for blacklisting on amd64, to ban 32-bit syscalls) */
+<i>217</i>&nbsp;        final int limit;
+<i>218</i>&nbsp;        /** __NR_fork */
+<i>219</i>&nbsp;        final int fork;
+<i>220</i>&nbsp;        /** __NR_vfork */
+<i>221</i>&nbsp;        final int vfork;
+<i>222</i>&nbsp;        /** __NR_execve */
+<i>223</i>&nbsp;        final int execve;
+<i>224</i>&nbsp;        /**  __NR_execveat */
+<i>225</i>&nbsp;        final int execveat;
+<i>226</i>&nbsp;        /** __NR_seccomp */
+<i>227</i>&nbsp;        final int seccomp;
+<i>228</i>&nbsp;
+<b class="fc"><i>229</i>&nbsp;        Arch(int audit, int limit, int fork, int vfork, int execve, int execveat, int seccomp) {</b>
+<b class="fc"><i>230</i>&nbsp;            this.audit = audit;</b>
+<b class="fc"><i>231</i>&nbsp;            this.limit = limit;</b>
+<b class="fc"><i>232</i>&nbsp;            this.fork = fork;</b>
+<b class="fc"><i>233</i>&nbsp;            this.vfork = vfork;</b>
+<b class="fc"><i>234</i>&nbsp;            this.execve = execve;</b>
+<b class="fc"><i>235</i>&nbsp;            this.execveat = execveat;</b>
+<b class="fc"><i>236</i>&nbsp;            this.seccomp = seccomp;</b>
+<b class="fc"><i>237</i>&nbsp;        }</b>
+<i>238</i>&nbsp;    }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;    /** supported architectures map keyed by os.arch */
+<i>241</i>&nbsp;    private static final Map&lt;String,Arch&gt; ARCHITECTURES;
+<i>242</i>&nbsp;    static {
+<b class="fc"><i>243</i>&nbsp;        Map&lt;String,Arch&gt; m = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>244</i>&nbsp;        m.put(&quot;amd64&quot;, new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317));</b>
+<b class="fc"><i>245</i>&nbsp;        m.put(&quot;aarch64&quot;,  new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));</b>
+<b class="fc"><i>246</i>&nbsp;        ARCHITECTURES = Collections.unmodifiableMap(m);</b>
+<i>247</i>&nbsp;    }
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;    /** invokes prctl() from linux libc library */
+<i>250</i>&nbsp;    private static int linux_prctl(int option, long arg2, long arg3, long arg4, long arg5) {
+<b class="nc"><i>251</i>&nbsp;        return linux_libc.prctl(option, new NativeLong(arg2), new NativeLong(arg3), new NativeLong(arg4), new NativeLong(arg5));</b>
+<i>252</i>&nbsp;    }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;    /** invokes syscall() from linux libc library */
+<i>255</i>&nbsp;    private static long linux_syscall(long number, Object... args) {
+<b class="nc"><i>256</i>&nbsp;        return linux_libc.syscall(new NativeLong(number), args).longValue();</b>
+<i>257</i>&nbsp;    }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    /** try to install our BPF filters via seccomp() or prctl() to block execution */
+<i>260</i>&nbsp;    private static int linuxImpl() {
+<i>261</i>&nbsp;        // first be defensive: we can give nice errors this way, at the very least.
+<i>262</i>&nbsp;        // also, some of these security features get backported to old versions, checking kernel version here is a big no-no!
+<b class="nc"><i>263</i>&nbsp;        final Arch arch = ARCHITECTURES.get(Constants.OS_ARCH);</b>
+<b class="nc"><i>264</i>&nbsp;        boolean supported = Constants.LINUX &amp;&amp; arch != null;</b>
+<b class="nc"><i>265</i>&nbsp;        if (supported == false) {</b>
+<b class="nc"><i>266</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp unavailable: &#39;&quot; + Constants.OS_ARCH + &quot;&#39; architecture unsupported&quot;);</b>
+<i>267</i>&nbsp;        }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;        // we couldn&#39;t link methods, could be some really ancient kernel (e.g. &lt; 2.1.57) or some bug
+<b class="nc"><i>270</i>&nbsp;        if (linux_libc == null) {</b>
+<b class="nc"><i>271</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp unavailable: could not link methods. requires kernel 3.5+ &quot; +</b>
+<i>272</i>&nbsp;                &quot;with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in&quot;);
+<i>273</i>&nbsp;        }
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;        // try to check system calls really are who they claim
+<i>276</i>&nbsp;        // you never know (e.g. https://chromium.googlesource.com/chromium/src.git/+/master/sandbox/linux/seccomp-bpf/sandbox_bpf.cc#57)
+<b class="nc"><i>277</i>&nbsp;        final int bogusArg = 0xf7a46a5c;</b>
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;        // test seccomp(BOGUS)
+<b class="nc"><i>280</i>&nbsp;        long ret = linux_syscall(arch.seccomp, bogusArg);</b>
+<b class="nc"><i>281</i>&nbsp;        if (ret != -1) {</b>
+<b class="nc"><i>282</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp unavailable: seccomp(BOGUS_OPERATION) returned &quot; + ret);</b>
+<i>283</i>&nbsp;        } else {
+<b class="nc"><i>284</i>&nbsp;            int errno = Native.getLastError();</b>
+<b class="nc"><i>285</i>&nbsp;            switch (errno) {</b>
+<b class="nc"><i>286</i>&nbsp;                case ENOSYS: break; // ok</b>
+<b class="nc"><i>287</i>&nbsp;                case EINVAL: break; // ok</b>
+<b class="nc"><i>288</i>&nbsp;                default: throw new UnsupportedOperationException(&quot;seccomp(BOGUS_OPERATION): &quot; + JNACLibrary.strerror(errno));</b>
+<i>289</i>&nbsp;            }
+<i>290</i>&nbsp;        }
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;        // test seccomp(VALID, BOGUS)
+<b class="nc"><i>293</i>&nbsp;        ret = linux_syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, bogusArg);</b>
+<b class="nc"><i>294</i>&nbsp;        if (ret != -1) {</b>
+<b class="nc"><i>295</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp unavailable: seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG) returned &quot; + ret);</b>
+<i>296</i>&nbsp;        } else {
+<b class="nc"><i>297</i>&nbsp;            int errno = Native.getLastError();</b>
+<b class="nc"><i>298</i>&nbsp;            switch (errno) {</b>
+<b class="nc"><i>299</i>&nbsp;                case ENOSYS: break; // ok</b>
+<b class="nc"><i>300</i>&nbsp;                case EINVAL: break; // ok</b>
+<b class="nc"><i>301</i>&nbsp;                default: throw new UnsupportedOperationException(&quot;seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): &quot;</b>
+<b class="nc"><i>302</i>&nbsp;                                                                 + JNACLibrary.strerror(errno));</b>
+<i>303</i>&nbsp;            }
+<i>304</i>&nbsp;        }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;        // test prctl(BOGUS)
+<b class="nc"><i>307</i>&nbsp;        ret = linux_prctl(bogusArg, 0, 0, 0, 0);</b>
+<b class="nc"><i>308</i>&nbsp;        if (ret != -1) {</b>
+<b class="nc"><i>309</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp unavailable: prctl(BOGUS_OPTION) returned &quot; + ret);</b>
+<i>310</i>&nbsp;        } else {
+<b class="nc"><i>311</i>&nbsp;            int errno = Native.getLastError();</b>
+<b class="nc"><i>312</i>&nbsp;            switch (errno) {</b>
+<b class="nc"><i>313</i>&nbsp;                case ENOSYS: break; // ok</b>
+<b class="nc"><i>314</i>&nbsp;                case EINVAL: break; // ok</b>
+<b class="nc"><i>315</i>&nbsp;                default: throw new UnsupportedOperationException(&quot;prctl(BOGUS_OPTION): &quot; + JNACLibrary.strerror(errno));</b>
+<i>316</i>&nbsp;            }
+<i>317</i>&nbsp;        }
+<i>318</i>&nbsp;
+<i>319</i>&nbsp;        // now just normal defensive checks
+<i>320</i>&nbsp;
+<i>321</i>&nbsp;        // check for GET_NO_NEW_PRIVS
+<b class="nc"><i>322</i>&nbsp;        switch (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0)) {</b>
+<b class="nc"><i>323</i>&nbsp;            case 0: break; // not yet set</b>
+<b class="nc"><i>324</i>&nbsp;            case 1: break; // already set by caller</b>
+<i>325</i>&nbsp;            default:
+<b class="nc"><i>326</i>&nbsp;                int errno = Native.getLastError();</b>
+<b class="nc"><i>327</i>&nbsp;                if (errno == EINVAL) {</b>
+<i>328</i>&nbsp;                    // friendly error, this will be the typical case for an old kernel
+<b class="nc"><i>329</i>&nbsp;                    throw new UnsupportedOperationException(&quot;seccomp unavailable: requires kernel 3.5+ with&quot; +</b>
+<i>330</i>&nbsp;                                                            &quot; CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in&quot;);
+<i>331</i>&nbsp;                } else {
+<b class="nc"><i>332</i>&nbsp;                    throw new UnsupportedOperationException(&quot;prctl(PR_GET_NO_NEW_PRIVS): &quot; + JNACLibrary.strerror(errno));</b>
+<i>333</i>&nbsp;                }
+<i>334</i>&nbsp;        }
+<i>335</i>&nbsp;        // check for SECCOMP
+<b class="nc"><i>336</i>&nbsp;        switch (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0)) {</b>
+<b class="nc"><i>337</i>&nbsp;            case 0: break; // not yet set</b>
+<b class="nc"><i>338</i>&nbsp;            case 2: break; // already in filter mode by caller</b>
+<i>339</i>&nbsp;            default:
+<b class="nc"><i>340</i>&nbsp;                int errno = Native.getLastError();</b>
+<b class="nc"><i>341</i>&nbsp;                if (errno == EINVAL) {</b>
+<b class="nc"><i>342</i>&nbsp;                    throw new UnsupportedOperationException(&quot;seccomp unavailable: CONFIG_SECCOMP not compiled into kernel,&quot; +</b>
+<i>343</i>&nbsp;                                                            &quot; CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed&quot;);
+<i>344</i>&nbsp;                } else {
+<b class="nc"><i>345</i>&nbsp;                    throw new UnsupportedOperationException(&quot;prctl(PR_GET_SECCOMP): &quot; + JNACLibrary.strerror(errno));</b>
+<i>346</i>&nbsp;                }
+<i>347</i>&nbsp;        }
+<i>348</i>&nbsp;        // check for SECCOMP_MODE_FILTER
+<b class="nc"><i>349</i>&nbsp;        if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, 0, 0, 0) != 0) {</b>
+<b class="nc"><i>350</i>&nbsp;            int errno = Native.getLastError();</b>
+<b class="nc"><i>351</i>&nbsp;            switch (errno) {</b>
+<b class="nc"><i>352</i>&nbsp;                case EFAULT: break; // available</b>
+<b class="nc"><i>353</i>&nbsp;                case EINVAL: throw new UnsupportedOperationException(&quot;seccomp unavailable: CONFIG_SECCOMP_FILTER not&quot; +</b>
+<i>354</i>&nbsp;                    &quot; compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed&quot;);
+<b class="nc"><i>355</i>&nbsp;                default: throw new UnsupportedOperationException(&quot;prctl(PR_SET_SECCOMP): &quot; + JNACLibrary.strerror(errno));</b>
+<i>356</i>&nbsp;            }
+<i>357</i>&nbsp;        }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;        // ok, now set PR_SET_NO_NEW_PRIVS, needed to be able to set a seccomp filter as ordinary user
+<b class="nc"><i>360</i>&nbsp;        if (linux_prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {</b>
+<b class="nc"><i>361</i>&nbsp;            throw new UnsupportedOperationException(&quot;prctl(PR_SET_NO_NEW_PRIVS): &quot; + JNACLibrary.strerror(Native.getLastError()));</b>
+<i>362</i>&nbsp;        }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;        // check it worked
+<b class="nc"><i>365</i>&nbsp;        if (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) {</b>
+<b class="nc"><i>366</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): &quot; +</b>
+<b class="nc"><i>367</i>&nbsp;                                                    JNACLibrary.strerror(Native.getLastError()));</b>
+<i>368</i>&nbsp;        }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;        // BPF installed to check arch, limit, then syscall.
+<i>371</i>&nbsp;        // See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
+<b class="nc"><i>372</i>&nbsp;        SockFilter insns[] = {</b>
+<b class="nc"><i>373</i>&nbsp;          /* 1  */ BPF_STMT(BPF_LD  + BPF_W   + BPF_ABS, SECCOMP_DATA_ARCH_OFFSET),             //</b>
+<b class="nc"><i>374</i>&nbsp;          /* 2  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.audit,     0, 7),                 // if (arch != audit) goto fail;</b>
+<b class="nc"><i>375</i>&nbsp;          /* 3  */ BPF_STMT(BPF_LD  + BPF_W   + BPF_ABS, SECCOMP_DATA_NR_OFFSET),               //</b>
+<b class="nc"><i>376</i>&nbsp;          /* 4  */ BPF_JUMP(BPF_JMP + BPF_JGT + BPF_K,   arch.limit,     5, 0),                 // if (syscall &gt; LIMIT) goto fail;</b>
+<b class="nc"><i>377</i>&nbsp;          /* 5  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.fork,      4, 0),                 // if (syscall == FORK) goto fail;</b>
+<b class="nc"><i>378</i>&nbsp;          /* 6  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.vfork,     3, 0),                 // if (syscall == VFORK) goto fail;</b>
+<b class="nc"><i>379</i>&nbsp;          /* 7  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.execve,    2, 0),                 // if (syscall == EXECVE) goto fail;</b>
+<b class="nc"><i>380</i>&nbsp;          /* 8  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.execveat,  1, 0),                 // if (syscall == EXECVEAT) goto fail;</b>
+<b class="nc"><i>381</i>&nbsp;          /* 9  */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),                                // pass: return OK;</b>
+<b class="nc"><i>382</i>&nbsp;          /* 10 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ERRNO | (EACCES &amp; SECCOMP_RET_DATA)),  // fail: return EACCES;</b>
+<i>383</i>&nbsp;        };
+<i>384</i>&nbsp;        // seccomp takes a long, so we pass it one explicitly to keep the JNA simple
+<b class="nc"><i>385</i>&nbsp;        SockFProg prog = new SockFProg(insns);</b>
+<b class="nc"><i>386</i>&nbsp;        prog.write();</b>
+<b class="nc"><i>387</i>&nbsp;        long pointer = Pointer.nativeValue(prog.getPointer());</b>
+<i>388</i>&nbsp;
+<b class="nc"><i>389</i>&nbsp;        int method = 1;</b>
+<i>390</i>&nbsp;        // install filter, if this works, after this there is no going back!
+<i>391</i>&nbsp;        // first try it with seccomp(SECCOMP_SET_MODE_FILTER), falling back to prctl()
+<b class="nc"><i>392</i>&nbsp;        if (linux_syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, new NativeLong(pointer)) != 0) {</b>
+<b class="nc"><i>393</i>&nbsp;            method = 0;</b>
+<b class="nc"><i>394</i>&nbsp;            int errno1 = Native.getLastError();</b>
+<b class="nc"><i>395</i>&nbsp;            if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>396</i>&nbsp;                logger.debug(&quot;seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...&quot;,</b>
+<b class="nc"><i>397</i>&nbsp;                             JNACLibrary.strerror(errno1));</b>
+<i>398</i>&nbsp;            }
+<b class="nc"><i>399</i>&nbsp;            if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {</b>
+<b class="nc"><i>400</i>&nbsp;                int errno2 = Native.getLastError();</b>
+<b class="nc"><i>401</i>&nbsp;                throw new UnsupportedOperationException(&quot;seccomp(SECCOMP_SET_MODE_FILTER): &quot; + JNACLibrary.strerror(errno1) +</b>
+<b class="nc"><i>402</i>&nbsp;                                                        &quot;, prctl(PR_SET_SECCOMP): &quot; + JNACLibrary.strerror(errno2));</b>
+<i>403</i>&nbsp;            }
+<i>404</i>&nbsp;        }
+<i>405</i>&nbsp;
+<i>406</i>&nbsp;        // now check that the filter was really installed, we should be in filter mode.
+<b class="nc"><i>407</i>&nbsp;        if (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != 2) {</b>
+<b class="nc"><i>408</i>&nbsp;            throw new UnsupportedOperationException(&quot;seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): &quot;</b>
+<b class="nc"><i>409</i>&nbsp;                                                    + JNACLibrary.strerror(Native.getLastError()));</b>
+<i>410</i>&nbsp;        }
+<i>411</i>&nbsp;
+<b class="nc"><i>412</i>&nbsp;        logger.debug(&quot;Linux seccomp filter installation successful, threads: [{}]&quot;, method == 1 ? &quot;all&quot; : &quot;app&quot; );</b>
+<b class="nc"><i>413</i>&nbsp;        return method;</b>
+<i>414</i>&nbsp;    }
+<i>415</i>&nbsp;
+<i>416</i>&nbsp;    // OS X implementation via sandbox(7)
+<i>417</i>&nbsp;
+<i>418</i>&nbsp;    /** Access to non-standard OS X libc methods */
+<i>419</i>&nbsp;    interface MacLibrary extends Library {
+<i>420</i>&nbsp;        /**
+<i>421</i>&nbsp;         * maps to sandbox_init(3), since Leopard
+<i>422</i>&nbsp;         */
+<i>423</i>&nbsp;        int sandbox_init(String profile, long flags, PointerByReference errorbuf);
+<i>424</i>&nbsp;
+<i>425</i>&nbsp;        /**
+<i>426</i>&nbsp;         * releases memory when an error occurs during initialization (e.g. syntax bug)
+<i>427</i>&nbsp;         */
+<i>428</i>&nbsp;        void sandbox_free_error(Pointer errorbuf);
+<i>429</i>&nbsp;    }
+<i>430</i>&nbsp;
+<i>431</i>&nbsp;    // null if unavailable, or something goes wrong.
+<i>432</i>&nbsp;    private static final MacLibrary libc_mac;
+<i>433</i>&nbsp;
+<i>434</i>&nbsp;    static {
+<b class="fc"><i>435</i>&nbsp;        MacLibrary lib = null;</b>
+<b class="fc"><i>436</i>&nbsp;        if (Constants.MAC_OS_X) {</b>
+<i>437</i>&nbsp;            try {
+<b class="fc"><i>438</i>&nbsp;                lib = (MacLibrary) Native.loadLibrary(&quot;c&quot;, MacLibrary.class);</b>
+<b class="nc"><i>439</i>&nbsp;            } catch (UnsatisfiedLinkError e) {</b>
+<b class="nc"><i>440</i>&nbsp;                logger.warn(&quot;unable to link C library. native methods (seatbelt) will be disabled.&quot;, e);</b>
+<b class="fc"><i>441</i>&nbsp;            }</b>
+<i>442</i>&nbsp;        }
+<b class="fc"><i>443</i>&nbsp;        libc_mac = lib;</b>
+<i>444</i>&nbsp;    }
+<i>445</i>&nbsp;
+<i>446</i>&nbsp;    /** The only supported flag... */
+<i>447</i>&nbsp;    static final int SANDBOX_NAMED = 1;
+<i>448</i>&nbsp;    /** Allow everything except process fork and execution */
+<i>449</i>&nbsp;    static final String SANDBOX_RULES = &quot;(version 1) (allow default) (deny process-fork) (deny process-exec)&quot;;
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;    /** try to install our custom rule profile into sandbox_init() to block execution */
+<i>452</i>&nbsp;    private static void macImpl(Path tmpFile) throws IOException {
+<i>453</i>&nbsp;        // first be defensive: we can give nice errors this way, at the very least.
+<b class="fc"><i>454</i>&nbsp;        boolean supported = Constants.MAC_OS_X;</b>
+<b class="fc"><i>455</i>&nbsp;        if (supported == false) {</b>
+<b class="nc"><i>456</i>&nbsp;            throw new IllegalStateException(&quot;bug: should not be trying to initialize seatbelt for an unsupported OS&quot;);</b>
+<i>457</i>&nbsp;        }
+<i>458</i>&nbsp;
+<i>459</i>&nbsp;        // we couldn&#39;t link methods, could be some really ancient OS X (&lt; Leopard) or some bug
+<b class="fc"><i>460</i>&nbsp;        if (libc_mac == null) {</b>
+<b class="nc"><i>461</i>&nbsp;            throw new UnsupportedOperationException(&quot;seatbelt unavailable: could not link methods. requires Leopard or above.&quot;);</b>
+<i>462</i>&nbsp;        }
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;        // write rules to a temporary file, which will be passed to sandbox_init()
+<b class="fc"><i>465</i>&nbsp;        Path rules = Files.createTempFile(tmpFile, &quot;es&quot;, &quot;sb&quot;);</b>
+<b class="fc"><i>466</i>&nbsp;        Files.write(rules, Collections.singleton(SANDBOX_RULES));</b>
+<i>467</i>&nbsp;
+<b class="fc"><i>468</i>&nbsp;        boolean success = false;</b>
+<i>469</i>&nbsp;        try {
+<b class="fc"><i>470</i>&nbsp;            PointerByReference errorRef = new PointerByReference();</b>
+<b class="fc"><i>471</i>&nbsp;            int ret = libc_mac.sandbox_init(rules.toAbsolutePath().toString(), SANDBOX_NAMED, errorRef);</b>
+<i>472</i>&nbsp;            // if sandbox_init() fails, add the message from the OS (e.g. syntax error) and free the buffer
+<b class="fc"><i>473</i>&nbsp;            if (ret != 0) {</b>
+<b class="nc"><i>474</i>&nbsp;                Pointer errorBuf = errorRef.getValue();</b>
+<b class="nc"><i>475</i>&nbsp;                RuntimeException e = new UnsupportedOperationException(&quot;sandbox_init(): &quot; + errorBuf.getString(0));</b>
+<b class="nc"><i>476</i>&nbsp;                libc_mac.sandbox_free_error(errorBuf);</b>
+<b class="nc"><i>477</i>&nbsp;                throw e;</b>
+<i>478</i>&nbsp;            }
+<b class="fc"><i>479</i>&nbsp;            logger.debug(&quot;OS X seatbelt initialization successful&quot;);</b>
+<b class="fc"><i>480</i>&nbsp;            success = true;</b>
+<i>481</i>&nbsp;        } finally {
+<b class="fc"><i>482</i>&nbsp;            if (success) {</b>
+<b class="fc"><i>483</i>&nbsp;                Files.delete(rules);</b>
+<i>484</i>&nbsp;            } else {
+<b class="nc"><i>485</i>&nbsp;                IOUtils.deleteFilesIgnoringExceptions(rules);</b>
+<i>486</i>&nbsp;            }
+<b class="nc"><i>487</i>&nbsp;        }</b>
+<b class="fc"><i>488</i>&nbsp;    }</b>
+<i>489</i>&nbsp;
+<i>490</i>&nbsp;    // Solaris implementation via priv_set(3C)
+<i>491</i>&nbsp;
+<i>492</i>&nbsp;    /** Access to non-standard Solaris libc methods */
+<i>493</i>&nbsp;    interface SolarisLibrary extends Library {
+<i>494</i>&nbsp;        /**
+<i>495</i>&nbsp;         * see priv_set(3C), a convenience method for setppriv(2).
+<i>496</i>&nbsp;         */
+<i>497</i>&nbsp;        int priv_set(int op, String which, String... privs);
+<i>498</i>&nbsp;    }
+<i>499</i>&nbsp;
+<i>500</i>&nbsp;    // null if unavailable, or something goes wrong.
+<i>501</i>&nbsp;    private static final SolarisLibrary libc_solaris;
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;    static {
+<b class="fc"><i>504</i>&nbsp;        SolarisLibrary lib = null;</b>
+<b class="fc"><i>505</i>&nbsp;        if (Constants.SUN_OS) {</b>
+<i>506</i>&nbsp;            try {
+<b class="nc"><i>507</i>&nbsp;                lib = (SolarisLibrary) Native.loadLibrary(&quot;c&quot;, SolarisLibrary.class);</b>
+<b class="nc"><i>508</i>&nbsp;            } catch (UnsatisfiedLinkError e) {</b>
+<b class="nc"><i>509</i>&nbsp;                logger.warn(&quot;unable to link C library. native methods (priv_set) will be disabled.&quot;, e);</b>
+<b class="nc"><i>510</i>&nbsp;            }</b>
+<i>511</i>&nbsp;        }
+<b class="fc"><i>512</i>&nbsp;        libc_solaris = lib;</b>
+<i>513</i>&nbsp;    }
+<i>514</i>&nbsp;
+<i>515</i>&nbsp;    // constants for priv_set(2)
+<i>516</i>&nbsp;    static final int PRIV_OFF = 1;
+<b class="fc"><i>517</i>&nbsp;    static final String PRIV_ALLSETS = null;</b>
+<i>518</i>&nbsp;    // see privileges(5) for complete list of these
+<i>519</i>&nbsp;    static final String PRIV_PROC_FORK = &quot;proc_fork&quot;;
+<i>520</i>&nbsp;    static final String PRIV_PROC_EXEC = &quot;proc_exec&quot;;
+<i>521</i>&nbsp;
+<i>522</i>&nbsp;    static void solarisImpl() {
+<i>523</i>&nbsp;        // first be defensive: we can give nice errors this way, at the very least.
+<b class="nc"><i>524</i>&nbsp;        boolean supported = Constants.SUN_OS;</b>
+<b class="nc"><i>525</i>&nbsp;        if (supported == false) {</b>
+<b class="nc"><i>526</i>&nbsp;            throw new IllegalStateException(&quot;bug: should not be trying to initialize priv_set for an unsupported OS&quot;);</b>
+<i>527</i>&nbsp;        }
+<i>528</i>&nbsp;
+<i>529</i>&nbsp;        // we couldn&#39;t link methods, could be some really ancient Solaris or some bug
+<b class="nc"><i>530</i>&nbsp;        if (libc_solaris == null) {</b>
+<b class="nc"><i>531</i>&nbsp;            throw new UnsupportedOperationException(&quot;priv_set unavailable: could not link methods. requires Solaris 10+&quot;);</b>
+<i>532</i>&nbsp;        }
+<i>533</i>&nbsp;
+<i>534</i>&nbsp;        // drop a null-terminated list of privileges
+<b class="nc"><i>535</i>&nbsp;        if (libc_solaris.priv_set(PRIV_OFF, PRIV_ALLSETS, PRIV_PROC_FORK, PRIV_PROC_EXEC, null) != 0) {</b>
+<b class="nc"><i>536</i>&nbsp;            throw new UnsupportedOperationException(&quot;priv_set unavailable: priv_set(): &quot; + JNACLibrary.strerror(Native.getLastError()));</b>
+<i>537</i>&nbsp;        }
+<i>538</i>&nbsp;
+<b class="nc"><i>539</i>&nbsp;        logger.debug(&quot;Solaris priv_set initialization successful&quot;);</b>
+<b class="nc"><i>540</i>&nbsp;    }</b>
+<i>541</i>&nbsp;
+<i>542</i>&nbsp;    // BSD implementation via setrlimit(2)
+<i>543</i>&nbsp;
+<i>544</i>&nbsp;    // TODO: add OpenBSD to Lucene Constants
+<i>545</i>&nbsp;    // TODO: JNA doesn&#39;t have netbsd support, but this mechanism should work there too.
+<b class="fc"><i>546</i>&nbsp;    static final boolean OPENBSD = Constants.OS_NAME.startsWith(&quot;OpenBSD&quot;);</b>
+<i>547</i>&nbsp;
+<i>548</i>&nbsp;    // not a standard limit, means something different on linux, etc!
+<i>549</i>&nbsp;    static final int RLIMIT_NPROC = 7;
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;    static void bsdImpl() {
+<b class="fc"><i>552</i>&nbsp;        boolean supported = Constants.FREE_BSD || OPENBSD || Constants.MAC_OS_X;</b>
+<b class="fc"><i>553</i>&nbsp;        if (supported == false) {</b>
+<b class="nc"><i>554</i>&nbsp;            throw new IllegalStateException(&quot;bug: should not be trying to initialize RLIMIT_NPROC for an unsupported OS&quot;);</b>
+<i>555</i>&nbsp;        }
+<i>556</i>&nbsp;
+<b class="fc"><i>557</i>&nbsp;        JNACLibrary.Rlimit limit = new JNACLibrary.Rlimit();</b>
+<b class="fc"><i>558</i>&nbsp;        limit.rlim_cur.setValue(0);</b>
+<b class="fc"><i>559</i>&nbsp;        limit.rlim_max.setValue(0);</b>
+<b class="fc"><i>560</i>&nbsp;        if (JNACLibrary.setrlimit(RLIMIT_NPROC, limit) != 0) {</b>
+<b class="nc"><i>561</i>&nbsp;            throw new UnsupportedOperationException(&quot;RLIMIT_NPROC unavailable: &quot; + JNACLibrary.strerror(Native.getLastError()));</b>
+<i>562</i>&nbsp;        }
+<i>563</i>&nbsp;
+<b class="fc"><i>564</i>&nbsp;        logger.debug(&quot;BSD RLIMIT_NPROC initialization successful&quot;);</b>
+<b class="fc"><i>565</i>&nbsp;    }</b>
+<i>566</i>&nbsp;
+<i>567</i>&nbsp;    // windows impl via job ActiveProcessLimit
+<i>568</i>&nbsp;
+<i>569</i>&nbsp;    static void windowsImpl() {
+<b class="nc"><i>570</i>&nbsp;        if (!Constants.WINDOWS) {</b>
+<b class="nc"><i>571</i>&nbsp;            throw new IllegalStateException(&quot;bug: should not be trying to initialize ActiveProcessLimit for an unsupported OS&quot;);</b>
+<i>572</i>&nbsp;        }
+<i>573</i>&nbsp;
+<b class="nc"><i>574</i>&nbsp;        JNAKernel32Library lib = JNAKernel32Library.getInstance();</b>
+<i>575</i>&nbsp;
+<i>576</i>&nbsp;        // create a new Job
+<b class="nc"><i>577</i>&nbsp;        Pointer job = lib.CreateJobObjectW(null, null);</b>
+<b class="nc"><i>578</i>&nbsp;        if (job == null) {</b>
+<b class="nc"><i>579</i>&nbsp;            throw new UnsupportedOperationException(&quot;CreateJobObject: &quot; + Native.getLastError());</b>
+<i>580</i>&nbsp;        }
+<i>581</i>&nbsp;
+<i>582</i>&nbsp;        try {
+<i>583</i>&nbsp;            // retrieve the current basic limits of the job
+<b class="nc"><i>584</i>&nbsp;            int clazz = JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;</b>
+<b class="nc"><i>585</i>&nbsp;            JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION limits = new JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION();</b>
+<b class="nc"><i>586</i>&nbsp;            limits.write();</b>
+<b class="nc"><i>587</i>&nbsp;            if (!lib.QueryInformationJobObject(job, clazz, limits.getPointer(), limits.size(), null)) {</b>
+<b class="nc"><i>588</i>&nbsp;                throw new UnsupportedOperationException(&quot;QueryInformationJobObject: &quot; + Native.getLastError());</b>
+<i>589</i>&nbsp;            }
+<b class="nc"><i>590</i>&nbsp;            limits.read();</b>
+<i>591</i>&nbsp;            // modify the number of active processes to be 1 (exactly the one process we will add to the job).
+<b class="nc"><i>592</i>&nbsp;            limits.ActiveProcessLimit = 1;</b>
+<b class="nc"><i>593</i>&nbsp;            limits.LimitFlags = JNAKernel32Library.JOB_OBJECT_LIMIT_ACTIVE_PROCESS;</b>
+<b class="nc"><i>594</i>&nbsp;            limits.write();</b>
+<b class="nc"><i>595</i>&nbsp;            if (!lib.SetInformationJobObject(job, clazz, limits.getPointer(), limits.size())) {</b>
+<b class="nc"><i>596</i>&nbsp;                throw new UnsupportedOperationException(&quot;SetInformationJobObject: &quot; + Native.getLastError());</b>
+<i>597</i>&nbsp;            }
+<i>598</i>&nbsp;            // assign ourselves to the job
+<b class="nc"><i>599</i>&nbsp;            if (!lib.AssignProcessToJobObject(job, lib.GetCurrentProcess())) {</b>
+<b class="nc"><i>600</i>&nbsp;                throw new UnsupportedOperationException(&quot;AssignProcessToJobObject: &quot; + Native.getLastError());</b>
+<i>601</i>&nbsp;            }
+<i>602</i>&nbsp;        } finally {
+<b class="nc"><i>603</i>&nbsp;            lib.CloseHandle(job);</b>
+<b class="nc"><i>604</i>&nbsp;        }</b>
+<i>605</i>&nbsp;
+<b class="nc"><i>606</i>&nbsp;        logger.debug(&quot;Windows ActiveProcessLimit initialization successful&quot;);</b>
+<b class="nc"><i>607</i>&nbsp;    }</b>
+<i>608</i>&nbsp;
+<i>609</i>&nbsp;    /**
+<i>610</i>&nbsp;     * Attempt to drop the capability to execute for the process.
+<i>611</i>&nbsp;     * &lt;p&gt;
+<i>612</i>&nbsp;     * This is best effort and OS and architecture dependent. It may throw any Throwable.
+<i>613</i>&nbsp;     * @return 0 if we can do this for application threads, 1 for the entire process
+<i>614</i>&nbsp;     */
+<i>615</i>&nbsp;    static int init(Path tmpFile) throws Exception {
+<b class="fc"><i>616</i>&nbsp;        if (Constants.LINUX) {</b>
+<b class="nc"><i>617</i>&nbsp;            return linuxImpl();</b>
+<b class="fc"><i>618</i>&nbsp;        } else if (Constants.MAC_OS_X) {</b>
+<i>619</i>&nbsp;            // try to enable both mechanisms if possible
+<b class="fc"><i>620</i>&nbsp;            bsdImpl();</b>
+<b class="fc"><i>621</i>&nbsp;            macImpl(tmpFile);</b>
+<b class="fc"><i>622</i>&nbsp;            return 1;</b>
+<b class="nc"><i>623</i>&nbsp;        } else if (Constants.SUN_OS) {</b>
+<b class="nc"><i>624</i>&nbsp;            solarisImpl();</b>
+<b class="nc"><i>625</i>&nbsp;            return 1;</b>
+<b class="nc"><i>626</i>&nbsp;        } else if (Constants.FREE_BSD || OPENBSD) {</b>
+<b class="nc"><i>627</i>&nbsp;            bsdImpl();</b>
+<b class="nc"><i>628</i>&nbsp;            return 1;</b>
+<b class="nc"><i>629</i>&nbsp;        } else if (Constants.WINDOWS) {</b>
+<b class="nc"><i>630</i>&nbsp;            windowsImpl();</b>
+<b class="nc"><i>631</i>&nbsp;            return 1;</b>
+<i>632</i>&nbsp;        } else {
+<b class="nc"><i>633</i>&nbsp;            throw new UnsupportedOperationException(&quot;syscall filtering not supported for OS: &#39;&quot; + Constants.OS_NAME + &quot;&#39;&quot;);</b>
+<i>634</i>&nbsp;        }
+<i>635</i>&nbsp;    }
+<i>636</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

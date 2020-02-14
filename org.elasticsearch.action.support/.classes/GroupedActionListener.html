@@ -1,0 +1,166 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GroupedActionListener</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.support</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GroupedActionListener (org.elasticsearch.action.support)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GroupedActionListener</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (2/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    60.9%
+  </span>
+  <span class="absValue">
+    (14/ 23)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.action.support;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>22</i>&nbsp;import org.elasticsearch.common.util.concurrent.AtomicArray;
+<i>23</i>&nbsp;import org.elasticsearch.common.util.concurrent.CountDown;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.util.Collection;
+<i>26</i>&nbsp;import java.util.Collections;
+<i>27</i>&nbsp;import java.util.List;
+<i>28</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>29</i>&nbsp;import java.util.concurrent.atomic.AtomicReference;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;/**
+<i>32</i>&nbsp; * An action listener that delegates its results to another listener once
+<i>33</i>&nbsp; * it has received N results (either successes or failures). This allows synchronous
+<i>34</i>&nbsp; * tasks to be forked off in a loop with the same listener and respond to a
+<i>35</i>&nbsp; * higher level listener once all tasks responded.
+<i>36</i>&nbsp; */
+<i>37</i>&nbsp;public final class GroupedActionListener&lt;T&gt; implements ActionListener&lt;T&gt; {
+<i>38</i>&nbsp;    private final CountDown countDown;
+<b class="fc"><i>39</i>&nbsp;    private final AtomicInteger pos = new AtomicInteger();</b>
+<i>40</i>&nbsp;    private final AtomicArray&lt;T&gt; results;
+<i>41</i>&nbsp;    private final ActionListener&lt;Collection&lt;T&gt;&gt; delegate;
+<b class="fc"><i>42</i>&nbsp;    private final AtomicReference&lt;Exception&gt; failure = new AtomicReference&lt;&gt;();</b>
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    /**
+<i>45</i>&nbsp;     * Creates a new listener
+<i>46</i>&nbsp;     * @param delegate the delegate listener
+<i>47</i>&nbsp;     * @param groupSize the group size
+<i>48</i>&nbsp;     */
+<b class="fc"><i>49</i>&nbsp;    public GroupedActionListener(ActionListener&lt;Collection&lt;T&gt;&gt; delegate, int groupSize) {</b>
+<b class="fc"><i>50</i>&nbsp;        if (groupSize &lt;= 0) {</b>
+<b class="nc"><i>51</i>&nbsp;            throw new IllegalArgumentException(&quot;groupSize must be greater than 0 but was &quot; + groupSize);</b>
+<i>52</i>&nbsp;        }
+<b class="fc"><i>53</i>&nbsp;        results = new AtomicArray&lt;&gt;(groupSize);</b>
+<b class="fc"><i>54</i>&nbsp;        countDown = new CountDown(groupSize);</b>
+<b class="fc"><i>55</i>&nbsp;        this.delegate = delegate;</b>
+<b class="fc"><i>56</i>&nbsp;    }</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    @Override
+<i>59</i>&nbsp;    public void onResponse(T element) {
+<b class="fc"><i>60</i>&nbsp;        results.setOnce(pos.incrementAndGet() - 1, element);</b>
+<b class="fc"><i>61</i>&nbsp;        if (countDown.countDown()) {</b>
+<b class="fc"><i>62</i>&nbsp;            if (failure.get() != null) {</b>
+<b class="nc"><i>63</i>&nbsp;                delegate.onFailure(failure.get());</b>
+<i>64</i>&nbsp;            } else {
+<b class="fc"><i>65</i>&nbsp;                List&lt;T&gt; collect = this.results.asList();</b>
+<b class="fc"><i>66</i>&nbsp;                delegate.onResponse(Collections.unmodifiableList(collect));</b>
+<i>67</i>&nbsp;            }
+<i>68</i>&nbsp;        }
+<b class="fc"><i>69</i>&nbsp;    }</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    @Override
+<i>72</i>&nbsp;    public void onFailure(Exception e) {
+<b class="nc"><i>73</i>&nbsp;        if (failure.compareAndSet(null, e) == false) {</b>
+<b class="nc"><i>74</i>&nbsp;            failure.accumulateAndGet(e, (previous, current) -&gt; {</b>
+<b class="nc"><i>75</i>&nbsp;                previous.addSuppressed(current);</b>
+<b class="nc"><i>76</i>&nbsp;                return previous;</b>
+<i>77</i>&nbsp;            });
+<i>78</i>&nbsp;        }
+<b class="nc"><i>79</i>&nbsp;        if (countDown.countDown()) {</b>
+<b class="nc"><i>80</i>&nbsp;            delegate.onFailure(failure.get());</b>
+<i>81</i>&nbsp;        }
+<b class="nc"><i>82</i>&nbsp;    }</b>
+<i>83</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

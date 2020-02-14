@@ -1,0 +1,214 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestTermVectorsAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.document</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestTermVectorsAction (org.elasticsearch.rest.action.document)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestTermVectorsAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (2/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.6%
+  </span>
+  <span class="absValue">
+    (12/ 53)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.document;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.elasticsearch.action.termvectors.TermVectorsRequest;
+<i>24</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>25</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>26</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>28</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>29</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>30</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>31</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>32</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>33</i>&nbsp;import org.elasticsearch.rest.action.RestActions;
+<i>34</i>&nbsp;import org.elasticsearch.rest.action.RestToXContentListener;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;import java.io.IOException;
+<i>37</i>&nbsp;import java.util.HashSet;
+<i>38</i>&nbsp;import java.util.Set;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>41</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.POST;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;/**
+<i>44</i>&nbsp; * This class parses the json request and translates it into a
+<i>45</i>&nbsp; * TermVectorsRequest.
+<i>46</i>&nbsp; */
+<i>47</i>&nbsp;public class RestTermVectorsAction extends BaseRestHandler {
+<b class="fc"><i>48</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(</b>
+<b class="fc"><i>49</i>&nbsp;        LogManager.getLogger(RestTermVectorsAction.class));</b>
+<i>50</i>&nbsp;    public static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal] &quot; +
+<i>51</i>&nbsp;        &quot;Specifying types in term vector requests is deprecated.&quot;;
+<i>52</i>&nbsp;
+<b class="fc"><i>53</i>&nbsp;    public RestTermVectorsAction(RestController controller) {</b>
+<b class="fc"><i>54</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/_termvectors&quot;, this);</b>
+<b class="fc"><i>55</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/_termvectors&quot;, this);</b>
+<b class="fc"><i>56</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/_termvectors/{id}&quot;, this);</b>
+<b class="fc"><i>57</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/_termvectors/{id}&quot;, this);</b>
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;        // Deprecated typed endpoints.
+<b class="fc"><i>60</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/{type}/_termvectors&quot;, this);</b>
+<b class="fc"><i>61</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/{type}/_termvectors&quot;, this);</b>
+<b class="fc"><i>62</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/{type}/{id}/_termvectors&quot;, this);</b>
+<b class="fc"><i>63</i>&nbsp;        controller.registerHandler(POST, &quot;/{index}/{type}/{id}/_termvectors&quot;, this);</b>
+<b class="fc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    @Override
+<i>67</i>&nbsp;    public String getName() {
+<b class="nc"><i>68</i>&nbsp;        return &quot;document_term_vectors_action&quot;;</b>
+<i>69</i>&nbsp;    }
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    @Override
+<i>72</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<i>73</i>&nbsp;        TermVectorsRequest termVectorsRequest;
+<b class="nc"><i>74</i>&nbsp;        if (request.hasParam(&quot;type&quot;)) {</b>
+<b class="nc"><i>75</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;termvectors_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<b class="nc"><i>76</i>&nbsp;            termVectorsRequest = new TermVectorsRequest(request.param(&quot;index&quot;),</b>
+<b class="nc"><i>77</i>&nbsp;                request.param(&quot;type&quot;),</b>
+<b class="nc"><i>78</i>&nbsp;                request.param(&quot;id&quot;));</b>
+<i>79</i>&nbsp;        } else {
+<b class="nc"><i>80</i>&nbsp;            termVectorsRequest = new TermVectorsRequest(request.param(&quot;index&quot;),</b>
+<i>81</i>&nbsp;                MapperService.SINGLE_MAPPING_NAME,
+<b class="nc"><i>82</i>&nbsp;                request.param(&quot;id&quot;));</b>
+<i>83</i>&nbsp;        }
+<i>84</i>&nbsp;
+<b class="nc"><i>85</i>&nbsp;        if (request.hasContentOrSourceParam()) {</b>
+<b class="nc"><i>86</i>&nbsp;            try (XContentParser parser = request.contentOrSourceParamParser()) {</b>
+<b class="nc"><i>87</i>&nbsp;                TermVectorsRequest.parseRequest(termVectorsRequest, parser);</b>
+<b class="nc"><i>88</i>&nbsp;            }</b>
+<i>89</i>&nbsp;        }
+<b class="nc"><i>90</i>&nbsp;        readURIParameters(termVectorsRequest, request);</b>
+<i>91</i>&nbsp;
+<b class="nc"><i>92</i>&nbsp;        return channel -&gt; client.termVectors(termVectorsRequest, new RestToXContentListener&lt;&gt;(channel));</b>
+<i>93</i>&nbsp;    }
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    public static void readURIParameters(TermVectorsRequest termVectorsRequest, RestRequest request) {
+<b class="nc"><i>96</i>&nbsp;        String fields = request.param(&quot;fields&quot;);</b>
+<b class="nc"><i>97</i>&nbsp;        addFieldStringsFromParameter(termVectorsRequest, fields);</b>
+<b class="nc"><i>98</i>&nbsp;        termVectorsRequest.offsets(request.paramAsBoolean(&quot;offsets&quot;, termVectorsRequest.offsets()));</b>
+<b class="nc"><i>99</i>&nbsp;        termVectorsRequest.positions(request.paramAsBoolean(&quot;positions&quot;, termVectorsRequest.positions()));</b>
+<b class="nc"><i>100</i>&nbsp;        termVectorsRequest.payloads(request.paramAsBoolean(&quot;payloads&quot;, termVectorsRequest.payloads()));</b>
+<b class="nc"><i>101</i>&nbsp;        termVectorsRequest.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>102</i>&nbsp;        termVectorsRequest.realtime(request.paramAsBoolean(&quot;realtime&quot;, termVectorsRequest.realtime()));</b>
+<b class="nc"><i>103</i>&nbsp;        termVectorsRequest.version(RestActions.parseVersion(request, termVectorsRequest.version()));</b>
+<b class="nc"><i>104</i>&nbsp;        termVectorsRequest.versionType(VersionType.fromString(request.param(&quot;version_type&quot;), termVectorsRequest.versionType()));</b>
+<b class="nc"><i>105</i>&nbsp;        termVectorsRequest.preference(request.param(&quot;preference&quot;));</b>
+<b class="nc"><i>106</i>&nbsp;        termVectorsRequest.termStatistics(request.paramAsBoolean(&quot;termStatistics&quot;, termVectorsRequest.termStatistics()));</b>
+<b class="nc"><i>107</i>&nbsp;        termVectorsRequest.termStatistics(request.paramAsBoolean(&quot;term_statistics&quot;, termVectorsRequest.termStatistics()));</b>
+<b class="nc"><i>108</i>&nbsp;        termVectorsRequest.fieldStatistics(request.paramAsBoolean(&quot;fieldStatistics&quot;, termVectorsRequest.fieldStatistics()));</b>
+<b class="nc"><i>109</i>&nbsp;        termVectorsRequest.fieldStatistics(request.paramAsBoolean(&quot;field_statistics&quot;, termVectorsRequest.fieldStatistics()));</b>
+<b class="nc"><i>110</i>&nbsp;    }</b>
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    public static void addFieldStringsFromParameter(TermVectorsRequest termVectorsRequest, String fields) {
+<b class="nc"><i>113</i>&nbsp;        Set&lt;String&gt; selectedFields = termVectorsRequest.selectedFields();</b>
+<b class="nc"><i>114</i>&nbsp;        if (fields != null) {</b>
+<b class="nc"><i>115</i>&nbsp;            String[] paramFieldStrings = Strings.commaDelimitedListToStringArray(fields);</b>
+<b class="nc"><i>116</i>&nbsp;            for (String field : paramFieldStrings) {</b>
+<b class="nc"><i>117</i>&nbsp;                if (selectedFields == null) {</b>
+<b class="nc"><i>118</i>&nbsp;                    selectedFields = new HashSet&lt;&gt;();</b>
+<i>119</i>&nbsp;                }
+<b class="nc"><i>120</i>&nbsp;                if (!selectedFields.contains(field)) {</b>
+<b class="nc"><i>121</i>&nbsp;                    field = field.replaceAll(&quot;\\s&quot;, &quot;&quot;);</b>
+<b class="nc"><i>122</i>&nbsp;                    selectedFields.add(field);</b>
+<i>123</i>&nbsp;                }
+<i>124</i>&nbsp;            }
+<i>125</i>&nbsp;        }
+<b class="nc"><i>126</i>&nbsp;        if (selectedFields != null) {</b>
+<b class="nc"><i>127</i>&nbsp;            termVectorsRequest.selectedFields(selectedFields.toArray(new String[selectedFields.size()]));</b>
+<i>128</i>&nbsp;        }
+<b class="nc"><i>129</i>&nbsp;    }</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

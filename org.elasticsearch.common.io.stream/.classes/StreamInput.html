@@ -1,0 +1,1350 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: StreamInput</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.io.stream</a> ]
+</div>
+
+<h1>Coverage Summary for Class: StreamInput (org.elasticsearch.common.io.stream)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">StreamInput</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    43.2%
+  </span>
+  <span class="absValue">
+    (35/ 81)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    34.3%
+  </span>
+  <span class="absValue">
+    (173/ 505)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.io.stream;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.CorruptIndexException;
+<i>23</i>&nbsp;import org.apache.lucene.index.IndexFormatTooNewException;
+<i>24</i>&nbsp;import org.apache.lucene.index.IndexFormatTooOldException;
+<i>25</i>&nbsp;import org.apache.lucene.store.AlreadyClosedException;
+<i>26</i>&nbsp;import org.apache.lucene.store.LockObtainFailedException;
+<i>27</i>&nbsp;import org.apache.lucene.util.ArrayUtil;
+<i>28</i>&nbsp;import org.apache.lucene.util.BitUtil;
+<i>29</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>30</i>&nbsp;import org.apache.lucene.util.CharsRef;
+<i>31</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>32</i>&nbsp;import org.elasticsearch.Version;
+<i>33</i>&nbsp;import org.elasticsearch.common.CharArrays;
+<i>34</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>35</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>36</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>37</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>38</i>&nbsp;import org.elasticsearch.common.geo.GeoPoint;
+<i>39</i>&nbsp;import org.elasticsearch.common.settings.SecureString;
+<i>40</i>&nbsp;import org.elasticsearch.common.text.Text;
+<i>41</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>42</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+<i>43</i>&nbsp;import org.joda.time.DateTime;
+<i>44</i>&nbsp;import org.joda.time.DateTimeZone;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import java.io.ByteArrayInputStream;
+<i>47</i>&nbsp;import java.io.EOFException;
+<i>48</i>&nbsp;import java.io.FileNotFoundException;
+<i>49</i>&nbsp;import java.io.FilterInputStream;
+<i>50</i>&nbsp;import java.io.IOException;
+<i>51</i>&nbsp;import java.io.InputStream;
+<i>52</i>&nbsp;import java.nio.file.AccessDeniedException;
+<i>53</i>&nbsp;import java.nio.file.AtomicMoveNotSupportedException;
+<i>54</i>&nbsp;import java.nio.file.DirectoryNotEmptyException;
+<i>55</i>&nbsp;import java.nio.file.FileAlreadyExistsException;
+<i>56</i>&nbsp;import java.nio.file.FileSystemException;
+<i>57</i>&nbsp;import java.nio.file.FileSystemLoopException;
+<i>58</i>&nbsp;import java.nio.file.NoSuchFileException;
+<i>59</i>&nbsp;import java.nio.file.NotDirectoryException;
+<i>60</i>&nbsp;import java.time.Instant;
+<i>61</i>&nbsp;import java.time.ZoneId;
+<i>62</i>&nbsp;import java.time.ZonedDateTime;
+<i>63</i>&nbsp;import java.util.ArrayList;
+<i>64</i>&nbsp;import java.util.Arrays;
+<i>65</i>&nbsp;import java.util.Collection;
+<i>66</i>&nbsp;import java.util.Collections;
+<i>67</i>&nbsp;import java.util.Date;
+<i>68</i>&nbsp;import java.util.EnumSet;
+<i>69</i>&nbsp;import java.util.HashMap;
+<i>70</i>&nbsp;import java.util.HashSet;
+<i>71</i>&nbsp;import java.util.LinkedHashMap;
+<i>72</i>&nbsp;import java.util.List;
+<i>73</i>&nbsp;import java.util.Locale;
+<i>74</i>&nbsp;import java.util.Map;
+<i>75</i>&nbsp;import java.util.Set;
+<i>76</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>77</i>&nbsp;import java.util.function.IntFunction;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;import static org.elasticsearch.ElasticsearchException.readStackTrace;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;/**
+<i>82</i>&nbsp; * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+<i>83</i>&nbsp; *
+<i>84</i>&nbsp; * This class&#39;s methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+<i>85</i>&nbsp; * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+<i>86</i>&nbsp; * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
+<i>87</i>&nbsp; * it means that the &quot;barrier to entry&quot; for adding new methods to this class is relatively low even though it is a shared class with code
+<i>88</i>&nbsp; * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+<i>89</i>&nbsp; * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+<i>90</i>&nbsp; * on {@link StreamInput}.
+<i>91</i>&nbsp; */
+<b class="fc"><i>92</i>&nbsp;public abstract class StreamInput extends InputStream {</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    private static final Map&lt;Byte, TimeUnit&gt; BYTE_TIME_UNIT_MAP;
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    static {
+<b class="fc"><i>97</i>&nbsp;        final Map&lt;Byte, TimeUnit&gt; byteTimeUnitMap = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>98</i>&nbsp;        byteTimeUnitMap.put((byte)0, TimeUnit.NANOSECONDS);</b>
+<b class="fc"><i>99</i>&nbsp;        byteTimeUnitMap.put((byte)1, TimeUnit.MICROSECONDS);</b>
+<b class="fc"><i>100</i>&nbsp;        byteTimeUnitMap.put((byte)2, TimeUnit.MILLISECONDS);</b>
+<b class="fc"><i>101</i>&nbsp;        byteTimeUnitMap.put((byte)3, TimeUnit.SECONDS);</b>
+<b class="fc"><i>102</i>&nbsp;        byteTimeUnitMap.put((byte)4, TimeUnit.MINUTES);</b>
+<b class="fc"><i>103</i>&nbsp;        byteTimeUnitMap.put((byte)5, TimeUnit.HOURS);</b>
+<b class="fc"><i>104</i>&nbsp;        byteTimeUnitMap.put((byte)6, TimeUnit.DAYS);</b>
+<i>105</i>&nbsp;
+<b class="fc"><i>106</i>&nbsp;        for (TimeUnit value : TimeUnit.values()) {</b>
+<b class="fc"><i>107</i>&nbsp;            assert byteTimeUnitMap.containsValue(value) : value;</b>
+<i>108</i>&nbsp;        }
+<i>109</i>&nbsp;
+<b class="fc"><i>110</i>&nbsp;        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);</b>
+<i>111</i>&nbsp;    }
+<i>112</i>&nbsp;
+<b class="fc"><i>113</i>&nbsp;    private Version version = Version.CURRENT;</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    /**
+<i>116</i>&nbsp;     * The version of the node on the other side of this stream.
+<i>117</i>&nbsp;     */
+<i>118</i>&nbsp;    public Version getVersion() {
+<b class="fc"><i>119</i>&nbsp;        return this.version;</b>
+<i>120</i>&nbsp;    }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;    /**
+<i>123</i>&nbsp;     * Set the version of the node on the other side of this stream.
+<i>124</i>&nbsp;     */
+<i>125</i>&nbsp;    public void setVersion(Version version) {
+<b class="fc"><i>126</i>&nbsp;        this.version = version;</b>
+<b class="fc"><i>127</i>&nbsp;    }</b>
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    /**
+<i>130</i>&nbsp;     * Reads and returns a single byte.
+<i>131</i>&nbsp;     */
+<i>132</i>&nbsp;    public abstract byte readByte() throws IOException;
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;    /**
+<i>135</i>&nbsp;     * Reads a specified number of bytes into an array at the specified offset.
+<i>136</i>&nbsp;     *
+<i>137</i>&nbsp;     * @param b      the array to read bytes into
+<i>138</i>&nbsp;     * @param offset the offset in the array to start storing bytes
+<i>139</i>&nbsp;     * @param len    the number of bytes to read
+<i>140</i>&nbsp;     */
+<i>141</i>&nbsp;    public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    /**
+<i>144</i>&nbsp;     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+<i>145</i>&nbsp;     * bytes of the stream.
+<i>146</i>&nbsp;     */
+<i>147</i>&nbsp;    public BytesReference readBytesReference() throws IOException {
+<b class="nc"><i>148</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>149</i>&nbsp;        return readBytesReference(length);</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /**
+<i>153</i>&nbsp;     * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
+<i>154</i>&nbsp;     * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
+<i>155</i>&nbsp;     * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
+<i>156</i>&nbsp;     */
+<i>157</i>&nbsp;    @Nullable
+<i>158</i>&nbsp;    public BytesReference readOptionalBytesReference() throws IOException {
+<b class="nc"><i>159</i>&nbsp;        int length = readVInt() - 1;</b>
+<b class="nc"><i>160</i>&nbsp;        if (length &lt; 0) {</b>
+<b class="nc"><i>161</i>&nbsp;            return null;</b>
+<i>162</i>&nbsp;        }
+<b class="nc"><i>163</i>&nbsp;        return readBytesReference(length);</b>
+<i>164</i>&nbsp;    }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;    /**
+<i>167</i>&nbsp;     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+<i>168</i>&nbsp;     * bytes of the stream.
+<i>169</i>&nbsp;     */
+<i>170</i>&nbsp;    public BytesReference readBytesReference(int length) throws IOException {
+<b class="nc"><i>171</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>172</i>&nbsp;            return BytesArray.EMPTY;</b>
+<i>173</i>&nbsp;        }
+<b class="nc"><i>174</i>&nbsp;        byte[] bytes = new byte[length];</b>
+<b class="nc"><i>175</i>&nbsp;        readBytes(bytes, 0, length);</b>
+<b class="nc"><i>176</i>&nbsp;        return new BytesArray(bytes, 0, length);</b>
+<i>177</i>&nbsp;    }
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    public BytesRef readBytesRef() throws IOException {
+<b class="nc"><i>180</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>181</i>&nbsp;        return readBytesRef(length);</b>
+<i>182</i>&nbsp;    }
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    public BytesRef readBytesRef(int length) throws IOException {
+<b class="nc"><i>185</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>186</i>&nbsp;            return new BytesRef();</b>
+<i>187</i>&nbsp;        }
+<b class="nc"><i>188</i>&nbsp;        byte[] bytes = new byte[length];</b>
+<b class="nc"><i>189</i>&nbsp;        readBytes(bytes, 0, length);</b>
+<b class="nc"><i>190</i>&nbsp;        return new BytesRef(bytes, 0, length);</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    public void readFully(byte[] b) throws IOException {
+<b class="fc"><i>194</i>&nbsp;        readBytes(b, 0, b.length);</b>
+<b class="fc"><i>195</i>&nbsp;    }</b>
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    public short readShort() throws IOException {
+<b class="nc"><i>198</i>&nbsp;        return (short) (((readByte() &amp; 0xFF) &lt;&lt; 8) | (readByte() &amp; 0xFF));</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    /**
+<i>202</i>&nbsp;     * Reads four bytes and returns an int.
+<i>203</i>&nbsp;     */
+<i>204</i>&nbsp;    public int readInt() throws IOException {
+<b class="fc"><i>205</i>&nbsp;        return ((readByte() &amp; 0xFF) &lt;&lt; 24) | ((readByte() &amp; 0xFF) &lt;&lt; 16)</b>
+<b class="fc"><i>206</i>&nbsp;                | ((readByte() &amp; 0xFF) &lt;&lt; 8) | (readByte() &amp; 0xFF);</b>
+<i>207</i>&nbsp;    }
+<i>208</i>&nbsp;
+<i>209</i>&nbsp;    /**
+<i>210</i>&nbsp;     * Reads an optional {@link Integer}.
+<i>211</i>&nbsp;     */
+<i>212</i>&nbsp;    public Integer readOptionalInt() throws IOException {
+<b class="nc"><i>213</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>214</i>&nbsp;            return readInt();</b>
+<i>215</i>&nbsp;        }
+<b class="nc"><i>216</i>&nbsp;        return null;</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    /**
+<i>220</i>&nbsp;     * Reads an int stored in variable-length format.  Reads between one and
+<i>221</i>&nbsp;     * five bytes.  Smaller values take fewer bytes.  Negative numbers
+<i>222</i>&nbsp;     * will always use all 5 bytes and are therefore better serialized
+<i>223</i>&nbsp;     * using {@link #readInt}
+<i>224</i>&nbsp;     */
+<i>225</i>&nbsp;    public int readVInt() throws IOException {
+<b class="fc"><i>226</i>&nbsp;        byte b = readByte();</b>
+<b class="fc"><i>227</i>&nbsp;        int i = b &amp; 0x7F;</b>
+<b class="fc"><i>228</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="fc"><i>229</i>&nbsp;            return i;</b>
+<i>230</i>&nbsp;        }
+<b class="fc"><i>231</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>232</i>&nbsp;        i |= (b &amp; 0x7F) &lt;&lt; 7;</b>
+<b class="fc"><i>233</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>234</i>&nbsp;            return i;</b>
+<i>235</i>&nbsp;        }
+<b class="fc"><i>236</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>237</i>&nbsp;        i |= (b &amp; 0x7F) &lt;&lt; 14;</b>
+<b class="fc"><i>238</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>239</i>&nbsp;            return i;</b>
+<i>240</i>&nbsp;        }
+<b class="fc"><i>241</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>242</i>&nbsp;        i |= (b &amp; 0x7F) &lt;&lt; 21;</b>
+<b class="fc"><i>243</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="fc"><i>244</i>&nbsp;            return i;</b>
+<i>245</i>&nbsp;        }
+<b class="fc"><i>246</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>247</i>&nbsp;        if ((b &amp; 0x80) != 0) {</b>
+<b class="nc"><i>248</i>&nbsp;            throw new IOException(&quot;Invalid vInt ((&quot; + Integer.toHexString(b) + &quot; &amp; 0x7f) &lt;&lt; 28) | &quot; + Integer.toHexString(i));</b>
+<i>249</i>&nbsp;        }
+<b class="fc"><i>250</i>&nbsp;        return i | ((b &amp; 0x7F) &lt;&lt; 28);</b>
+<i>251</i>&nbsp;    }
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;    /**
+<i>254</i>&nbsp;     * Reads eight bytes and returns a long.
+<i>255</i>&nbsp;     */
+<i>256</i>&nbsp;    public long readLong() throws IOException {
+<b class="fc"><i>257</i>&nbsp;        return (((long) readInt()) &lt;&lt; 32) | (readInt() &amp; 0xFFFFFFFFL);</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    /**
+<i>261</i>&nbsp;     * Reads a long stored in variable-length format. Reads between one and ten bytes. Smaller values take fewer bytes. Negative numbers
+<i>262</i>&nbsp;     * are encoded in ten bytes so prefer {@link #readLong()} or {@link #readZLong()} for negative numbers.
+<i>263</i>&nbsp;     */
+<i>264</i>&nbsp;    public long readVLong() throws IOException {
+<b class="fc"><i>265</i>&nbsp;        byte b = readByte();</b>
+<b class="fc"><i>266</i>&nbsp;        long i = b &amp; 0x7FL;</b>
+<b class="fc"><i>267</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="fc"><i>268</i>&nbsp;            return i;</b>
+<i>269</i>&nbsp;        }
+<b class="fc"><i>270</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>271</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 7;</b>
+<b class="fc"><i>272</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>273</i>&nbsp;            return i;</b>
+<i>274</i>&nbsp;        }
+<b class="fc"><i>275</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>276</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 14;</b>
+<b class="fc"><i>277</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>278</i>&nbsp;            return i;</b>
+<i>279</i>&nbsp;        }
+<b class="fc"><i>280</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>281</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 21;</b>
+<b class="fc"><i>282</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="fc"><i>283</i>&nbsp;            return i;</b>
+<i>284</i>&nbsp;        }
+<b class="fc"><i>285</i>&nbsp;        b = readByte();</b>
+<b class="fc"><i>286</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 28;</b>
+<b class="fc"><i>287</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="fc"><i>288</i>&nbsp;            return i;</b>
+<i>289</i>&nbsp;        }
+<b class="nc"><i>290</i>&nbsp;        b = readByte();</b>
+<b class="nc"><i>291</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 35;</b>
+<b class="nc"><i>292</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>293</i>&nbsp;            return i;</b>
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;        b = readByte();</b>
+<b class="nc"><i>296</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 42;</b>
+<b class="nc"><i>297</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>298</i>&nbsp;            return i;</b>
+<i>299</i>&nbsp;        }
+<b class="nc"><i>300</i>&nbsp;        b = readByte();</b>
+<b class="nc"><i>301</i>&nbsp;        i |= (b &amp; 0x7FL) &lt;&lt; 49;</b>
+<b class="nc"><i>302</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>303</i>&nbsp;            return i;</b>
+<i>304</i>&nbsp;        }
+<b class="nc"><i>305</i>&nbsp;        b = readByte();</b>
+<b class="nc"><i>306</i>&nbsp;        i |= ((b &amp; 0x7FL) &lt;&lt; 56);</b>
+<b class="nc"><i>307</i>&nbsp;        if ((b &amp; 0x80) == 0) {</b>
+<b class="nc"><i>308</i>&nbsp;            return i;</b>
+<i>309</i>&nbsp;        }
+<b class="nc"><i>310</i>&nbsp;        b = readByte();</b>
+<b class="nc"><i>311</i>&nbsp;        if (b != 0 &amp;&amp; b != 1) {</b>
+<b class="nc"><i>312</i>&nbsp;            throw new IOException(&quot;Invalid vlong (&quot; + Integer.toHexString(b) + &quot; &lt;&lt; 63) | &quot; + Long.toHexString(i));</b>
+<i>313</i>&nbsp;        }
+<b class="nc"><i>314</i>&nbsp;        i |= ((long) b) &lt;&lt; 63;</b>
+<b class="nc"><i>315</i>&nbsp;        return i;</b>
+<i>316</i>&nbsp;    }
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;    public long readZLong() throws IOException {
+<b class="nc"><i>319</i>&nbsp;        long accumulator = 0L;</b>
+<b class="nc"><i>320</i>&nbsp;        int i = 0;</b>
+<i>321</i>&nbsp;        long currentByte;
+<b class="nc"><i>322</i>&nbsp;        while (((currentByte = readByte()) &amp; 0x80L) != 0) {</b>
+<b class="nc"><i>323</i>&nbsp;            accumulator |= (currentByte &amp; 0x7F) &lt;&lt; i;</b>
+<b class="nc"><i>324</i>&nbsp;            i += 7;</b>
+<b class="nc"><i>325</i>&nbsp;            if (i &gt; 63) {</b>
+<b class="nc"><i>326</i>&nbsp;                throw new IOException(&quot;variable-length stream is too long&quot;);</b>
+<i>327</i>&nbsp;            }
+<i>328</i>&nbsp;        }
+<b class="nc"><i>329</i>&nbsp;        return BitUtil.zigZagDecode(accumulator | (currentByte &lt;&lt; i));</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    @Nullable
+<i>333</i>&nbsp;    public Long readOptionalLong() throws IOException {
+<b class="nc"><i>334</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>335</i>&nbsp;            return readLong();</b>
+<i>336</i>&nbsp;        }
+<b class="nc"><i>337</i>&nbsp;        return null;</b>
+<i>338</i>&nbsp;    }
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    @Nullable
+<i>341</i>&nbsp;    public Text readOptionalText() throws IOException {
+<b class="nc"><i>342</i>&nbsp;        int length = readInt();</b>
+<b class="nc"><i>343</i>&nbsp;        if (length == -1) {</b>
+<b class="nc"><i>344</i>&nbsp;            return null;</b>
+<i>345</i>&nbsp;        }
+<b class="nc"><i>346</i>&nbsp;        return new Text(readBytesReference(length));</b>
+<i>347</i>&nbsp;    }
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;    public Text readText() throws IOException {
+<i>350</i>&nbsp;        // use StringAndBytes so we can cache the string if its ever converted to it
+<b class="nc"><i>351</i>&nbsp;        int length = readInt();</b>
+<b class="nc"><i>352</i>&nbsp;        return new Text(readBytesReference(length));</b>
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    @Nullable
+<i>356</i>&nbsp;    public String readOptionalString() throws IOException {
+<b class="fc"><i>357</i>&nbsp;        if (readBoolean()) {</b>
+<b class="fc"><i>358</i>&nbsp;            return readString();</b>
+<i>359</i>&nbsp;        }
+<b class="fc"><i>360</i>&nbsp;        return null;</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    @Nullable
+<i>364</i>&nbsp;    public SecureString readOptionalSecureString() throws IOException {
+<b class="nc"><i>365</i>&nbsp;        SecureString value = null;</b>
+<b class="nc"><i>366</i>&nbsp;        BytesReference bytesRef = readOptionalBytesReference();</b>
+<b class="nc"><i>367</i>&nbsp;        if (bytesRef != null) {</b>
+<b class="nc"><i>368</i>&nbsp;            byte[] bytes = BytesReference.toBytes(bytesRef);</b>
+<i>369</i>&nbsp;            try {
+<b class="nc"><i>370</i>&nbsp;                value = new SecureString(CharArrays.utf8BytesToChars(bytes));</b>
+<i>371</i>&nbsp;            } finally {
+<b class="nc"><i>372</i>&nbsp;                Arrays.fill(bytes, (byte) 0);</b>
+<b class="nc"><i>373</i>&nbsp;            }</b>
+<i>374</i>&nbsp;        }
+<b class="nc"><i>375</i>&nbsp;        return value;</b>
+<i>376</i>&nbsp;    }
+<i>377</i>&nbsp;
+<i>378</i>&nbsp;    @Nullable
+<i>379</i>&nbsp;    public Float readOptionalFloat() throws IOException {
+<b class="nc"><i>380</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>381</i>&nbsp;            return readFloat();</b>
+<i>382</i>&nbsp;        }
+<b class="nc"><i>383</i>&nbsp;        return null;</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    @Nullable
+<i>387</i>&nbsp;    public Integer readOptionalVInt() throws IOException {
+<b class="fc"><i>388</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>389</i>&nbsp;            return readVInt();</b>
+<i>390</i>&nbsp;        }
+<b class="fc"><i>391</i>&nbsp;        return null;</b>
+<i>392</i>&nbsp;    }
+<i>393</i>&nbsp;
+<i>394</i>&nbsp;    // Maximum char-count to de-serialize via the thread-local CharsRef buffer
+<i>395</i>&nbsp;    private static final int SMALL_STRING_LIMIT = 1024;
+<i>396</i>&nbsp;
+<i>397</i>&nbsp;    // Reusable bytes for deserializing strings
+<b class="fc"><i>398</i>&nbsp;    private static final ThreadLocal&lt;byte[]&gt; stringReadBuffer = ThreadLocal.withInitial(() -&gt; new byte[1024]);</b>
+<i>399</i>&nbsp;
+<i>400</i>&nbsp;    // Thread-local buffer for smaller strings
+<b class="fc"><i>401</i>&nbsp;    private static final ThreadLocal&lt;CharsRef&gt; smallSpare = ThreadLocal.withInitial(() -&gt; new CharsRef(SMALL_STRING_LIMIT));</b>
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;    // Larger buffer used for long strings that can&#39;t fit into the thread-local buffer
+<i>404</i>&nbsp;    // We don&#39;t use a CharsRefBuilder since we exactly know the size of the character array up front
+<i>405</i>&nbsp;    // this prevents calling grow for every character since we don&#39;t need this
+<i>406</i>&nbsp;    private CharsRef largeSpare;
+<i>407</i>&nbsp;
+<i>408</i>&nbsp;    public String readString() throws IOException {
+<b class="fc"><i>409</i>&nbsp;        final int charCount = readArraySize();</b>
+<i>410</i>&nbsp;        final CharsRef charsRef;
+<b class="fc"><i>411</i>&nbsp;        if (charCount &gt; SMALL_STRING_LIMIT) {</b>
+<b class="nc"><i>412</i>&nbsp;            if (largeSpare == null) {</b>
+<b class="nc"><i>413</i>&nbsp;                largeSpare = new CharsRef(ArrayUtil.oversize(charCount, Character.BYTES));</b>
+<b class="nc"><i>414</i>&nbsp;            } else if (largeSpare.chars.length &lt; charCount) {</b>
+<i>415</i>&nbsp;                // we don&#39;t use ArrayUtils.grow since there is no need to copy the array
+<b class="nc"><i>416</i>&nbsp;                largeSpare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];</b>
+<i>417</i>&nbsp;            }
+<b class="nc"><i>418</i>&nbsp;            charsRef = largeSpare;</b>
+<i>419</i>&nbsp;        } else {
+<b class="fc"><i>420</i>&nbsp;            charsRef = smallSpare.get();</b>
+<i>421</i>&nbsp;        }
+<b class="fc"><i>422</i>&nbsp;        charsRef.length = charCount;</b>
+<b class="fc"><i>423</i>&nbsp;        int charsOffset = 0;</b>
+<b class="fc"><i>424</i>&nbsp;        int offsetByteArray = 0;</b>
+<b class="fc"><i>425</i>&nbsp;        int sizeByteArray = 0;</b>
+<b class="fc"><i>426</i>&nbsp;        int missingFromPartial = 0;</b>
+<b class="fc"><i>427</i>&nbsp;        final byte[] byteBuffer = stringReadBuffer.get();</b>
+<b class="fc"><i>428</i>&nbsp;        final char[] charBuffer = charsRef.chars;</b>
+<b class="fc"><i>429</i>&nbsp;        for (; charsOffset &lt; charCount; ) {</b>
+<b class="fc"><i>430</i>&nbsp;            final int charsLeft = charCount - charsOffset;</b>
+<b class="fc"><i>431</i>&nbsp;            int bufferFree = byteBuffer.length - sizeByteArray;</b>
+<i>432</i>&nbsp;            // Determine the minimum amount of bytes that are left in the string
+<i>433</i>&nbsp;            final int minRemainingBytes;
+<b class="fc"><i>434</i>&nbsp;            if (missingFromPartial &gt; 0) {</b>
+<i>435</i>&nbsp;                // One byte for each remaining char except for the already partially read char
+<b class="nc"><i>436</i>&nbsp;                minRemainingBytes = missingFromPartial + charsLeft - 1;</b>
+<b class="nc"><i>437</i>&nbsp;                missingFromPartial = 0;</b>
+<i>438</i>&nbsp;            } else {
+<i>439</i>&nbsp;                // Each char has at least a single byte
+<b class="fc"><i>440</i>&nbsp;                minRemainingBytes = charsLeft;</b>
+<i>441</i>&nbsp;            }
+<i>442</i>&nbsp;            final int toRead;
+<b class="fc"><i>443</i>&nbsp;            if (bufferFree &lt; minRemainingBytes) {</b>
+<i>444</i>&nbsp;                // We don&#39;t have enough space left in the byte array to read as much as we&#39;d like to so we free up as many bytes in the
+<i>445</i>&nbsp;                // buffer by moving unused bytes that didn&#39;t make up a full char in the last iteration to the beginning of the buffer,
+<i>446</i>&nbsp;                // if there are any
+<b class="nc"><i>447</i>&nbsp;                if (offsetByteArray &gt; 0) {</b>
+<b class="nc"><i>448</i>&nbsp;                    sizeByteArray = sizeByteArray - offsetByteArray;</b>
+<b class="nc"><i>449</i>&nbsp;                    switch (sizeByteArray) { // We only have 0, 1 or 2 =&gt; no need to bother with a native call to System#arrayCopy</b>
+<i>450</i>&nbsp;                        case 1:
+<b class="nc"><i>451</i>&nbsp;                            byteBuffer[0] = byteBuffer[offsetByteArray];</b>
+<b class="nc"><i>452</i>&nbsp;                            break;</b>
+<i>453</i>&nbsp;                        case 2:
+<b class="nc"><i>454</i>&nbsp;                            byteBuffer[0] = byteBuffer[offsetByteArray];</b>
+<b class="nc"><i>455</i>&nbsp;                            byteBuffer[1] = byteBuffer[offsetByteArray + 1];</b>
+<i>456</i>&nbsp;                            break;
+<i>457</i>&nbsp;                    }
+<b class="nc"><i>458</i>&nbsp;                    assert sizeByteArray &lt;= 2 : &quot;We never copy more than 2 bytes here since a char is 3 bytes max&quot;;</b>
+<b class="nc"><i>459</i>&nbsp;                    toRead = Math.min(bufferFree + offsetByteArray, minRemainingBytes);</b>
+<b class="nc"><i>460</i>&nbsp;                    offsetByteArray = 0;</b>
+<i>461</i>&nbsp;                } else {
+<b class="nc"><i>462</i>&nbsp;                    toRead = bufferFree;</b>
+<i>463</i>&nbsp;                }
+<i>464</i>&nbsp;            } else {
+<b class="fc"><i>465</i>&nbsp;                toRead = minRemainingBytes;</b>
+<i>466</i>&nbsp;            }
+<b class="fc"><i>467</i>&nbsp;            readBytes(byteBuffer, sizeByteArray, toRead);</b>
+<b class="fc"><i>468</i>&nbsp;            sizeByteArray += toRead;</b>
+<i>469</i>&nbsp;            // As long as we at least have three bytes buffered we don&#39;t need to do any bounds checking when getting the next char since we
+<i>470</i>&nbsp;            // read 3 bytes per char/iteration at most
+<b class="fc"><i>471</i>&nbsp;            for (; offsetByteArray &lt; sizeByteArray - 2; offsetByteArray++) {</b>
+<b class="fc"><i>472</i>&nbsp;                final int c = byteBuffer[offsetByteArray] &amp; 0xff;</b>
+<b class="fc"><i>473</i>&nbsp;                switch (c &gt;&gt; 4) {</b>
+<i>474</i>&nbsp;                    case 0:
+<i>475</i>&nbsp;                    case 1:
+<i>476</i>&nbsp;                    case 2:
+<i>477</i>&nbsp;                    case 3:
+<i>478</i>&nbsp;                    case 4:
+<i>479</i>&nbsp;                    case 5:
+<i>480</i>&nbsp;                    case 6:
+<i>481</i>&nbsp;                    case 7:
+<b class="fc"><i>482</i>&nbsp;                        charBuffer[charsOffset++] = (char) c;</b>
+<b class="fc"><i>483</i>&nbsp;                        break;</b>
+<i>484</i>&nbsp;                    case 12:
+<i>485</i>&nbsp;                    case 13:
+<b class="nc"><i>486</i>&nbsp;                        charBuffer[charsOffset++] = (char) ((c &amp; 0x1F) &lt;&lt; 6 | byteBuffer[++offsetByteArray] &amp; 0x3F);</b>
+<b class="nc"><i>487</i>&nbsp;                        break;</b>
+<i>488</i>&nbsp;                    case 14:
+<b class="nc"><i>489</i>&nbsp;                        charBuffer[charsOffset++] = (char) (</b>
+<i>490</i>&nbsp;                            (c &amp; 0x0F) &lt;&lt; 12 | (byteBuffer[++offsetByteArray] &amp; 0x3F) &lt;&lt; 6 | (byteBuffer[++offsetByteArray] &amp; 0x3F));
+<b class="nc"><i>491</i>&nbsp;                        break;</b>
+<i>492</i>&nbsp;                    default:
+<b class="nc"><i>493</i>&nbsp;                        throwOnBrokenChar(c);</b>
+<i>494</i>&nbsp;                }
+<i>495</i>&nbsp;            }
+<i>496</i>&nbsp;            // try to extract chars from remaining bytes with bounds checks for multi-byte chars
+<b class="fc"><i>497</i>&nbsp;            final int bufferedBytesRemaining = sizeByteArray - offsetByteArray;</b>
+<b class="fc"><i>498</i>&nbsp;            for (int i = 0; i &lt; bufferedBytesRemaining; i++) {</b>
+<b class="fc"><i>499</i>&nbsp;                final int c = byteBuffer[offsetByteArray] &amp; 0xff;</b>
+<b class="fc"><i>500</i>&nbsp;                switch (c &gt;&gt; 4) {</b>
+<i>501</i>&nbsp;                    case 0:
+<i>502</i>&nbsp;                    case 1:
+<i>503</i>&nbsp;                    case 2:
+<i>504</i>&nbsp;                    case 3:
+<i>505</i>&nbsp;                    case 4:
+<i>506</i>&nbsp;                    case 5:
+<i>507</i>&nbsp;                    case 6:
+<i>508</i>&nbsp;                    case 7:
+<b class="fc"><i>509</i>&nbsp;                        charBuffer[charsOffset++] = (char) c;</b>
+<b class="fc"><i>510</i>&nbsp;                        offsetByteArray++;</b>
+<b class="fc"><i>511</i>&nbsp;                        break;</b>
+<i>512</i>&nbsp;                    case 12:
+<i>513</i>&nbsp;                    case 13:
+<b class="nc"><i>514</i>&nbsp;                        missingFromPartial = 2 - (bufferedBytesRemaining - i);</b>
+<b class="nc"><i>515</i>&nbsp;                        if (missingFromPartial == 0) {</b>
+<b class="nc"><i>516</i>&nbsp;                            offsetByteArray++;</b>
+<b class="nc"><i>517</i>&nbsp;                            charBuffer[charsOffset++] = (char) ((c &amp; 0x1F) &lt;&lt; 6 | byteBuffer[offsetByteArray++] &amp; 0x3F);</b>
+<i>518</i>&nbsp;                        }
+<b class="nc"><i>519</i>&nbsp;                        ++i;</b>
+<b class="nc"><i>520</i>&nbsp;                        break;</b>
+<i>521</i>&nbsp;                    case 14:
+<b class="nc"><i>522</i>&nbsp;                        missingFromPartial = 3 - (bufferedBytesRemaining - i);</b>
+<b class="nc"><i>523</i>&nbsp;                        ++i;</b>
+<b class="nc"><i>524</i>&nbsp;                        break;</b>
+<i>525</i>&nbsp;                    default:
+<b class="nc"><i>526</i>&nbsp;                        throwOnBrokenChar(c);</b>
+<i>527</i>&nbsp;                }
+<i>528</i>&nbsp;            }
+<b class="fc"><i>529</i>&nbsp;        }</b>
+<b class="fc"><i>530</i>&nbsp;        return charsRef.toString();</b>
+<i>531</i>&nbsp;    }
+<i>532</i>&nbsp;
+<i>533</i>&nbsp;    private static void throwOnBrokenChar(int c) throws IOException {
+<b class="nc"><i>534</i>&nbsp;        throw new IOException(&quot;Invalid string; unexpected character: &quot; + c + &quot; hex: &quot; + Integer.toHexString(c));</b>
+<i>535</i>&nbsp;    }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    public SecureString readSecureString() throws IOException {
+<b class="nc"><i>538</i>&nbsp;        BytesReference bytesRef = readBytesReference();</b>
+<b class="nc"><i>539</i>&nbsp;        byte[] bytes = BytesReference.toBytes(bytesRef);</b>
+<i>540</i>&nbsp;        try {
+<b class="nc"><i>541</i>&nbsp;            return new SecureString(CharArrays.utf8BytesToChars(bytes));</b>
+<i>542</i>&nbsp;        } finally {
+<b class="nc"><i>543</i>&nbsp;            Arrays.fill(bytes, (byte) 0);</b>
+<b class="nc"><i>544</i>&nbsp;        }</b>
+<i>545</i>&nbsp;    }
+<i>546</i>&nbsp;
+<i>547</i>&nbsp;    public final float readFloat() throws IOException {
+<b class="fc"><i>548</i>&nbsp;        return Float.intBitsToFloat(readInt());</b>
+<i>549</i>&nbsp;    }
+<i>550</i>&nbsp;
+<i>551</i>&nbsp;    public final double readDouble() throws IOException {
+<b class="fc"><i>552</i>&nbsp;        return Double.longBitsToDouble(readLong());</b>
+<i>553</i>&nbsp;    }
+<i>554</i>&nbsp;
+<i>555</i>&nbsp;    @Nullable
+<i>556</i>&nbsp;    public final Double readOptionalDouble() throws IOException {
+<b class="nc"><i>557</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>558</i>&nbsp;            return readDouble();</b>
+<i>559</i>&nbsp;        }
+<b class="nc"><i>560</i>&nbsp;        return null;</b>
+<i>561</i>&nbsp;    }
+<i>562</i>&nbsp;
+<i>563</i>&nbsp;    /**
+<i>564</i>&nbsp;     * Reads a boolean.
+<i>565</i>&nbsp;     */
+<i>566</i>&nbsp;    public final boolean readBoolean() throws IOException {
+<b class="fc"><i>567</i>&nbsp;        return readBoolean(readByte());</b>
+<i>568</i>&nbsp;    }
+<i>569</i>&nbsp;
+<i>570</i>&nbsp;    private boolean readBoolean(final byte value) {
+<b class="fc"><i>571</i>&nbsp;        if (value == 0) {</b>
+<b class="fc"><i>572</i>&nbsp;            return false;</b>
+<b class="fc"><i>573</i>&nbsp;        } else if (value == 1) {</b>
+<b class="fc"><i>574</i>&nbsp;            return true;</b>
+<i>575</i>&nbsp;        } else {
+<b class="nc"><i>576</i>&nbsp;            final String message = String.format(Locale.ROOT, &quot;unexpected byte [0x%02x]&quot;, value);</b>
+<b class="nc"><i>577</i>&nbsp;            throw new IllegalStateException(message);</b>
+<i>578</i>&nbsp;        }
+<i>579</i>&nbsp;    }
+<i>580</i>&nbsp;
+<i>581</i>&nbsp;    @Nullable
+<i>582</i>&nbsp;    public final Boolean readOptionalBoolean() throws IOException {
+<b class="nc"><i>583</i>&nbsp;        final byte value = readByte();</b>
+<b class="nc"><i>584</i>&nbsp;        if (value == 2) {</b>
+<b class="nc"><i>585</i>&nbsp;            return null;</b>
+<i>586</i>&nbsp;        } else {
+<b class="nc"><i>587</i>&nbsp;            return readBoolean(value);</b>
+<i>588</i>&nbsp;        }
+<i>589</i>&nbsp;    }
+<i>590</i>&nbsp;
+<i>591</i>&nbsp;    /**
+<i>592</i>&nbsp;     * Closes the stream to further operations.
+<i>593</i>&nbsp;     */
+<i>594</i>&nbsp;    @Override
+<i>595</i>&nbsp;    public abstract void close() throws IOException;
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;    @Override
+<i>598</i>&nbsp;    public abstract int available() throws IOException;
+<i>599</i>&nbsp;
+<i>600</i>&nbsp;    public String[] readStringArray() throws IOException {
+<b class="fc"><i>601</i>&nbsp;        int size = readArraySize();</b>
+<b class="fc"><i>602</i>&nbsp;        if (size == 0) {</b>
+<b class="fc"><i>603</i>&nbsp;            return Strings.EMPTY_ARRAY;</b>
+<i>604</i>&nbsp;        }
+<b class="fc"><i>605</i>&nbsp;        String[] ret = new String[size];</b>
+<b class="fc"><i>606</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="fc"><i>607</i>&nbsp;            ret[i] = readString();</b>
+<i>608</i>&nbsp;        }
+<b class="fc"><i>609</i>&nbsp;        return ret;</b>
+<i>610</i>&nbsp;    }
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;    @Nullable
+<i>613</i>&nbsp;    public String[] readOptionalStringArray() throws IOException {
+<b class="nc"><i>614</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>615</i>&nbsp;            return readStringArray();</b>
+<i>616</i>&nbsp;        }
+<b class="nc"><i>617</i>&nbsp;        return null;</b>
+<i>618</i>&nbsp;    }
+<i>619</i>&nbsp;
+<i>620</i>&nbsp;    /**
+<i>621</i>&nbsp;     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+<i>622</i>&nbsp;     */
+<i>623</i>&nbsp;    public &lt;K, V&gt; Map&lt;K, V&gt; readMap(Writeable.Reader&lt;K&gt; keyReader, Writeable.Reader&lt;V&gt; valueReader) throws IOException {
+<b class="nc"><i>624</i>&nbsp;        int size = readArraySize();</b>
+<b class="nc"><i>625</i>&nbsp;        if (size == 0) {</b>
+<b class="nc"><i>626</i>&nbsp;            return Collections.emptyMap();</b>
+<i>627</i>&nbsp;        }
+<b class="nc"><i>628</i>&nbsp;        Map&lt;K, V&gt; map = new HashMap&lt;&gt;(size);</b>
+<b class="nc"><i>629</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>630</i>&nbsp;            K key = keyReader.read(this);</b>
+<b class="nc"><i>631</i>&nbsp;            V value = valueReader.read(this);</b>
+<b class="nc"><i>632</i>&nbsp;            map.put(key, value);</b>
+<i>633</i>&nbsp;        }
+<b class="nc"><i>634</i>&nbsp;        return map;</b>
+<i>635</i>&nbsp;    }
+<i>636</i>&nbsp;
+<i>637</i>&nbsp;    /**
+<i>638</i>&nbsp;     * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+<i>639</i>&nbsp;     * &lt;pre&gt;&lt;code&gt;
+<i>640</i>&nbsp;     * Map&amp;lt;String, List&amp;lt;String&amp;gt;&amp;gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+<i>641</i>&nbsp;     * &lt;/code&gt;&lt;/pre&gt;
+<i>642</i>&nbsp;     * If the map or a list in it contains any elements it will be mutable, otherwise either the empty map or empty lists it contains
+<i>643</i>&nbsp;     * might be immutable.
+<i>644</i>&nbsp;     *
+<i>645</i>&nbsp;     * @param keyReader The key reader
+<i>646</i>&nbsp;     * @param valueReader The value reader
+<i>647</i>&nbsp;     * @return Never {@code null}.
+<i>648</i>&nbsp;     */
+<i>649</i>&nbsp;    public &lt;K, V&gt; Map&lt;K, List&lt;V&gt;&gt; readMapOfLists(final Writeable.Reader&lt;K&gt; keyReader, final Writeable.Reader&lt;V&gt; valueReader)
+<i>650</i>&nbsp;            throws IOException {
+<b class="nc"><i>651</i>&nbsp;        final int size = readArraySize();</b>
+<b class="nc"><i>652</i>&nbsp;        if (size == 0) {</b>
+<b class="nc"><i>653</i>&nbsp;            return Collections.emptyMap();</b>
+<i>654</i>&nbsp;        }
+<b class="nc"><i>655</i>&nbsp;        final Map&lt;K, List&lt;V&gt;&gt; map = new HashMap&lt;&gt;(size);</b>
+<b class="nc"><i>656</i>&nbsp;        for (int i = 0; i &lt; size; ++i) {</b>
+<b class="nc"><i>657</i>&nbsp;            map.put(keyReader.read(this), readList(valueReader));</b>
+<i>658</i>&nbsp;        }
+<b class="nc"><i>659</i>&nbsp;        return map;</b>
+<i>660</i>&nbsp;    }
+<i>661</i>&nbsp;
+<i>662</i>&nbsp;    /**
+<i>663</i>&nbsp;     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+<i>664</i>&nbsp;     */
+<i>665</i>&nbsp;    @Nullable
+<i>666</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>667</i>&nbsp;    public Map&lt;String, Object&gt; readMap() throws IOException {
+<b class="fc"><i>668</i>&nbsp;        return (Map&lt;String, Object&gt;) readGenericValue();</b>
+<i>669</i>&nbsp;    }
+<i>670</i>&nbsp;
+<i>671</i>&nbsp;    /**
+<i>672</i>&nbsp;     * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
+<i>673</i>&nbsp;     * be immutable if it is empty.
+<i>674</i>&nbsp;     */
+<i>675</i>&nbsp;    @Nullable
+<i>676</i>&nbsp;    public Object readGenericValue() throws IOException {
+<b class="fc"><i>677</i>&nbsp;        byte type = readByte();</b>
+<b class="fc"><i>678</i>&nbsp;        switch (type) {</b>
+<i>679</i>&nbsp;            case -1:
+<b class="fc"><i>680</i>&nbsp;                return null;</b>
+<i>681</i>&nbsp;            case 0:
+<b class="fc"><i>682</i>&nbsp;                return readString();</b>
+<i>683</i>&nbsp;            case 1:
+<b class="nc"><i>684</i>&nbsp;                return readInt();</b>
+<i>685</i>&nbsp;            case 2:
+<b class="nc"><i>686</i>&nbsp;                return readLong();</b>
+<i>687</i>&nbsp;            case 3:
+<b class="nc"><i>688</i>&nbsp;                return readFloat();</b>
+<i>689</i>&nbsp;            case 4:
+<b class="nc"><i>690</i>&nbsp;                return readDouble();</b>
+<i>691</i>&nbsp;            case 5:
+<b class="nc"><i>692</i>&nbsp;                return readBoolean();</b>
+<i>693</i>&nbsp;            case 6:
+<b class="nc"><i>694</i>&nbsp;                return readByteArray();</b>
+<i>695</i>&nbsp;            case 7:
+<b class="nc"><i>696</i>&nbsp;                return readArrayList();</b>
+<i>697</i>&nbsp;            case 8:
+<b class="nc"><i>698</i>&nbsp;                return readArray();</b>
+<i>699</i>&nbsp;            case 9:
+<b class="nc"><i>700</i>&nbsp;                return readLinkedHashMap();</b>
+<i>701</i>&nbsp;            case 10:
+<b class="fc"><i>702</i>&nbsp;                return readHashMap();</b>
+<i>703</i>&nbsp;            case 11:
+<b class="nc"><i>704</i>&nbsp;                return readByte();</b>
+<i>705</i>&nbsp;            case 12:
+<b class="nc"><i>706</i>&nbsp;                return readDate();</b>
+<i>707</i>&nbsp;            case 13:
+<b class="nc"><i>708</i>&nbsp;                return readDateTime();</b>
+<i>709</i>&nbsp;            case 14:
+<b class="nc"><i>710</i>&nbsp;                return readBytesReference();</b>
+<i>711</i>&nbsp;            case 15:
+<b class="nc"><i>712</i>&nbsp;                return readText();</b>
+<i>713</i>&nbsp;            case 16:
+<b class="nc"><i>714</i>&nbsp;                return readShort();</b>
+<i>715</i>&nbsp;            case 17:
+<b class="nc"><i>716</i>&nbsp;                return readIntArray();</b>
+<i>717</i>&nbsp;            case 18:
+<b class="nc"><i>718</i>&nbsp;                return readLongArray();</b>
+<i>719</i>&nbsp;            case 19:
+<b class="nc"><i>720</i>&nbsp;                return readFloatArray();</b>
+<i>721</i>&nbsp;            case 20:
+<b class="nc"><i>722</i>&nbsp;                return readDoubleArray();</b>
+<i>723</i>&nbsp;            case 21:
+<b class="nc"><i>724</i>&nbsp;                return readBytesRef();</b>
+<i>725</i>&nbsp;            case 22:
+<b class="nc"><i>726</i>&nbsp;                return readGeoPoint();</b>
+<i>727</i>&nbsp;            case 23:
+<b class="nc"><i>728</i>&nbsp;                return readZonedDateTime();</b>
+<i>729</i>&nbsp;            default:
+<b class="nc"><i>730</i>&nbsp;                throw new IOException(&quot;Can&#39;t read unknown type [&quot; + type + &quot;]&quot;);</b>
+<i>731</i>&nbsp;        }
+<i>732</i>&nbsp;    }
+<i>733</i>&nbsp;
+<i>734</i>&nbsp;    /**
+<i>735</i>&nbsp;     * Read an {@link Instant} from the stream with nanosecond resolution
+<i>736</i>&nbsp;     */
+<i>737</i>&nbsp;    public final Instant readInstant() throws IOException {
+<b class="nc"><i>738</i>&nbsp;        return Instant.ofEpochSecond(readLong(), readInt());</b>
+<i>739</i>&nbsp;    }
+<i>740</i>&nbsp;
+<i>741</i>&nbsp;    /**
+<i>742</i>&nbsp;     * Read an optional {@link Instant} from the stream. Returns &lt;code&gt;null&lt;/code&gt; when
+<i>743</i>&nbsp;     * no instant is present.
+<i>744</i>&nbsp;     */
+<i>745</i>&nbsp;    @Nullable
+<i>746</i>&nbsp;    public final Instant readOptionalInstant() throws IOException {
+<b class="nc"><i>747</i>&nbsp;        final boolean present = readBoolean();</b>
+<b class="nc"><i>748</i>&nbsp;        return present ? readInstant() : null;</b>
+<i>749</i>&nbsp;    }
+<i>750</i>&nbsp;
+<i>751</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>752</i>&nbsp;    private List readArrayList() throws IOException {
+<b class="nc"><i>753</i>&nbsp;        int size = readArraySize();</b>
+<b class="nc"><i>754</i>&nbsp;        if (size == 0) {</b>
+<b class="nc"><i>755</i>&nbsp;            return Collections.emptyList();</b>
+<i>756</i>&nbsp;        }
+<b class="nc"><i>757</i>&nbsp;        List list = new ArrayList(size);</b>
+<b class="nc"><i>758</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>759</i>&nbsp;            list.add(readGenericValue());</b>
+<i>760</i>&nbsp;        }
+<b class="nc"><i>761</i>&nbsp;        return list;</b>
+<i>762</i>&nbsp;    }
+<i>763</i>&nbsp;
+<i>764</i>&nbsp;    private DateTime readDateTime() throws IOException {
+<b class="nc"><i>765</i>&nbsp;        final String timeZoneId = readString();</b>
+<b class="nc"><i>766</i>&nbsp;        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));</b>
+<i>767</i>&nbsp;    }
+<i>768</i>&nbsp;
+<i>769</i>&nbsp;    private ZonedDateTime readZonedDateTime() throws IOException {
+<b class="nc"><i>770</i>&nbsp;        final String timeZoneId = readString();</b>
+<b class="nc"><i>771</i>&nbsp;        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));</b>
+<i>772</i>&nbsp;    }
+<i>773</i>&nbsp;
+<b class="fc"><i>774</i>&nbsp;    private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];</b>
+<i>775</i>&nbsp;
+<i>776</i>&nbsp;    private Object[] readArray() throws IOException {
+<b class="nc"><i>777</i>&nbsp;        int size8 = readArraySize();</b>
+<b class="nc"><i>778</i>&nbsp;        if (size8 == 0) {</b>
+<b class="nc"><i>779</i>&nbsp;            return EMPTY_OBJECT_ARRAY;</b>
+<i>780</i>&nbsp;        }
+<b class="nc"><i>781</i>&nbsp;        Object[] list8 = new Object[size8];</b>
+<b class="nc"><i>782</i>&nbsp;        for (int i = 0; i &lt; size8; i++) {</b>
+<b class="nc"><i>783</i>&nbsp;            list8[i] = readGenericValue();</b>
+<i>784</i>&nbsp;        }
+<b class="nc"><i>785</i>&nbsp;        return list8;</b>
+<i>786</i>&nbsp;    }
+<i>787</i>&nbsp;
+<i>788</i>&nbsp;    private Map readLinkedHashMap() throws IOException {
+<b class="nc"><i>789</i>&nbsp;        int size9 = readArraySize();</b>
+<b class="nc"><i>790</i>&nbsp;        if (size9 == 0) {</b>
+<b class="nc"><i>791</i>&nbsp;            return Collections.emptyMap();</b>
+<i>792</i>&nbsp;        }
+<b class="nc"><i>793</i>&nbsp;        Map map9 = new LinkedHashMap(size9);</b>
+<b class="nc"><i>794</i>&nbsp;        for (int i = 0; i &lt; size9; i++) {</b>
+<b class="nc"><i>795</i>&nbsp;            map9.put(readString(), readGenericValue());</b>
+<i>796</i>&nbsp;        }
+<b class="nc"><i>797</i>&nbsp;        return map9;</b>
+<i>798</i>&nbsp;    }
+<i>799</i>&nbsp;
+<i>800</i>&nbsp;    private Map readHashMap() throws IOException {
+<b class="fc"><i>801</i>&nbsp;        int size10 = readArraySize();</b>
+<b class="fc"><i>802</i>&nbsp;        if (size10 == 0) {</b>
+<b class="fc"><i>803</i>&nbsp;            return Collections.emptyMap();</b>
+<i>804</i>&nbsp;        }
+<b class="fc"><i>805</i>&nbsp;        Map map10 = new HashMap(size10);</b>
+<b class="fc"><i>806</i>&nbsp;        for (int i = 0; i &lt; size10; i++) {</b>
+<b class="fc"><i>807</i>&nbsp;            map10.put(readString(), readGenericValue());</b>
+<i>808</i>&nbsp;        }
+<b class="fc"><i>809</i>&nbsp;        return map10;</b>
+<i>810</i>&nbsp;    }
+<i>811</i>&nbsp;
+<i>812</i>&nbsp;    private Date readDate() throws IOException {
+<b class="nc"><i>813</i>&nbsp;        return new Date(readLong());</b>
+<i>814</i>&nbsp;    }
+<i>815</i>&nbsp;
+<i>816</i>&nbsp;    /**
+<i>817</i>&nbsp;     * Reads a {@link GeoPoint} from this stream input
+<i>818</i>&nbsp;     */
+<i>819</i>&nbsp;    public GeoPoint readGeoPoint() throws IOException {
+<b class="nc"><i>820</i>&nbsp;        return new GeoPoint(readDouble(), readDouble());</b>
+<i>821</i>&nbsp;    }
+<i>822</i>&nbsp;
+<i>823</i>&nbsp;    /**
+<i>824</i>&nbsp;     * Read a {@linkplain DateTimeZone}.
+<i>825</i>&nbsp;     */
+<i>826</i>&nbsp;    public DateTimeZone readTimeZone() throws IOException {
+<b class="nc"><i>827</i>&nbsp;        return DateTimeZone.forID(readString());</b>
+<i>828</i>&nbsp;    }
+<i>829</i>&nbsp;
+<i>830</i>&nbsp;    /**
+<i>831</i>&nbsp;     * Read an optional {@linkplain DateTimeZone}.
+<i>832</i>&nbsp;     */
+<i>833</i>&nbsp;    public DateTimeZone readOptionalTimeZone() throws IOException {
+<b class="nc"><i>834</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>835</i>&nbsp;            return DateTimeZone.forID(readString());</b>
+<i>836</i>&nbsp;        }
+<b class="nc"><i>837</i>&nbsp;        return null;</b>
+<i>838</i>&nbsp;    }
+<i>839</i>&nbsp;
+<i>840</i>&nbsp;    /**
+<i>841</i>&nbsp;     * Read a {@linkplain DateTimeZone}.
+<i>842</i>&nbsp;     */
+<i>843</i>&nbsp;    public ZoneId readZoneId() throws IOException {
+<b class="nc"><i>844</i>&nbsp;        return ZoneId.of(readString());</b>
+<i>845</i>&nbsp;    }
+<i>846</i>&nbsp;
+<i>847</i>&nbsp;    /**
+<i>848</i>&nbsp;     * Read an optional {@linkplain ZoneId}.
+<i>849</i>&nbsp;     */
+<i>850</i>&nbsp;    public ZoneId readOptionalZoneId() throws IOException {
+<b class="fc"><i>851</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>852</i>&nbsp;            return ZoneId.of(readString());</b>
+<i>853</i>&nbsp;        }
+<b class="fc"><i>854</i>&nbsp;        return null;</b>
+<i>855</i>&nbsp;    }
+<i>856</i>&nbsp;
+<b class="fc"><i>857</i>&nbsp;    private static final int[] EMPTY_INT_ARRAY = new int[0];</b>
+<i>858</i>&nbsp;
+<i>859</i>&nbsp;    public int[] readIntArray() throws IOException {
+<b class="nc"><i>860</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>861</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>862</i>&nbsp;            return EMPTY_INT_ARRAY;</b>
+<i>863</i>&nbsp;        }
+<b class="nc"><i>864</i>&nbsp;        int[] values = new int[length];</b>
+<b class="nc"><i>865</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="nc"><i>866</i>&nbsp;            values[i] = readInt();</b>
+<i>867</i>&nbsp;        }
+<b class="nc"><i>868</i>&nbsp;        return values;</b>
+<i>869</i>&nbsp;    }
+<i>870</i>&nbsp;
+<i>871</i>&nbsp;    public int[] readVIntArray() throws IOException {
+<b class="nc"><i>872</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>873</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>874</i>&nbsp;            return EMPTY_INT_ARRAY;</b>
+<i>875</i>&nbsp;        }
+<b class="nc"><i>876</i>&nbsp;        int[] values = new int[length];</b>
+<b class="nc"><i>877</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="nc"><i>878</i>&nbsp;            values[i] = readVInt();</b>
+<i>879</i>&nbsp;        }
+<b class="nc"><i>880</i>&nbsp;        return values;</b>
+<i>881</i>&nbsp;    }
+<i>882</i>&nbsp;
+<b class="fc"><i>883</i>&nbsp;    private static final long[] EMPTY_LONG_ARRAY = new long[0];</b>
+<i>884</i>&nbsp;
+<i>885</i>&nbsp;    public long[] readLongArray() throws IOException {
+<b class="nc"><i>886</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>887</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>888</i>&nbsp;            return EMPTY_LONG_ARRAY;</b>
+<i>889</i>&nbsp;        }
+<b class="nc"><i>890</i>&nbsp;        long[] values = new long[length];</b>
+<b class="nc"><i>891</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="nc"><i>892</i>&nbsp;            values[i] = readLong();</b>
+<i>893</i>&nbsp;        }
+<b class="nc"><i>894</i>&nbsp;        return values;</b>
+<i>895</i>&nbsp;    }
+<i>896</i>&nbsp;
+<i>897</i>&nbsp;    public long[] readVLongArray() throws IOException {
+<b class="fc"><i>898</i>&nbsp;        int length = readArraySize();</b>
+<b class="fc"><i>899</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>900</i>&nbsp;            return EMPTY_LONG_ARRAY;</b>
+<i>901</i>&nbsp;        }
+<b class="fc"><i>902</i>&nbsp;        long[] values = new long[length];</b>
+<b class="fc"><i>903</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="fc"><i>904</i>&nbsp;            values[i] = readVLong();</b>
+<i>905</i>&nbsp;        }
+<b class="fc"><i>906</i>&nbsp;        return values;</b>
+<i>907</i>&nbsp;    }
+<i>908</i>&nbsp;
+<b class="fc"><i>909</i>&nbsp;    private static final float[] EMPTY_FLOAT_ARRAY = new float[0];</b>
+<i>910</i>&nbsp;
+<i>911</i>&nbsp;    public float[] readFloatArray() throws IOException {
+<b class="nc"><i>912</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>913</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>914</i>&nbsp;            return EMPTY_FLOAT_ARRAY;</b>
+<i>915</i>&nbsp;        }
+<b class="nc"><i>916</i>&nbsp;        float[] values = new float[length];</b>
+<b class="nc"><i>917</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="nc"><i>918</i>&nbsp;            values[i] = readFloat();</b>
+<i>919</i>&nbsp;        }
+<b class="nc"><i>920</i>&nbsp;        return values;</b>
+<i>921</i>&nbsp;    }
+<i>922</i>&nbsp;
+<b class="fc"><i>923</i>&nbsp;    private static final double[] EMPTY_DOUBLE_ARRAY = new double[0];</b>
+<i>924</i>&nbsp;
+<i>925</i>&nbsp;    public double[] readDoubleArray() throws IOException {
+<b class="nc"><i>926</i>&nbsp;        int length = readArraySize();</b>
+<b class="nc"><i>927</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>928</i>&nbsp;            return EMPTY_DOUBLE_ARRAY;</b>
+<i>929</i>&nbsp;        }
+<b class="nc"><i>930</i>&nbsp;        double[] values = new double[length];</b>
+<b class="nc"><i>931</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="nc"><i>932</i>&nbsp;            values[i] = readDouble();</b>
+<i>933</i>&nbsp;        }
+<b class="nc"><i>934</i>&nbsp;        return values;</b>
+<i>935</i>&nbsp;    }
+<i>936</i>&nbsp;
+<b class="fc"><i>937</i>&nbsp;    private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];</b>
+<i>938</i>&nbsp;
+<i>939</i>&nbsp;    public byte[] readByteArray() throws IOException {
+<b class="fc"><i>940</i>&nbsp;        final int length = readArraySize();</b>
+<b class="fc"><i>941</i>&nbsp;        if (length == 0) {</b>
+<b class="nc"><i>942</i>&nbsp;            return EMPTY_BYTE_ARRAY;</b>
+<i>943</i>&nbsp;        }
+<b class="fc"><i>944</i>&nbsp;        final byte[] bytes = new byte[length];</b>
+<b class="fc"><i>945</i>&nbsp;        readBytes(bytes, 0, bytes.length);</b>
+<b class="fc"><i>946</i>&nbsp;        return bytes;</b>
+<i>947</i>&nbsp;    }
+<i>948</i>&nbsp;
+<i>949</i>&nbsp;    /**
+<i>950</i>&nbsp;     * Reads an array from the stream using the specified {@link org.elasticsearch.common.io.stream.Writeable.Reader} to read array elements
+<i>951</i>&nbsp;     * from the stream. This method can be seen as the reader version of {@link StreamOutput#writeArray(Writeable.Writer, Object[])}. It is
+<i>952</i>&nbsp;     * assumed that the stream first contains a variable-length integer representing the size of the array, and then contains that many
+<i>953</i>&nbsp;     * elements that can be read from the stream.
+<i>954</i>&nbsp;     *
+<i>955</i>&nbsp;     * @param reader        the reader used to read individual elements
+<i>956</i>&nbsp;     * @param arraySupplier a supplier used to construct a new array
+<i>957</i>&nbsp;     * @param &lt;T&gt;           the type of the elements of the array
+<i>958</i>&nbsp;     * @return an array read from the stream
+<i>959</i>&nbsp;     * @throws IOException if an I/O exception occurs while reading the array
+<i>960</i>&nbsp;     */
+<i>961</i>&nbsp;    public &lt;T&gt; T[] readArray(final Writeable.Reader&lt;T&gt; reader, final IntFunction&lt;T[]&gt; arraySupplier) throws IOException {
+<b class="nc"><i>962</i>&nbsp;        final int length = readArraySize();</b>
+<b class="nc"><i>963</i>&nbsp;        final T[] values = arraySupplier.apply(length);</b>
+<b class="nc"><i>964</i>&nbsp;        for (int i = 0; i &lt; length; i++) {</b>
+<b class="nc"><i>965</i>&nbsp;            values[i] = reader.read(this);</b>
+<i>966</i>&nbsp;        }
+<b class="nc"><i>967</i>&nbsp;        return values;</b>
+<i>968</i>&nbsp;    }
+<i>969</i>&nbsp;
+<i>970</i>&nbsp;    public &lt;T&gt; T[] readOptionalArray(Writeable.Reader&lt;T&gt; reader, IntFunction&lt;T[]&gt; arraySupplier) throws IOException {
+<b class="nc"><i>971</i>&nbsp;        return readBoolean() ? readArray(reader, arraySupplier) : null;</b>
+<i>972</i>&nbsp;    }
+<i>973</i>&nbsp;
+<i>974</i>&nbsp;    @Nullable
+<i>975</i>&nbsp;    public &lt;T extends Writeable&gt; T readOptionalWriteable(Writeable.Reader&lt;T&gt; reader) throws IOException {
+<b class="fc"><i>976</i>&nbsp;        if (readBoolean()) {</b>
+<b class="fc"><i>977</i>&nbsp;            T t = reader.read(this);</b>
+<b class="fc"><i>978</i>&nbsp;            if (t == null) {</b>
+<b class="nc"><i>979</i>&nbsp;                throw new IOException(&quot;Writeable.Reader [&quot; + reader</b>
+<i>980</i>&nbsp;                        + &quot;] returned null which is not allowed and probably means it screwed up the stream.&quot;);
+<i>981</i>&nbsp;            }
+<b class="fc"><i>982</i>&nbsp;            return t;</b>
+<i>983</i>&nbsp;        } else {
+<b class="fc"><i>984</i>&nbsp;            return null;</b>
+<i>985</i>&nbsp;        }
+<i>986</i>&nbsp;    }
+<i>987</i>&nbsp;
+<i>988</i>&nbsp;    public &lt;T extends Exception&gt; T readException() throws IOException {
+<b class="fc"><i>989</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>990</i>&nbsp;            int key = readVInt();</b>
+<b class="nc"><i>991</i>&nbsp;            switch (key) {</b>
+<i>992</i>&nbsp;                case 0:
+<b class="nc"><i>993</i>&nbsp;                    final int ord = readVInt();</b>
+<b class="nc"><i>994</i>&nbsp;                    return (T) ElasticsearchException.readException(this, ord);</b>
+<i>995</i>&nbsp;                case 1:
+<b class="nc"><i>996</i>&nbsp;                    String msg1 = readOptionalString();</b>
+<b class="nc"><i>997</i>&nbsp;                    String resource1 = readOptionalString();</b>
+<b class="nc"><i>998</i>&nbsp;                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readException()), this);</b>
+<i>999</i>&nbsp;                case 2:
+<b class="nc"><i>1000</i>&nbsp;                    String resource2 = readOptionalString();</b>
+<b class="nc"><i>1001</i>&nbsp;                    int version2 = readInt();</b>
+<b class="nc"><i>1002</i>&nbsp;                    int minVersion2 = readInt();</b>
+<b class="nc"><i>1003</i>&nbsp;                    int maxVersion2 = readInt();</b>
+<b class="nc"><i>1004</i>&nbsp;                    return (T) readStackTrace(new IndexFormatTooNewException(resource2, version2, minVersion2, maxVersion2), this);</b>
+<i>1005</i>&nbsp;                case 3:
+<b class="nc"><i>1006</i>&nbsp;                    String resource3 = readOptionalString();</b>
+<b class="nc"><i>1007</i>&nbsp;                    if (readBoolean()) {</b>
+<b class="nc"><i>1008</i>&nbsp;                        int version3 = readInt();</b>
+<b class="nc"><i>1009</i>&nbsp;                        int minVersion3 = readInt();</b>
+<b class="nc"><i>1010</i>&nbsp;                        int maxVersion3 = readInt();</b>
+<b class="nc"><i>1011</i>&nbsp;                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3, minVersion3, maxVersion3), this);</b>
+<i>1012</i>&nbsp;                    } else {
+<b class="nc"><i>1013</i>&nbsp;                        String version3 = readOptionalString();</b>
+<b class="nc"><i>1014</i>&nbsp;                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3), this);</b>
+<i>1015</i>&nbsp;                    }
+<i>1016</i>&nbsp;                case 4:
+<b class="nc"><i>1017</i>&nbsp;                    return (T) readStackTrace(new NullPointerException(readOptionalString()), this);</b>
+<i>1018</i>&nbsp;                case 5:
+<b class="nc"><i>1019</i>&nbsp;                    return (T) readStackTrace(new NumberFormatException(readOptionalString()), this);</b>
+<i>1020</i>&nbsp;                case 6:
+<b class="nc"><i>1021</i>&nbsp;                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readException()), this);</b>
+<i>1022</i>&nbsp;                case 7:
+<b class="nc"><i>1023</i>&nbsp;                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readException()), this);</b>
+<i>1024</i>&nbsp;                case 8:
+<b class="nc"><i>1025</i>&nbsp;                    return (T) readStackTrace(new EOFException(readOptionalString()), this);</b>
+<i>1026</i>&nbsp;                case 9:
+<b class="nc"><i>1027</i>&nbsp;                    return (T) readStackTrace(new SecurityException(readOptionalString(), readException()), this);</b>
+<i>1028</i>&nbsp;                case 10:
+<b class="nc"><i>1029</i>&nbsp;                    return (T) readStackTrace(new StringIndexOutOfBoundsException(readOptionalString()), this);</b>
+<i>1030</i>&nbsp;                case 11:
+<b class="nc"><i>1031</i>&nbsp;                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(readOptionalString()), this);</b>
+<i>1032</i>&nbsp;                case 12:
+<b class="nc"><i>1033</i>&nbsp;                    return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);</b>
+<i>1034</i>&nbsp;                case 13:
+<b class="nc"><i>1035</i>&nbsp;                    final int subclass = readVInt();</b>
+<b class="nc"><i>1036</i>&nbsp;                    final String file = readOptionalString();</b>
+<b class="nc"><i>1037</i>&nbsp;                    final String other = readOptionalString();</b>
+<b class="nc"><i>1038</i>&nbsp;                    final String reason = readOptionalString();</b>
+<b class="nc"><i>1039</i>&nbsp;                    readOptionalString(); // skip the msg - it&#39;s composed from file, other and reason</b>
+<i>1040</i>&nbsp;                    final Exception exception;
+<b class="nc"><i>1041</i>&nbsp;                    switch (subclass) {</b>
+<i>1042</i>&nbsp;                        case 0:
+<b class="nc"><i>1043</i>&nbsp;                            exception = new NoSuchFileException(file, other, reason);</b>
+<b class="nc"><i>1044</i>&nbsp;                            break;</b>
+<i>1045</i>&nbsp;                        case 1:
+<b class="nc"><i>1046</i>&nbsp;                            exception = new NotDirectoryException(file);</b>
+<b class="nc"><i>1047</i>&nbsp;                            break;</b>
+<i>1048</i>&nbsp;                        case 2:
+<b class="nc"><i>1049</i>&nbsp;                            exception = new DirectoryNotEmptyException(file);</b>
+<b class="nc"><i>1050</i>&nbsp;                            break;</b>
+<i>1051</i>&nbsp;                        case 3:
+<b class="nc"><i>1052</i>&nbsp;                            exception = new AtomicMoveNotSupportedException(file, other, reason);</b>
+<b class="nc"><i>1053</i>&nbsp;                            break;</b>
+<i>1054</i>&nbsp;                        case 4:
+<b class="nc"><i>1055</i>&nbsp;                            exception = new FileAlreadyExistsException(file, other, reason);</b>
+<b class="nc"><i>1056</i>&nbsp;                            break;</b>
+<i>1057</i>&nbsp;                        case 5:
+<b class="nc"><i>1058</i>&nbsp;                            exception = new AccessDeniedException(file, other, reason);</b>
+<b class="nc"><i>1059</i>&nbsp;                            break;</b>
+<i>1060</i>&nbsp;                        case 6:
+<b class="nc"><i>1061</i>&nbsp;                            exception = new FileSystemLoopException(file);</b>
+<b class="nc"><i>1062</i>&nbsp;                            break;</b>
+<i>1063</i>&nbsp;                        case 7:
+<b class="nc"><i>1064</i>&nbsp;                            exception = new FileSystemException(file, other, reason);</b>
+<b class="nc"><i>1065</i>&nbsp;                            break;</b>
+<i>1066</i>&nbsp;                        default:
+<b class="nc"><i>1067</i>&nbsp;                            throw new IllegalStateException(&quot;unknown FileSystemException with index &quot; + subclass);</b>
+<i>1068</i>&nbsp;                    }
+<b class="nc"><i>1069</i>&nbsp;                    return (T) readStackTrace(exception, this);</b>
+<i>1070</i>&nbsp;                case 14:
+<b class="nc"><i>1071</i>&nbsp;                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readException()), this);</b>
+<i>1072</i>&nbsp;                case 15:
+<b class="nc"><i>1073</i>&nbsp;                    return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readException()), this);</b>
+<i>1074</i>&nbsp;                case 16:
+<b class="nc"><i>1075</i>&nbsp;                    return (T) readStackTrace(new InterruptedException(readOptionalString()), this);</b>
+<i>1076</i>&nbsp;                case 17:
+<b class="nc"><i>1077</i>&nbsp;                    return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);</b>
+<i>1078</i>&nbsp;                case 18:
+<b class="nc"><i>1079</i>&nbsp;                    final boolean isExecutorShutdown = readBoolean();</b>
+<b class="nc"><i>1080</i>&nbsp;                    return (T) readStackTrace(new EsRejectedExecutionException(readOptionalString(), isExecutorShutdown), this);</b>
+<i>1081</i>&nbsp;                default:
+<b class="nc"><i>1082</i>&nbsp;                    throw new IOException(&quot;no such exception for id: &quot; + key);</b>
+<i>1083</i>&nbsp;            }
+<i>1084</i>&nbsp;        }
+<b class="fc"><i>1085</i>&nbsp;        return null;</b>
+<i>1086</i>&nbsp;    }
+<i>1087</i>&nbsp;
+<i>1088</i>&nbsp;    /**
+<i>1089</i>&nbsp;     * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
+<i>1090</i>&nbsp;     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+<i>1091</i>&nbsp;     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn&#39;t hold a registry.
+<i>1092</i>&nbsp;     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
+<i>1093</i>&nbsp;     */
+<i>1094</i>&nbsp;    @Nullable
+<i>1095</i>&nbsp;    public &lt;C extends NamedWriteable&gt; C readNamedWriteable(@SuppressWarnings(&quot;unused&quot;) Class&lt;C&gt; categoryClass) throws IOException {
+<b class="nc"><i>1096</i>&nbsp;        throw new UnsupportedOperationException(&quot;can&#39;t read named writeable from StreamInput&quot;);</b>
+<i>1097</i>&nbsp;    }
+<i>1098</i>&nbsp;
+<i>1099</i>&nbsp;    /**
+<i>1100</i>&nbsp;     * Reads a {@link NamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
+<i>1101</i>&nbsp;     * from other source, so it&#39;s not read from the stream. The name is used for looking for
+<i>1102</i>&nbsp;     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+<i>1103</i>&nbsp;     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn&#39;t hold a registry.
+<i>1104</i>&nbsp;     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
+<i>1105</i>&nbsp;     *
+<i>1106</i>&nbsp;     * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
+<i>1107</i>&nbsp;     * have a compelling reason to use this method instead.
+<i>1108</i>&nbsp;     */
+<i>1109</i>&nbsp;    @Nullable
+<i>1110</i>&nbsp;    public &lt;C extends NamedWriteable&gt; C readNamedWriteable(@SuppressWarnings(&quot;unused&quot;) Class&lt;C&gt; categoryClass,
+<i>1111</i>&nbsp;                                                           @SuppressWarnings(&quot;unused&quot;) String name) throws IOException {
+<b class="nc"><i>1112</i>&nbsp;        throw new UnsupportedOperationException(&quot;can&#39;t read named writeable from StreamInput&quot;);</b>
+<i>1113</i>&nbsp;    }
+<i>1114</i>&nbsp;
+<i>1115</i>&nbsp;    /**
+<i>1116</i>&nbsp;     * Reads an optional {@link NamedWriteable}.
+<i>1117</i>&nbsp;     */
+<i>1118</i>&nbsp;    @Nullable
+<i>1119</i>&nbsp;    public &lt;C extends NamedWriteable&gt; C readOptionalNamedWriteable(Class&lt;C&gt; categoryClass) throws IOException {
+<b class="fc"><i>1120</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>1121</i>&nbsp;            return readNamedWriteable(categoryClass);</b>
+<i>1122</i>&nbsp;        }
+<b class="fc"><i>1123</i>&nbsp;        return null;</b>
+<i>1124</i>&nbsp;    }
+<i>1125</i>&nbsp;
+<i>1126</i>&nbsp;    /**
+<i>1127</i>&nbsp;     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+<i>1128</i>&nbsp;     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
+<i>1129</i>&nbsp;     *
+<i>1130</i>&nbsp;     * @return the list of objects
+<i>1131</i>&nbsp;     * @throws IOException if an I/O exception occurs reading the list
+<i>1132</i>&nbsp;     */
+<i>1133</i>&nbsp;    public &lt;T&gt; List&lt;T&gt; readList(final Writeable.Reader&lt;T&gt; reader) throws IOException {
+<b class="fc"><i>1134</i>&nbsp;        return readCollection(reader, ArrayList::new, Collections.emptyList());</b>
+<i>1135</i>&nbsp;    }
+<i>1136</i>&nbsp;
+<i>1137</i>&nbsp;    /**
+<i>1138</i>&nbsp;     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+<i>1139</i>&nbsp;     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
+<i>1140</i>&nbsp;     *
+<i>1141</i>&nbsp;     * @return the list of strings
+<i>1142</i>&nbsp;     * @throws IOException if an I/O exception occurs reading the list
+<i>1143</i>&nbsp;     */
+<i>1144</i>&nbsp;    public List&lt;String&gt; readStringList() throws IOException {
+<b class="fc"><i>1145</i>&nbsp;        return readList(StreamInput::readString);</b>
+<i>1146</i>&nbsp;    }
+<i>1147</i>&nbsp;
+<i>1148</i>&nbsp;    /**
+<i>1149</i>&nbsp;     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
+<i>1150</i>&nbsp;     */
+<i>1151</i>&nbsp;    public &lt;T&gt; Set&lt;T&gt; readSet(Writeable.Reader&lt;T&gt; reader) throws IOException {
+<b class="fc"><i>1152</i>&nbsp;        return readCollection(reader, HashSet::new, Collections.emptySet());</b>
+<i>1153</i>&nbsp;    }
+<i>1154</i>&nbsp;
+<i>1155</i>&nbsp;    /**
+<i>1156</i>&nbsp;     * Reads a collection of objects
+<i>1157</i>&nbsp;     */
+<i>1158</i>&nbsp;    private &lt;T, C extends Collection&lt;? super T&gt;&gt; C readCollection(Writeable.Reader&lt;T&gt; reader,
+<i>1159</i>&nbsp;                                                                  IntFunction&lt;C&gt; constructor,
+<i>1160</i>&nbsp;                                                                  C empty) throws IOException {
+<b class="fc"><i>1161</i>&nbsp;        int count = readArraySize();</b>
+<b class="fc"><i>1162</i>&nbsp;        if (count == 0) {</b>
+<b class="fc"><i>1163</i>&nbsp;            return empty;</b>
+<i>1164</i>&nbsp;        }
+<b class="fc"><i>1165</i>&nbsp;        C builder = constructor.apply(count);</b>
+<b class="fc"><i>1166</i>&nbsp;        for (int i=0; i&lt;count; i++) {</b>
+<b class="fc"><i>1167</i>&nbsp;            builder.add(reader.read(this));</b>
+<i>1168</i>&nbsp;        }
+<b class="fc"><i>1169</i>&nbsp;        return builder;</b>
+<i>1170</i>&nbsp;    }
+<i>1171</i>&nbsp;
+<i>1172</i>&nbsp;    /**
+<i>1173</i>&nbsp;     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
+<i>1174</i>&nbsp;     * If it is empty it might be immutable.
+<i>1175</i>&nbsp;     */
+<i>1176</i>&nbsp;    public &lt;T extends NamedWriteable&gt; List&lt;T&gt; readNamedWriteableList(Class&lt;T&gt; categoryClass) throws IOException {
+<b class="fc"><i>1177</i>&nbsp;        int count = readArraySize();</b>
+<b class="fc"><i>1178</i>&nbsp;        if (count == 0) {</b>
+<b class="fc"><i>1179</i>&nbsp;            return Collections.emptyList();</b>
+<i>1180</i>&nbsp;        }
+<b class="nc"><i>1181</i>&nbsp;        List&lt;T&gt; builder = new ArrayList&lt;&gt;(count);</b>
+<b class="nc"><i>1182</i>&nbsp;        for (int i=0; i&lt;count; i++) {</b>
+<b class="nc"><i>1183</i>&nbsp;            builder.add(readNamedWriteable(categoryClass));</b>
+<i>1184</i>&nbsp;        }
+<b class="nc"><i>1185</i>&nbsp;        return builder;</b>
+<i>1186</i>&nbsp;    }
+<i>1187</i>&nbsp;
+<i>1188</i>&nbsp;    /**
+<i>1189</i>&nbsp;     * Reads an enum with type E that was serialized based on the value of its ordinal
+<i>1190</i>&nbsp;     */
+<i>1191</i>&nbsp;    public &lt;E extends Enum&lt;E&gt;&gt; E readEnum(Class&lt;E&gt; enumClass) throws IOException {
+<b class="fc"><i>1192</i>&nbsp;        int ordinal = readVInt();</b>
+<b class="fc"><i>1193</i>&nbsp;        E[] values = enumClass.getEnumConstants();</b>
+<b class="fc"><i>1194</i>&nbsp;        if (ordinal &lt; 0 || ordinal &gt;= values.length) {</b>
+<b class="nc"><i>1195</i>&nbsp;            throw new IOException(&quot;Unknown &quot; + enumClass.getSimpleName() + &quot; ordinal [&quot; + ordinal + &quot;]&quot;);</b>
+<i>1196</i>&nbsp;        }
+<b class="fc"><i>1197</i>&nbsp;        return values[ordinal];</b>
+<i>1198</i>&nbsp;    }
+<i>1199</i>&nbsp;
+<i>1200</i>&nbsp;    /**
+<i>1201</i>&nbsp;     * Reads an enum with type E that was serialized based on the value of it&#39;s ordinal
+<i>1202</i>&nbsp;     */
+<i>1203</i>&nbsp;    public &lt;E extends Enum&lt;E&gt;&gt; EnumSet&lt;E&gt; readEnumSet(Class&lt;E&gt; enumClass) throws IOException {
+<b class="nc"><i>1204</i>&nbsp;        int size = readVInt();</b>
+<b class="nc"><i>1205</i>&nbsp;        if (size == 0) {</b>
+<b class="nc"><i>1206</i>&nbsp;             return EnumSet.noneOf(enumClass);</b>
+<i>1207</i>&nbsp;        }
+<b class="nc"><i>1208</i>&nbsp;        Set&lt;E&gt; enums = new HashSet&lt;&gt;(size);</b>
+<b class="nc"><i>1209</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>1210</i>&nbsp;            enums.add(readEnum(enumClass));</b>
+<i>1211</i>&nbsp;        }
+<b class="nc"><i>1212</i>&nbsp;        return EnumSet.copyOf(enums);</b>
+<i>1213</i>&nbsp;    }
+<i>1214</i>&nbsp;
+<i>1215</i>&nbsp;    public static StreamInput wrap(byte[] bytes) {
+<b class="nc"><i>1216</i>&nbsp;        return wrap(bytes, 0, bytes.length);</b>
+<i>1217</i>&nbsp;    }
+<i>1218</i>&nbsp;
+<i>1219</i>&nbsp;    public static StreamInput wrap(byte[] bytes, int offset, int length) {
+<b class="nc"><i>1220</i>&nbsp;        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length), length);</b>
+<i>1221</i>&nbsp;    }
+<i>1222</i>&nbsp;
+<i>1223</i>&nbsp;    /**
+<i>1224</i>&nbsp;     * Reads a vint via {@link #readVInt()} and applies basic checks to ensure the read array size is sane.
+<i>1225</i>&nbsp;     * This method uses {@link #ensureCanReadBytes(int)} to ensure this stream has enough bytes to read for the read array size.
+<i>1226</i>&nbsp;     */
+<i>1227</i>&nbsp;    private int readArraySize() throws IOException {
+<b class="fc"><i>1228</i>&nbsp;        final int arraySize = readVInt();</b>
+<b class="fc"><i>1229</i>&nbsp;        if (arraySize &gt; ArrayUtil.MAX_ARRAY_LENGTH) {</b>
+<b class="nc"><i>1230</i>&nbsp;            throw new IllegalStateException(&quot;array length must be &lt;= to &quot; + ArrayUtil.MAX_ARRAY_LENGTH  + &quot; but was: &quot; + arraySize);</b>
+<i>1231</i>&nbsp;        }
+<b class="fc"><i>1232</i>&nbsp;        if (arraySize &lt; 0) {</b>
+<b class="nc"><i>1233</i>&nbsp;            throw new NegativeArraySizeException(&quot;array size must be positive but was: &quot; + arraySize);</b>
+<i>1234</i>&nbsp;        }
+<i>1235</i>&nbsp;        // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
+<i>1236</i>&nbsp;        // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
+<i>1237</i>&nbsp;        // if the size is large and for perf reasons we allocate arrays ahead of time
+<b class="fc"><i>1238</i>&nbsp;        ensureCanReadBytes(arraySize);</b>
+<b class="fc"><i>1239</i>&nbsp;        return arraySize;</b>
+<i>1240</i>&nbsp;    }
+<i>1241</i>&nbsp;
+<i>1242</i>&nbsp;    /**
+<i>1243</i>&nbsp;     * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
+<i>1244</i>&nbsp;     * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
+<i>1245</i>&nbsp;     */
+<i>1246</i>&nbsp;    protected abstract void ensureCanReadBytes(int length) throws EOFException;
+<i>1247</i>&nbsp;
+<i>1248</i>&nbsp;    /**
+<i>1249</i>&nbsp;     * Read a {@link TimeValue} from the stream
+<i>1250</i>&nbsp;     */
+<i>1251</i>&nbsp;    public TimeValue readTimeValue() throws IOException {
+<b class="nc"><i>1252</i>&nbsp;        long duration = readZLong();</b>
+<b class="nc"><i>1253</i>&nbsp;        TimeUnit timeUnit = BYTE_TIME_UNIT_MAP.get(readByte());</b>
+<b class="nc"><i>1254</i>&nbsp;        return new TimeValue(duration, timeUnit);</b>
+<i>1255</i>&nbsp;    }
+<i>1256</i>&nbsp;
+<i>1257</i>&nbsp;    /**
+<i>1258</i>&nbsp;     * Read an optional {@link TimeValue} from the stream, returning null if no TimeValue was written.
+<i>1259</i>&nbsp;     */
+<i>1260</i>&nbsp;    public @Nullable TimeValue readOptionalTimeValue() throws IOException {
+<b class="nc"><i>1261</i>&nbsp;        if (readBoolean()) {</b>
+<b class="nc"><i>1262</i>&nbsp;            return readTimeValue();</b>
+<i>1263</i>&nbsp;        } else {
+<b class="nc"><i>1264</i>&nbsp;            return null;</b>
+<i>1265</i>&nbsp;        }
+<i>1266</i>&nbsp;    }
+<i>1267</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

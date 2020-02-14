@@ -1,0 +1,618 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FollowersChecker</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.coordination</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FollowersChecker (org.elasticsearch.cluster.coordination)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FollowersChecker</td>
+<td class="coverageStat">
+  <span class="percent">
+    46.7%
+  </span>
+  <span class="absValue">
+    (7/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    58%
+  </span>
+  <span class="absValue">
+    (40/ 69)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">FollowersChecker$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">FollowersChecker$FastResponseState</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (1/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (4/ 5)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">FollowersChecker$FollowerCheckRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 22)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    32.1%
+  </span>
+  <span class="absValue">
+    (9/ 28)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    45.5%
+  </span>
+  <span class="absValue">
+    (45/ 99)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.coordination;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.coordination.Coordinator.Mode;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>30</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>31</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>33</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>35</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>36</i>&nbsp;import org.elasticsearch.discovery.zen.NodesFaultDetection;
+<i>37</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool.Names;
+<i>38</i>&nbsp;import org.elasticsearch.transport.ConnectTransportException;
+<i>39</i>&nbsp;import org.elasticsearch.transport.Transport;
+<i>40</i>&nbsp;import org.elasticsearch.transport.TransportChannel;
+<i>41</i>&nbsp;import org.elasticsearch.transport.TransportConnectionListener;
+<i>42</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>43</i>&nbsp;import org.elasticsearch.transport.TransportRequest;
+<i>44</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions;
+<i>45</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions.Type;
+<i>46</i>&nbsp;import org.elasticsearch.transport.TransportResponse.Empty;
+<i>47</i>&nbsp;import org.elasticsearch.transport.TransportResponseHandler;
+<i>48</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;import java.io.IOException;
+<i>51</i>&nbsp;import java.util.HashSet;
+<i>52</i>&nbsp;import java.util.Map;
+<i>53</i>&nbsp;import java.util.Objects;
+<i>54</i>&nbsp;import java.util.Set;
+<i>55</i>&nbsp;import java.util.function.BiConsumer;
+<i>56</i>&nbsp;import java.util.function.Consumer;
+<i>57</i>&nbsp;import java.util.function.Predicate;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;/**
+<i>62</i>&nbsp; * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
+<i>63</i>&nbsp; * follower has failed the leader will remove it from the cluster. We are fairly lenient, possibly allowing multiple checks to fail before
+<i>64</i>&nbsp; * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
+<i>65</i>&nbsp; * a node and the consequent shard reallocation.
+<i>66</i>&nbsp; */
+<b class="nc"><i>67</i>&nbsp;public class FollowersChecker {</b>
+<i>68</i>&nbsp;
+<b class="fc"><i>69</i>&nbsp;    private static final Logger logger = LogManager.getLogger(FollowersChecker.class);</b>
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    public static final String FOLLOWER_CHECK_ACTION_NAME = &quot;internal:coordination/fault_detection/follower_check&quot;;
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    // the time between checks sent to each node
+<b class="fc"><i>74</i>&nbsp;    public static final Setting&lt;TimeValue&gt; FOLLOWER_CHECK_INTERVAL_SETTING =</b>
+<b class="fc"><i>75</i>&nbsp;        Setting.timeSetting(&quot;cluster.fault_detection.follower_check.interval&quot;,</b>
+<b class="fc"><i>76</i>&nbsp;            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    // the timeout for each check sent to each node
+<b class="fc"><i>79</i>&nbsp;    public static final Setting&lt;TimeValue&gt; FOLLOWER_CHECK_TIMEOUT_SETTING =</b>
+<b class="fc"><i>80</i>&nbsp;        Setting.timeSetting(&quot;cluster.fault_detection.follower_check.timeout&quot;,</b>
+<b class="fc"><i>81</i>&nbsp;            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    // the number of failed checks that must happen before the follower is considered to have failed.
+<b class="fc"><i>84</i>&nbsp;    public static final Setting&lt;Integer&gt; FOLLOWER_CHECK_RETRY_COUNT_SETTING =</b>
+<b class="fc"><i>85</i>&nbsp;        Setting.intSetting(&quot;cluster.fault_detection.follower_check.retry_count&quot;, 3, 1, Setting.Property.NodeScope);</b>
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    private final Settings settings;
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    private final TimeValue followerCheckInterval;
+<i>90</i>&nbsp;    private final TimeValue followerCheckTimeout;
+<i>91</i>&nbsp;    private final int followerCheckRetryCount;
+<i>92</i>&nbsp;    private final BiConsumer&lt;DiscoveryNode, String&gt; onNodeFailure;
+<i>93</i>&nbsp;    private final Consumer&lt;FollowerCheckRequest&gt; handleRequestAndUpdateState;
+<i>94</i>&nbsp;
+<b class="fc"><i>95</i>&nbsp;    private final Object mutex = new Object(); // protects writes to this state; read access does not need sync</b>
+<b class="fc"><i>96</i>&nbsp;    private final Map&lt;DiscoveryNode, FollowerChecker&gt; followerCheckers = newConcurrentMap();</b>
+<b class="fc"><i>97</i>&nbsp;    private final Set&lt;DiscoveryNode&gt; faultyNodes = new HashSet&lt;&gt;();</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    private final TransportService transportService;
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    private volatile FastResponseState fastResponseState;
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;    public FollowersChecker(Settings settings, TransportService transportService,
+<i>104</i>&nbsp;                            Consumer&lt;FollowerCheckRequest&gt; handleRequestAndUpdateState,
+<b class="fc"><i>105</i>&nbsp;                            BiConsumer&lt;DiscoveryNode, String&gt; onNodeFailure) {</b>
+<b class="fc"><i>106</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>107</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>108</i>&nbsp;        this.handleRequestAndUpdateState = handleRequestAndUpdateState;</b>
+<b class="fc"><i>109</i>&nbsp;        this.onNodeFailure = onNodeFailure;</b>
+<i>110</i>&nbsp;
+<b class="fc"><i>111</i>&nbsp;        followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);</b>
+<b class="fc"><i>112</i>&nbsp;        followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>113</i>&nbsp;        followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);</b>
+<i>114</i>&nbsp;
+<b class="fc"><i>115</i>&nbsp;        updateFastResponseState(0, Mode.CANDIDATE);</b>
+<b class="fc"><i>116</i>&nbsp;        transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, false, false, FollowerCheckRequest::new,</b>
+<b class="nc"><i>117</i>&nbsp;            (request, transportChannel, task) -&gt; handleFollowerCheck(request, transportChannel));</b>
+<b class="fc"><i>118</i>&nbsp;        transportService.registerRequestHandler(</b>
+<i>119</i>&nbsp;            NodesFaultDetection.PING_ACTION_NAME, Names.SAME, false, false, NodesFaultDetection.PingRequest::new,
+<i>120</i>&nbsp;            (request, channel, task) -&gt; // TODO: check that we&#39;re a follower of the requesting node?
+<b class="nc"><i>121</i>&nbsp;                channel.sendResponse(new NodesFaultDetection.PingResponse()));</b>
+<b class="fc"><i>122</i>&nbsp;        transportService.addConnectionListener(new TransportConnectionListener() {</b>
+<i>123</i>&nbsp;            @Override
+<i>124</i>&nbsp;            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+<b class="nc"><i>125</i>&nbsp;                handleDisconnectedNode(node);</b>
+<b class="nc"><i>126</i>&nbsp;            }</b>
+<i>127</i>&nbsp;        });
+<b class="fc"><i>128</i>&nbsp;    }</b>
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    /**
+<i>131</i>&nbsp;     * Update the set of known nodes, starting to check any new ones and stopping checking any previously-known-but-now-unknown ones.
+<i>132</i>&nbsp;     */
+<i>133</i>&nbsp;    public void setCurrentNodes(DiscoveryNodes discoveryNodes) {
+<b class="fc"><i>134</i>&nbsp;        synchronized (mutex) {</b>
+<b class="fc"><i>135</i>&nbsp;            final Predicate&lt;DiscoveryNode&gt; isUnknownNode = n -&gt; discoveryNodes.nodeExists(n) == false;</b>
+<b class="fc"><i>136</i>&nbsp;            followerCheckers.keySet().removeIf(isUnknownNode);</b>
+<b class="fc"><i>137</i>&nbsp;            faultyNodes.removeIf(isUnknownNode);</b>
+<i>138</i>&nbsp;
+<b class="fc"><i>139</i>&nbsp;            discoveryNodes.mastersFirstStream().forEach(discoveryNode -&gt; {</b>
+<b class="fc"><i>140</i>&nbsp;                if (discoveryNode.equals(discoveryNodes.getLocalNode()) == false</b>
+<b class="nc"><i>141</i>&nbsp;                    &amp;&amp; followerCheckers.containsKey(discoveryNode) == false</b>
+<b class="nc"><i>142</i>&nbsp;                    &amp;&amp; faultyNodes.contains(discoveryNode) == false) {</b>
+<i>143</i>&nbsp;
+<b class="nc"><i>144</i>&nbsp;                    final FollowerChecker followerChecker = new FollowerChecker(discoveryNode);</b>
+<b class="nc"><i>145</i>&nbsp;                    followerCheckers.put(discoveryNode, followerChecker);</b>
+<b class="nc"><i>146</i>&nbsp;                    followerChecker.start();</b>
+<i>147</i>&nbsp;                }
+<b class="fc"><i>148</i>&nbsp;            });</b>
+<b class="fc"><i>149</i>&nbsp;        }</b>
+<b class="fc"><i>150</i>&nbsp;    }</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /**
+<i>153</i>&nbsp;     * Clear the set of known nodes, stopping all checks.
+<i>154</i>&nbsp;     */
+<i>155</i>&nbsp;    public void clearCurrentNodes() {
+<b class="fc"><i>156</i>&nbsp;        setCurrentNodes(DiscoveryNodes.EMPTY_NODES);</b>
+<b class="fc"><i>157</i>&nbsp;    }</b>
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    /**
+<i>160</i>&nbsp;     * The system is normally in a state in which every follower remains a follower of a stable leader in a single term for an extended
+<i>161</i>&nbsp;     * period of time, and therefore our response to every follower check is the same. We handle this case with a single volatile read
+<i>162</i>&nbsp;     * entirely on the network thread, and only if the fast path fails do we perform some work in the background, by notifying the
+<i>163</i>&nbsp;     * FollowersChecker whenever our term or mode changes here.
+<i>164</i>&nbsp;     */
+<i>165</i>&nbsp;    public void updateFastResponseState(final long term, final Mode mode) {
+<b class="fc"><i>166</i>&nbsp;        fastResponseState = new FastResponseState(term, mode);</b>
+<b class="fc"><i>167</i>&nbsp;    }</b>
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;    private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
+<b class="nc"><i>170</i>&nbsp;        FastResponseState responder = this.fastResponseState;</b>
+<i>171</i>&nbsp;
+<b class="nc"><i>172</i>&nbsp;        if (responder.mode == Mode.FOLLOWER &amp;&amp; responder.term == request.term) {</b>
+<i>173</i>&nbsp;            // TODO trigger a term bump if we voted for a different leader in this term
+<b class="nc"><i>174</i>&nbsp;            logger.trace(&quot;responding to {} on fast path&quot;, request);</b>
+<b class="nc"><i>175</i>&nbsp;            transportChannel.sendResponse(Empty.INSTANCE);</b>
+<b class="nc"><i>176</i>&nbsp;            return;</b>
+<i>177</i>&nbsp;        }
+<i>178</i>&nbsp;
+<b class="nc"><i>179</i>&nbsp;        if (request.term &lt; responder.term) {</b>
+<b class="nc"><i>180</i>&nbsp;            throw new CoordinationStateRejectedException(&quot;rejecting &quot; + request + &quot; since local state is &quot; + this);</b>
+<i>181</i>&nbsp;        }
+<i>182</i>&nbsp;
+<b class="nc"><i>183</i>&nbsp;        transportService.getThreadPool().generic().execute(new AbstractRunnable() {</b>
+<i>184</i>&nbsp;            @Override
+<i>185</i>&nbsp;            protected void doRun() throws IOException {
+<i>186</i>&nbsp;                logger.trace(&quot;responding to {} on slow path&quot;, request);
+<i>187</i>&nbsp;                try {
+<i>188</i>&nbsp;                    handleRequestAndUpdateState.accept(request);
+<i>189</i>&nbsp;                } catch (Exception e) {
+<i>190</i>&nbsp;                    transportChannel.sendResponse(e);
+<i>191</i>&nbsp;                    return;
+<i>192</i>&nbsp;                }
+<i>193</i>&nbsp;                transportChannel.sendResponse(Empty.INSTANCE);
+<i>194</i>&nbsp;            }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;            @Override
+<i>197</i>&nbsp;            public void onFailure(Exception e) {
+<i>198</i>&nbsp;                logger.debug(new ParameterizedMessage(&quot;exception while responding to {}&quot;, request), e);
+<i>199</i>&nbsp;            }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;            @Override
+<i>202</i>&nbsp;            public String toString() {
+<i>203</i>&nbsp;                return &quot;slow path response to &quot; + request;
+<i>204</i>&nbsp;            }
+<i>205</i>&nbsp;        });
+<b class="nc"><i>206</i>&nbsp;    }</b>
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;    // TODO in the PoC a faulty node was considered non-faulty again if it sent us a PeersRequest:
+<i>209</i>&nbsp;    // - node disconnects, detected faulty, removal is enqueued
+<i>210</i>&nbsp;    // - node reconnects, pings us, finds we are master, requests to join, all before removal is applied
+<i>211</i>&nbsp;    // - join is processed before removal, but we do not publish to known-faulty nodes so the joining node does not receive this publication
+<i>212</i>&nbsp;    // - it doesn&#39;t start its leader checker since it receives nothing to cause it to become a follower
+<i>213</i>&nbsp;    // Apparently this meant that it remained a candidate for too long, leading to a test failure.  At the time this logic was added, we did
+<i>214</i>&nbsp;    // not have gossip-based discovery which would (I think) have retried this joining process a short time later. It&#39;s therefore possible
+<i>215</i>&nbsp;    // that this is no longer required, so it&#39;s omitted here until we can be sure if it&#39;s necessary or not.
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * @return nodes in the current cluster state which have failed their follower checks.
+<i>219</i>&nbsp;     */
+<i>220</i>&nbsp;    public Set&lt;DiscoveryNode&gt; getFaultyNodes() {
+<b class="fc"><i>221</i>&nbsp;        synchronized (mutex) {</b>
+<b class="fc"><i>222</i>&nbsp;            return new HashSet&lt;&gt;(this.faultyNodes);</b>
+<b class="nc"><i>223</i>&nbsp;        }</b>
+<i>224</i>&nbsp;    }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;    @Override
+<i>227</i>&nbsp;    public String toString() {
+<b class="nc"><i>228</i>&nbsp;        return &quot;FollowersChecker{&quot; +</b>
+<i>229</i>&nbsp;            &quot;followerCheckInterval=&quot; + followerCheckInterval +
+<i>230</i>&nbsp;            &quot;, followerCheckTimeout=&quot; + followerCheckTimeout +
+<i>231</i>&nbsp;            &quot;, followerCheckRetryCount=&quot; + followerCheckRetryCount +
+<i>232</i>&nbsp;            &quot;, followerCheckers=&quot; + followerCheckers +
+<i>233</i>&nbsp;            &quot;, faultyNodes=&quot; + faultyNodes +
+<i>234</i>&nbsp;            &quot;, fastResponseState=&quot; + fastResponseState +
+<i>235</i>&nbsp;            &#39;}&#39;;
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    // For assertions
+<i>239</i>&nbsp;    FastResponseState getFastResponseState() {
+<b class="nc"><i>240</i>&nbsp;        return fastResponseState;</b>
+<i>241</i>&nbsp;    }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    // For assertions
+<i>244</i>&nbsp;    Set&lt;DiscoveryNode&gt; getKnownFollowers() {
+<b class="nc"><i>245</i>&nbsp;        synchronized (mutex) {</b>
+<b class="nc"><i>246</i>&nbsp;            final Set&lt;DiscoveryNode&gt; knownFollowers = new HashSet&lt;&gt;(faultyNodes);</b>
+<b class="nc"><i>247</i>&nbsp;            knownFollowers.addAll(followerCheckers.keySet());</b>
+<b class="nc"><i>248</i>&nbsp;            return knownFollowers;</b>
+<b class="nc"><i>249</i>&nbsp;        }</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
+<b class="nc"><i>253</i>&nbsp;        FollowerChecker followerChecker = followerCheckers.get(discoveryNode);</b>
+<b class="nc"><i>254</i>&nbsp;        if (followerChecker != null) {</b>
+<b class="nc"><i>255</i>&nbsp;            followerChecker.failNode(&quot;disconnected&quot;);</b>
+<i>256</i>&nbsp;        }
+<b class="nc"><i>257</i>&nbsp;    }</b>
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    static class FastResponseState {
+<i>260</i>&nbsp;        final long term;
+<i>261</i>&nbsp;        final Mode mode;
+<i>262</i>&nbsp;
+<b class="fc"><i>263</i>&nbsp;        FastResponseState(final long term, final Mode mode) {</b>
+<b class="fc"><i>264</i>&nbsp;            this.term = term;</b>
+<b class="fc"><i>265</i>&nbsp;            this.mode = mode;</b>
+<b class="fc"><i>266</i>&nbsp;        }</b>
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;        @Override
+<i>269</i>&nbsp;        public String toString() {
+<b class="nc"><i>270</i>&nbsp;            return &quot;FastResponseState{&quot; +</b>
+<i>271</i>&nbsp;                &quot;term=&quot; + term +
+<i>272</i>&nbsp;                &quot;, mode=&quot; + mode +
+<i>273</i>&nbsp;                &#39;}&#39;;
+<i>274</i>&nbsp;        }
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;    /**
+<i>278</i>&nbsp;     * A checker for an individual follower.
+<i>279</i>&nbsp;     */
+<i>280</i>&nbsp;    private class FollowerChecker {
+<i>281</i>&nbsp;        private final DiscoveryNode discoveryNode;
+<i>282</i>&nbsp;        private int failureCountSinceLastSuccess;
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;        FollowerChecker(DiscoveryNode discoveryNode) {
+<i>285</i>&nbsp;            this.discoveryNode = discoveryNode;
+<i>286</i>&nbsp;        }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;        private boolean running() {
+<i>289</i>&nbsp;            return this == followerCheckers.get(discoveryNode);
+<i>290</i>&nbsp;        }
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;        void start() {
+<i>293</i>&nbsp;            assert running();
+<i>294</i>&nbsp;            handleWakeUp();
+<i>295</i>&nbsp;        }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;        private void handleWakeUp() {
+<i>298</i>&nbsp;            if (running() == false) {
+<i>299</i>&nbsp;                logger.trace(&quot;handleWakeUp: not running&quot;);
+<i>300</i>&nbsp;                return;
+<i>301</i>&nbsp;            }
+<i>302</i>&nbsp;
+<i>303</i>&nbsp;            final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
+<i>304</i>&nbsp;            logger.trace(&quot;handleWakeUp: checking {} with {}&quot;, discoveryNode, request);
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;            final String actionName;
+<i>307</i>&nbsp;            final TransportRequest transportRequest;
+<i>308</i>&nbsp;            if (Coordinator.isZen1Node(discoveryNode)) {
+<i>309</i>&nbsp;                actionName = NodesFaultDetection.PING_ACTION_NAME;
+<i>310</i>&nbsp;                transportRequest = new NodesFaultDetection.PingRequest(discoveryNode, ClusterName.CLUSTER_NAME_SETTING.get(settings),
+<i>311</i>&nbsp;                    transportService.getLocalNode(), ClusterState.UNKNOWN_VERSION);
+<i>312</i>&nbsp;            } else {
+<i>313</i>&nbsp;                actionName = FOLLOWER_CHECK_ACTION_NAME;
+<i>314</i>&nbsp;                transportRequest = request;
+<i>315</i>&nbsp;            }
+<i>316</i>&nbsp;            transportService.sendRequest(discoveryNode, actionName, transportRequest,
+<i>317</i>&nbsp;                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
+<i>318</i>&nbsp;                new TransportResponseHandler&lt;Empty&gt;() {
+<i>319</i>&nbsp;                    @Override
+<i>320</i>&nbsp;                    public Empty read(StreamInput in) {
+<i>321</i>&nbsp;                        return Empty.INSTANCE;
+<i>322</i>&nbsp;                    }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;                    @Override
+<i>325</i>&nbsp;                    public void handleResponse(Empty response) {
+<i>326</i>&nbsp;                        if (running() == false) {
+<i>327</i>&nbsp;                            logger.trace(&quot;{} no longer running&quot;, FollowerChecker.this);
+<i>328</i>&nbsp;                            return;
+<i>329</i>&nbsp;                        }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;                        failureCountSinceLastSuccess = 0;
+<i>332</i>&nbsp;                        logger.trace(&quot;{} check successful&quot;, FollowerChecker.this);
+<i>333</i>&nbsp;                        scheduleNextWakeUp();
+<i>334</i>&nbsp;                    }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;                    @Override
+<i>337</i>&nbsp;                    public void handleException(TransportException exp) {
+<i>338</i>&nbsp;                        if (running() == false) {
+<i>339</i>&nbsp;                            logger.debug(new ParameterizedMessage(&quot;{} no longer running&quot;, FollowerChecker.this), exp);
+<i>340</i>&nbsp;                            return;
+<i>341</i>&nbsp;                        }
+<i>342</i>&nbsp;
+<i>343</i>&nbsp;                        failureCountSinceLastSuccess++;
+<i>344</i>&nbsp;
+<i>345</i>&nbsp;                        final String reason;
+<i>346</i>&nbsp;                        if (failureCountSinceLastSuccess &gt;= followerCheckRetryCount) {
+<i>347</i>&nbsp;                            logger.debug(() -&gt; new ParameterizedMessage(&quot;{} failed too many times&quot;, FollowerChecker.this), exp);
+<i>348</i>&nbsp;                            reason = &quot;followers check retry count exceeded&quot;;
+<i>349</i>&nbsp;                        } else if (exp instanceof ConnectTransportException
+<i>350</i>&nbsp;                            || exp.getCause() instanceof ConnectTransportException) {
+<i>351</i>&nbsp;                            logger.debug(() -&gt; new ParameterizedMessage(&quot;{} disconnected&quot;, FollowerChecker.this), exp);
+<i>352</i>&nbsp;                            reason = &quot;disconnected&quot;;
+<i>353</i>&nbsp;                        } else {
+<i>354</i>&nbsp;                            logger.debug(() -&gt; new ParameterizedMessage(&quot;{} failed, retrying&quot;, FollowerChecker.this), exp);
+<i>355</i>&nbsp;                            scheduleNextWakeUp();
+<i>356</i>&nbsp;                            return;
+<i>357</i>&nbsp;                        }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;                        failNode(reason);
+<i>360</i>&nbsp;                    }
+<i>361</i>&nbsp;
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;                    @Override
+<i>364</i>&nbsp;                    public String executor() {
+<i>365</i>&nbsp;                        return Names.SAME;
+<i>366</i>&nbsp;                    }
+<i>367</i>&nbsp;                });
+<i>368</i>&nbsp;        }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;        void failNode(String reason) {
+<i>371</i>&nbsp;            transportService.getThreadPool().generic().execute(new Runnable() {
+<i>372</i>&nbsp;                @Override
+<i>373</i>&nbsp;                public void run() {
+<i>374</i>&nbsp;                    synchronized (mutex) {
+<i>375</i>&nbsp;                        if (running() == false) {
+<i>376</i>&nbsp;                            logger.trace(&quot;{} no longer running, not marking faulty&quot;, FollowerChecker.this);
+<i>377</i>&nbsp;                            return;
+<i>378</i>&nbsp;                        }
+<i>379</i>&nbsp;                        logger.debug(&quot;{} marking node as faulty&quot;, FollowerChecker.this);
+<i>380</i>&nbsp;                        faultyNodes.add(discoveryNode);
+<i>381</i>&nbsp;                        followerCheckers.remove(discoveryNode);
+<i>382</i>&nbsp;                    }
+<i>383</i>&nbsp;                    onNodeFailure.accept(discoveryNode, reason);
+<i>384</i>&nbsp;                }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;                @Override
+<i>387</i>&nbsp;                public String toString() {
+<i>388</i>&nbsp;                    return &quot;detected failure of &quot; + discoveryNode;
+<i>389</i>&nbsp;                }
+<i>390</i>&nbsp;            });
+<i>391</i>&nbsp;        }
+<i>392</i>&nbsp;
+<i>393</i>&nbsp;        private void scheduleNextWakeUp() {
+<i>394</i>&nbsp;            transportService.getThreadPool().schedule(new Runnable() {
+<i>395</i>&nbsp;                @Override
+<i>396</i>&nbsp;                public void run() {
+<i>397</i>&nbsp;                    handleWakeUp();
+<i>398</i>&nbsp;                }
+<i>399</i>&nbsp;
+<i>400</i>&nbsp;                @Override
+<i>401</i>&nbsp;                public String toString() {
+<i>402</i>&nbsp;                    return FollowerChecker.this + &quot;::handleWakeUp&quot;;
+<i>403</i>&nbsp;                }
+<i>404</i>&nbsp;            }, followerCheckInterval, Names.SAME);
+<i>405</i>&nbsp;        }
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;        @Override
+<i>408</i>&nbsp;        public String toString() {
+<i>409</i>&nbsp;            return &quot;FollowerChecker{&quot; +
+<i>410</i>&nbsp;                &quot;discoveryNode=&quot; + discoveryNode +
+<i>411</i>&nbsp;                &quot;, failureCountSinceLastSuccess=&quot; + failureCountSinceLastSuccess +
+<i>412</i>&nbsp;                &quot;, [&quot; + FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey() + &quot;]=&quot; + followerCheckRetryCount +
+<i>413</i>&nbsp;                &#39;}&#39;;
+<i>414</i>&nbsp;        }
+<i>415</i>&nbsp;    }
+<i>416</i>&nbsp;
+<b class="nc"><i>417</i>&nbsp;    public static class FollowerCheckRequest extends TransportRequest {</b>
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;        private final long term;
+<i>420</i>&nbsp;
+<i>421</i>&nbsp;        private final DiscoveryNode sender;
+<i>422</i>&nbsp;
+<i>423</i>&nbsp;        public long getTerm() {
+<b class="nc"><i>424</i>&nbsp;            return term;</b>
+<i>425</i>&nbsp;        }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;        public DiscoveryNode getSender() {
+<b class="nc"><i>428</i>&nbsp;            return sender;</b>
+<i>429</i>&nbsp;        }
+<i>430</i>&nbsp;
+<b class="nc"><i>431</i>&nbsp;        public FollowerCheckRequest(final long term, final DiscoveryNode sender) {</b>
+<b class="nc"><i>432</i>&nbsp;            this.term = term;</b>
+<b class="nc"><i>433</i>&nbsp;            this.sender = sender;</b>
+<b class="nc"><i>434</i>&nbsp;        }</b>
+<i>435</i>&nbsp;
+<i>436</i>&nbsp;        public FollowerCheckRequest(final StreamInput in) throws IOException {
+<b class="nc"><i>437</i>&nbsp;            super(in);</b>
+<b class="nc"><i>438</i>&nbsp;            term = in.readLong();</b>
+<b class="nc"><i>439</i>&nbsp;            sender = new DiscoveryNode(in);</b>
+<b class="nc"><i>440</i>&nbsp;        }</b>
+<i>441</i>&nbsp;
+<i>442</i>&nbsp;        @Override
+<i>443</i>&nbsp;        public void writeTo(final StreamOutput out) throws IOException {
+<b class="nc"><i>444</i>&nbsp;            super.writeTo(out);</b>
+<b class="nc"><i>445</i>&nbsp;            out.writeLong(term);</b>
+<b class="nc"><i>446</i>&nbsp;            sender.writeTo(out);</b>
+<b class="nc"><i>447</i>&nbsp;        }</b>
+<i>448</i>&nbsp;
+<i>449</i>&nbsp;        @Override
+<i>450</i>&nbsp;        public boolean equals(Object o) {
+<b class="nc"><i>451</i>&nbsp;            if (this == o) return true;</b>
+<b class="nc"><i>452</i>&nbsp;            if (o == null || getClass() != o.getClass()) return false;</b>
+<b class="nc"><i>453</i>&nbsp;            FollowerCheckRequest that = (FollowerCheckRequest) o;</b>
+<b class="nc"><i>454</i>&nbsp;            return term == that.term &amp;&amp;</b>
+<b class="nc"><i>455</i>&nbsp;                Objects.equals(sender, that.sender);</b>
+<i>456</i>&nbsp;        }
+<i>457</i>&nbsp;
+<i>458</i>&nbsp;        @Override
+<i>459</i>&nbsp;        public String toString() {
+<b class="nc"><i>460</i>&nbsp;            return &quot;FollowerCheckRequest{&quot; +</b>
+<i>461</i>&nbsp;                &quot;term=&quot; + term +
+<i>462</i>&nbsp;                &quot;, sender=&quot; + sender +
+<i>463</i>&nbsp;                &#39;}&#39;;
+<i>464</i>&nbsp;        }
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;        @Override
+<i>467</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>468</i>&nbsp;            return Objects.hash(term, sender);</b>
+<i>469</i>&nbsp;        }
+<i>470</i>&nbsp;    }
+<i>471</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

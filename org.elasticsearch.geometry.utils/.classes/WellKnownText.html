@@ -1,0 +1,726 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: WellKnownText</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.geometry.utils</a> ]
+</div>
+
+<h1>Coverage Summary for Class: WellKnownText (org.elasticsearch.geometry.utils)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">WellKnownText</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    6.7%
+  </span>
+  <span class="absValue">
+    (2/ 30)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    3.7%
+  </span>
+  <span class="absValue">
+    (8/ 216)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.geometry.utils;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.geometry.Circle;
+<i>23</i>&nbsp;import org.elasticsearch.geometry.Geometry;
+<i>24</i>&nbsp;import org.elasticsearch.geometry.GeometryCollection;
+<i>25</i>&nbsp;import org.elasticsearch.geometry.GeometryVisitor;
+<i>26</i>&nbsp;import org.elasticsearch.geometry.Line;
+<i>27</i>&nbsp;import org.elasticsearch.geometry.LinearRing;
+<i>28</i>&nbsp;import org.elasticsearch.geometry.MultiLine;
+<i>29</i>&nbsp;import org.elasticsearch.geometry.MultiPoint;
+<i>30</i>&nbsp;import org.elasticsearch.geometry.MultiPolygon;
+<i>31</i>&nbsp;import org.elasticsearch.geometry.Point;
+<i>32</i>&nbsp;import org.elasticsearch.geometry.Polygon;
+<i>33</i>&nbsp;import org.elasticsearch.geometry.Rectangle;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.io.IOException;
+<i>36</i>&nbsp;import java.io.StreamTokenizer;
+<i>37</i>&nbsp;import java.io.StringReader;
+<i>38</i>&nbsp;import java.text.ParseException;
+<i>39</i>&nbsp;import java.util.ArrayList;
+<i>40</i>&nbsp;import java.util.Collections;
+<i>41</i>&nbsp;import java.util.List;
+<i>42</i>&nbsp;import java.util.Locale;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;/**
+<i>45</i>&nbsp; * Utility class for converting to and from WKT
+<i>46</i>&nbsp; */
+<i>47</i>&nbsp;public class WellKnownText {
+<i>48</i>&nbsp;    /* The instance of WKT serializer that coerces values and accepts Z component */
+<b class="fc"><i>49</i>&nbsp;    public static final WellKnownText INSTANCE = new WellKnownText(true, new StandardValidator(true));</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    public static final String EMPTY = &quot;EMPTY&quot;;
+<i>52</i>&nbsp;    public static final String SPACE = &quot; &quot;;
+<i>53</i>&nbsp;    public static final String LPAREN = &quot;(&quot;;
+<i>54</i>&nbsp;    public static final String RPAREN = &quot;)&quot;;
+<i>55</i>&nbsp;    public static final String COMMA = &quot;,&quot;;
+<i>56</i>&nbsp;    public static final String NAN = &quot;NaN&quot;;
+<i>57</i>&nbsp;
+<b class="fc"><i>58</i>&nbsp;    private final String NUMBER = &quot;&lt;NUMBER&gt;&quot;;</b>
+<b class="fc"><i>59</i>&nbsp;    private final String EOF = &quot;END-OF-STREAM&quot;;</b>
+<b class="fc"><i>60</i>&nbsp;    private final String EOL = &quot;END-OF-LINE&quot;;</b>
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;    private final boolean coerce;
+<i>63</i>&nbsp;    private final GeometryValidator validator;
+<i>64</i>&nbsp;
+<b class="fc"><i>65</i>&nbsp;    public WellKnownText(boolean coerce, GeometryValidator validator) {</b>
+<b class="fc"><i>66</i>&nbsp;        this.coerce = coerce;</b>
+<b class="fc"><i>67</i>&nbsp;        this.validator = validator;</b>
+<b class="fc"><i>68</i>&nbsp;    }</b>
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    public String toWKT(Geometry geometry) {
+<b class="nc"><i>71</i>&nbsp;        StringBuilder builder = new StringBuilder();</b>
+<b class="nc"><i>72</i>&nbsp;        toWKT(geometry, builder);</b>
+<b class="nc"><i>73</i>&nbsp;        return builder.toString();</b>
+<i>74</i>&nbsp;    }
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    public void toWKT(Geometry geometry, StringBuilder sb) {
+<b class="nc"><i>77</i>&nbsp;        sb.append(getWKTName(geometry));</b>
+<b class="nc"><i>78</i>&nbsp;        sb.append(SPACE);</b>
+<b class="nc"><i>79</i>&nbsp;        if (geometry.isEmpty()) {</b>
+<b class="nc"><i>80</i>&nbsp;            sb.append(EMPTY);</b>
+<i>81</i>&nbsp;        } else {
+<b class="nc"><i>82</i>&nbsp;            geometry.visit(new GeometryVisitor&lt;Void, RuntimeException&gt;() {</b>
+<i>83</i>&nbsp;                @Override
+<i>84</i>&nbsp;                public Void visit(Circle circle) {
+<i>85</i>&nbsp;                    sb.append(LPAREN);
+<i>86</i>&nbsp;                    visitPoint(circle.getX(), circle.getY(), Double.NaN);
+<i>87</i>&nbsp;                    sb.append(SPACE);
+<i>88</i>&nbsp;                    sb.append(circle.getRadiusMeters());
+<i>89</i>&nbsp;                    if (circle.hasZ()) {
+<i>90</i>&nbsp;                        sb.append(SPACE);
+<i>91</i>&nbsp;                        sb.append(circle.getZ());
+<i>92</i>&nbsp;                    }
+<i>93</i>&nbsp;                    sb.append(RPAREN);
+<i>94</i>&nbsp;                    return null;
+<i>95</i>&nbsp;                }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;                @Override
+<i>98</i>&nbsp;                public Void visit(GeometryCollection&lt;?&gt; collection) {
+<i>99</i>&nbsp;                    if (collection.size() == 0) {
+<i>100</i>&nbsp;                        sb.append(EMPTY);
+<i>101</i>&nbsp;                    } else {
+<i>102</i>&nbsp;                        sb.append(LPAREN);
+<i>103</i>&nbsp;                        toWKT(collection.get(0), sb);
+<i>104</i>&nbsp;                        for (int i = 1; i &lt; collection.size(); ++i) {
+<i>105</i>&nbsp;                            sb.append(COMMA);
+<i>106</i>&nbsp;                            toWKT(collection.get(i), sb);
+<i>107</i>&nbsp;                        }
+<i>108</i>&nbsp;                        sb.append(RPAREN);
+<i>109</i>&nbsp;                    }
+<i>110</i>&nbsp;                    return null;
+<i>111</i>&nbsp;                }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;                @Override
+<i>114</i>&nbsp;                public Void visit(Line line) {
+<i>115</i>&nbsp;                    sb.append(LPAREN);
+<i>116</i>&nbsp;                    visitPoint(line.getX(0), line.getY(0), line.getZ(0));
+<i>117</i>&nbsp;                    for (int i = 1; i &lt; line.length(); ++i) {
+<i>118</i>&nbsp;                        sb.append(COMMA);
+<i>119</i>&nbsp;                        sb.append(SPACE);
+<i>120</i>&nbsp;                        visitPoint(line.getX(i), line.getY(i), line.getZ(i));
+<i>121</i>&nbsp;                    }
+<i>122</i>&nbsp;                    sb.append(RPAREN);
+<i>123</i>&nbsp;                    return null;
+<i>124</i>&nbsp;                }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;                @Override
+<i>127</i>&nbsp;                public Void visit(LinearRing ring) {
+<i>128</i>&nbsp;                    throw new IllegalArgumentException(&quot;Linear ring is not supported by WKT&quot;);
+<i>129</i>&nbsp;                }
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;                @Override
+<i>132</i>&nbsp;                public Void visit(MultiLine multiLine) {
+<i>133</i>&nbsp;                    visitCollection(multiLine);
+<i>134</i>&nbsp;                    return null;
+<i>135</i>&nbsp;                }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;                @Override
+<i>138</i>&nbsp;                public Void visit(MultiPoint multiPoint) {
+<i>139</i>&nbsp;                    if (multiPoint.isEmpty()) {
+<i>140</i>&nbsp;                        sb.append(EMPTY);
+<i>141</i>&nbsp;                        return null;
+<i>142</i>&nbsp;                    }
+<i>143</i>&nbsp;                    // walk through coordinates:
+<i>144</i>&nbsp;                    sb.append(LPAREN);
+<i>145</i>&nbsp;                    visitPoint(multiPoint.get(0).getX(), multiPoint.get(0).getY(), multiPoint.get(0).getZ());
+<i>146</i>&nbsp;                    for (int i = 1; i &lt; multiPoint.size(); ++i) {
+<i>147</i>&nbsp;                        sb.append(COMMA);
+<i>148</i>&nbsp;                        sb.append(SPACE);
+<i>149</i>&nbsp;                        Point point = multiPoint.get(i);
+<i>150</i>&nbsp;                        visitPoint(point.getX(), point.getY(), point.getZ());
+<i>151</i>&nbsp;                    }
+<i>152</i>&nbsp;                    sb.append(RPAREN);
+<i>153</i>&nbsp;                    return null;
+<i>154</i>&nbsp;                }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;                @Override
+<i>157</i>&nbsp;                public Void visit(MultiPolygon multiPolygon) {
+<i>158</i>&nbsp;                    visitCollection(multiPolygon);
+<i>159</i>&nbsp;                    return null;
+<i>160</i>&nbsp;                }
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;                @Override
+<i>163</i>&nbsp;                public Void visit(Point point) {
+<i>164</i>&nbsp;                    if (point.isEmpty()) {
+<i>165</i>&nbsp;                        sb.append(EMPTY);
+<i>166</i>&nbsp;                    } else {
+<i>167</i>&nbsp;                        sb.append(LPAREN);
+<i>168</i>&nbsp;                        visitPoint(point.getX(), point.getY(), point.getZ());
+<i>169</i>&nbsp;                        sb.append(RPAREN);
+<i>170</i>&nbsp;                    }
+<i>171</i>&nbsp;                    return null;
+<i>172</i>&nbsp;                }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;                private void visitPoint(double lon, double lat, double alt) {
+<i>175</i>&nbsp;                    sb.append(lon).append(SPACE).append(lat);
+<i>176</i>&nbsp;                    if (Double.isNaN(alt) == false) {
+<i>177</i>&nbsp;                        sb.append(SPACE).append(alt);
+<i>178</i>&nbsp;                    }
+<i>179</i>&nbsp;                }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;                private void visitCollection(GeometryCollection&lt;?&gt; collection) {
+<i>182</i>&nbsp;                    if (collection.size() == 0) {
+<i>183</i>&nbsp;                        sb.append(EMPTY);
+<i>184</i>&nbsp;                    } else {
+<i>185</i>&nbsp;                        sb.append(LPAREN);
+<i>186</i>&nbsp;                        collection.get(0).visit(this);
+<i>187</i>&nbsp;                        for (int i = 1; i &lt; collection.size(); ++i) {
+<i>188</i>&nbsp;                            sb.append(COMMA);
+<i>189</i>&nbsp;                            collection.get(i).visit(this);
+<i>190</i>&nbsp;                        }
+<i>191</i>&nbsp;                        sb.append(RPAREN);
+<i>192</i>&nbsp;                    }
+<i>193</i>&nbsp;                }
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;                @Override
+<i>196</i>&nbsp;                public Void visit(Polygon polygon) {
+<i>197</i>&nbsp;                    sb.append(LPAREN);
+<i>198</i>&nbsp;                    visit((Line) polygon.getPolygon());
+<i>199</i>&nbsp;                    int numberOfHoles = polygon.getNumberOfHoles();
+<i>200</i>&nbsp;                    for (int i = 0; i &lt; numberOfHoles; ++i) {
+<i>201</i>&nbsp;                        sb.append(&quot;, &quot;);
+<i>202</i>&nbsp;                        visit((Line) polygon.getHole(i));
+<i>203</i>&nbsp;                    }
+<i>204</i>&nbsp;                    sb.append(RPAREN);
+<i>205</i>&nbsp;                    return null;
+<i>206</i>&nbsp;                }
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;                @Override
+<i>209</i>&nbsp;                public Void visit(Rectangle rectangle) {
+<i>210</i>&nbsp;                    sb.append(LPAREN);
+<i>211</i>&nbsp;                    // minX, maxX, maxY, minY
+<i>212</i>&nbsp;                    sb.append(rectangle.getMinX());
+<i>213</i>&nbsp;                    sb.append(COMMA);
+<i>214</i>&nbsp;                    sb.append(SPACE);
+<i>215</i>&nbsp;                    sb.append(rectangle.getMaxX());
+<i>216</i>&nbsp;                    sb.append(COMMA);
+<i>217</i>&nbsp;                    sb.append(SPACE);
+<i>218</i>&nbsp;                    sb.append(rectangle.getMaxY());
+<i>219</i>&nbsp;                    sb.append(COMMA);
+<i>220</i>&nbsp;                    sb.append(SPACE);
+<i>221</i>&nbsp;                    sb.append(rectangle.getMinY());
+<i>222</i>&nbsp;                    if (rectangle.hasZ()) {
+<i>223</i>&nbsp;                        sb.append(COMMA);
+<i>224</i>&nbsp;                        sb.append(SPACE);
+<i>225</i>&nbsp;                        sb.append(rectangle.getMinZ());
+<i>226</i>&nbsp;                        sb.append(COMMA);
+<i>227</i>&nbsp;                        sb.append(SPACE);
+<i>228</i>&nbsp;                        sb.append(rectangle.getMaxZ());
+<i>229</i>&nbsp;                    }
+<i>230</i>&nbsp;                    sb.append(RPAREN);
+<i>231</i>&nbsp;                    return null;
+<i>232</i>&nbsp;                }
+<i>233</i>&nbsp;            });
+<i>234</i>&nbsp;        }
+<b class="nc"><i>235</i>&nbsp;    }</b>
+<i>236</i>&nbsp;
+<i>237</i>&nbsp;    public Geometry fromWKT(String wkt) throws IOException, ParseException {
+<b class="nc"><i>238</i>&nbsp;        StringReader reader = new StringReader(wkt);</b>
+<i>239</i>&nbsp;        try {
+<i>240</i>&nbsp;            // setup the tokenizer; configured to read words w/o numbers
+<b class="nc"><i>241</i>&nbsp;            StreamTokenizer tokenizer = new StreamTokenizer(reader);</b>
+<b class="nc"><i>242</i>&nbsp;            tokenizer.resetSyntax();</b>
+<b class="nc"><i>243</i>&nbsp;            tokenizer.wordChars(&#39;a&#39;, &#39;z&#39;);</b>
+<b class="nc"><i>244</i>&nbsp;            tokenizer.wordChars(&#39;A&#39;, &#39;Z&#39;);</b>
+<b class="nc"><i>245</i>&nbsp;            tokenizer.wordChars(128 + 32, 255);</b>
+<b class="nc"><i>246</i>&nbsp;            tokenizer.wordChars(&#39;0&#39;, &#39;9&#39;);</b>
+<b class="nc"><i>247</i>&nbsp;            tokenizer.wordChars(&#39;-&#39;, &#39;-&#39;);</b>
+<b class="nc"><i>248</i>&nbsp;            tokenizer.wordChars(&#39;+&#39;, &#39;+&#39;);</b>
+<b class="nc"><i>249</i>&nbsp;            tokenizer.wordChars(&#39;.&#39;, &#39;.&#39;);</b>
+<b class="nc"><i>250</i>&nbsp;            tokenizer.whitespaceChars(&#39; &#39;, &#39; &#39;);</b>
+<b class="nc"><i>251</i>&nbsp;            tokenizer.whitespaceChars(&#39;\t&#39;, &#39;\t&#39;);</b>
+<b class="nc"><i>252</i>&nbsp;            tokenizer.whitespaceChars(&#39;\r&#39;, &#39;\r&#39;);</b>
+<b class="nc"><i>253</i>&nbsp;            tokenizer.whitespaceChars(&#39;\n&#39;, &#39;\n&#39;);</b>
+<b class="nc"><i>254</i>&nbsp;            tokenizer.commentChar(&#39;#&#39;);</b>
+<b class="nc"><i>255</i>&nbsp;            Geometry geometry = parseGeometry(tokenizer);</b>
+<b class="nc"><i>256</i>&nbsp;            validator.validate(geometry);</b>
+<b class="nc"><i>257</i>&nbsp;            return geometry;</b>
+<i>258</i>&nbsp;        } finally {
+<b class="nc"><i>259</i>&nbsp;            reader.close();</b>
+<b class="nc"><i>260</i>&nbsp;        }</b>
+<i>261</i>&nbsp;    }
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;    /**
+<i>264</i>&nbsp;     * parse geometry from the stream tokenizer
+<i>265</i>&nbsp;     */
+<i>266</i>&nbsp;    private Geometry parseGeometry(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>267</i>&nbsp;        final String type = nextWord(stream).toLowerCase(Locale.ROOT);</b>
+<b class="nc"><i>268</i>&nbsp;        switch (type) {</b>
+<i>269</i>&nbsp;            case &quot;point&quot;:
+<b class="nc"><i>270</i>&nbsp;                return parsePoint(stream);</b>
+<i>271</i>&nbsp;            case &quot;multipoint&quot;:
+<b class="nc"><i>272</i>&nbsp;                return parseMultiPoint(stream);</b>
+<i>273</i>&nbsp;            case &quot;linestring&quot;:
+<b class="nc"><i>274</i>&nbsp;                return parseLine(stream);</b>
+<i>275</i>&nbsp;            case &quot;multilinestring&quot;:
+<b class="nc"><i>276</i>&nbsp;                return parseMultiLine(stream);</b>
+<i>277</i>&nbsp;            case &quot;polygon&quot;:
+<b class="nc"><i>278</i>&nbsp;                return parsePolygon(stream);</b>
+<i>279</i>&nbsp;            case &quot;multipolygon&quot;:
+<b class="nc"><i>280</i>&nbsp;                return parseMultiPolygon(stream);</b>
+<i>281</i>&nbsp;            case &quot;bbox&quot;:
+<b class="nc"><i>282</i>&nbsp;                return parseBBox(stream);</b>
+<i>283</i>&nbsp;            case &quot;geometrycollection&quot;:
+<b class="nc"><i>284</i>&nbsp;                return parseGeometryCollection(stream);</b>
+<i>285</i>&nbsp;            case &quot;circle&quot;: // Not part of the standard, but we need it for internal serialization
+<b class="nc"><i>286</i>&nbsp;                return parseCircle(stream);</b>
+<i>287</i>&nbsp;        }
+<b class="nc"><i>288</i>&nbsp;        throw new IllegalArgumentException(&quot;Unknown geometry type: &quot; + type);</b>
+<i>289</i>&nbsp;    }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    private GeometryCollection&lt;Geometry&gt; parseGeometryCollection(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>292</i>&nbsp;        if (nextEmptyOrOpen(stream).equals(EMPTY)) {</b>
+<b class="nc"><i>293</i>&nbsp;            return GeometryCollection.EMPTY;</b>
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;        List&lt;Geometry&gt; shapes = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>296</i>&nbsp;        shapes.add(parseGeometry(stream));</b>
+<b class="nc"><i>297</i>&nbsp;        while (nextCloserOrComma(stream).equals(COMMA)) {</b>
+<b class="nc"><i>298</i>&nbsp;            shapes.add(parseGeometry(stream));</b>
+<i>299</i>&nbsp;        }
+<b class="nc"><i>300</i>&nbsp;        return new GeometryCollection&lt;&gt;(shapes);</b>
+<i>301</i>&nbsp;    }
+<i>302</i>&nbsp;
+<i>303</i>&nbsp;    private Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>304</i>&nbsp;        if (nextEmptyOrOpen(stream).equals(EMPTY)) {</b>
+<b class="nc"><i>305</i>&nbsp;            return Point.EMPTY;</b>
+<i>306</i>&nbsp;        }
+<b class="nc"><i>307</i>&nbsp;        double lon = nextNumber(stream);</b>
+<b class="nc"><i>308</i>&nbsp;        double lat = nextNumber(stream);</b>
+<i>309</i>&nbsp;        Point pt;
+<b class="nc"><i>310</i>&nbsp;        if (isNumberNext(stream)) {</b>
+<b class="nc"><i>311</i>&nbsp;            pt = new Point(lon, lat, nextNumber(stream));</b>
+<i>312</i>&nbsp;        } else {
+<b class="nc"><i>313</i>&nbsp;            pt = new Point(lon, lat);</b>
+<i>314</i>&nbsp;        }
+<b class="nc"><i>315</i>&nbsp;        nextCloser(stream);</b>
+<b class="nc"><i>316</i>&nbsp;        return pt;</b>
+<i>317</i>&nbsp;    }
+<i>318</i>&nbsp;
+<i>319</i>&nbsp;    private void parseCoordinates(StreamTokenizer stream, ArrayList&lt;Double&gt; lats, ArrayList&lt;Double&gt; lons, ArrayList&lt;Double&gt; alts)
+<i>320</i>&nbsp;        throws IOException, ParseException {
+<b class="nc"><i>321</i>&nbsp;        parseCoordinate(stream, lats, lons, alts);</b>
+<b class="nc"><i>322</i>&nbsp;        while (nextCloserOrComma(stream).equals(COMMA)) {</b>
+<b class="nc"><i>323</i>&nbsp;            parseCoordinate(stream, lats, lons, alts);</b>
+<i>324</i>&nbsp;        }
+<b class="nc"><i>325</i>&nbsp;    }</b>
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;    private void parseCoordinate(StreamTokenizer stream, ArrayList&lt;Double&gt; lats, ArrayList&lt;Double&gt; lons, ArrayList&lt;Double&gt; alts)
+<i>328</i>&nbsp;        throws IOException, ParseException {
+<b class="nc"><i>329</i>&nbsp;        lons.add(nextNumber(stream));</b>
+<b class="nc"><i>330</i>&nbsp;        lats.add(nextNumber(stream));</b>
+<b class="nc"><i>331</i>&nbsp;        if (isNumberNext(stream)) {</b>
+<b class="nc"><i>332</i>&nbsp;            alts.add(nextNumber(stream));</b>
+<i>333</i>&nbsp;        }
+<b class="nc"><i>334</i>&nbsp;        if (alts.isEmpty() == false &amp;&amp; alts.size() != lons.size()) {</b>
+<b class="nc"><i>335</i>&nbsp;            throw new ParseException(&quot;coordinate dimensions do not match: &quot; + tokenString(stream), stream.lineno());</b>
+<i>336</i>&nbsp;        }
+<b class="nc"><i>337</i>&nbsp;    }</b>
+<i>338</i>&nbsp;
+<i>339</i>&nbsp;    private MultiPoint parseMultiPoint(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>340</i>&nbsp;        String token = nextEmptyOrOpen(stream);</b>
+<b class="nc"><i>341</i>&nbsp;        if (token.equals(EMPTY)) {</b>
+<b class="nc"><i>342</i>&nbsp;            return MultiPoint.EMPTY;</b>
+<i>343</i>&nbsp;        }
+<b class="nc"><i>344</i>&nbsp;        ArrayList&lt;Double&gt; lats = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>345</i>&nbsp;        ArrayList&lt;Double&gt; lons = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>346</i>&nbsp;        ArrayList&lt;Double&gt; alts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>347</i>&nbsp;        ArrayList&lt;Point&gt; points = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>348</i>&nbsp;        parseCoordinates(stream, lats, lons, alts);</b>
+<b class="nc"><i>349</i>&nbsp;        for (int i = 0; i &lt; lats.size(); i++) {</b>
+<b class="nc"><i>350</i>&nbsp;            if (alts.isEmpty()) {</b>
+<b class="nc"><i>351</i>&nbsp;                points.add(new Point(lons.get(i), lats.get(i)));</b>
+<i>352</i>&nbsp;            } else {
+<b class="nc"><i>353</i>&nbsp;                points.add(new Point(lons.get(i), lats.get(i), alts.get(i)));</b>
+<i>354</i>&nbsp;            }
+<i>355</i>&nbsp;        }
+<b class="nc"><i>356</i>&nbsp;        return new MultiPoint(Collections.unmodifiableList(points));</b>
+<i>357</i>&nbsp;    }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;    private Line parseLine(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>360</i>&nbsp;        String token = nextEmptyOrOpen(stream);</b>
+<b class="nc"><i>361</i>&nbsp;        if (token.equals(EMPTY)) {</b>
+<b class="nc"><i>362</i>&nbsp;            return Line.EMPTY;</b>
+<i>363</i>&nbsp;        }
+<b class="nc"><i>364</i>&nbsp;        ArrayList&lt;Double&gt; lats = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>365</i>&nbsp;        ArrayList&lt;Double&gt; lons = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>366</i>&nbsp;        ArrayList&lt;Double&gt; alts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>367</i>&nbsp;        parseCoordinates(stream, lats, lons, alts);</b>
+<b class="nc"><i>368</i>&nbsp;        if (alts.isEmpty()) {</b>
+<b class="nc"><i>369</i>&nbsp;            return new Line(toArray(lons), toArray(lats));</b>
+<i>370</i>&nbsp;        } else {
+<b class="nc"><i>371</i>&nbsp;            return new Line(toArray(lons), toArray(lats), toArray(alts));</b>
+<i>372</i>&nbsp;        }
+<i>373</i>&nbsp;    }
+<i>374</i>&nbsp;
+<i>375</i>&nbsp;    private MultiLine parseMultiLine(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>376</i>&nbsp;        String token = nextEmptyOrOpen(stream);</b>
+<b class="nc"><i>377</i>&nbsp;        if (token.equals(EMPTY)) {</b>
+<b class="nc"><i>378</i>&nbsp;            return MultiLine.EMPTY;</b>
+<i>379</i>&nbsp;        }
+<b class="nc"><i>380</i>&nbsp;        ArrayList&lt;Line&gt; lines = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>381</i>&nbsp;        lines.add(parseLine(stream));</b>
+<b class="nc"><i>382</i>&nbsp;        while (nextCloserOrComma(stream).equals(COMMA)) {</b>
+<b class="nc"><i>383</i>&nbsp;            lines.add(parseLine(stream));</b>
+<i>384</i>&nbsp;        }
+<b class="nc"><i>385</i>&nbsp;        return new MultiLine(Collections.unmodifiableList(lines));</b>
+<i>386</i>&nbsp;    }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;    private LinearRing parsePolygonHole(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>389</i>&nbsp;        nextOpener(stream);</b>
+<b class="nc"><i>390</i>&nbsp;        ArrayList&lt;Double&gt; lats = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>391</i>&nbsp;        ArrayList&lt;Double&gt; lons = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>392</i>&nbsp;        ArrayList&lt;Double&gt; alts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>393</i>&nbsp;        parseCoordinates(stream, lats, lons, alts);</b>
+<b class="nc"><i>394</i>&nbsp;        closeLinearRingIfCoerced(lats, lons, alts);</b>
+<b class="nc"><i>395</i>&nbsp;        if (alts.isEmpty()) {</b>
+<b class="nc"><i>396</i>&nbsp;            return new LinearRing(toArray(lons), toArray(lats));</b>
+<i>397</i>&nbsp;        } else {
+<b class="nc"><i>398</i>&nbsp;            return new LinearRing(toArray(lons), toArray(lats), toArray(alts));</b>
+<i>399</i>&nbsp;        }
+<i>400</i>&nbsp;    }
+<i>401</i>&nbsp;
+<i>402</i>&nbsp;    private Polygon parsePolygon(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>403</i>&nbsp;        if (nextEmptyOrOpen(stream).equals(EMPTY)) {</b>
+<b class="nc"><i>404</i>&nbsp;            return Polygon.EMPTY;</b>
+<i>405</i>&nbsp;        }
+<b class="nc"><i>406</i>&nbsp;        nextOpener(stream);</b>
+<b class="nc"><i>407</i>&nbsp;        ArrayList&lt;Double&gt; lats = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>408</i>&nbsp;        ArrayList&lt;Double&gt; lons = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>409</i>&nbsp;        ArrayList&lt;Double&gt; alts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>410</i>&nbsp;        parseCoordinates(stream, lats, lons, alts);</b>
+<b class="nc"><i>411</i>&nbsp;        ArrayList&lt;LinearRing&gt; holes = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>412</i>&nbsp;        while (nextCloserOrComma(stream).equals(COMMA)) {</b>
+<b class="nc"><i>413</i>&nbsp;            holes.add(parsePolygonHole(stream));</b>
+<i>414</i>&nbsp;        }
+<b class="nc"><i>415</i>&nbsp;        closeLinearRingIfCoerced(lats, lons, alts);</b>
+<i>416</i>&nbsp;        LinearRing shell;
+<b class="nc"><i>417</i>&nbsp;        if (alts.isEmpty()) {</b>
+<b class="nc"><i>418</i>&nbsp;            shell = new LinearRing(toArray(lons), toArray(lats));</b>
+<i>419</i>&nbsp;        } else {
+<b class="nc"><i>420</i>&nbsp;            shell = new LinearRing(toArray(lons), toArray(lats), toArray(alts));</b>
+<i>421</i>&nbsp;        }
+<b class="nc"><i>422</i>&nbsp;        if (holes.isEmpty()) {</b>
+<b class="nc"><i>423</i>&nbsp;            return new Polygon(shell);</b>
+<i>424</i>&nbsp;        } else {
+<b class="nc"><i>425</i>&nbsp;            return new Polygon(shell, Collections.unmodifiableList(holes));</b>
+<i>426</i>&nbsp;        }
+<i>427</i>&nbsp;    }
+<i>428</i>&nbsp;
+<i>429</i>&nbsp;    /**
+<i>430</i>&nbsp;     * Treats supplied arrays as coordinates of a linear ring. If the ring is not closed and coerce is set to true,
+<i>431</i>&nbsp;     * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.
+<i>432</i>&nbsp;     */
+<i>433</i>&nbsp;    private void closeLinearRingIfCoerced(ArrayList&lt;Double&gt; lats, ArrayList&lt;Double&gt; lons, ArrayList&lt;Double&gt; alts) {
+<b class="nc"><i>434</i>&nbsp;        if (coerce &amp;&amp; lats.isEmpty() == false &amp;&amp; lons.isEmpty() == false) {</b>
+<b class="nc"><i>435</i>&nbsp;            int last = lats.size() - 1;</b>
+<b class="nc"><i>436</i>&nbsp;            if (!lats.get(0).equals(lats.get(last)) || !lons.get(0).equals(lons.get(last)) ||</b>
+<b class="nc"><i>437</i>&nbsp;                (alts.isEmpty() == false &amp;&amp; !alts.get(0).equals(alts.get(last)))) {</b>
+<b class="nc"><i>438</i>&nbsp;                lons.add(lons.get(0));</b>
+<b class="nc"><i>439</i>&nbsp;                lats.add(lats.get(0));</b>
+<b class="nc"><i>440</i>&nbsp;                if (alts.isEmpty() == false) {</b>
+<b class="nc"><i>441</i>&nbsp;                    alts.add(alts.get(0));</b>
+<i>442</i>&nbsp;                }
+<i>443</i>&nbsp;            }
+<i>444</i>&nbsp;        }
+<b class="nc"><i>445</i>&nbsp;    }</b>
+<i>446</i>&nbsp;
+<i>447</i>&nbsp;    private MultiPolygon parseMultiPolygon(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>448</i>&nbsp;        String token = nextEmptyOrOpen(stream);</b>
+<b class="nc"><i>449</i>&nbsp;        if (token.equals(EMPTY)) {</b>
+<b class="nc"><i>450</i>&nbsp;            return MultiPolygon.EMPTY;</b>
+<i>451</i>&nbsp;        }
+<b class="nc"><i>452</i>&nbsp;        ArrayList&lt;Polygon&gt; polygons = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>453</i>&nbsp;        polygons.add(parsePolygon(stream));</b>
+<b class="nc"><i>454</i>&nbsp;        while (nextCloserOrComma(stream).equals(COMMA)) {</b>
+<b class="nc"><i>455</i>&nbsp;            polygons.add(parsePolygon(stream));</b>
+<i>456</i>&nbsp;        }
+<b class="nc"><i>457</i>&nbsp;        return new MultiPolygon(Collections.unmodifiableList(polygons));</b>
+<i>458</i>&nbsp;    }
+<i>459</i>&nbsp;
+<i>460</i>&nbsp;    private Rectangle parseBBox(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>461</i>&nbsp;        if (nextEmptyOrOpen(stream).equals(EMPTY)) {</b>
+<b class="nc"><i>462</i>&nbsp;            return Rectangle.EMPTY;</b>
+<i>463</i>&nbsp;        }
+<i>464</i>&nbsp;        // TODO: Add 3D support
+<b class="nc"><i>465</i>&nbsp;        double minLon = nextNumber(stream);</b>
+<b class="nc"><i>466</i>&nbsp;        nextComma(stream);</b>
+<b class="nc"><i>467</i>&nbsp;        double maxLon = nextNumber(stream);</b>
+<b class="nc"><i>468</i>&nbsp;        nextComma(stream);</b>
+<b class="nc"><i>469</i>&nbsp;        double maxLat = nextNumber(stream);</b>
+<b class="nc"><i>470</i>&nbsp;        nextComma(stream);</b>
+<b class="nc"><i>471</i>&nbsp;        double minLat = nextNumber(stream);</b>
+<b class="nc"><i>472</i>&nbsp;        nextCloser(stream);</b>
+<b class="nc"><i>473</i>&nbsp;        return new Rectangle(minLon, maxLon, maxLat, minLat);</b>
+<i>474</i>&nbsp;    }
+<i>475</i>&nbsp;
+<i>476</i>&nbsp;
+<i>477</i>&nbsp;    private Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>478</i>&nbsp;        if (nextEmptyOrOpen(stream).equals(EMPTY)) {</b>
+<b class="nc"><i>479</i>&nbsp;            return Circle.EMPTY;</b>
+<i>480</i>&nbsp;        }
+<b class="nc"><i>481</i>&nbsp;        double lon = nextNumber(stream);</b>
+<b class="nc"><i>482</i>&nbsp;        double lat = nextNumber(stream);</b>
+<b class="nc"><i>483</i>&nbsp;        double radius = nextNumber(stream);</b>
+<b class="nc"><i>484</i>&nbsp;        double alt = Double.NaN;</b>
+<b class="nc"><i>485</i>&nbsp;        if (isNumberNext(stream) == true) {</b>
+<b class="nc"><i>486</i>&nbsp;            alt = nextNumber(stream);</b>
+<i>487</i>&nbsp;        }
+<b class="nc"><i>488</i>&nbsp;        Circle circle = new Circle(lon, lat, alt, radius);</b>
+<b class="nc"><i>489</i>&nbsp;        nextCloser(stream);</b>
+<b class="nc"><i>490</i>&nbsp;        return circle;</b>
+<i>491</i>&nbsp;    }
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;    /**
+<i>494</i>&nbsp;     * next word in the stream
+<i>495</i>&nbsp;     */
+<i>496</i>&nbsp;    private String nextWord(StreamTokenizer stream) throws ParseException, IOException {
+<b class="nc"><i>497</i>&nbsp;        switch (stream.nextToken()) {</b>
+<i>498</i>&nbsp;            case StreamTokenizer.TT_WORD:
+<b class="nc"><i>499</i>&nbsp;                final String word = stream.sval;</b>
+<b class="nc"><i>500</i>&nbsp;                return word.equalsIgnoreCase(EMPTY) ? EMPTY : word;</b>
+<i>501</i>&nbsp;            case &#39;(&#39;:
+<b class="nc"><i>502</i>&nbsp;                return LPAREN;</b>
+<i>503</i>&nbsp;            case &#39;)&#39;:
+<b class="nc"><i>504</i>&nbsp;                return RPAREN;</b>
+<i>505</i>&nbsp;            case &#39;,&#39;:
+<b class="nc"><i>506</i>&nbsp;                return COMMA;</b>
+<i>507</i>&nbsp;        }
+<b class="nc"><i>508</i>&nbsp;        throw new ParseException(&quot;expected word but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>509</i>&nbsp;    }
+<i>510</i>&nbsp;
+<i>511</i>&nbsp;    private double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>512</i>&nbsp;        if (stream.nextToken() == StreamTokenizer.TT_WORD) {</b>
+<b class="nc"><i>513</i>&nbsp;            if (stream.sval.equalsIgnoreCase(NAN)) {</b>
+<b class="nc"><i>514</i>&nbsp;                return Double.NaN;</b>
+<i>515</i>&nbsp;            } else {
+<i>516</i>&nbsp;                try {
+<b class="nc"><i>517</i>&nbsp;                    return Double.parseDouble(stream.sval);</b>
+<b class="nc"><i>518</i>&nbsp;                } catch (NumberFormatException e) {</b>
+<b class="nc"><i>519</i>&nbsp;                    throw new ParseException(&quot;invalid number found: &quot; + stream.sval, stream.lineno());</b>
+<i>520</i>&nbsp;                }
+<i>521</i>&nbsp;            }
+<i>522</i>&nbsp;        }
+<b class="nc"><i>523</i>&nbsp;        throw new ParseException(&quot;expected number but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>524</i>&nbsp;    }
+<i>525</i>&nbsp;
+<i>526</i>&nbsp;    private String tokenString(StreamTokenizer stream) {
+<b class="nc"><i>527</i>&nbsp;        switch (stream.ttype) {</b>
+<i>528</i>&nbsp;            case StreamTokenizer.TT_WORD:
+<b class="nc"><i>529</i>&nbsp;                return stream.sval;</b>
+<i>530</i>&nbsp;            case StreamTokenizer.TT_EOF:
+<b class="nc"><i>531</i>&nbsp;                return EOF;</b>
+<i>532</i>&nbsp;            case StreamTokenizer.TT_EOL:
+<b class="nc"><i>533</i>&nbsp;                return EOL;</b>
+<i>534</i>&nbsp;            case StreamTokenizer.TT_NUMBER:
+<b class="nc"><i>535</i>&nbsp;                return NUMBER;</b>
+<i>536</i>&nbsp;        }
+<b class="nc"><i>537</i>&nbsp;        return &quot;&#39;&quot; + (char) stream.ttype + &quot;&#39;&quot;;</b>
+<i>538</i>&nbsp;    }
+<i>539</i>&nbsp;
+<i>540</i>&nbsp;    private boolean isNumberNext(StreamTokenizer stream) throws IOException {
+<b class="nc"><i>541</i>&nbsp;        final int type = stream.nextToken();</b>
+<b class="nc"><i>542</i>&nbsp;        stream.pushBack();</b>
+<b class="nc"><i>543</i>&nbsp;        return type == StreamTokenizer.TT_WORD;</b>
+<i>544</i>&nbsp;    }
+<i>545</i>&nbsp;
+<i>546</i>&nbsp;    private String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>547</i>&nbsp;        final String next = nextWord(stream);</b>
+<b class="nc"><i>548</i>&nbsp;        if (next.equals(EMPTY) || next.equals(LPAREN)) {</b>
+<b class="nc"><i>549</i>&nbsp;            return next;</b>
+<i>550</i>&nbsp;        }
+<b class="nc"><i>551</i>&nbsp;        throw new ParseException(&quot;expected &quot; + EMPTY + &quot; or &quot; + LPAREN</b>
+<b class="nc"><i>552</i>&nbsp;            + &quot; but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>553</i>&nbsp;    }
+<i>554</i>&nbsp;
+<i>555</i>&nbsp;    private String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>556</i>&nbsp;        if (nextWord(stream).equals(RPAREN)) {</b>
+<b class="nc"><i>557</i>&nbsp;            return RPAREN;</b>
+<i>558</i>&nbsp;        }
+<b class="nc"><i>559</i>&nbsp;        throw new ParseException(&quot;expected &quot; + RPAREN + &quot; but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>560</i>&nbsp;    }
+<i>561</i>&nbsp;
+<i>562</i>&nbsp;    private String nextComma(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>563</i>&nbsp;        if (nextWord(stream).equals(COMMA) == true) {</b>
+<b class="nc"><i>564</i>&nbsp;            return COMMA;</b>
+<i>565</i>&nbsp;        }
+<b class="nc"><i>566</i>&nbsp;        throw new ParseException(&quot;expected &quot; + COMMA + &quot; but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>567</i>&nbsp;    }
+<i>568</i>&nbsp;
+<i>569</i>&nbsp;    private String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>570</i>&nbsp;        if (nextWord(stream).equals(LPAREN)) {</b>
+<b class="nc"><i>571</i>&nbsp;            return LPAREN;</b>
+<i>572</i>&nbsp;        }
+<b class="nc"><i>573</i>&nbsp;        throw new ParseException(&quot;expected &quot; + LPAREN + &quot; but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>574</i>&nbsp;    }
+<i>575</i>&nbsp;
+<i>576</i>&nbsp;    private String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
+<b class="nc"><i>577</i>&nbsp;        String token = nextWord(stream);</b>
+<b class="nc"><i>578</i>&nbsp;        if (token.equals(COMMA) || token.equals(RPAREN)) {</b>
+<b class="nc"><i>579</i>&nbsp;            return token;</b>
+<i>580</i>&nbsp;        }
+<b class="nc"><i>581</i>&nbsp;        throw new ParseException(&quot;expected &quot; + COMMA + &quot; or &quot; + RPAREN</b>
+<b class="nc"><i>582</i>&nbsp;            + &quot; but found: &quot; + tokenString(stream), stream.lineno());</b>
+<i>583</i>&nbsp;    }
+<i>584</i>&nbsp;
+<i>585</i>&nbsp;    private static String getWKTName(Geometry geometry) {
+<b class="nc"><i>586</i>&nbsp;        return geometry.visit(new GeometryVisitor&lt;String, RuntimeException&gt;() {</b>
+<i>587</i>&nbsp;            @Override
+<i>588</i>&nbsp;            public String visit(Circle circle) {
+<i>589</i>&nbsp;                return &quot;circle&quot;;
+<i>590</i>&nbsp;            }
+<i>591</i>&nbsp;
+<i>592</i>&nbsp;            @Override
+<i>593</i>&nbsp;            public String visit(GeometryCollection&lt;?&gt; collection) {
+<i>594</i>&nbsp;                return &quot;geometrycollection&quot;;
+<i>595</i>&nbsp;            }
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;            @Override
+<i>598</i>&nbsp;            public String visit(Line line) {
+<i>599</i>&nbsp;                return &quot;linestring&quot;;
+<i>600</i>&nbsp;            }
+<i>601</i>&nbsp;
+<i>602</i>&nbsp;            @Override
+<i>603</i>&nbsp;            public String visit(LinearRing ring) {
+<i>604</i>&nbsp;                throw new UnsupportedOperationException(&quot;line ring cannot be serialized using WKT&quot;);
+<i>605</i>&nbsp;            }
+<i>606</i>&nbsp;
+<i>607</i>&nbsp;            @Override
+<i>608</i>&nbsp;            public String visit(MultiLine multiLine) {
+<i>609</i>&nbsp;                return &quot;multilinestring&quot;;
+<i>610</i>&nbsp;            }
+<i>611</i>&nbsp;
+<i>612</i>&nbsp;            @Override
+<i>613</i>&nbsp;            public String visit(MultiPoint multiPoint) {
+<i>614</i>&nbsp;                return &quot;multipoint&quot;;
+<i>615</i>&nbsp;            }
+<i>616</i>&nbsp;
+<i>617</i>&nbsp;            @Override
+<i>618</i>&nbsp;            public String visit(MultiPolygon multiPolygon) {
+<i>619</i>&nbsp;                return &quot;multipolygon&quot;;
+<i>620</i>&nbsp;            }
+<i>621</i>&nbsp;
+<i>622</i>&nbsp;            @Override
+<i>623</i>&nbsp;            public String visit(Point point) {
+<i>624</i>&nbsp;                return &quot;point&quot;;
+<i>625</i>&nbsp;            }
+<i>626</i>&nbsp;
+<i>627</i>&nbsp;            @Override
+<i>628</i>&nbsp;            public String visit(Polygon polygon) {
+<i>629</i>&nbsp;                return &quot;polygon&quot;;
+<i>630</i>&nbsp;            }
+<i>631</i>&nbsp;
+<i>632</i>&nbsp;            @Override
+<i>633</i>&nbsp;            public String visit(Rectangle rectangle) {
+<i>634</i>&nbsp;                return &quot;bbox&quot;;
+<i>635</i>&nbsp;            }
+<i>636</i>&nbsp;        });
+<i>637</i>&nbsp;    }
+<i>638</i>&nbsp;
+<i>639</i>&nbsp;    private double[] toArray(ArrayList&lt;Double&gt; doubles) {
+<b class="nc"><i>640</i>&nbsp;        return doubles.stream().mapToDouble(i -&gt; i).toArray();</b>
+<i>641</i>&nbsp;    }
+<i>642</i>&nbsp;
+<i>643</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

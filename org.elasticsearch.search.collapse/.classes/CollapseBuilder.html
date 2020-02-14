@@ -1,0 +1,306 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: CollapseBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.collapse</a> ]
+</div>
+
+<h1>Coverage Summary for Class: CollapseBuilder (org.elasticsearch.search.collapse)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">CollapseBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 19)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 86)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.search.collapse;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.index.IndexOptions;
+<i>22</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>23</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>24</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>28</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>29</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContent;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>33</i>&nbsp;import org.elasticsearch.index.mapper.KeywordFieldMapper;
+<i>34</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>35</i>&nbsp;import org.elasticsearch.index.mapper.NumberFieldMapper;
+<i>36</i>&nbsp;import org.elasticsearch.index.query.InnerHitBuilder;
+<i>37</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.util.ArrayList;
+<i>41</i>&nbsp;import java.util.Collections;
+<i>42</i>&nbsp;import java.util.List;
+<i>43</i>&nbsp;import java.util.Objects;
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;/**
+<i>46</i>&nbsp; * A builder that enables field collapsing on search request.
+<i>47</i>&nbsp; */
+<i>48</i>&nbsp;public class CollapseBuilder implements Writeable, ToXContentObject {
+<b class="nc"><i>49</i>&nbsp;    public static final ParseField FIELD_FIELD = new ParseField(&quot;field&quot;);</b>
+<b class="nc"><i>50</i>&nbsp;    public static final ParseField INNER_HITS_FIELD = new ParseField(&quot;inner_hits&quot;);</b>
+<b class="nc"><i>51</i>&nbsp;    public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField(&quot;max_concurrent_group_searches&quot;);</b>
+<b class="nc"><i>52</i>&nbsp;    private static final ObjectParser&lt;CollapseBuilder, Void&gt; PARSER =</b>
+<i>53</i>&nbsp;        new ObjectParser&lt;&gt;(&quot;collapse&quot;, CollapseBuilder::new);
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;    static {
+<b class="nc"><i>56</i>&nbsp;        PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);</b>
+<b class="nc"><i>57</i>&nbsp;        PARSER.declareInt(CollapseBuilder::setMaxConcurrentGroupRequests, MAX_CONCURRENT_GROUP_REQUESTS_FIELD);</b>
+<b class="nc"><i>58</i>&nbsp;        PARSER.declareField((parser, builder, context) -&gt; {</b>
+<b class="nc"><i>59</i>&nbsp;            XContentParser.Token currentToken = parser.currentToken();</b>
+<b class="nc"><i>60</i>&nbsp;            if (currentToken == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>61</i>&nbsp;                builder.setInnerHits(InnerHitBuilder.fromXContent(parser));</b>
+<b class="nc"><i>62</i>&nbsp;            } else if (currentToken == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>63</i>&nbsp;                List&lt;InnerHitBuilder&gt; innerHitBuilders = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>64</i>&nbsp;                for (currentToken = parser.nextToken(); currentToken != XContentParser.Token.END_ARRAY; currentToken = parser.nextToken()) {</b>
+<b class="nc"><i>65</i>&nbsp;                    if (currentToken == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>66</i>&nbsp;                        innerHitBuilders.add(InnerHitBuilder.fromXContent(parser));</b>
+<i>67</i>&nbsp;                    } else {
+<b class="nc"><i>68</i>&nbsp;                        throw new ParsingException(parser.getTokenLocation(), &quot;Invalid token in inner_hits array&quot;);</b>
+<i>69</i>&nbsp;                    }
+<i>70</i>&nbsp;                }
+<i>71</i>&nbsp;
+<b class="nc"><i>72</i>&nbsp;                builder.setInnerHits(innerHitBuilders);</b>
+<i>73</i>&nbsp;            }
+<b class="nc"><i>74</i>&nbsp;        }, INNER_HITS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);</b>
+<b class="nc"><i>75</i>&nbsp;    }</b>
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    private String field;
+<b class="nc"><i>78</i>&nbsp;    private List&lt;InnerHitBuilder&gt; innerHits = Collections.emptyList();</b>
+<b class="nc"><i>79</i>&nbsp;    private int maxConcurrentGroupRequests = 0;</b>
+<i>80</i>&nbsp;
+<b class="nc"><i>81</i>&nbsp;    private CollapseBuilder() {}</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    /**
+<i>84</i>&nbsp;     * Public constructor
+<i>85</i>&nbsp;     * @param field The name of the field to collapse on
+<i>86</i>&nbsp;     */
+<b class="nc"><i>87</i>&nbsp;    public CollapseBuilder(String field) {</b>
+<b class="nc"><i>88</i>&nbsp;        Objects.requireNonNull(field, &quot;field must be non-null&quot;);</b>
+<b class="nc"><i>89</i>&nbsp;        this.field = field;</b>
+<b class="nc"><i>90</i>&nbsp;    }</b>
+<i>91</i>&nbsp;
+<b class="nc"><i>92</i>&nbsp;    public CollapseBuilder(StreamInput in) throws IOException {</b>
+<b class="nc"><i>93</i>&nbsp;        this.field = in.readString();</b>
+<b class="nc"><i>94</i>&nbsp;        this.maxConcurrentGroupRequests = in.readVInt();</b>
+<b class="nc"><i>95</i>&nbsp;        this.innerHits = in.readList(InnerHitBuilder::new);</b>
+<b class="nc"><i>96</i>&nbsp;    }</b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    @Override
+<i>99</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>100</i>&nbsp;        out.writeString(field);</b>
+<b class="nc"><i>101</i>&nbsp;        out.writeVInt(maxConcurrentGroupRequests);</b>
+<b class="nc"><i>102</i>&nbsp;        out.writeList(innerHits);</b>
+<b class="nc"><i>103</i>&nbsp;    }</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    public static CollapseBuilder fromXContent(XContentParser parser) {
+<b class="nc"><i>106</i>&nbsp;        return PARSER.apply(parser, null);</b>
+<i>107</i>&nbsp;    }
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    // for object parser only
+<i>110</i>&nbsp;    private CollapseBuilder setField(String field) {
+<b class="nc"><i>111</i>&nbsp;        if (Strings.isEmpty(field)) {</b>
+<b class="nc"><i>112</i>&nbsp;            throw new IllegalArgumentException(&quot;field name is null or empty&quot;);</b>
+<i>113</i>&nbsp;        }
+<b class="nc"><i>114</i>&nbsp;        this.field = field;</b>
+<b class="nc"><i>115</i>&nbsp;        return this;</b>
+<i>116</i>&nbsp;    }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;    public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
+<b class="nc"><i>119</i>&nbsp;        this.innerHits = Collections.singletonList(innerHit);</b>
+<b class="nc"><i>120</i>&nbsp;        return this;</b>
+<i>121</i>&nbsp;    }
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;    public CollapseBuilder setInnerHits(List&lt;InnerHitBuilder&gt; innerHits) {
+<b class="nc"><i>124</i>&nbsp;        this.innerHits = innerHits;</b>
+<b class="nc"><i>125</i>&nbsp;        return this;</b>
+<i>126</i>&nbsp;    }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    public CollapseBuilder setMaxConcurrentGroupRequests(int num) {
+<b class="nc"><i>129</i>&nbsp;        if (num &lt; 1) {</b>
+<b class="nc"><i>130</i>&nbsp;            throw new IllegalArgumentException(&quot;maxConcurrentGroupRequests` must be positive&quot;);</b>
+<i>131</i>&nbsp;        }
+<b class="nc"><i>132</i>&nbsp;        this.maxConcurrentGroupRequests = num;</b>
+<b class="nc"><i>133</i>&nbsp;        return this;</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    /**
+<i>137</i>&nbsp;     * The name of the field to collapse against
+<i>138</i>&nbsp;     */
+<i>139</i>&nbsp;    public String getField() {
+<b class="nc"><i>140</i>&nbsp;        return this.field;</b>
+<i>141</i>&nbsp;    }
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;    /**
+<i>144</i>&nbsp;     * The inner hit options to expand the collapsed results
+<i>145</i>&nbsp;     */
+<i>146</i>&nbsp;    public List&lt;InnerHitBuilder&gt; getInnerHits() {
+<b class="nc"><i>147</i>&nbsp;        return this.innerHits;</b>
+<i>148</i>&nbsp;    }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    /**
+<i>151</i>&nbsp;     * Returns the amount of group requests that are allowed to be ran concurrently in the inner_hits phase.
+<i>152</i>&nbsp;     */
+<i>153</i>&nbsp;    public int getMaxConcurrentGroupRequests() {
+<b class="nc"><i>154</i>&nbsp;        return maxConcurrentGroupRequests;</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    @Override
+<i>158</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+<b class="nc"><i>159</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>160</i>&nbsp;        innerToXContent(builder);</b>
+<b class="nc"><i>161</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>162</i>&nbsp;        return builder;</b>
+<i>163</i>&nbsp;    }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    private void innerToXContent(XContentBuilder builder) throws IOException {
+<b class="nc"><i>166</i>&nbsp;        builder.field(FIELD_FIELD.getPreferredName(), field);</b>
+<b class="nc"><i>167</i>&nbsp;        if (maxConcurrentGroupRequests &gt; 0) {</b>
+<b class="nc"><i>168</i>&nbsp;            builder.field(MAX_CONCURRENT_GROUP_REQUESTS_FIELD.getPreferredName(), maxConcurrentGroupRequests);</b>
+<i>169</i>&nbsp;        }
+<b class="nc"><i>170</i>&nbsp;        if (innerHits.isEmpty() == false) {</b>
+<b class="nc"><i>171</i>&nbsp;            if (innerHits.size() == 1) {</b>
+<b class="nc"><i>172</i>&nbsp;                builder.field(INNER_HITS_FIELD.getPreferredName(), innerHits.get(0));</b>
+<i>173</i>&nbsp;            } else {
+<b class="nc"><i>174</i>&nbsp;                builder.startArray(INNER_HITS_FIELD.getPreferredName());</b>
+<b class="nc"><i>175</i>&nbsp;                for (InnerHitBuilder innerHit : innerHits) {</b>
+<b class="nc"><i>176</i>&nbsp;                    innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);</b>
+<b class="nc"><i>177</i>&nbsp;                }</b>
+<b class="nc"><i>178</i>&nbsp;                builder.endArray();</b>
+<i>179</i>&nbsp;            }
+<i>180</i>&nbsp;        }
+<b class="nc"><i>181</i>&nbsp;    }</b>
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;    @Override
+<i>184</i>&nbsp;    public boolean equals(Object o) {
+<b class="nc"><i>185</i>&nbsp;        if (this == o) return true;</b>
+<b class="nc"><i>186</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<i>187</i>&nbsp;
+<b class="nc"><i>188</i>&nbsp;        CollapseBuilder that = (CollapseBuilder) o;</b>
+<i>189</i>&nbsp;
+<b class="nc"><i>190</i>&nbsp;        if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;</b>
+<b class="nc"><i>191</i>&nbsp;        if (!field.equals(that.field)) return false;</b>
+<b class="nc"><i>192</i>&nbsp;        return Objects.equals(innerHits, that.innerHits);</b>
+<i>193</i>&nbsp;    }
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    @Override
+<i>196</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>197</i>&nbsp;        int result = Objects.hash(field, innerHits);</b>
+<b class="nc"><i>198</i>&nbsp;        result = 31 * result + maxConcurrentGroupRequests;</b>
+<b class="nc"><i>199</i>&nbsp;        return result;</b>
+<i>200</i>&nbsp;    }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;    public CollapseContext build(QueryShardContext queryShardContext) {
+<b class="nc"><i>203</i>&nbsp;        MappedFieldType fieldType = queryShardContext.fieldMapper(field);</b>
+<b class="nc"><i>204</i>&nbsp;        if (fieldType == null) {</b>
+<b class="nc"><i>205</i>&nbsp;            throw new IllegalArgumentException(&quot;no mapping found for `&quot; + field + &quot;` in order to collapse on&quot;);</b>
+<i>206</i>&nbsp;        }
+<b class="nc"><i>207</i>&nbsp;        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &amp;&amp;</b>
+<i>208</i>&nbsp;            fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
+<b class="nc"><i>209</i>&nbsp;            throw new IllegalArgumentException(&quot;unknown type for collapse field `&quot; + field +</b>
+<i>210</i>&nbsp;                &quot;`, only keywords and numbers are accepted&quot;);
+<i>211</i>&nbsp;        }
+<i>212</i>&nbsp;
+<b class="nc"><i>213</i>&nbsp;        if (fieldType.hasDocValues() == false) {</b>
+<b class="nc"><i>214</i>&nbsp;            throw new IllegalArgumentException(&quot;cannot collapse on field `&quot; + field + &quot;` without `doc_values`&quot;);</b>
+<i>215</i>&nbsp;        }
+<b class="nc"><i>216</i>&nbsp;        if (fieldType.indexOptions() == IndexOptions.NONE &amp;&amp; (innerHits != null &amp;&amp; !innerHits.isEmpty())) {</b>
+<b class="nc"><i>217</i>&nbsp;            throw new IllegalArgumentException(&quot;cannot expand `inner_hits` for collapse field `&quot;</b>
+<i>218</i>&nbsp;                + field + &quot;`, &quot; + &quot;only indexed field can retrieve `inner_hits`&quot;);
+<i>219</i>&nbsp;        }
+<i>220</i>&nbsp;
+<b class="nc"><i>221</i>&nbsp;        return new CollapseContext(field, fieldType, innerHits);</b>
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

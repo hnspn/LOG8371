@@ -1,0 +1,555 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: TransportTasksAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.support.tasks</a> ]
+</div>
+
+<h1>Coverage Summary for Class: TransportTasksAction (org.elasticsearch.action.support.tasks)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">TransportTasksAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.5%
+  </span>
+  <span class="absValue">
+    (1/ 8)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    15.5%
+  </span>
+  <span class="absValue">
+    (9/ 58)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">TransportTasksAction$NodeTaskRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 12)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">TransportTasksAction$NodeTransportHandler</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (1/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    11.1%
+  </span>
+  <span class="absValue">
+    (1/ 9)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    13.3%
+  </span>
+  <span class="absValue">
+    (2/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    12.7%
+  </span>
+  <span class="absValue">
+    (10/ 79)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.support.tasks;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>23</i>&nbsp;import org.elasticsearch.ResourceNotFoundException;
+<i>24</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>25</i>&nbsp;import org.elasticsearch.action.FailedNodeException;
+<i>26</i>&nbsp;import org.elasticsearch.action.NoSuchNodeException;
+<i>27</i>&nbsp;import org.elasticsearch.action.TaskOperationFailure;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.ActionFilters;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.HandledTransportAction;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>34</i>&nbsp;import org.elasticsearch.common.collect.ImmutableOpenMap;
+<i>35</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>36</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>38</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>39</i>&nbsp;import org.elasticsearch.common.util.concurrent.AtomicArray;
+<i>40</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>41</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>42</i>&nbsp;import org.elasticsearch.transport.NodeShouldNotConnectException;
+<i>43</i>&nbsp;import org.elasticsearch.transport.TransportChannel;
+<i>44</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>45</i>&nbsp;import org.elasticsearch.transport.TransportRequest;
+<i>46</i>&nbsp;import org.elasticsearch.transport.TransportRequestHandler;
+<i>47</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions;
+<i>48</i>&nbsp;import org.elasticsearch.transport.TransportResponse;
+<i>49</i>&nbsp;import org.elasticsearch.transport.TransportResponseHandler;
+<i>50</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;import java.io.IOException;
+<i>53</i>&nbsp;import java.util.ArrayList;
+<i>54</i>&nbsp;import java.util.List;
+<i>55</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>56</i>&nbsp;import java.util.concurrent.atomic.AtomicReferenceArray;
+<i>57</i>&nbsp;import java.util.function.Consumer;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;import static java.util.Collections.emptyList;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;/**
+<i>62</i>&nbsp; * The base class for transport actions that are interacting with currently running tasks.
+<i>63</i>&nbsp; */
+<b class="nc"><i>64</i>&nbsp;public abstract class TransportTasksAction&lt;</b>
+<i>65</i>&nbsp;        OperationTask extends Task,
+<i>66</i>&nbsp;        TasksRequest extends BaseTasksRequest&lt;TasksRequest&gt;,
+<i>67</i>&nbsp;        TasksResponse extends BaseTasksResponse,
+<i>68</i>&nbsp;        TaskResponse extends Writeable
+<i>69</i>&nbsp;    &gt; extends HandledTransportAction&lt;TasksRequest, TasksResponse&gt; {
+<i>70</i>&nbsp;
+<i>71</i>&nbsp;    protected final ClusterService clusterService;
+<i>72</i>&nbsp;    protected final TransportService transportService;
+<i>73</i>&nbsp;    protected final Writeable.Reader&lt;TasksRequest&gt; requestReader;
+<i>74</i>&nbsp;    protected final Writeable.Reader&lt;TasksResponse&gt; responsesReader;
+<i>75</i>&nbsp;    protected final Writeable.Reader&lt;TaskResponse&gt; responseReader;
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    protected final String transportNodeAction;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    protected TransportTasksAction(String actionName, ClusterService clusterService, TransportService transportService,
+<i>80</i>&nbsp;                                   ActionFilters actionFilters, Writeable.Reader&lt;TasksRequest&gt; requestReader,
+<i>81</i>&nbsp;                                   Writeable.Reader&lt;TasksResponse&gt; responsesReader, Writeable.Reader&lt;TaskResponse&gt; responseReader,
+<i>82</i>&nbsp;                                   String nodeExecutor) {
+<b class="fc"><i>83</i>&nbsp;        super(actionName, transportService, actionFilters, requestReader);</b>
+<b class="fc"><i>84</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>85</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>86</i>&nbsp;        this.transportNodeAction = actionName + &quot;[n]&quot;;</b>
+<b class="fc"><i>87</i>&nbsp;        this.requestReader = requestReader;</b>
+<b class="fc"><i>88</i>&nbsp;        this.responsesReader = responsesReader;</b>
+<b class="fc"><i>89</i>&nbsp;        this.responseReader = responseReader;</b>
+<i>90</i>&nbsp;
+<b class="fc"><i>91</i>&nbsp;        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());</b>
+<b class="fc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    @Override
+<i>95</i>&nbsp;    protected void doExecute(Task task, TasksRequest request, ActionListener&lt;TasksResponse&gt; listener) {
+<b class="nc"><i>96</i>&nbsp;        new AsyncAction(task, request, listener).start();</b>
+<b class="nc"><i>97</i>&nbsp;    }</b>
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener&lt;NodeTasksResponse&gt; listener) {
+<b class="nc"><i>100</i>&nbsp;        TasksRequest request = nodeTaskRequest.tasksRequest;</b>
+<b class="nc"><i>101</i>&nbsp;        List&lt;OperationTask&gt; tasks = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>102</i>&nbsp;        processTasks(request, tasks::add);</b>
+<b class="nc"><i>103</i>&nbsp;        if (tasks.isEmpty()) {</b>
+<b class="nc"><i>104</i>&nbsp;            listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), emptyList(), emptyList()));</b>
+<b class="nc"><i>105</i>&nbsp;            return;</b>
+<i>106</i>&nbsp;        }
+<b class="nc"><i>107</i>&nbsp;        AtomicArray&lt;Tuple&lt;TaskResponse, Exception&gt;&gt; responses = new AtomicArray&lt;&gt;(tasks.size());</b>
+<b class="nc"><i>108</i>&nbsp;        final AtomicInteger counter = new AtomicInteger(tasks.size());</b>
+<b class="nc"><i>109</i>&nbsp;        for (int i = 0; i &lt; tasks.size(); i++) {</b>
+<b class="nc"><i>110</i>&nbsp;            final int taskIndex = i;</b>
+<b class="nc"><i>111</i>&nbsp;            ActionListener&lt;TaskResponse&gt; taskListener = new ActionListener&lt;TaskResponse&gt;() {</b>
+<i>112</i>&nbsp;                @Override
+<i>113</i>&nbsp;                public void onResponse(TaskResponse response) {
+<i>114</i>&nbsp;                    responses.setOnce(taskIndex, response == null ? null : new Tuple&lt;&gt;(response, null));
+<i>115</i>&nbsp;                    respondIfFinished();
+<i>116</i>&nbsp;                }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;                @Override
+<i>119</i>&nbsp;                public void onFailure(Exception e) {
+<i>120</i>&nbsp;                    responses.setOnce(taskIndex, new Tuple&lt;&gt;(null, e));
+<i>121</i>&nbsp;                    respondIfFinished();
+<i>122</i>&nbsp;                }
+<i>123</i>&nbsp;
+<i>124</i>&nbsp;                private void respondIfFinished() {
+<i>125</i>&nbsp;                    if (counter.decrementAndGet() != 0) {
+<i>126</i>&nbsp;                        return;
+<i>127</i>&nbsp;                    }
+<i>128</i>&nbsp;                    List&lt;TaskResponse&gt; results = new ArrayList&lt;&gt;();
+<i>129</i>&nbsp;                    List&lt;TaskOperationFailure&gt; exceptions = new ArrayList&lt;&gt;();
+<i>130</i>&nbsp;                    for (Tuple&lt;TaskResponse, Exception&gt; response : responses.asList()) {
+<i>131</i>&nbsp;                        if (response.v1() == null) {
+<i>132</i>&nbsp;                            assert response.v2() != null;
+<i>133</i>&nbsp;                            exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(),
+<i>134</i>&nbsp;                                    response.v2()));
+<i>135</i>&nbsp;                        } else {
+<i>136</i>&nbsp;                            assert response.v2() == null;
+<i>137</i>&nbsp;                            results.add(response.v1());
+<i>138</i>&nbsp;                        }
+<i>139</i>&nbsp;                    }
+<i>140</i>&nbsp;                    listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), results, exceptions));
+<i>141</i>&nbsp;                }
+<i>142</i>&nbsp;            };
+<i>143</i>&nbsp;            try {
+<b class="nc"><i>144</i>&nbsp;                taskOperation(request, tasks.get(taskIndex), taskListener);</b>
+<b class="nc"><i>145</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>146</i>&nbsp;                taskListener.onFailure(e);</b>
+<b class="nc"><i>147</i>&nbsp;            }</b>
+<i>148</i>&nbsp;        }
+<b class="nc"><i>149</i>&nbsp;    }</b>
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;    protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
+<b class="nc"><i>152</i>&nbsp;        return nodesIds;</b>
+<i>153</i>&nbsp;    }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;    protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
+<b class="nc"><i>156</i>&nbsp;        if (request.getTaskId().isSet()) {</b>
+<b class="nc"><i>157</i>&nbsp;            return new String[]{request.getTaskId().getNodeId()};</b>
+<i>158</i>&nbsp;        } else {
+<b class="nc"><i>159</i>&nbsp;            return clusterState.nodes().resolveNodes(request.getNodes());</b>
+<i>160</i>&nbsp;        }
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    protected void processTasks(TasksRequest request, Consumer&lt;OperationTask&gt; operation) {
+<b class="nc"><i>164</i>&nbsp;        if (request.getTaskId().isSet()) {</b>
+<i>165</i>&nbsp;            // we are only checking one task, we can optimize it
+<b class="nc"><i>166</i>&nbsp;            Task task = taskManager.getTask(request.getTaskId().getId());</b>
+<b class="nc"><i>167</i>&nbsp;            if (task != null) {</b>
+<b class="nc"><i>168</i>&nbsp;                if (request.match(task)) {</b>
+<b class="nc"><i>169</i>&nbsp;                    operation.accept((OperationTask) task);</b>
+<i>170</i>&nbsp;                } else {
+<b class="nc"><i>171</i>&nbsp;                    throw new ResourceNotFoundException(&quot;task [{}] doesn&#39;t support this operation&quot;, request.getTaskId());</b>
+<i>172</i>&nbsp;                }
+<i>173</i>&nbsp;            } else {
+<b class="nc"><i>174</i>&nbsp;                throw new ResourceNotFoundException(&quot;task [{}] is missing&quot;, request.getTaskId());</b>
+<i>175</i>&nbsp;            }
+<b class="nc"><i>176</i>&nbsp;        } else {</b>
+<b class="nc"><i>177</i>&nbsp;            for (Task task : taskManager.getTasks().values()) {</b>
+<b class="nc"><i>178</i>&nbsp;                if (request.match(task)) {</b>
+<b class="nc"><i>179</i>&nbsp;                    operation.accept((OperationTask) task);</b>
+<i>180</i>&nbsp;                }
+<b class="nc"><i>181</i>&nbsp;            }</b>
+<i>182</i>&nbsp;        }
+<b class="nc"><i>183</i>&nbsp;    }</b>
+<i>184</i>&nbsp;
+<i>185</i>&nbsp;    protected abstract TasksResponse newResponse(TasksRequest request, List&lt;TaskResponse&gt; tasks, List&lt;TaskOperationFailure&gt;
+<i>186</i>&nbsp;        taskOperationFailures, List&lt;FailedNodeException&gt; failedNodeExceptions);
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>189</i>&nbsp;    protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray responses) {
+<b class="nc"><i>190</i>&nbsp;        List&lt;TaskResponse&gt; tasks = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>191</i>&nbsp;        List&lt;FailedNodeException&gt; failedNodeExceptions = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>192</i>&nbsp;        List&lt;TaskOperationFailure&gt; taskOperationFailures = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>193</i>&nbsp;        for (int i = 0; i &lt; responses.length(); i++) {</b>
+<b class="nc"><i>194</i>&nbsp;            Object response = responses.get(i);</b>
+<b class="nc"><i>195</i>&nbsp;            if (response instanceof FailedNodeException) {</b>
+<b class="nc"><i>196</i>&nbsp;                failedNodeExceptions.add((FailedNodeException) response);</b>
+<i>197</i>&nbsp;            } else {
+<b class="nc"><i>198</i>&nbsp;                NodeTasksResponse tasksResponse = (NodeTasksResponse) response;</b>
+<b class="nc"><i>199</i>&nbsp;                if (tasksResponse.results != null) {</b>
+<b class="nc"><i>200</i>&nbsp;                    tasks.addAll(tasksResponse.results);</b>
+<i>201</i>&nbsp;                }
+<b class="nc"><i>202</i>&nbsp;                if (tasksResponse.exceptions != null) {</b>
+<b class="nc"><i>203</i>&nbsp;                    taskOperationFailures.addAll(tasksResponse.exceptions);</b>
+<i>204</i>&nbsp;                }
+<i>205</i>&nbsp;            }
+<i>206</i>&nbsp;        }
+<b class="nc"><i>207</i>&nbsp;        return newResponse(request, tasks, taskOperationFailures, failedNodeExceptions);</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /**
+<i>211</i>&nbsp;     * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener&lt;TaskResponse&gt; listener);
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    private class AsyncAction {
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;        private final TasksRequest request;
+<i>218</i>&nbsp;        private final String[] nodesIds;
+<i>219</i>&nbsp;        private final DiscoveryNode[] nodes;
+<i>220</i>&nbsp;        private final ActionListener&lt;TasksResponse&gt; listener;
+<i>221</i>&nbsp;        private final AtomicReferenceArray&lt;Object&gt; responses;
+<i>222</i>&nbsp;        private final AtomicInteger counter = new AtomicInteger();
+<i>223</i>&nbsp;        private final Task task;
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;        private AsyncAction(Task task, TasksRequest request, ActionListener&lt;TasksResponse&gt; listener) {
+<i>226</i>&nbsp;            this.task = task;
+<i>227</i>&nbsp;            this.request = request;
+<i>228</i>&nbsp;            this.listener = listener;
+<i>229</i>&nbsp;            ClusterState clusterState = clusterService.state();
+<i>230</i>&nbsp;            String[] nodesIds = resolveNodes(request, clusterState);
+<i>231</i>&nbsp;            this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
+<i>232</i>&nbsp;            ImmutableOpenMap&lt;String, DiscoveryNode&gt; nodes = clusterState.nodes().getNodes();
+<i>233</i>&nbsp;            this.nodes = new DiscoveryNode[nodesIds.length];
+<i>234</i>&nbsp;            for (int i = 0; i &lt; this.nodesIds.length; i++) {
+<i>235</i>&nbsp;                this.nodes[i] = nodes.get(this.nodesIds[i]);
+<i>236</i>&nbsp;            }
+<i>237</i>&nbsp;            this.responses = new AtomicReferenceArray&lt;&gt;(this.nodesIds.length);
+<i>238</i>&nbsp;        }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;        private void start() {
+<i>241</i>&nbsp;            if (nodesIds.length == 0) {
+<i>242</i>&nbsp;                // nothing to do
+<i>243</i>&nbsp;                try {
+<i>244</i>&nbsp;                    listener.onResponse(newResponse(request, responses));
+<i>245</i>&nbsp;                } catch (Exception e) {
+<i>246</i>&nbsp;                    logger.debug(&quot;failed to generate empty response&quot;, e);
+<i>247</i>&nbsp;                    listener.onFailure(e);
+<i>248</i>&nbsp;                }
+<i>249</i>&nbsp;            } else {
+<i>250</i>&nbsp;                TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
+<i>251</i>&nbsp;                if (request.getTimeout() != null) {
+<i>252</i>&nbsp;                    builder.withTimeout(request.getTimeout());
+<i>253</i>&nbsp;                }
+<i>254</i>&nbsp;                for (int i = 0; i &lt; nodesIds.length; i++) {
+<i>255</i>&nbsp;                    final String nodeId = nodesIds[i];
+<i>256</i>&nbsp;                    final int idx = i;
+<i>257</i>&nbsp;                    final DiscoveryNode node = nodes[i];
+<i>258</i>&nbsp;                    try {
+<i>259</i>&nbsp;                        if (node == null) {
+<i>260</i>&nbsp;                            onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
+<i>261</i>&nbsp;                        } else {
+<i>262</i>&nbsp;                            NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
+<i>263</i>&nbsp;                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+<i>264</i>&nbsp;                            transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+<i>265</i>&nbsp;                                new TransportResponseHandler&lt;NodeTasksResponse&gt;() {
+<i>266</i>&nbsp;                                    @Override
+<i>267</i>&nbsp;                                    public NodeTasksResponse read(StreamInput in) throws IOException {
+<i>268</i>&nbsp;                                        return new NodeTasksResponse(in);
+<i>269</i>&nbsp;                                    }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;                                    @Override
+<i>272</i>&nbsp;                                    public void handleResponse(NodeTasksResponse response) {
+<i>273</i>&nbsp;                                        onOperation(idx, response);
+<i>274</i>&nbsp;                                    }
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;                                    @Override
+<i>277</i>&nbsp;                                    public void handleException(TransportException exp) {
+<i>278</i>&nbsp;                                        onFailure(idx, node.getId(), exp);
+<i>279</i>&nbsp;                                    }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;                                    @Override
+<i>282</i>&nbsp;                                    public String executor() {
+<i>283</i>&nbsp;                                        return ThreadPool.Names.SAME;
+<i>284</i>&nbsp;                                    }
+<i>285</i>&nbsp;                                });
+<i>286</i>&nbsp;                        }
+<i>287</i>&nbsp;                    } catch (Exception e) {
+<i>288</i>&nbsp;                        onFailure(idx, nodeId, e);
+<i>289</i>&nbsp;                    }
+<i>290</i>&nbsp;                }
+<i>291</i>&nbsp;            }
+<i>292</i>&nbsp;        }
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;        private void onOperation(int idx, NodeTasksResponse nodeResponse) {
+<i>295</i>&nbsp;            responses.set(idx, nodeResponse);
+<i>296</i>&nbsp;            if (counter.incrementAndGet() == responses.length()) {
+<i>297</i>&nbsp;                finishHim();
+<i>298</i>&nbsp;            }
+<i>299</i>&nbsp;        }
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;        private void onFailure(int idx, String nodeId, Throwable t) {
+<i>302</i>&nbsp;            if (logger.isDebugEnabled() &amp;&amp; !(t instanceof NodeShouldNotConnectException)) {
+<i>303</i>&nbsp;                logger.debug(new ParameterizedMessage(&quot;failed to execute on node [{}]&quot;, nodeId), t);
+<i>304</i>&nbsp;            }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;            responses.set(idx, new FailedNodeException(nodeId, &quot;Failed node [&quot; + nodeId + &quot;]&quot;, t));
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;            if (counter.incrementAndGet() == responses.length()) {
+<i>309</i>&nbsp;                finishHim();
+<i>310</i>&nbsp;            }
+<i>311</i>&nbsp;        }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;        private void finishHim() {
+<i>314</i>&nbsp;            TasksResponse finalResponse;
+<i>315</i>&nbsp;            try {
+<i>316</i>&nbsp;                finalResponse = newResponse(request, responses);
+<i>317</i>&nbsp;            } catch (Exception e) {
+<i>318</i>&nbsp;                logger.debug(&quot;failed to combine responses from nodes&quot;, e);
+<i>319</i>&nbsp;                listener.onFailure(e);
+<i>320</i>&nbsp;                return;
+<i>321</i>&nbsp;            }
+<i>322</i>&nbsp;            listener.onResponse(finalResponse);
+<i>323</i>&nbsp;        }
+<i>324</i>&nbsp;    }
+<i>325</i>&nbsp;
+<b class="fc"><i>326</i>&nbsp;    class NodeTransportHandler implements TransportRequestHandler&lt;NodeTaskRequest&gt; {</b>
+<i>327</i>&nbsp;
+<i>328</i>&nbsp;        @Override
+<i>329</i>&nbsp;        public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
+<b class="nc"><i>330</i>&nbsp;            nodeOperation(request, ActionListener.wrap(channel::sendResponse,</b>
+<i>331</i>&nbsp;                e -&gt; {
+<i>332</i>&nbsp;                    try {
+<b class="nc"><i>333</i>&nbsp;                        channel.sendResponse(e);</b>
+<b class="nc"><i>334</i>&nbsp;                    } catch (IOException e1) {</b>
+<b class="nc"><i>335</i>&nbsp;                        e1.addSuppressed(e);</b>
+<b class="nc"><i>336</i>&nbsp;                        logger.warn(&quot;Failed to send failure&quot;, e1);</b>
+<b class="nc"><i>337</i>&nbsp;                    }</b>
+<b class="nc"><i>338</i>&nbsp;                }</b>
+<i>339</i>&nbsp;            ));
+<b class="nc"><i>340</i>&nbsp;        }</b>
+<i>341</i>&nbsp;    }
+<i>342</i>&nbsp;
+<b class="nc"><i>343</i>&nbsp;    private class NodeTaskRequest extends TransportRequest {</b>
+<i>344</i>&nbsp;        private TasksRequest tasksRequest;
+<i>345</i>&nbsp;
+<b class="nc"><i>346</i>&nbsp;        protected NodeTaskRequest(StreamInput in) throws IOException {</b>
+<b class="nc"><i>347</i>&nbsp;            super(in);</b>
+<b class="nc"><i>348</i>&nbsp;            this.tasksRequest = requestReader.read(in);</b>
+<b class="nc"><i>349</i>&nbsp;        }</b>
+<i>350</i>&nbsp;
+<i>351</i>&nbsp;        @Override
+<i>352</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>353</i>&nbsp;            super.writeTo(out);</b>
+<b class="nc"><i>354</i>&nbsp;            tasksRequest.writeTo(out);</b>
+<b class="nc"><i>355</i>&nbsp;        }</b>
+<i>356</i>&nbsp;
+<b class="nc"><i>357</i>&nbsp;        protected NodeTaskRequest(TasksRequest tasksRequest) {</b>
+<b class="nc"><i>358</i>&nbsp;            super();</b>
+<b class="nc"><i>359</i>&nbsp;            this.tasksRequest = tasksRequest;</b>
+<b class="nc"><i>360</i>&nbsp;        }</b>
+<i>361</i>&nbsp;
+<i>362</i>&nbsp;    }
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;    private class NodeTasksResponse extends TransportResponse {
+<i>365</i>&nbsp;        protected String nodeId;
+<i>366</i>&nbsp;        protected List&lt;TaskOperationFailure&gt; exceptions;
+<i>367</i>&nbsp;        protected List&lt;TaskResponse&gt; results;
+<i>368</i>&nbsp;
+<i>369</i>&nbsp;        NodeTasksResponse(StreamInput in) throws IOException {
+<i>370</i>&nbsp;            super(in);
+<i>371</i>&nbsp;            nodeId = in.readString();
+<i>372</i>&nbsp;            int resultsSize = in.readVInt();
+<i>373</i>&nbsp;            results = new ArrayList&lt;&gt;(resultsSize);
+<i>374</i>&nbsp;            for (; resultsSize &gt; 0; resultsSize--) {
+<i>375</i>&nbsp;                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
+<i>376</i>&nbsp;                results.add(result);
+<i>377</i>&nbsp;            }
+<i>378</i>&nbsp;            if (in.readBoolean()) {
+<i>379</i>&nbsp;                int taskFailures = in.readVInt();
+<i>380</i>&nbsp;                exceptions = new ArrayList&lt;&gt;(taskFailures);
+<i>381</i>&nbsp;                for (int i = 0; i &lt; taskFailures; i++) {
+<i>382</i>&nbsp;                    exceptions.add(new TaskOperationFailure(in));
+<i>383</i>&nbsp;                }
+<i>384</i>&nbsp;            } else {
+<i>385</i>&nbsp;                exceptions = null;
+<i>386</i>&nbsp;            }
+<i>387</i>&nbsp;        }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;        NodeTasksResponse(String nodeId,
+<i>390</i>&nbsp;                                 List&lt;TaskResponse&gt; results,
+<i>391</i>&nbsp;                                 List&lt;TaskOperationFailure&gt; exceptions) {
+<i>392</i>&nbsp;            this.nodeId = nodeId;
+<i>393</i>&nbsp;            this.results = results;
+<i>394</i>&nbsp;            this.exceptions = exceptions;
+<i>395</i>&nbsp;        }
+<i>396</i>&nbsp;
+<i>397</i>&nbsp;        public String getNodeId() {
+<i>398</i>&nbsp;            return nodeId;
+<i>399</i>&nbsp;        }
+<i>400</i>&nbsp;
+<i>401</i>&nbsp;        public List&lt;TaskOperationFailure&gt; getExceptions() {
+<i>402</i>&nbsp;            return exceptions;
+<i>403</i>&nbsp;        }
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;        @Override
+<i>406</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>407</i>&nbsp;            out.writeString(nodeId);
+<i>408</i>&nbsp;            out.writeVInt(results.size());
+<i>409</i>&nbsp;            for (TaskResponse result : results) {
+<i>410</i>&nbsp;                if (result != null) {
+<i>411</i>&nbsp;                    out.writeBoolean(true);
+<i>412</i>&nbsp;                    result.writeTo(out);
+<i>413</i>&nbsp;                } else {
+<i>414</i>&nbsp;                    out.writeBoolean(false);
+<i>415</i>&nbsp;                }
+<i>416</i>&nbsp;            }
+<i>417</i>&nbsp;            out.writeBoolean(exceptions != null);
+<i>418</i>&nbsp;            if (exceptions != null) {
+<i>419</i>&nbsp;                int taskFailures = exceptions.size();
+<i>420</i>&nbsp;                out.writeVInt(taskFailures);
+<i>421</i>&nbsp;                for (TaskOperationFailure exception : exceptions) {
+<i>422</i>&nbsp;                    exception.writeTo(out);
+<i>423</i>&nbsp;                }
+<i>424</i>&nbsp;            }
+<i>425</i>&nbsp;        }
+<i>426</i>&nbsp;    }
+<i>427</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

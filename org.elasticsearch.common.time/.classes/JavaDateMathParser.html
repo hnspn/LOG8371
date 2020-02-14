@@ -1,0 +1,319 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: JavaDateMathParser</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.time</a> ]
+</div>
+
+<h1>Coverage Summary for Class: JavaDateMathParser (org.elasticsearch.common.time)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">JavaDateMathParser</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (1/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    5.6%
+  </span>
+  <span class="absValue">
+    (6/ 107)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.time;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>23</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.time.DayOfWeek;
+<i>26</i>&nbsp;import java.time.Instant;
+<i>27</i>&nbsp;import java.time.LocalTime;
+<i>28</i>&nbsp;import java.time.ZoneId;
+<i>29</i>&nbsp;import java.time.ZoneOffset;
+<i>30</i>&nbsp;import java.time.ZonedDateTime;
+<i>31</i>&nbsp;import java.time.format.DateTimeParseException;
+<i>32</i>&nbsp;import java.time.temporal.ChronoField;
+<i>33</i>&nbsp;import java.time.temporal.TemporalAccessor;
+<i>34</i>&nbsp;import java.time.temporal.TemporalAdjusters;
+<i>35</i>&nbsp;import java.time.temporal.TemporalQueries;
+<i>36</i>&nbsp;import java.util.Objects;
+<i>37</i>&nbsp;import java.util.function.LongSupplier;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;/**
+<i>40</i>&nbsp; * A parser for date/time formatted text with optional date math.
+<i>41</i>&nbsp; *
+<i>42</i>&nbsp; * The format of the datetime is configurable, and unix timestamps can also be used. Datemath
+<i>43</i>&nbsp; * is appended to a datetime with the following syntax:
+<i>44</i>&nbsp; * &lt;code&gt;||[+-/](\d+)?[yMwdhHms]&lt;/code&gt;.
+<i>45</i>&nbsp; */
+<i>46</i>&nbsp;public class JavaDateMathParser implements DateMathParser {
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;    private final JavaDateFormatter formatter;
+<i>49</i>&nbsp;    private final String format;
+<i>50</i>&nbsp;    private final JavaDateFormatter roundupParser;
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {</b>
+<b class="fc"><i>53</i>&nbsp;        this.format = format;</b>
+<b class="fc"><i>54</i>&nbsp;        this.roundupParser = roundupParser;</b>
+<b class="fc"><i>55</i>&nbsp;        Objects.requireNonNull(formatter);</b>
+<b class="fc"><i>56</i>&nbsp;        this.formatter = formatter;</b>
+<b class="fc"><i>57</i>&nbsp;    }</b>
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    @Override
+<i>60</i>&nbsp;    public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId timeZone) {
+<i>61</i>&nbsp;        Instant time;
+<i>62</i>&nbsp;        String mathString;
+<b class="nc"><i>63</i>&nbsp;        if (text.startsWith(&quot;now&quot;)) {</b>
+<i>64</i>&nbsp;            try {
+<i>65</i>&nbsp;                // TODO only millisecond granularity here!
+<b class="nc"><i>66</i>&nbsp;                time = Instant.ofEpochMilli(now.getAsLong());</b>
+<b class="nc"><i>67</i>&nbsp;            } catch (Exception e) {</b>
+<b class="nc"><i>68</i>&nbsp;                throw new ElasticsearchParseException(&quot;could not read the current timestamp&quot;, e);</b>
+<b class="nc"><i>69</i>&nbsp;            }</b>
+<b class="nc"><i>70</i>&nbsp;            mathString = text.substring(&quot;now&quot;.length());</b>
+<i>71</i>&nbsp;        } else {
+<b class="nc"><i>72</i>&nbsp;            int index = text.indexOf(&quot;||&quot;);</b>
+<b class="nc"><i>73</i>&nbsp;            if (index == -1) {</b>
+<b class="nc"><i>74</i>&nbsp;                return parseDateTime(text, timeZone, roundUpProperty);</b>
+<i>75</i>&nbsp;            }
+<b class="nc"><i>76</i>&nbsp;            time = parseDateTime(text.substring(0, index), timeZone, false);</b>
+<b class="nc"><i>77</i>&nbsp;            mathString = text.substring(index + 2);</b>
+<i>78</i>&nbsp;        }
+<i>79</i>&nbsp;
+<b class="nc"><i>80</i>&nbsp;        return parseMath(mathString, time, roundUpProperty, timeZone);</b>
+<i>81</i>&nbsp;    }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,
+<i>84</i>&nbsp;                           ZoneId timeZone) throws ElasticsearchParseException {
+<b class="nc"><i>85</i>&nbsp;        if (timeZone == null) {</b>
+<b class="nc"><i>86</i>&nbsp;            timeZone = ZoneOffset.UTC;</b>
+<i>87</i>&nbsp;        }
+<b class="nc"><i>88</i>&nbsp;        ZonedDateTime dateTime = ZonedDateTime.ofInstant(time, timeZone);</b>
+<b class="nc"><i>89</i>&nbsp;        for (int i = 0; i &lt; mathString.length(); ) {</b>
+<b class="nc"><i>90</i>&nbsp;            char c = mathString.charAt(i++);</b>
+<i>91</i>&nbsp;            final boolean round;
+<i>92</i>&nbsp;            final int sign;
+<b class="nc"><i>93</i>&nbsp;            if (c == &#39;/&#39;) {</b>
+<b class="nc"><i>94</i>&nbsp;                round = true;</b>
+<b class="nc"><i>95</i>&nbsp;                sign = 1;</b>
+<i>96</i>&nbsp;            } else {
+<b class="nc"><i>97</i>&nbsp;                round = false;</b>
+<b class="nc"><i>98</i>&nbsp;                if (c == &#39;+&#39;) {</b>
+<b class="nc"><i>99</i>&nbsp;                    sign = 1;</b>
+<b class="nc"><i>100</i>&nbsp;                } else if (c == &#39;-&#39;) {</b>
+<b class="nc"><i>101</i>&nbsp;                    sign = -1;</b>
+<i>102</i>&nbsp;                } else {
+<b class="nc"><i>103</i>&nbsp;                    throw new ElasticsearchParseException(&quot;operator not supported for date math [{}]&quot;, mathString);</b>
+<i>104</i>&nbsp;                }
+<i>105</i>&nbsp;            }
+<i>106</i>&nbsp;
+<b class="nc"><i>107</i>&nbsp;            if (i &gt;= mathString.length()) {</b>
+<b class="nc"><i>108</i>&nbsp;                throw new ElasticsearchParseException(&quot;truncated date math [{}]&quot;, mathString);</b>
+<i>109</i>&nbsp;            }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;            final int num;
+<b class="nc"><i>112</i>&nbsp;            if (!Character.isDigit(mathString.charAt(i))) {</b>
+<b class="nc"><i>113</i>&nbsp;                num = 1;</b>
+<i>114</i>&nbsp;            } else {
+<b class="nc"><i>115</i>&nbsp;                int numFrom = i;</b>
+<b class="nc"><i>116</i>&nbsp;                while (i &lt; mathString.length() &amp;&amp; Character.isDigit(mathString.charAt(i))) {</b>
+<b class="nc"><i>117</i>&nbsp;                    i++;</b>
+<i>118</i>&nbsp;                }
+<b class="nc"><i>119</i>&nbsp;                if (i &gt;= mathString.length()) {</b>
+<b class="nc"><i>120</i>&nbsp;                    throw new ElasticsearchParseException(&quot;truncated date math [{}]&quot;, mathString);</b>
+<i>121</i>&nbsp;                }
+<b class="nc"><i>122</i>&nbsp;                num = Integer.parseInt(mathString.substring(numFrom, i));</b>
+<i>123</i>&nbsp;            }
+<b class="nc"><i>124</i>&nbsp;            if (round) {</b>
+<b class="nc"><i>125</i>&nbsp;                if (num != 1) {</b>
+<b class="nc"><i>126</i>&nbsp;                    throw new ElasticsearchParseException(&quot;rounding `/` can only be used on single unit types [{}]&quot;, mathString);</b>
+<i>127</i>&nbsp;                }
+<i>128</i>&nbsp;            }
+<b class="nc"><i>129</i>&nbsp;            char unit = mathString.charAt(i++);</b>
+<b class="nc"><i>130</i>&nbsp;            switch (unit) {</b>
+<i>131</i>&nbsp;                case &#39;y&#39;:
+<b class="nc"><i>132</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>133</i>&nbsp;                        dateTime = dateTime.withDayOfYear(1).with(LocalTime.MIN);</b>
+<b class="nc"><i>134</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>135</i>&nbsp;                            dateTime = dateTime.plusYears(1);</b>
+<i>136</i>&nbsp;                        }
+<i>137</i>&nbsp;                    } else {
+<b class="nc"><i>138</i>&nbsp;                        dateTime = dateTime.plusYears(sign * num);</b>
+<i>139</i>&nbsp;                    }
+<b class="nc"><i>140</i>&nbsp;                    break;</b>
+<i>141</i>&nbsp;                case &#39;M&#39;:
+<b class="nc"><i>142</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>143</i>&nbsp;                        dateTime = dateTime.withDayOfMonth(1).with(LocalTime.MIN);</b>
+<b class="nc"><i>144</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>145</i>&nbsp;                            dateTime = dateTime.plusMonths(1);</b>
+<i>146</i>&nbsp;                        }
+<i>147</i>&nbsp;                    } else {
+<b class="nc"><i>148</i>&nbsp;                        dateTime = dateTime.plusMonths(sign * num);</b>
+<i>149</i>&nbsp;                    }
+<b class="nc"><i>150</i>&nbsp;                    break;</b>
+<i>151</i>&nbsp;                case &#39;w&#39;:
+<b class="nc"><i>152</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>153</i>&nbsp;                        dateTime = dateTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).with(LocalTime.MIN);</b>
+<b class="nc"><i>154</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>155</i>&nbsp;                            dateTime = dateTime.plusWeeks(1);</b>
+<i>156</i>&nbsp;                        }
+<i>157</i>&nbsp;                    } else {
+<b class="nc"><i>158</i>&nbsp;                        dateTime = dateTime.plusWeeks(sign * num);</b>
+<i>159</i>&nbsp;                    }
+<b class="nc"><i>160</i>&nbsp;                    break;</b>
+<i>161</i>&nbsp;                case &#39;d&#39;:
+<b class="nc"><i>162</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>163</i>&nbsp;                        dateTime = dateTime.with(LocalTime.MIN);</b>
+<b class="nc"><i>164</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>165</i>&nbsp;                            dateTime = dateTime.plusDays(1);</b>
+<i>166</i>&nbsp;                        }
+<i>167</i>&nbsp;                    } else {
+<b class="nc"><i>168</i>&nbsp;                        dateTime = dateTime.plusDays(sign * num);</b>
+<i>169</i>&nbsp;                    }
+<b class="nc"><i>170</i>&nbsp;                    break;</b>
+<i>171</i>&nbsp;                case &#39;h&#39;:
+<i>172</i>&nbsp;                case &#39;H&#39;:
+<b class="nc"><i>173</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>174</i>&nbsp;                        dateTime = dateTime.withMinute(0).withSecond(0).withNano(0);</b>
+<b class="nc"><i>175</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>176</i>&nbsp;                            dateTime = dateTime.plusHours(1);</b>
+<i>177</i>&nbsp;                        }
+<i>178</i>&nbsp;                    } else {
+<b class="nc"><i>179</i>&nbsp;                        dateTime = dateTime.plusHours(sign * num);</b>
+<i>180</i>&nbsp;                    }
+<b class="nc"><i>181</i>&nbsp;                    break;</b>
+<i>182</i>&nbsp;                case &#39;m&#39;:
+<b class="nc"><i>183</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>184</i>&nbsp;                        dateTime = dateTime.withSecond(0).withNano(0);</b>
+<b class="nc"><i>185</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>186</i>&nbsp;                            dateTime = dateTime.plusMinutes(1);</b>
+<i>187</i>&nbsp;                        }
+<i>188</i>&nbsp;                    } else {
+<b class="nc"><i>189</i>&nbsp;                        dateTime = dateTime.plusMinutes(sign * num);</b>
+<i>190</i>&nbsp;                    }
+<b class="nc"><i>191</i>&nbsp;                    break;</b>
+<i>192</i>&nbsp;                case &#39;s&#39;:
+<b class="nc"><i>193</i>&nbsp;                    if (round) {</b>
+<b class="nc"><i>194</i>&nbsp;                        dateTime = dateTime.withNano(0);</b>
+<b class="nc"><i>195</i>&nbsp;                        if (roundUpProperty) {</b>
+<b class="nc"><i>196</i>&nbsp;                            dateTime = dateTime.plusSeconds(1);</b>
+<i>197</i>&nbsp;                        }
+<i>198</i>&nbsp;                    } else {
+<b class="nc"><i>199</i>&nbsp;                        dateTime = dateTime.plusSeconds(sign * num);</b>
+<i>200</i>&nbsp;                    }
+<b class="nc"><i>201</i>&nbsp;                    break;</b>
+<i>202</i>&nbsp;                default:
+<b class="nc"><i>203</i>&nbsp;                    throw new ElasticsearchParseException(&quot;unit [{}] not supported for date math [{}]&quot;, unit, mathString);</b>
+<i>204</i>&nbsp;            }
+<b class="nc"><i>205</i>&nbsp;            if (round &amp;&amp; roundUpProperty) {</b>
+<i>206</i>&nbsp;                // subtract 1 millisecond to get the largest inclusive value
+<b class="nc"><i>207</i>&nbsp;                dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());</b>
+<i>208</i>&nbsp;            }
+<b class="nc"><i>209</i>&nbsp;        }</b>
+<b class="nc"><i>210</i>&nbsp;        return dateTime.toInstant();</b>
+<i>211</i>&nbsp;    }
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
+<b class="nc"><i>214</i>&nbsp;        if (Strings.isNullOrEmpty(value)) {</b>
+<b class="nc"><i>215</i>&nbsp;            throw new ElasticsearchParseException(&quot;cannot parse empty date&quot;);</b>
+<i>216</i>&nbsp;        }
+<i>217</i>&nbsp;
+<b class="nc"><i>218</i>&nbsp;        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;</b>
+<i>219</i>&nbsp;        try {
+<b class="nc"><i>220</i>&nbsp;            if (timeZone == null) {</b>
+<b class="nc"><i>221</i>&nbsp;                return DateFormatters.from(formatter.parse(value)).toInstant();</b>
+<i>222</i>&nbsp;            } else {
+<b class="nc"><i>223</i>&nbsp;                TemporalAccessor accessor = formatter.parse(value);</b>
+<b class="nc"><i>224</i>&nbsp;                ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);</b>
+<b class="nc"><i>225</i>&nbsp;                if (zoneId != null) {</b>
+<b class="nc"><i>226</i>&nbsp;                    timeZone = zoneId;</b>
+<i>227</i>&nbsp;                }
+<i>228</i>&nbsp;
+<b class="nc"><i>229</i>&nbsp;                return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();</b>
+<i>230</i>&nbsp;            }
+<b class="nc"><i>231</i>&nbsp;        } catch (IllegalArgumentException | DateTimeParseException e) {</b>
+<b class="nc"><i>232</i>&nbsp;            throw new ElasticsearchParseException(&quot;failed to parse date field [{}] with format [{}]: [{}]&quot;,</b>
+<b class="nc"><i>233</i>&nbsp;                e, value, format, e.getMessage());</b>
+<i>234</i>&nbsp;        }
+<i>235</i>&nbsp;    }
+<i>236</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

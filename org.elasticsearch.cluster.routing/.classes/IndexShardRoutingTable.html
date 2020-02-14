@@ -1,0 +1,871 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: IndexShardRoutingTable</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing</a> ]
+</div>
+
+<h1>Coverage Summary for Class: IndexShardRoutingTable (org.elasticsearch.cluster.routing)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">IndexShardRoutingTable</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.9%
+  </span>
+  <span class="absValue">
+    (13/ 45)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    24%
+  </span>
+  <span class="absValue">
+    (61/ 254)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">IndexShardRoutingTable$Builder</td>
+<td class="coverageStat">
+  <span class="percent">
+    63.6%
+  </span>
+  <span class="absValue">
+    (7/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    68.2%
+  </span>
+  <span class="absValue">
+    (30/ 44)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    35.7%
+  </span>
+  <span class="absValue">
+    (20/ 56)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.5%
+  </span>
+  <span class="absValue">
+    (91/ 298)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>24</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>25</i>&nbsp;import org.elasticsearch.common.Randomness;
+<i>26</i>&nbsp;import org.elasticsearch.common.collect.MapBuilder;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>29</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>30</i>&nbsp;import org.elasticsearch.index.Index;
+<i>31</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>32</i>&nbsp;import org.elasticsearch.node.ResponseCollectorService;
+<i>33</i>&nbsp;
+<i>34</i>&nbsp;import java.io.IOException;
+<i>35</i>&nbsp;import java.util.ArrayList;
+<i>36</i>&nbsp;import java.util.Collections;
+<i>37</i>&nbsp;import java.util.Comparator;
+<i>38</i>&nbsp;import java.util.HashMap;
+<i>39</i>&nbsp;import java.util.HashSet;
+<i>40</i>&nbsp;import java.util.Iterator;
+<i>41</i>&nbsp;import java.util.List;
+<i>42</i>&nbsp;import java.util.Locale;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.Optional;
+<i>45</i>&nbsp;import java.util.Set;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
+<i>51</i>&nbsp; * Each Elasticsearch index consists of multiple shards, each shard encapsulates
+<i>52</i>&nbsp; * a disjoint set of the index data and each shard has one or more instances
+<i>53</i>&nbsp; * referred to as replicas of a shard. Given that, this class encapsulates all
+<i>54</i>&nbsp; * replicas (instances) for a single index shard.
+<i>55</i>&nbsp; */
+<b class="fc"><i>56</i>&nbsp;public class IndexShardRoutingTable implements Iterable&lt;ShardRouting&gt; {</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    final ShardShuffler shuffler;
+<i>59</i>&nbsp;    final ShardId shardId;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    final ShardRouting primary;
+<i>62</i>&nbsp;    final List&lt;ShardRouting&gt; primaryAsList;
+<i>63</i>&nbsp;    final List&lt;ShardRouting&gt; replicas;
+<i>64</i>&nbsp;    final List&lt;ShardRouting&gt; shards;
+<i>65</i>&nbsp;    final List&lt;ShardRouting&gt; activeShards;
+<i>66</i>&nbsp;    final List&lt;ShardRouting&gt; assignedShards;
+<i>67</i>&nbsp;    final Set&lt;String&gt; allAllocationIds;
+<i>68</i>&nbsp;    final boolean allShardsStarted;
+<i>69</i>&nbsp;
+<b class="fc"><i>70</i>&nbsp;    private volatile Map&lt;AttributesKey, AttributesRoutings&gt; activeShardsByAttributes = emptyMap();</b>
+<b class="fc"><i>71</i>&nbsp;    private volatile Map&lt;AttributesKey, AttributesRoutings&gt; initializingShardsByAttributes = emptyMap();</b>
+<b class="fc"><i>72</i>&nbsp;    private final Object shardsByAttributeMutex = new Object();</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    /**
+<i>75</i>&nbsp;     * The initializing list, including ones that are initializing on a target node because of relocation.
+<i>76</i>&nbsp;     * If we can come up with a better variable name, it would be nice...
+<i>77</i>&nbsp;     */
+<i>78</i>&nbsp;    final List&lt;ShardRouting&gt; allInitializingShards;
+<i>79</i>&nbsp;
+<b class="fc"><i>80</i>&nbsp;    IndexShardRoutingTable(ShardId shardId, List&lt;ShardRouting&gt; shards) {</b>
+<b class="fc"><i>81</i>&nbsp;        this.shardId = shardId;</b>
+<b class="fc"><i>82</i>&nbsp;        this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());</b>
+<b class="fc"><i>83</i>&nbsp;        this.shards = Collections.unmodifiableList(shards);</b>
+<i>84</i>&nbsp;
+<b class="fc"><i>85</i>&nbsp;        ShardRouting primary = null;</b>
+<b class="fc"><i>86</i>&nbsp;        List&lt;ShardRouting&gt; replicas = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>87</i>&nbsp;        List&lt;ShardRouting&gt; activeShards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>88</i>&nbsp;        List&lt;ShardRouting&gt; assignedShards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>89</i>&nbsp;        List&lt;ShardRouting&gt; allInitializingShards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>90</i>&nbsp;        Set&lt;String&gt; allAllocationIds = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>91</i>&nbsp;        boolean allShardsStarted = true;</b>
+<b class="fc"><i>92</i>&nbsp;        for (ShardRouting shard : shards) {</b>
+<b class="fc"><i>93</i>&nbsp;            if (shard.primary()) {</b>
+<b class="fc"><i>94</i>&nbsp;                primary = shard;</b>
+<i>95</i>&nbsp;            } else {
+<b class="nc"><i>96</i>&nbsp;                replicas.add(shard);</b>
+<i>97</i>&nbsp;            }
+<b class="fc"><i>98</i>&nbsp;            if (shard.active()) {</b>
+<b class="fc"><i>99</i>&nbsp;                activeShards.add(shard);</b>
+<i>100</i>&nbsp;            }
+<b class="fc"><i>101</i>&nbsp;            if (shard.initializing()) {</b>
+<b class="fc"><i>102</i>&nbsp;                allInitializingShards.add(shard);</b>
+<i>103</i>&nbsp;            }
+<b class="fc"><i>104</i>&nbsp;            if (shard.relocating()) {</b>
+<i>105</i>&nbsp;                // create the target initializing shard routing on the node the shard is relocating to
+<b class="nc"><i>106</i>&nbsp;                allInitializingShards.add(shard.getTargetRelocatingShard());</b>
+<b class="nc"><i>107</i>&nbsp;                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());</b>
+<i>108</i>&nbsp;
+<b class="nc"><i>109</i>&nbsp;                assert shard.assignedToNode() : &quot;relocating from unassigned &quot; + shard;</b>
+<b class="nc"><i>110</i>&nbsp;                assert shard.getTargetRelocatingShard().assignedToNode() : &quot;relocating to unassigned &quot; + shard.getTargetRelocatingShard();</b>
+<b class="nc"><i>111</i>&nbsp;                assignedShards.add(shard.getTargetRelocatingShard());</b>
+<i>112</i>&nbsp;            }
+<b class="fc"><i>113</i>&nbsp;            if (shard.assignedToNode()) {</b>
+<b class="fc"><i>114</i>&nbsp;                assignedShards.add(shard);</b>
+<b class="fc"><i>115</i>&nbsp;                allAllocationIds.add(shard.allocationId().getId());</b>
+<i>116</i>&nbsp;            }
+<b class="fc"><i>117</i>&nbsp;            if (shard.state() != ShardRoutingState.STARTED) {</b>
+<b class="fc"><i>118</i>&nbsp;                allShardsStarted = false;</b>
+<i>119</i>&nbsp;            }
+<b class="fc"><i>120</i>&nbsp;        }</b>
+<b class="fc"><i>121</i>&nbsp;        this.allShardsStarted = allShardsStarted;</b>
+<b class="fc"><i>122</i>&nbsp;        this.primary = primary;</b>
+<b class="fc"><i>123</i>&nbsp;        if (primary != null) {</b>
+<b class="fc"><i>124</i>&nbsp;            this.primaryAsList = Collections.singletonList(primary);</b>
+<i>125</i>&nbsp;        } else {
+<b class="nc"><i>126</i>&nbsp;            this.primaryAsList = Collections.emptyList();</b>
+<i>127</i>&nbsp;        }
+<b class="fc"><i>128</i>&nbsp;        this.replicas = Collections.unmodifiableList(replicas);</b>
+<b class="fc"><i>129</i>&nbsp;        this.activeShards = Collections.unmodifiableList(activeShards);</b>
+<b class="fc"><i>130</i>&nbsp;        this.assignedShards = Collections.unmodifiableList(assignedShards);</b>
+<b class="fc"><i>131</i>&nbsp;        this.allInitializingShards = Collections.unmodifiableList(allInitializingShards);</b>
+<b class="fc"><i>132</i>&nbsp;        this.allAllocationIds = Collections.unmodifiableSet(allAllocationIds);</b>
+<b class="fc"><i>133</i>&nbsp;    }</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Returns the shards id
+<i>137</i>&nbsp;     *
+<i>138</i>&nbsp;     * @return id of the shard
+<i>139</i>&nbsp;     */
+<i>140</i>&nbsp;    public ShardId shardId() {
+<b class="fc"><i>141</i>&nbsp;        return shardId;</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    /**
+<i>145</i>&nbsp;     * Returns the shards id
+<i>146</i>&nbsp;     *
+<i>147</i>&nbsp;     * @return id of the shard
+<i>148</i>&nbsp;     */
+<i>149</i>&nbsp;    public ShardId getShardId() {
+<b class="nc"><i>150</i>&nbsp;        return shardId();</b>
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    @Override
+<i>154</i>&nbsp;    public Iterator&lt;ShardRouting&gt; iterator() {
+<b class="fc"><i>155</i>&nbsp;        return shards.iterator();</b>
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /**
+<i>159</i>&nbsp;     * Returns the number of this shards instances.
+<i>160</i>&nbsp;     */
+<i>161</i>&nbsp;    public int size() {
+<b class="fc"><i>162</i>&nbsp;        return shards.size();</b>
+<i>163</i>&nbsp;    }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    /**
+<i>166</i>&nbsp;     * Returns the number of this shards instances.
+<i>167</i>&nbsp;     */
+<i>168</i>&nbsp;    public int getSize() {
+<b class="nc"><i>169</i>&nbsp;        return size();</b>
+<i>170</i>&nbsp;    }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    /**
+<i>173</i>&nbsp;     * Returns a {@link List} of shards
+<i>174</i>&nbsp;     *
+<i>175</i>&nbsp;     * @return a {@link List} of shards
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    public List&lt;ShardRouting&gt; shards() {
+<b class="nc"><i>178</i>&nbsp;        return this.shards;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Returns a {@link List} of shards
+<i>183</i>&nbsp;     *
+<i>184</i>&nbsp;     * @return a {@link List} of shards
+<i>185</i>&nbsp;     */
+<i>186</i>&nbsp;    public List&lt;ShardRouting&gt; getShards() {
+<b class="nc"><i>187</i>&nbsp;        return shards();</b>
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    /**
+<i>191</i>&nbsp;     * Returns a {@link List} of active shards
+<i>192</i>&nbsp;     *
+<i>193</i>&nbsp;     * @return a {@link List} of shards
+<i>194</i>&nbsp;     */
+<i>195</i>&nbsp;    public List&lt;ShardRouting&gt; activeShards() {
+<b class="fc"><i>196</i>&nbsp;        return this.activeShards;</b>
+<i>197</i>&nbsp;    }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;    /**
+<i>200</i>&nbsp;     * Returns a {@link List} of all initializing shards, including target shards of relocations
+<i>201</i>&nbsp;     *
+<i>202</i>&nbsp;     * @return a {@link List} of shards
+<i>203</i>&nbsp;     */
+<i>204</i>&nbsp;    public List&lt;ShardRouting&gt; getAllInitializingShards() {
+<b class="fc"><i>205</i>&nbsp;        return this.allInitializingShards;</b>
+<i>206</i>&nbsp;    }
+<i>207</i>&nbsp;
+<i>208</i>&nbsp;    /**
+<i>209</i>&nbsp;     * Returns a {@link List} of active shards
+<i>210</i>&nbsp;     *
+<i>211</i>&nbsp;     * @return a {@link List} of shards
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    public List&lt;ShardRouting&gt; getActiveShards() {
+<b class="nc"><i>214</i>&nbsp;        return activeShards();</b>
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * Returns a {@link List} of assigned shards, including relocation targets
+<i>219</i>&nbsp;     *
+<i>220</i>&nbsp;     * @return a {@link List} of shards
+<i>221</i>&nbsp;     */
+<i>222</i>&nbsp;    public List&lt;ShardRouting&gt; assignedShards() {
+<b class="fc"><i>223</i>&nbsp;        return this.assignedShards;</b>
+<i>224</i>&nbsp;    }
+<i>225</i>&nbsp;
+<i>226</i>&nbsp;    public ShardIterator shardsRandomIt() {
+<b class="nc"><i>227</i>&nbsp;        return new PlainShardIterator(shardId, shuffler.shuffle(shards));</b>
+<i>228</i>&nbsp;    }
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;    public ShardIterator shardsIt() {
+<b class="nc"><i>231</i>&nbsp;        return new PlainShardIterator(shardId, shards);</b>
+<i>232</i>&nbsp;    }
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    public ShardIterator shardsIt(int seed) {
+<b class="nc"><i>235</i>&nbsp;        return new PlainShardIterator(shardId, shuffler.shuffle(shards, seed));</b>
+<i>236</i>&nbsp;    }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;    /**
+<i>239</i>&nbsp;     * Returns an iterator over active and initializing shards. Making sure though that
+<i>240</i>&nbsp;     * its random within the active shards, and initializing shards are the last to iterate through.
+<i>241</i>&nbsp;     */
+<i>242</i>&nbsp;    public ShardIterator activeInitializingShardsRandomIt() {
+<b class="nc"><i>243</i>&nbsp;        return activeInitializingShardsIt(shuffler.nextSeed());</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    /**
+<i>247</i>&nbsp;     * Returns an iterator over active and initializing shards. Making sure though that
+<i>248</i>&nbsp;     * its random within the active shards, and initializing shards are the last to iterate through.
+<i>249</i>&nbsp;     */
+<i>250</i>&nbsp;    public ShardIterator activeInitializingShardsIt(int seed) {
+<b class="nc"><i>251</i>&nbsp;        if (allInitializingShards.isEmpty()) {</b>
+<b class="nc"><i>252</i>&nbsp;            return new PlainShardIterator(shardId, shuffler.shuffle(activeShards, seed));</b>
+<i>253</i>&nbsp;        }
+<b class="nc"><i>254</i>&nbsp;        ArrayList&lt;ShardRouting&gt; ordered = new ArrayList&lt;&gt;(activeShards.size() + allInitializingShards.size());</b>
+<b class="nc"><i>255</i>&nbsp;        ordered.addAll(shuffler.shuffle(activeShards, seed));</b>
+<b class="nc"><i>256</i>&nbsp;        ordered.addAll(allInitializingShards);</b>
+<b class="nc"><i>257</i>&nbsp;        return new PlainShardIterator(shardId, ordered);</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;    /**
+<i>261</i>&nbsp;     * Returns an iterator over active and initializing shards, ordered by the adaptive replica
+<i>262</i>&nbsp;     * selection formula. Making sure though that its random within the active shards of the same
+<i>263</i>&nbsp;     * (or missing) rank, and initializing shards are the last to iterate through.
+<i>264</i>&nbsp;     */
+<i>265</i>&nbsp;    public ShardIterator activeInitializingShardsRankedIt(@Nullable ResponseCollectorService collector,
+<i>266</i>&nbsp;                                                          @Nullable Map&lt;String, Long&gt; nodeSearchCounts) {
+<b class="nc"><i>267</i>&nbsp;        final int seed = shuffler.nextSeed();</b>
+<b class="nc"><i>268</i>&nbsp;        if (allInitializingShards.isEmpty()) {</b>
+<b class="nc"><i>269</i>&nbsp;            return new PlainShardIterator(shardId,</b>
+<b class="nc"><i>270</i>&nbsp;                    rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));</b>
+<i>271</i>&nbsp;        }
+<i>272</i>&nbsp;
+<b class="nc"><i>273</i>&nbsp;        ArrayList&lt;ShardRouting&gt; ordered = new ArrayList&lt;&gt;(activeShards.size() + allInitializingShards.size());</b>
+<b class="nc"><i>274</i>&nbsp;        List&lt;ShardRouting&gt; rankedActiveShards =</b>
+<b class="nc"><i>275</i>&nbsp;                rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts);</b>
+<b class="nc"><i>276</i>&nbsp;        ordered.addAll(rankedActiveShards);</b>
+<b class="nc"><i>277</i>&nbsp;        List&lt;ShardRouting&gt; rankedInitializingShards =</b>
+<b class="nc"><i>278</i>&nbsp;                rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);</b>
+<b class="nc"><i>279</i>&nbsp;        ordered.addAll(rankedInitializingShards);</b>
+<b class="nc"><i>280</i>&nbsp;        return new PlainShardIterator(shardId, ordered);</b>
+<i>281</i>&nbsp;    }
+<i>282</i>&nbsp;
+<i>283</i>&nbsp;    private static Set&lt;String&gt; getAllNodeIds(final List&lt;ShardRouting&gt; shards) {
+<b class="nc"><i>284</i>&nbsp;        final Set&lt;String&gt; nodeIds = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>285</i>&nbsp;        for (ShardRouting shard : shards) {</b>
+<b class="nc"><i>286</i>&nbsp;            nodeIds.add(shard.currentNodeId());</b>
+<b class="nc"><i>287</i>&nbsp;        }</b>
+<b class="nc"><i>288</i>&nbsp;        return nodeIds;</b>
+<i>289</i>&nbsp;    }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    private static Map&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt;
+<i>292</i>&nbsp;        getNodeStats(final Set&lt;String&gt; nodeIds, final ResponseCollectorService collector) {
+<i>293</i>&nbsp;
+<b class="nc"><i>294</i>&nbsp;        final Map&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt; nodeStats = new HashMap&lt;&gt;(nodeIds.size());</b>
+<b class="nc"><i>295</i>&nbsp;        for (String nodeId : nodeIds) {</b>
+<b class="nc"><i>296</i>&nbsp;            nodeStats.put(nodeId, collector.getNodeStatistics(nodeId));</b>
+<b class="nc"><i>297</i>&nbsp;        }</b>
+<b class="nc"><i>298</i>&nbsp;        return nodeStats;</b>
+<i>299</i>&nbsp;    }
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;    private static Map&lt;String, Double&gt; rankNodes(final Map&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt; nodeStats,
+<i>302</i>&nbsp;                                                 final Map&lt;String, Long&gt; nodeSearchCounts) {
+<b class="nc"><i>303</i>&nbsp;        final Map&lt;String, Double&gt; nodeRanks = new HashMap&lt;&gt;(nodeStats.size());</b>
+<b class="nc"><i>304</i>&nbsp;        for (Map.Entry&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt; entry : nodeStats.entrySet()) {</b>
+<b class="nc"><i>305</i>&nbsp;            Optional&lt;ResponseCollectorService.ComputedNodeStats&gt; maybeStats = entry.getValue();</b>
+<b class="nc"><i>306</i>&nbsp;            maybeStats.ifPresent(stats -&gt; {</b>
+<b class="nc"><i>307</i>&nbsp;                final String nodeId = entry.getKey();</b>
+<b class="nc"><i>308</i>&nbsp;                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 1L)));</b>
+<b class="nc"><i>309</i>&nbsp;            });</b>
+<b class="nc"><i>310</i>&nbsp;        }</b>
+<b class="nc"><i>311</i>&nbsp;        return nodeRanks;</b>
+<i>312</i>&nbsp;    }
+<i>313</i>&nbsp;
+<i>314</i>&nbsp;    /**
+<i>315</i>&nbsp;     * Adjust the for all other nodes&#39; collected stats. In the original ranking paper there is no need to adjust other nodes&#39; stats because
+<i>316</i>&nbsp;     * Cassandra sends occasional requests to all copies of the data, so their stats will be updated during that broadcast phase. In
+<i>317</i>&nbsp;     * Elasticsearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
+<i>318</i>&nbsp;     * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
+<i>319</i>&nbsp;     * requests.
+<i>320</i>&nbsp;     *
+<i>321</i>&nbsp;     * This adjustment takes the &quot;winning&quot; node&#39;s statistics and adds the average of those statistics with each non-winning node. Let&#39;s say
+<i>322</i>&nbsp;     * the winning node had a queue size of 10 and a non-winning node had a queue of 18. The average queue size is (10 + 18) / 2 = 14 so the
+<i>323</i>&nbsp;     * non-winning node will have statistics added for a queue size of 14. This is repeated for the response time and service times as well.
+<i>324</i>&nbsp;     */
+<i>325</i>&nbsp;    private static void adjustStats(final ResponseCollectorService collector,
+<i>326</i>&nbsp;                                    final Map&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt; nodeStats,
+<i>327</i>&nbsp;                                    final String minNodeId,
+<i>328</i>&nbsp;                                    final ResponseCollectorService.ComputedNodeStats minStats) {
+<b class="nc"><i>329</i>&nbsp;        if (minNodeId != null) {</b>
+<b class="nc"><i>330</i>&nbsp;            for (Map.Entry&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt; entry : nodeStats.entrySet()) {</b>
+<b class="nc"><i>331</i>&nbsp;                final String nodeId = entry.getKey();</b>
+<b class="nc"><i>332</i>&nbsp;                final Optional&lt;ResponseCollectorService.ComputedNodeStats&gt; maybeStats = entry.getValue();</b>
+<b class="nc"><i>333</i>&nbsp;                if (nodeId.equals(minNodeId) == false &amp;&amp; maybeStats.isPresent()) {</b>
+<b class="nc"><i>334</i>&nbsp;                    final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();</b>
+<b class="nc"><i>335</i>&nbsp;                    final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;</b>
+<b class="nc"><i>336</i>&nbsp;                    final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;</b>
+<b class="nc"><i>337</i>&nbsp;                    final long updatedService = (long) (minStats.serviceTime + stats.serviceTime) / 2;</b>
+<b class="nc"><i>338</i>&nbsp;                    collector.addNodeStatistics(nodeId, updatedQueue, updatedResponse, updatedService);</b>
+<i>339</i>&nbsp;                }
+<b class="nc"><i>340</i>&nbsp;            }</b>
+<i>341</i>&nbsp;        }
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    private static List&lt;ShardRouting&gt; rankShardsAndUpdateStats(List&lt;ShardRouting&gt; shards, final ResponseCollectorService collector,
+<i>345</i>&nbsp;                                                               final Map&lt;String, Long&gt; nodeSearchCounts) {
+<b class="nc"><i>346</i>&nbsp;        if (collector == null || nodeSearchCounts == null || shards.size() &lt;= 1) {</b>
+<b class="nc"><i>347</i>&nbsp;            return shards;</b>
+<i>348</i>&nbsp;        }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;        // Retrieve which nodes we can potentially send the query to
+<b class="nc"><i>351</i>&nbsp;        final Set&lt;String&gt; nodeIds = getAllNodeIds(shards);</b>
+<b class="nc"><i>352</i>&nbsp;        final Map&lt;String, Optional&lt;ResponseCollectorService.ComputedNodeStats&gt;&gt; nodeStats = getNodeStats(nodeIds, collector);</b>
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        // Retrieve all the nodes the shards exist on
+<b class="nc"><i>355</i>&nbsp;        final Map&lt;String, Double&gt; nodeRanks = rankNodes(nodeStats, nodeSearchCounts);</b>
+<i>356</i>&nbsp;
+<i>357</i>&nbsp;        // sort all shards based on the shard rank
+<b class="nc"><i>358</i>&nbsp;        ArrayList&lt;ShardRouting&gt; sortedShards = new ArrayList&lt;&gt;(shards);</b>
+<b class="nc"><i>359</i>&nbsp;        Collections.sort(sortedShards, new NodeRankComparator(nodeRanks));</b>
+<i>360</i>&nbsp;
+<i>361</i>&nbsp;        // adjust the non-winner nodes&#39; stats so they will get a chance to receive queries
+<b class="nc"><i>362</i>&nbsp;        if (sortedShards.size() &gt; 1) {</b>
+<b class="nc"><i>363</i>&nbsp;            ShardRouting minShard = sortedShards.get(0);</b>
+<i>364</i>&nbsp;            // If the winning shard is not started we are ranking initializing
+<i>365</i>&nbsp;            // shards, don&#39;t bother to do adjustments
+<b class="nc"><i>366</i>&nbsp;            if (minShard.started()) {</b>
+<b class="nc"><i>367</i>&nbsp;                String minNodeId = minShard.currentNodeId();</b>
+<b class="nc"><i>368</i>&nbsp;                Optional&lt;ResponseCollectorService.ComputedNodeStats&gt; maybeMinStats = nodeStats.get(minNodeId);</b>
+<b class="nc"><i>369</i>&nbsp;                if (maybeMinStats.isPresent()) {</b>
+<b class="nc"><i>370</i>&nbsp;                    adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());</b>
+<i>371</i>&nbsp;                    // Increase the number of searches for the &quot;winning&quot; node by one.
+<i>372</i>&nbsp;                    // Note that this doesn&#39;t actually affect the &quot;real&quot; counts, instead
+<i>373</i>&nbsp;                    // it only affects the captured node search counts, which is
+<i>374</i>&nbsp;                    // captured once for each query in TransportSearchAction
+<b class="nc"><i>375</i>&nbsp;                    nodeSearchCounts.compute(minNodeId, (id, conns) -&gt; conns == null ? 1 : conns + 1);</b>
+<i>376</i>&nbsp;                }
+<i>377</i>&nbsp;            }
+<i>378</i>&nbsp;        }
+<i>379</i>&nbsp;
+<b class="nc"><i>380</i>&nbsp;        return sortedShards;</b>
+<i>381</i>&nbsp;    }
+<i>382</i>&nbsp;
+<i>383</i>&nbsp;    private static class NodeRankComparator implements Comparator&lt;ShardRouting&gt; {
+<i>384</i>&nbsp;        private final Map&lt;String, Double&gt; nodeRanks;
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;        NodeRankComparator(Map&lt;String, Double&gt; nodeRanks) {
+<i>387</i>&nbsp;            this.nodeRanks = nodeRanks;
+<i>388</i>&nbsp;        }
+<i>389</i>&nbsp;
+<i>390</i>&nbsp;        @Override
+<i>391</i>&nbsp;        public int compare(ShardRouting s1, ShardRouting s2) {
+<i>392</i>&nbsp;            if (s1.currentNodeId().equals(s2.currentNodeId())) {
+<i>393</i>&nbsp;                // these shards on the same node
+<i>394</i>&nbsp;                return 0;
+<i>395</i>&nbsp;            }
+<i>396</i>&nbsp;            Double shard1rank = nodeRanks.get(s1.currentNodeId());
+<i>397</i>&nbsp;            Double shard2rank = nodeRanks.get(s2.currentNodeId());
+<i>398</i>&nbsp;            if (shard1rank != null) {
+<i>399</i>&nbsp;                if (shard2rank != null) {
+<i>400</i>&nbsp;                    return shard1rank.compareTo(shard2rank);
+<i>401</i>&nbsp;                } else {
+<i>402</i>&nbsp;                    // place non-nulls after null values
+<i>403</i>&nbsp;                    return 1;
+<i>404</i>&nbsp;                }
+<i>405</i>&nbsp;            } else {
+<i>406</i>&nbsp;                if (shard2rank != null) {
+<i>407</i>&nbsp;                    // place nulls before non-null values
+<i>408</i>&nbsp;                    return -1;
+<i>409</i>&nbsp;                } else {
+<i>410</i>&nbsp;                    // Both nodes do not have stats, they are equal
+<i>411</i>&nbsp;                    return 0;
+<i>412</i>&nbsp;                }
+<i>413</i>&nbsp;            }
+<i>414</i>&nbsp;        }
+<i>415</i>&nbsp;    }
+<i>416</i>&nbsp;
+<i>417</i>&nbsp;    /**
+<i>418</i>&nbsp;     * Returns an iterator only on the primary shard.
+<i>419</i>&nbsp;     */
+<i>420</i>&nbsp;    public ShardIterator primaryShardIt() {
+<b class="nc"><i>421</i>&nbsp;        return new PlainShardIterator(shardId, primaryAsList);</b>
+<i>422</i>&nbsp;    }
+<i>423</i>&nbsp;
+<i>424</i>&nbsp;    public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
+<b class="nc"><i>425</i>&nbsp;        ArrayList&lt;ShardRouting&gt; ordered = new ArrayList&lt;&gt;(activeShards.size() + allInitializingShards.size());</b>
+<b class="nc"><i>426</i>&nbsp;        int seed = shuffler.nextSeed();</b>
+<b class="nc"><i>427</i>&nbsp;        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {</b>
+<b class="nc"><i>428</i>&nbsp;            if (nodeId.equals(shardRouting.currentNodeId())) {</b>
+<b class="nc"><i>429</i>&nbsp;                ordered.add(shardRouting);</b>
+<i>430</i>&nbsp;            }
+<b class="nc"><i>431</i>&nbsp;        }</b>
+<b class="nc"><i>432</i>&nbsp;        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {</b>
+<b class="nc"><i>433</i>&nbsp;            if (nodeId.equals(shardRouting.currentNodeId())) {</b>
+<b class="nc"><i>434</i>&nbsp;                ordered.add(shardRouting);</b>
+<i>435</i>&nbsp;            }
+<b class="nc"><i>436</i>&nbsp;        }</b>
+<b class="nc"><i>437</i>&nbsp;        return new PlainShardIterator(shardId, ordered);</b>
+<i>438</i>&nbsp;    }
+<i>439</i>&nbsp;
+<i>440</i>&nbsp;    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttributes, DiscoveryNodes discoveryNodes) {
+<b class="nc"><i>441</i>&nbsp;        return onlyNodeSelectorActiveInitializingShardsIt(new String[] {nodeAttributes}, discoveryNodes);</b>
+<i>442</i>&nbsp;    }
+<i>443</i>&nbsp;
+<i>444</i>&nbsp;    /**
+<i>445</i>&nbsp;     * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
+<i>446</i>&nbsp;     * Supports node specifications in cluster API
+<i>447</i>&nbsp;     */
+<i>448</i>&nbsp;    public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String[] nodeAttributes, DiscoveryNodes discoveryNodes) {
+<b class="nc"><i>449</i>&nbsp;        ArrayList&lt;ShardRouting&gt; ordered = new ArrayList&lt;&gt;(activeShards.size() + allInitializingShards.size());</b>
+<b class="nc"><i>450</i>&nbsp;        Set&lt;String&gt; selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));</b>
+<b class="nc"><i>451</i>&nbsp;        int seed = shuffler.nextSeed();</b>
+<b class="nc"><i>452</i>&nbsp;        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {</b>
+<b class="nc"><i>453</i>&nbsp;            if (selectedNodes.contains(shardRouting.currentNodeId())) {</b>
+<b class="nc"><i>454</i>&nbsp;                ordered.add(shardRouting);</b>
+<i>455</i>&nbsp;            }
+<b class="nc"><i>456</i>&nbsp;        }</b>
+<b class="nc"><i>457</i>&nbsp;        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {</b>
+<b class="nc"><i>458</i>&nbsp;            if (selectedNodes.contains(shardRouting.currentNodeId())) {</b>
+<b class="nc"><i>459</i>&nbsp;                ordered.add(shardRouting);</b>
+<i>460</i>&nbsp;            }
+<b class="nc"><i>461</i>&nbsp;        }</b>
+<b class="nc"><i>462</i>&nbsp;        if (ordered.isEmpty()) {</b>
+<b class="nc"><i>463</i>&nbsp;            final String message = String.format(</b>
+<i>464</i>&nbsp;                    Locale.ROOT,
+<i>465</i>&nbsp;                    &quot;no data nodes with %s [%s] found for shard: %s&quot;,
+<b class="nc"><i>466</i>&nbsp;                    nodeAttributes.length == 1 ? &quot;criteria&quot; : &quot;criterion&quot;,</b>
+<b class="nc"><i>467</i>&nbsp;                    String.join(&quot;,&quot;, nodeAttributes),</b>
+<b class="nc"><i>468</i>&nbsp;                    shardId());</b>
+<b class="nc"><i>469</i>&nbsp;            throw new IllegalArgumentException(message);</b>
+<i>470</i>&nbsp;        }
+<b class="nc"><i>471</i>&nbsp;        return new PlainShardIterator(shardId, ordered);</b>
+<i>472</i>&nbsp;    }
+<i>473</i>&nbsp;
+<i>474</i>&nbsp;    public ShardIterator preferNodeActiveInitializingShardsIt(Set&lt;String&gt; nodeIds) {
+<b class="nc"><i>475</i>&nbsp;        ArrayList&lt;ShardRouting&gt; preferred = new ArrayList&lt;&gt;(activeShards.size() + allInitializingShards.size());</b>
+<b class="nc"><i>476</i>&nbsp;        ArrayList&lt;ShardRouting&gt; notPreferred = new ArrayList&lt;&gt;(activeShards.size() + allInitializingShards.size());</b>
+<i>477</i>&nbsp;        // fill it in a randomized fashion
+<b class="nc"><i>478</i>&nbsp;        for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {</b>
+<b class="nc"><i>479</i>&nbsp;            if (nodeIds.contains(shardRouting.currentNodeId())) {</b>
+<b class="nc"><i>480</i>&nbsp;                preferred.add(shardRouting);</b>
+<i>481</i>&nbsp;            } else {
+<b class="nc"><i>482</i>&nbsp;                notPreferred.add(shardRouting);</b>
+<i>483</i>&nbsp;            }
+<b class="nc"><i>484</i>&nbsp;        }</b>
+<b class="nc"><i>485</i>&nbsp;        preferred.addAll(notPreferred);</b>
+<b class="nc"><i>486</i>&nbsp;        if (!allInitializingShards.isEmpty()) {</b>
+<b class="nc"><i>487</i>&nbsp;            preferred.addAll(allInitializingShards);</b>
+<i>488</i>&nbsp;        }
+<b class="nc"><i>489</i>&nbsp;        return new PlainShardIterator(shardId, preferred);</b>
+<i>490</i>&nbsp;    }
+<i>491</i>&nbsp;
+<i>492</i>&nbsp;    @Override
+<i>493</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>494</i>&nbsp;        if (this == o) return true;</b>
+<b class="fc"><i>495</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<i>496</i>&nbsp;
+<b class="fc"><i>497</i>&nbsp;        IndexShardRoutingTable that = (IndexShardRoutingTable) o;</b>
+<i>498</i>&nbsp;
+<b class="fc"><i>499</i>&nbsp;        if (!shardId.equals(that.shardId)) return false;</b>
+<b class="fc"><i>500</i>&nbsp;        if (!shards.equals(that.shards)) return false;</b>
+<i>501</i>&nbsp;
+<b class="nc"><i>502</i>&nbsp;        return true;</b>
+<i>503</i>&nbsp;    }
+<i>504</i>&nbsp;
+<i>505</i>&nbsp;    @Override
+<i>506</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>507</i>&nbsp;        int result = shardId.hashCode();</b>
+<b class="nc"><i>508</i>&nbsp;        result = 31 * result + shards.hashCode();</b>
+<b class="nc"><i>509</i>&nbsp;        return result;</b>
+<i>510</i>&nbsp;    }
+<i>511</i>&nbsp;
+<i>512</i>&nbsp;    /**
+<i>513</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; iff all shards in the routing table are started otherwise &lt;code&gt;false&lt;/code&gt;
+<i>514</i>&nbsp;     */
+<i>515</i>&nbsp;    public boolean allShardsStarted() {
+<b class="nc"><i>516</i>&nbsp;        return allShardsStarted;</b>
+<i>517</i>&nbsp;    }
+<i>518</i>&nbsp;
+<i>519</i>&nbsp;    @Nullable
+<i>520</i>&nbsp;    public ShardRouting getByAllocationId(String allocationId) {
+<b class="fc"><i>521</i>&nbsp;        for (ShardRouting shardRouting : assignedShards()) {</b>
+<b class="fc"><i>522</i>&nbsp;            if (shardRouting.allocationId().getId().equals(allocationId)) {</b>
+<b class="fc"><i>523</i>&nbsp;                return shardRouting;</b>
+<i>524</i>&nbsp;            }
+<b class="nc"><i>525</i>&nbsp;        }</b>
+<b class="nc"><i>526</i>&nbsp;        return null;</b>
+<i>527</i>&nbsp;    }
+<i>528</i>&nbsp;
+<i>529</i>&nbsp;    public Set&lt;String&gt; getAllAllocationIds() {
+<b class="fc"><i>530</i>&nbsp;        return allAllocationIds;</b>
+<i>531</i>&nbsp;    }
+<i>532</i>&nbsp;
+<i>533</i>&nbsp;    static class AttributesKey {
+<i>534</i>&nbsp;
+<i>535</i>&nbsp;        final List&lt;String&gt; attributes;
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;        AttributesKey(List&lt;String&gt; attributes) {
+<i>538</i>&nbsp;            this.attributes = attributes;
+<i>539</i>&nbsp;        }
+<i>540</i>&nbsp;
+<i>541</i>&nbsp;        @Override
+<i>542</i>&nbsp;        public int hashCode() {
+<i>543</i>&nbsp;            return attributes.hashCode();
+<i>544</i>&nbsp;        }
+<i>545</i>&nbsp;
+<i>546</i>&nbsp;        @Override
+<i>547</i>&nbsp;        public boolean equals(Object obj) {
+<i>548</i>&nbsp;            return obj instanceof AttributesKey &amp;&amp; attributes.equals(((AttributesKey) obj).attributes);
+<i>549</i>&nbsp;        }
+<i>550</i>&nbsp;    }
+<i>551</i>&nbsp;
+<i>552</i>&nbsp;    static class AttributesRoutings {
+<i>553</i>&nbsp;
+<i>554</i>&nbsp;        public final List&lt;ShardRouting&gt; withSameAttribute;
+<i>555</i>&nbsp;        public final List&lt;ShardRouting&gt; withoutSameAttribute;
+<i>556</i>&nbsp;        public final int totalSize;
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;        AttributesRoutings(List&lt;ShardRouting&gt; withSameAttribute, List&lt;ShardRouting&gt; withoutSameAttribute) {
+<i>559</i>&nbsp;            this.withSameAttribute = withSameAttribute;
+<i>560</i>&nbsp;            this.withoutSameAttribute = withoutSameAttribute;
+<i>561</i>&nbsp;            this.totalSize = withoutSameAttribute.size() + withSameAttribute.size();
+<i>562</i>&nbsp;        }
+<i>563</i>&nbsp;    }
+<i>564</i>&nbsp;
+<i>565</i>&nbsp;    private AttributesRoutings getActiveAttribute(AttributesKey key, DiscoveryNodes nodes) {
+<b class="nc"><i>566</i>&nbsp;        AttributesRoutings shardRoutings = activeShardsByAttributes.get(key);</b>
+<b class="nc"><i>567</i>&nbsp;        if (shardRoutings == null) {</b>
+<b class="nc"><i>568</i>&nbsp;            synchronized (shardsByAttributeMutex) {</b>
+<b class="nc"><i>569</i>&nbsp;                ArrayList&lt;ShardRouting&gt; from = new ArrayList&lt;&gt;(activeShards);</b>
+<b class="nc"><i>570</i>&nbsp;                List&lt;ShardRouting&gt; to = collectAttributeShards(key, nodes, from);</b>
+<i>571</i>&nbsp;
+<b class="nc"><i>572</i>&nbsp;                shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));</b>
+<b class="nc"><i>573</i>&nbsp;                activeShardsByAttributes = MapBuilder.newMapBuilder(activeShardsByAttributes).put(key, shardRoutings).immutableMap();</b>
+<b class="nc"><i>574</i>&nbsp;            }</b>
+<i>575</i>&nbsp;        }
+<b class="nc"><i>576</i>&nbsp;        return shardRoutings;</b>
+<i>577</i>&nbsp;    }
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;    private AttributesRoutings getInitializingAttribute(AttributesKey key, DiscoveryNodes nodes) {
+<b class="nc"><i>580</i>&nbsp;        AttributesRoutings shardRoutings = initializingShardsByAttributes.get(key);</b>
+<b class="nc"><i>581</i>&nbsp;        if (shardRoutings == null) {</b>
+<b class="nc"><i>582</i>&nbsp;            synchronized (shardsByAttributeMutex) {</b>
+<b class="nc"><i>583</i>&nbsp;                ArrayList&lt;ShardRouting&gt; from = new ArrayList&lt;&gt;(allInitializingShards);</b>
+<b class="nc"><i>584</i>&nbsp;                List&lt;ShardRouting&gt; to = collectAttributeShards(key, nodes, from);</b>
+<b class="nc"><i>585</i>&nbsp;                shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));</b>
+<b class="nc"><i>586</i>&nbsp;                initializingShardsByAttributes =</b>
+<b class="nc"><i>587</i>&nbsp;                    MapBuilder.newMapBuilder(initializingShardsByAttributes).put(key, shardRoutings).immutableMap();</b>
+<b class="nc"><i>588</i>&nbsp;            }</b>
+<i>589</i>&nbsp;        }
+<b class="nc"><i>590</i>&nbsp;        return shardRoutings;</b>
+<i>591</i>&nbsp;    }
+<i>592</i>&nbsp;
+<i>593</i>&nbsp;    private static List&lt;ShardRouting&gt; collectAttributeShards(AttributesKey key, DiscoveryNodes nodes, ArrayList&lt;ShardRouting&gt; from) {
+<b class="nc"><i>594</i>&nbsp;        final ArrayList&lt;ShardRouting&gt; to = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>595</i>&nbsp;        for (final String attribute : key.attributes) {</b>
+<b class="nc"><i>596</i>&nbsp;            final String localAttributeValue = nodes.getLocalNode().getAttributes().get(attribute);</b>
+<b class="nc"><i>597</i>&nbsp;            if (localAttributeValue != null) {</b>
+<b class="nc"><i>598</i>&nbsp;                for (Iterator&lt;ShardRouting&gt; iterator = from.iterator(); iterator.hasNext(); ) {</b>
+<b class="nc"><i>599</i>&nbsp;                    ShardRouting fromShard = iterator.next();</b>
+<b class="nc"><i>600</i>&nbsp;                    final DiscoveryNode discoveryNode = nodes.get(fromShard.currentNodeId());</b>
+<b class="nc"><i>601</i>&nbsp;                    if (discoveryNode == null) {</b>
+<b class="nc"><i>602</i>&nbsp;                        iterator.remove(); // node is not present anymore - ignore shard</b>
+<b class="nc"><i>603</i>&nbsp;                    } else if (localAttributeValue.equals(discoveryNode.getAttributes().get(attribute))) {</b>
+<b class="nc"><i>604</i>&nbsp;                        iterator.remove();</b>
+<b class="nc"><i>605</i>&nbsp;                        to.add(fromShard);</b>
+<i>606</i>&nbsp;                    }
+<b class="nc"><i>607</i>&nbsp;                }</b>
+<i>608</i>&nbsp;            }
+<b class="nc"><i>609</i>&nbsp;        }</b>
+<b class="nc"><i>610</i>&nbsp;        return Collections.unmodifiableList(to);</b>
+<i>611</i>&nbsp;    }
+<i>612</i>&nbsp;
+<i>613</i>&nbsp;    public ShardIterator preferAttributesActiveInitializingShardsIt(List&lt;String&gt; attributes, DiscoveryNodes nodes) {
+<b class="nc"><i>614</i>&nbsp;        return preferAttributesActiveInitializingShardsIt(attributes, nodes, shuffler.nextSeed());</b>
+<i>615</i>&nbsp;    }
+<i>616</i>&nbsp;
+<i>617</i>&nbsp;    public ShardIterator preferAttributesActiveInitializingShardsIt(List&lt;String&gt; attributes, DiscoveryNodes nodes, int seed) {
+<b class="nc"><i>618</i>&nbsp;        AttributesKey key = new AttributesKey(attributes);</b>
+<b class="nc"><i>619</i>&nbsp;        AttributesRoutings activeRoutings = getActiveAttribute(key, nodes);</b>
+<b class="nc"><i>620</i>&nbsp;        AttributesRoutings initializingRoutings = getInitializingAttribute(key, nodes);</b>
+<i>621</i>&nbsp;
+<i>622</i>&nbsp;        // we now randomize, once between the ones that have the same attributes, and once for the ones that don&#39;t
+<i>623</i>&nbsp;        // we don&#39;t want to mix between the two!
+<b class="nc"><i>624</i>&nbsp;        ArrayList&lt;ShardRouting&gt; ordered = new ArrayList&lt;&gt;(activeRoutings.totalSize + initializingRoutings.totalSize);</b>
+<b class="nc"><i>625</i>&nbsp;        ordered.addAll(shuffler.shuffle(activeRoutings.withSameAttribute, seed));</b>
+<b class="nc"><i>626</i>&nbsp;        ordered.addAll(shuffler.shuffle(activeRoutings.withoutSameAttribute, seed));</b>
+<b class="nc"><i>627</i>&nbsp;        ordered.addAll(shuffler.shuffle(initializingRoutings.withSameAttribute, seed));</b>
+<b class="nc"><i>628</i>&nbsp;        ordered.addAll(shuffler.shuffle(initializingRoutings.withoutSameAttribute, seed));</b>
+<b class="nc"><i>629</i>&nbsp;        return new PlainShardIterator(shardId, ordered);</b>
+<i>630</i>&nbsp;    }
+<i>631</i>&nbsp;
+<i>632</i>&nbsp;    public ShardRouting primaryShard() {
+<b class="fc"><i>633</i>&nbsp;        return primary;</b>
+<i>634</i>&nbsp;    }
+<i>635</i>&nbsp;
+<i>636</i>&nbsp;    public List&lt;ShardRouting&gt; replicaShards() {
+<b class="nc"><i>637</i>&nbsp;        return this.replicas;</b>
+<i>638</i>&nbsp;    }
+<i>639</i>&nbsp;
+<i>640</i>&nbsp;    public List&lt;ShardRouting&gt; replicaShardsWithState(ShardRoutingState... states) {
+<b class="nc"><i>641</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>642</i>&nbsp;        for (ShardRouting shardEntry : replicas) {</b>
+<b class="nc"><i>643</i>&nbsp;            for (ShardRoutingState state : states) {</b>
+<b class="nc"><i>644</i>&nbsp;                if (shardEntry.state() == state) {</b>
+<b class="nc"><i>645</i>&nbsp;                    shards.add(shardEntry);</b>
+<i>646</i>&nbsp;                }
+<i>647</i>&nbsp;            }
+<b class="nc"><i>648</i>&nbsp;        }</b>
+<b class="nc"><i>649</i>&nbsp;        return shards;</b>
+<i>650</i>&nbsp;    }
+<i>651</i>&nbsp;
+<i>652</i>&nbsp;    public List&lt;ShardRouting&gt; shardsWithState(ShardRoutingState state) {
+<b class="fc"><i>653</i>&nbsp;        if (state == ShardRoutingState.INITIALIZING) {</b>
+<b class="nc"><i>654</i>&nbsp;            return allInitializingShards;</b>
+<i>655</i>&nbsp;        }
+<b class="fc"><i>656</i>&nbsp;        List&lt;ShardRouting&gt; shards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>657</i>&nbsp;        for (ShardRouting shardEntry : this) {</b>
+<b class="fc"><i>658</i>&nbsp;            if (shardEntry.state() == state) {</b>
+<b class="nc"><i>659</i>&nbsp;                shards.add(shardEntry);</b>
+<i>660</i>&nbsp;            }
+<b class="fc"><i>661</i>&nbsp;        }</b>
+<b class="fc"><i>662</i>&nbsp;        return shards;</b>
+<i>663</i>&nbsp;    }
+<i>664</i>&nbsp;
+<b class="fc"><i>665</i>&nbsp;    public static class Builder {</b>
+<i>666</i>&nbsp;
+<i>667</i>&nbsp;        private ShardId shardId;
+<i>668</i>&nbsp;        private final List&lt;ShardRouting&gt; shards;
+<i>669</i>&nbsp;
+<b class="nc"><i>670</i>&nbsp;        public Builder(IndexShardRoutingTable indexShard) {</b>
+<b class="nc"><i>671</i>&nbsp;            this.shardId = indexShard.shardId;</b>
+<b class="nc"><i>672</i>&nbsp;            this.shards = new ArrayList&lt;&gt;(indexShard.shards);</b>
+<b class="nc"><i>673</i>&nbsp;        }</b>
+<i>674</i>&nbsp;
+<b class="fc"><i>675</i>&nbsp;        public Builder(ShardId shardId) {</b>
+<b class="fc"><i>676</i>&nbsp;            this.shardId = shardId;</b>
+<b class="fc"><i>677</i>&nbsp;            this.shards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>678</i>&nbsp;        }</b>
+<i>679</i>&nbsp;
+<i>680</i>&nbsp;        public Builder addShard(ShardRouting shardEntry) {
+<b class="fc"><i>681</i>&nbsp;            shards.add(shardEntry);</b>
+<b class="fc"><i>682</i>&nbsp;            return this;</b>
+<i>683</i>&nbsp;        }
+<i>684</i>&nbsp;
+<i>685</i>&nbsp;        public Builder removeShard(ShardRouting shardEntry) {
+<b class="nc"><i>686</i>&nbsp;            shards.remove(shardEntry);</b>
+<b class="nc"><i>687</i>&nbsp;            return this;</b>
+<i>688</i>&nbsp;        }
+<i>689</i>&nbsp;
+<i>690</i>&nbsp;        public IndexShardRoutingTable build() {
+<i>691</i>&nbsp;            // don&#39;t allow more than one shard copy with same id to be allocated to same node
+<b class="fc"><i>692</i>&nbsp;            assert distinctNodes(shards) : &quot;more than one shard with same id assigned to same node (shards: &quot; + shards + &quot;)&quot;;</b>
+<b class="fc"><i>693</i>&nbsp;            return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList&lt;&gt;(shards)));</b>
+<i>694</i>&nbsp;        }
+<i>695</i>&nbsp;
+<i>696</i>&nbsp;        static boolean distinctNodes(List&lt;ShardRouting&gt; shards) {
+<b class="fc"><i>697</i>&nbsp;            Set&lt;String&gt; nodes = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>698</i>&nbsp;            for (ShardRouting shard : shards) {</b>
+<b class="fc"><i>699</i>&nbsp;                if (shard.assignedToNode()) {</b>
+<b class="fc"><i>700</i>&nbsp;                    if (nodes.add(shard.currentNodeId()) == false) {</b>
+<b class="nc"><i>701</i>&nbsp;                        return false;</b>
+<i>702</i>&nbsp;                    }
+<b class="fc"><i>703</i>&nbsp;                    if (shard.relocating()) {</b>
+<b class="nc"><i>704</i>&nbsp;                        if (nodes.add(shard.relocatingNodeId()) == false) {</b>
+<b class="nc"><i>705</i>&nbsp;                            return false;</b>
+<i>706</i>&nbsp;                        }
+<i>707</i>&nbsp;                    }
+<i>708</i>&nbsp;                }
+<b class="fc"><i>709</i>&nbsp;            }</b>
+<b class="fc"><i>710</i>&nbsp;            return true;</b>
+<i>711</i>&nbsp;        }
+<i>712</i>&nbsp;
+<i>713</i>&nbsp;        public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {
+<b class="nc"><i>714</i>&nbsp;            Index index = new Index(in);</b>
+<b class="nc"><i>715</i>&nbsp;            return readFromThin(in, index);</b>
+<i>716</i>&nbsp;        }
+<i>717</i>&nbsp;
+<i>718</i>&nbsp;        public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
+<b class="fc"><i>719</i>&nbsp;            int iShardId = in.readVInt();</b>
+<b class="fc"><i>720</i>&nbsp;            ShardId shardId = new ShardId(index, iShardId);</b>
+<b class="fc"><i>721</i>&nbsp;            Builder builder = new Builder(shardId);</b>
+<i>722</i>&nbsp;
+<b class="fc"><i>723</i>&nbsp;            int size = in.readVInt();</b>
+<b class="fc"><i>724</i>&nbsp;            for (int i = 0; i &lt; size; i++) {</b>
+<b class="fc"><i>725</i>&nbsp;                ShardRouting shard = new ShardRouting(shardId, in);</b>
+<b class="fc"><i>726</i>&nbsp;                builder.addShard(shard);</b>
+<i>727</i>&nbsp;            }
+<i>728</i>&nbsp;
+<b class="fc"><i>729</i>&nbsp;            return builder.build();</b>
+<i>730</i>&nbsp;        }
+<i>731</i>&nbsp;
+<i>732</i>&nbsp;        public static void writeTo(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+<b class="nc"><i>733</i>&nbsp;            indexShard.shardId().getIndex().writeTo(out);</b>
+<b class="nc"><i>734</i>&nbsp;            writeToThin(indexShard, out);</b>
+<b class="nc"><i>735</i>&nbsp;        }</b>
+<i>736</i>&nbsp;
+<i>737</i>&nbsp;        public static void writeToThin(IndexShardRoutingTable indexShard, StreamOutput out) throws IOException {
+<b class="fc"><i>738</i>&nbsp;            out.writeVInt(indexShard.shardId.id());</b>
+<i>739</i>&nbsp;
+<b class="fc"><i>740</i>&nbsp;            out.writeVInt(indexShard.shards.size());</b>
+<b class="fc"><i>741</i>&nbsp;            for (ShardRouting entry : indexShard) {</b>
+<b class="fc"><i>742</i>&nbsp;                entry.writeToThin(out);</b>
+<b class="fc"><i>743</i>&nbsp;            }</b>
+<b class="fc"><i>744</i>&nbsp;        }</b>
+<i>745</i>&nbsp;
+<i>746</i>&nbsp;    }
+<i>747</i>&nbsp;
+<i>748</i>&nbsp;    @Override
+<i>749</i>&nbsp;    public String toString() {
+<b class="nc"><i>750</i>&nbsp;        StringBuilder sb = new StringBuilder();</b>
+<b class="nc"><i>751</i>&nbsp;        sb.append(&quot;IndexShardRoutingTable(&quot;).append(shardId()).append(&quot;){&quot;);</b>
+<b class="nc"><i>752</i>&nbsp;        final int numShards = shards.size();</b>
+<b class="nc"><i>753</i>&nbsp;        for (int i = 0; i &lt; numShards; i++) {</b>
+<b class="nc"><i>754</i>&nbsp;            sb.append(shards.get(i).shortSummary());</b>
+<b class="nc"><i>755</i>&nbsp;            if (i &lt; numShards - 1) {</b>
+<b class="nc"><i>756</i>&nbsp;                sb.append(&quot;, &quot;);</b>
+<i>757</i>&nbsp;            }
+<i>758</i>&nbsp;        }
+<b class="nc"><i>759</i>&nbsp;        sb.append(&quot;}&quot;);</b>
+<b class="nc"><i>760</i>&nbsp;        return sb.toString();</b>
+<i>761</i>&nbsp;    }
+<i>762</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

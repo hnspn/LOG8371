@@ -1,0 +1,172 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ResizeAllocationDecider</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.cluster.routing.allocation.decider</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ResizeAllocationDecider (org.elasticsearch.cluster.routing.allocation.decider)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ResizeAllocationDecider</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (3/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    17.9%
+  </span>
+  <span class="absValue">
+    (5/ 28)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.cluster.routing.allocation.decider;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.RecoverySource;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.RoutingNode;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.routing.UnassignedInfo;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+<i>29</i>&nbsp;import org.elasticsearch.index.Index;
+<i>30</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;/**
+<i>33</i>&nbsp; * An allocation decider that ensures we allocate the shards of a target index for resize operations next to the source primaries
+<i>34</i>&nbsp; */
+<b class="fc"><i>35</i>&nbsp;public class ResizeAllocationDecider extends AllocationDecider {</b>
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;    public static final String NAME = &quot;resize&quot;;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;    @Override
+<i>40</i>&nbsp;    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+<b class="fc"><i>41</i>&nbsp;        return canAllocate(shardRouting, null, allocation);</b>
+<i>42</i>&nbsp;    }
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;    @Override
+<i>45</i>&nbsp;    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="fc"><i>46</i>&nbsp;        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();</b>
+<b class="fc"><i>47</i>&nbsp;        if (unassignedInfo != null &amp;&amp; shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {</b>
+<i>48</i>&nbsp;            // we only make decisions here if we have an unassigned info and we have to recover from another index ie. split / shrink
+<b class="nc"><i>49</i>&nbsp;            final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());</b>
+<b class="nc"><i>50</i>&nbsp;            Index resizeSourceIndex = indexMetaData.getResizeSourceIndex();</b>
+<b class="nc"><i>51</i>&nbsp;            assert resizeSourceIndex != null;</b>
+<b class="nc"><i>52</i>&nbsp;            if (allocation.metaData().index(resizeSourceIndex) == null) {</b>
+<b class="nc"><i>53</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;resize source index [%s] doesn&#39;t exists&quot;, resizeSourceIndex.toString());</b>
+<i>54</i>&nbsp;            }
+<b class="nc"><i>55</i>&nbsp;            IndexMetaData sourceIndexMetaData = allocation.metaData().getIndexSafe(resizeSourceIndex);</b>
+<b class="nc"><i>56</i>&nbsp;            if (indexMetaData.getNumberOfShards() &lt; sourceIndexMetaData.getNumberOfShards()) {</b>
+<i>57</i>&nbsp;                // this only handles splits and clone so far.
+<b class="nc"><i>58</i>&nbsp;                return Decision.ALWAYS;</b>
+<i>59</i>&nbsp;            }
+<i>60</i>&nbsp;
+<b class="nc"><i>61</i>&nbsp;            ShardId shardId = indexMetaData.getNumberOfShards() == sourceIndexMetaData.getNumberOfShards() ?</b>
+<b class="nc"><i>62</i>&nbsp;                IndexMetaData.selectCloneShard(shardRouting.id(), sourceIndexMetaData, indexMetaData.getNumberOfShards()) :</b>
+<b class="nc"><i>63</i>&nbsp;                IndexMetaData.selectSplitShard(shardRouting.id(), sourceIndexMetaData, indexMetaData.getNumberOfShards());</b>
+<b class="nc"><i>64</i>&nbsp;            ShardRouting sourceShardRouting = allocation.routingNodes().activePrimary(shardId);</b>
+<b class="nc"><i>65</i>&nbsp;            if (sourceShardRouting == null) {</b>
+<b class="nc"><i>66</i>&nbsp;                return allocation.decision(Decision.NO, NAME, &quot;source primary shard [%s] is not active&quot;, shardId);</b>
+<i>67</i>&nbsp;            }
+<b class="nc"><i>68</i>&nbsp;            if (node != null) { // we might get called from the 2 param canAllocate method..</b>
+<b class="nc"><i>69</i>&nbsp;                if (node.node().getVersion().before(ResizeAction.COMPATIBILITY_VERSION)) {</b>
+<b class="nc"><i>70</i>&nbsp;                    return allocation.decision(Decision.NO, NAME, &quot;node [%s] is too old to split a shard&quot;, node.nodeId());</b>
+<i>71</i>&nbsp;                }
+<b class="nc"><i>72</i>&nbsp;                if (sourceShardRouting.currentNodeId().equals(node.nodeId())) {</b>
+<b class="nc"><i>73</i>&nbsp;                    return allocation.decision(Decision.YES, NAME, &quot;source primary is allocated on this node&quot;);</b>
+<i>74</i>&nbsp;                } else {
+<b class="nc"><i>75</i>&nbsp;                    return allocation.decision(Decision.NO, NAME, &quot;source primary is allocated on another node&quot;);</b>
+<i>76</i>&nbsp;                }
+<i>77</i>&nbsp;            } else {
+<b class="nc"><i>78</i>&nbsp;                return allocation.decision(Decision.YES, NAME, &quot;source primary is active&quot;);</b>
+<i>79</i>&nbsp;            }
+<i>80</i>&nbsp;        }
+<b class="fc"><i>81</i>&nbsp;        return super.canAllocate(shardRouting, node, allocation);</b>
+<i>82</i>&nbsp;    }
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    @Override
+<i>85</i>&nbsp;    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+<b class="nc"><i>86</i>&nbsp;        assert shardRouting.primary() : &quot;must not call canForceAllocatePrimary on a non-primary shard &quot; + shardRouting;</b>
+<b class="nc"><i>87</i>&nbsp;        return canAllocate(shardRouting, node, allocation);</b>
+<i>88</i>&nbsp;    }
+<i>89</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

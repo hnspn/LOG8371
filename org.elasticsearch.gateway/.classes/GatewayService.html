@@ -1,0 +1,435 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: GatewayService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.gateway</a> ]
+</div>
+
+<h1>Coverage Summary for Class: GatewayService (org.elasticsearch.gateway)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">GatewayService</td>
+<td class="coverageStat">
+  <span class="percent">
+    83.3%
+  </span>
+  <span class="absValue">
+    (10/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    68%
+  </span>
+  <span class="absValue">
+    (66/ 97)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">GatewayService$2</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (3/ 6)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">GatewayService$RecoverStateUpdateTask</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (3/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    60%
+  </span>
+  <span class="absValue">
+    (9/ 15)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    75%
+  </span>
+  <span class="absValue">
+    (15/ 20)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.1%
+  </span>
+  <span class="absValue">
+    (78/ 118)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.gateway;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterStateListener;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.ClusterStateUpdateTask;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlock;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.block.ClusterBlockLevel;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.coordination.Coordinator;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocationService;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>35</i>&nbsp;import org.elasticsearch.common.component.AbstractLifecycleComponent;
+<i>36</i>&nbsp;import org.elasticsearch.common.inject.Inject;
+<i>37</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>38</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>39</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>40</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>41</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>42</i>&nbsp;import org.elasticsearch.discovery.Discovery;
+<i>43</i>&nbsp;import org.elasticsearch.discovery.zen.ZenDiscovery;
+<i>44</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>45</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>48</i>&nbsp;import java.util.function.Function;
+<i>49</i>&nbsp;
+<b class="fc"><i>50</i>&nbsp;public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {</b>
+<b class="fc"><i>51</i>&nbsp;    private static final Logger logger = LogManager.getLogger(GatewayService.class);</b>
+<i>52</i>&nbsp;
+<b class="fc"><i>53</i>&nbsp;    public static final Setting&lt;Integer&gt; EXPECTED_NODES_SETTING =</b>
+<b class="fc"><i>54</i>&nbsp;        Setting.intSetting(&quot;gateway.expected_nodes&quot;, -1, -1, Property.NodeScope);</b>
+<b class="fc"><i>55</i>&nbsp;    public static final Setting&lt;Integer&gt; EXPECTED_DATA_NODES_SETTING =</b>
+<b class="fc"><i>56</i>&nbsp;        Setting.intSetting(&quot;gateway.expected_data_nodes&quot;, -1, -1, Property.NodeScope);</b>
+<b class="fc"><i>57</i>&nbsp;    public static final Setting&lt;Integer&gt; EXPECTED_MASTER_NODES_SETTING =</b>
+<b class="fc"><i>58</i>&nbsp;        Setting.intSetting(&quot;gateway.expected_master_nodes&quot;, -1, -1, Property.NodeScope);</b>
+<b class="fc"><i>59</i>&nbsp;    public static final Setting&lt;TimeValue&gt; RECOVER_AFTER_TIME_SETTING =</b>
+<b class="fc"><i>60</i>&nbsp;        Setting.positiveTimeSetting(&quot;gateway.recover_after_time&quot;, TimeValue.timeValueMillis(0), Property.NodeScope);</b>
+<b class="fc"><i>61</i>&nbsp;    public static final Setting&lt;Integer&gt; RECOVER_AFTER_NODES_SETTING =</b>
+<b class="fc"><i>62</i>&nbsp;        Setting.intSetting(&quot;gateway.recover_after_nodes&quot;, -1, -1, Property.NodeScope);</b>
+<b class="fc"><i>63</i>&nbsp;    public static final Setting&lt;Integer&gt; RECOVER_AFTER_DATA_NODES_SETTING =</b>
+<b class="fc"><i>64</i>&nbsp;        Setting.intSetting(&quot;gateway.recover_after_data_nodes&quot;, -1, -1, Property.NodeScope);</b>
+<b class="fc"><i>65</i>&nbsp;    public static final Setting&lt;Integer&gt; RECOVER_AFTER_MASTER_NODES_SETTING =</b>
+<b class="fc"><i>66</i>&nbsp;        Setting.intSetting(&quot;gateway.recover_after_master_nodes&quot;, 0, 0, Property.NodeScope);</b>
+<i>67</i>&nbsp;
+<b class="fc"><i>68</i>&nbsp;    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, &quot;state not recovered / initialized&quot;, true, true,</b>
+<i>69</i>&nbsp;        false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+<i>70</i>&nbsp;
+<b class="fc"><i>71</i>&nbsp;    static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    private final ThreadPool threadPool;
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    private final AllocationService allocationService;
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    private final ClusterService clusterService;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    private final TimeValue recoverAfterTime;
+<i>80</i>&nbsp;    private final int recoverAfterNodes;
+<i>81</i>&nbsp;    private final int expectedNodes;
+<i>82</i>&nbsp;    private final int recoverAfterDataNodes;
+<i>83</i>&nbsp;    private final int expectedDataNodes;
+<i>84</i>&nbsp;    private final int recoverAfterMasterNodes;
+<i>85</i>&nbsp;    private final int expectedMasterNodes;
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    private final Runnable recoveryRunnable;
+<i>88</i>&nbsp;
+<b class="fc"><i>89</i>&nbsp;    private final AtomicBoolean recoveryInProgress = new AtomicBoolean();</b>
+<b class="fc"><i>90</i>&nbsp;    private final AtomicBoolean scheduledRecovery = new AtomicBoolean();</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    @Inject
+<i>93</i>&nbsp;    public GatewayService(final Settings settings, final AllocationService allocationService, final ClusterService clusterService,
+<i>94</i>&nbsp;                          final ThreadPool threadPool,
+<i>95</i>&nbsp;                          final TransportNodesListGatewayMetaState listGatewayMetaState,
+<b class="fc"><i>96</i>&nbsp;                          final Discovery discovery) {</b>
+<b class="fc"><i>97</i>&nbsp;        this.allocationService = allocationService;</b>
+<b class="fc"><i>98</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>99</i>&nbsp;        this.threadPool = threadPool;</b>
+<i>100</i>&nbsp;        // allow to control a delay of when indices will get created
+<b class="fc"><i>101</i>&nbsp;        this.expectedNodes = EXPECTED_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>102</i>&nbsp;        this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>103</i>&nbsp;        this.expectedMasterNodes = EXPECTED_MASTER_NODES_SETTING.get(settings);</b>
+<i>104</i>&nbsp;
+<b class="fc"><i>105</i>&nbsp;        if (RECOVER_AFTER_TIME_SETTING.exists(settings)) {</b>
+<b class="nc"><i>106</i>&nbsp;            recoverAfterTime = RECOVER_AFTER_TIME_SETTING.get(settings);</b>
+<b class="fc"><i>107</i>&nbsp;        } else if (expectedNodes &gt;= 0 || expectedDataNodes &gt;= 0 || expectedMasterNodes &gt;= 0) {</b>
+<b class="nc"><i>108</i>&nbsp;            recoverAfterTime = DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET;</b>
+<i>109</i>&nbsp;        } else {
+<b class="fc"><i>110</i>&nbsp;            recoverAfterTime = null;</b>
+<i>111</i>&nbsp;        }
+<b class="fc"><i>112</i>&nbsp;        this.recoverAfterNodes = RECOVER_AFTER_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>113</i>&nbsp;        this.recoverAfterDataNodes = RECOVER_AFTER_DATA_NODES_SETTING.get(settings);</b>
+<i>114</i>&nbsp;        // default the recover after master nodes to the minimum master nodes in the discovery
+<b class="fc"><i>115</i>&nbsp;        if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(settings)) {</b>
+<b class="nc"><i>116</i>&nbsp;            recoverAfterMasterNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);</b>
+<b class="fc"><i>117</i>&nbsp;        } else if (discovery instanceof ZenDiscovery) {</b>
+<b class="nc"><i>118</i>&nbsp;            recoverAfterMasterNodes = settings.getAsInt(&quot;discovery.zen.minimum_master_nodes&quot;, -1);</b>
+<i>119</i>&nbsp;        } else {
+<b class="fc"><i>120</i>&nbsp;            recoverAfterMasterNodes = -1;</b>
+<i>121</i>&nbsp;        }
+<i>122</i>&nbsp;
+<b class="fc"><i>123</i>&nbsp;        if (discovery instanceof Coordinator) {</b>
+<b class="fc"><i>124</i>&nbsp;            recoveryRunnable = () -&gt;</b>
+<b class="fc"><i>125</i>&nbsp;                    clusterService.submitStateUpdateTask(&quot;local-gateway-elected-state&quot;, new RecoverStateUpdateTask());</b>
+<i>126</i>&nbsp;        } else {
+<b class="nc"><i>127</i>&nbsp;            final Gateway gateway = new Gateway(settings, clusterService, listGatewayMetaState);</b>
+<b class="nc"><i>128</i>&nbsp;            recoveryRunnable = () -&gt;</b>
+<b class="nc"><i>129</i>&nbsp;                    gateway.performStateRecovery(new GatewayRecoveryListener());</b>
+<i>130</i>&nbsp;        }
+<b class="fc"><i>131</i>&nbsp;    }</b>
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;    @Override
+<i>134</i>&nbsp;    protected void doStart() {
+<i>135</i>&nbsp;        // use post applied so that the state will be visible to the background recovery thread we spawn in performStateRecovery
+<b class="fc"><i>136</i>&nbsp;        clusterService.addListener(this);</b>
+<b class="fc"><i>137</i>&nbsp;    }</b>
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    @Override
+<i>140</i>&nbsp;    protected void doStop() {
+<b class="fc"><i>141</i>&nbsp;        clusterService.removeListener(this);</b>
+<b class="fc"><i>142</i>&nbsp;    }</b>
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    @Override
+<i>145</i>&nbsp;    protected void doClose() {
+<b class="fc"><i>146</i>&nbsp;    }</b>
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;    @Override
+<i>149</i>&nbsp;    public void clusterChanged(final ClusterChangedEvent event) {
+<b class="fc"><i>150</i>&nbsp;        if (lifecycle.stoppedOrClosed()) {</b>
+<b class="nc"><i>151</i>&nbsp;            return;</b>
+<i>152</i>&nbsp;        }
+<i>153</i>&nbsp;
+<b class="fc"><i>154</i>&nbsp;        final ClusterState state = event.state();</b>
+<i>155</i>&nbsp;
+<b class="fc"><i>156</i>&nbsp;        if (state.nodes().isLocalNodeElectedMaster() == false) {</b>
+<i>157</i>&nbsp;            // not our job to recover
+<b class="nc"><i>158</i>&nbsp;            return;</b>
+<i>159</i>&nbsp;        }
+<b class="fc"><i>160</i>&nbsp;        if (state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {</b>
+<i>161</i>&nbsp;            // already recovered
+<b class="fc"><i>162</i>&nbsp;            return;</b>
+<i>163</i>&nbsp;        }
+<i>164</i>&nbsp;
+<b class="fc"><i>165</i>&nbsp;        final DiscoveryNodes nodes = state.nodes();</b>
+<b class="fc"><i>166</i>&nbsp;        if (state.nodes().getMasterNodeId() == null) {</b>
+<b class="nc"><i>167</i>&nbsp;            logger.debug(&quot;not recovering from gateway, no master elected yet&quot;);</b>
+<b class="fc"><i>168</i>&nbsp;        } else if (recoverAfterNodes != -1 &amp;&amp; (nodes.getMasterAndDataNodes().size()) &lt; recoverAfterNodes) {</b>
+<b class="nc"><i>169</i>&nbsp;            logger.debug(&quot;not recovering from gateway, nodes_size (data+master) [{}] &lt; recover_after_nodes [{}]&quot;,</b>
+<b class="nc"><i>170</i>&nbsp;                nodes.getMasterAndDataNodes().size(), recoverAfterNodes);</b>
+<b class="fc"><i>171</i>&nbsp;        } else if (recoverAfterDataNodes != -1 &amp;&amp; nodes.getDataNodes().size() &lt; recoverAfterDataNodes) {</b>
+<b class="nc"><i>172</i>&nbsp;            logger.debug(&quot;not recovering from gateway, nodes_size (data) [{}] &lt; recover_after_data_nodes [{}]&quot;,</b>
+<b class="nc"><i>173</i>&nbsp;                nodes.getDataNodes().size(), recoverAfterDataNodes);</b>
+<b class="fc"><i>174</i>&nbsp;        } else if (recoverAfterMasterNodes != -1 &amp;&amp; nodes.getMasterNodes().size() &lt; recoverAfterMasterNodes) {</b>
+<b class="nc"><i>175</i>&nbsp;            logger.debug(&quot;not recovering from gateway, nodes_size (master) [{}] &lt; recover_after_master_nodes [{}]&quot;,</b>
+<b class="nc"><i>176</i>&nbsp;                nodes.getMasterNodes().size(), recoverAfterMasterNodes);</b>
+<i>177</i>&nbsp;        } else {
+<i>178</i>&nbsp;            boolean enforceRecoverAfterTime;
+<i>179</i>&nbsp;            String reason;
+<b class="fc"><i>180</i>&nbsp;            if (expectedNodes == -1 &amp;&amp; expectedMasterNodes == -1 &amp;&amp; expectedDataNodes == -1) {</b>
+<i>181</i>&nbsp;                // no expected is set, honor the setting if they are there
+<b class="fc"><i>182</i>&nbsp;                enforceRecoverAfterTime = true;</b>
+<b class="fc"><i>183</i>&nbsp;                reason = &quot;recover_after_time was set to [&quot; + recoverAfterTime + &quot;]&quot;;</b>
+<i>184</i>&nbsp;            } else {
+<i>185</i>&nbsp;                // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
+<b class="nc"><i>186</i>&nbsp;                enforceRecoverAfterTime = false;</b>
+<b class="nc"><i>187</i>&nbsp;                reason = &quot;&quot;;</b>
+<b class="nc"><i>188</i>&nbsp;                if (expectedNodes != -1 &amp;&amp; (nodes.getMasterAndDataNodes().size() &lt; expectedNodes)) { // does not meet the expected...</b>
+<b class="nc"><i>189</i>&nbsp;                    enforceRecoverAfterTime = true;</b>
+<b class="nc"><i>190</i>&nbsp;                    reason = &quot;expecting [&quot; + expectedNodes + &quot;] nodes, but only have [&quot; + nodes.getMasterAndDataNodes().size() + &quot;]&quot;;</b>
+<b class="nc"><i>191</i>&nbsp;                } else if (expectedDataNodes != -1 &amp;&amp; (nodes.getDataNodes().size() &lt; expectedDataNodes)) { // does not meet the expected...</b>
+<b class="nc"><i>192</i>&nbsp;                    enforceRecoverAfterTime = true;</b>
+<b class="nc"><i>193</i>&nbsp;                    reason = &quot;expecting [&quot; + expectedDataNodes + &quot;] data nodes, but only have [&quot; + nodes.getDataNodes().size() + &quot;]&quot;;</b>
+<b class="nc"><i>194</i>&nbsp;                } else if (expectedMasterNodes != -1 &amp;&amp; (nodes.getMasterNodes().size() &lt; expectedMasterNodes)) {</b>
+<i>195</i>&nbsp;                    // does not meet the expected...
+<b class="nc"><i>196</i>&nbsp;                    enforceRecoverAfterTime = true;</b>
+<b class="nc"><i>197</i>&nbsp;                    reason = &quot;expecting [&quot; + expectedMasterNodes + &quot;] master nodes, but only have [&quot; + nodes.getMasterNodes().size() + &quot;]&quot;;</b>
+<i>198</i>&nbsp;                }
+<i>199</i>&nbsp;            }
+<b class="fc"><i>200</i>&nbsp;            performStateRecovery(enforceRecoverAfterTime, reason);</b>
+<i>201</i>&nbsp;        }
+<b class="fc"><i>202</i>&nbsp;    }</b>
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;    private void performStateRecovery(final boolean enforceRecoverAfterTime, final String reason) {
+<b class="fc"><i>205</i>&nbsp;        if (enforceRecoverAfterTime &amp;&amp; recoverAfterTime != null) {</b>
+<b class="nc"><i>206</i>&nbsp;            if (scheduledRecovery.compareAndSet(false, true)) {</b>
+<b class="nc"><i>207</i>&nbsp;                logger.info(&quot;delaying initial state recovery for [{}]. {}&quot;, recoverAfterTime, reason);</b>
+<b class="nc"><i>208</i>&nbsp;                threadPool.schedule(new AbstractRunnable() {</b>
+<i>209</i>&nbsp;                    @Override
+<i>210</i>&nbsp;                    public void onFailure(Exception e) {
+<i>211</i>&nbsp;                        logger.warn(&quot;delayed state recovery failed&quot;, e);
+<i>212</i>&nbsp;                        resetRecoveredFlags();
+<i>213</i>&nbsp;                    }
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;                    @Override
+<i>216</i>&nbsp;                    protected void doRun() {
+<i>217</i>&nbsp;                        if (recoveryInProgress.compareAndSet(false, true)) {
+<i>218</i>&nbsp;                            logger.info(&quot;recover_after_time [{}] elapsed. performing state recovery...&quot;, recoverAfterTime);
+<i>219</i>&nbsp;                            recoveryRunnable.run();
+<i>220</i>&nbsp;                        }
+<i>221</i>&nbsp;                    }
+<i>222</i>&nbsp;                }, recoverAfterTime, ThreadPool.Names.GENERIC);
+<i>223</i>&nbsp;            }
+<i>224</i>&nbsp;        } else {
+<b class="fc"><i>225</i>&nbsp;            if (recoveryInProgress.compareAndSet(false, true)) {</b>
+<b class="fc"><i>226</i>&nbsp;                threadPool.generic().execute(new AbstractRunnable() {</b>
+<i>227</i>&nbsp;                    @Override
+<i>228</i>&nbsp;                    public void onFailure(final Exception e) {
+<b class="nc"><i>229</i>&nbsp;                        logger.warn(&quot;state recovery failed&quot;, e);</b>
+<b class="nc"><i>230</i>&nbsp;                        resetRecoveredFlags();</b>
+<b class="nc"><i>231</i>&nbsp;                    }</b>
+<i>232</i>&nbsp;
+<i>233</i>&nbsp;                    @Override
+<i>234</i>&nbsp;                    protected void doRun() {
+<b class="fc"><i>235</i>&nbsp;                        recoveryRunnable.run();</b>
+<b class="fc"><i>236</i>&nbsp;                    }</b>
+<i>237</i>&nbsp;                });
+<i>238</i>&nbsp;            }
+<i>239</i>&nbsp;        }
+<b class="fc"><i>240</i>&nbsp;    }</b>
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    private void resetRecoveredFlags() {
+<b class="fc"><i>243</i>&nbsp;        recoveryInProgress.set(false);</b>
+<b class="fc"><i>244</i>&nbsp;        scheduledRecovery.set(false);</b>
+<b class="fc"><i>245</i>&nbsp;    }</b>
+<i>246</i>&nbsp;
+<b class="fc"><i>247</i>&nbsp;    class RecoverStateUpdateTask extends ClusterStateUpdateTask {</b>
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;        @Override
+<i>250</i>&nbsp;        public ClusterState execute(final ClusterState currentState) {
+<b class="fc"><i>251</i>&nbsp;            final ClusterState newState = Function.&lt;ClusterState&gt;identity()</b>
+<b class="fc"><i>252</i>&nbsp;                    .andThen(ClusterStateUpdaters::updateRoutingTable)</b>
+<b class="fc"><i>253</i>&nbsp;                    .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)</b>
+<b class="fc"><i>254</i>&nbsp;                    .apply(currentState);</b>
+<i>255</i>&nbsp;
+<b class="fc"><i>256</i>&nbsp;            return allocationService.reroute(newState, &quot;state recovered&quot;);</b>
+<i>257</i>&nbsp;        }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;        @Override
+<i>260</i>&nbsp;        public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+<b class="fc"><i>261</i>&nbsp;            logger.info(&quot;recovered [{}] indices into cluster_state&quot;, newState.metaData().indices().size());</b>
+<i>262</i>&nbsp;            // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
+<i>263</i>&nbsp;            // not-recovered state, that we again do another state recovery.
+<b class="fc"><i>264</i>&nbsp;            resetRecoveredFlags();</b>
+<b class="fc"><i>265</i>&nbsp;        }</b>
+<i>266</i>&nbsp;
+<i>267</i>&nbsp;        @Override
+<i>268</i>&nbsp;        public void onNoLongerMaster(String source) {
+<b class="nc"><i>269</i>&nbsp;            logger.debug(&quot;stepped down as master before recovering state [{}]&quot;, source);</b>
+<b class="nc"><i>270</i>&nbsp;            resetRecoveredFlags();</b>
+<b class="nc"><i>271</i>&nbsp;        }</b>
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;        @Override
+<i>274</i>&nbsp;        public void onFailure(final String source, final Exception e) {
+<b class="nc"><i>275</i>&nbsp;            logger.info(() -&gt; new ParameterizedMessage(&quot;unexpected failure during [{}]&quot;, source), e);</b>
+<b class="nc"><i>276</i>&nbsp;            resetRecoveredFlags();</b>
+<b class="nc"><i>277</i>&nbsp;        }</b>
+<i>278</i>&nbsp;    }
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;    class GatewayRecoveryListener implements Gateway.GatewayStateRecoveredListener {
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;        @Override
+<i>283</i>&nbsp;        public void onSuccess(final ClusterState recoveredState) {
+<i>284</i>&nbsp;            logger.trace(&quot;successful state recovery, importing cluster state...&quot;);
+<i>285</i>&nbsp;            clusterService.submitStateUpdateTask(&quot;local-gateway-elected-state&quot;, new RecoverStateUpdateTask() {
+<i>286</i>&nbsp;                @Override
+<i>287</i>&nbsp;                public ClusterState execute(final ClusterState currentState) {
+<i>288</i>&nbsp;                    final ClusterState updatedState = ClusterStateUpdaters.mixCurrentStateAndRecoveredState(currentState, recoveredState);
+<i>289</i>&nbsp;                    return super.execute(ClusterStateUpdaters.recoverClusterBlocks(updatedState));
+<i>290</i>&nbsp;                }
+<i>291</i>&nbsp;            });
+<i>292</i>&nbsp;        }
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;        @Override
+<i>295</i>&nbsp;        public void onFailure(final String msg) {
+<i>296</i>&nbsp;            logger.info(&quot;state recovery failed: {}&quot;, msg);
+<i>297</i>&nbsp;            resetRecoveredFlags();
+<i>298</i>&nbsp;        }
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    }
+<i>301</i>&nbsp;
+<i>302</i>&nbsp;    // used for testing
+<i>303</i>&nbsp;    TimeValue recoverAfterTime() {
+<b class="nc"><i>304</i>&nbsp;        return recoverAfterTime;</b>
+<i>305</i>&nbsp;    }
+<i>306</i>&nbsp;
+<i>307</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,403 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: CombinedDeletionPolicy</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: CombinedDeletionPolicy (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">CombinedDeletionPolicy</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (10/ 15)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    64.7%
+  </span>
+  <span class="absValue">
+    (55/ 85)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">CombinedDeletionPolicy$SnapshotIndexCommit</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 11)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 13)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    38.5%
+  </span>
+  <span class="absValue">
+    (10/ 26)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    56.1%
+  </span>
+  <span class="absValue">
+    (55/ 98)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.engine;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectIntHashMap;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.lucene.index.IndexCommit;
+<i>25</i>&nbsp;import org.apache.lucene.index.IndexDeletionPolicy;
+<i>26</i>&nbsp;import org.apache.lucene.index.SegmentInfos;
+<i>27</i>&nbsp;import org.apache.lucene.store.Directory;
+<i>28</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>29</i>&nbsp;import org.elasticsearch.index.translog.Translog;
+<i>30</i>&nbsp;import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;import java.nio.file.Path;
+<i>34</i>&nbsp;import java.util.Collection;
+<i>35</i>&nbsp;import java.util.List;
+<i>36</i>&nbsp;import java.util.Locale;
+<i>37</i>&nbsp;import java.util.Map;
+<i>38</i>&nbsp;import java.util.function.LongSupplier;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;/**
+<i>41</i>&nbsp; * An {@link IndexDeletionPolicy} that coordinates between Lucene&#39;s commits and the retention of translog generation files,
+<i>42</i>&nbsp; * making sure that all translog files that are needed to recover from the Lucene commit are not deleted.
+<i>43</i>&nbsp; * &lt;p&gt;
+<i>44</i>&nbsp; * In particular, this policy will delete index commits whose max sequence number is at most
+<i>45</i>&nbsp; * the current global checkpoint except the index commit which has the highest max sequence number among those.
+<i>46</i>&nbsp; */
+<b class="fc"><i>47</i>&nbsp;public class CombinedDeletionPolicy extends IndexDeletionPolicy {</b>
+<i>48</i>&nbsp;    private final Logger logger;
+<i>49</i>&nbsp;    private final TranslogDeletionPolicy translogDeletionPolicy;
+<i>50</i>&nbsp;    private final SoftDeletesPolicy softDeletesPolicy;
+<i>51</i>&nbsp;    private final LongSupplier globalCheckpointSupplier;
+<i>52</i>&nbsp;    private final ObjectIntHashMap&lt;IndexCommit&gt; snapshottedCommits; // Number of snapshots held against each commit point.
+<i>53</i>&nbsp;    private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
+<i>54</i>&nbsp;    private volatile long maxSeqNoOfNextSafeCommit;
+<i>55</i>&nbsp;    private volatile IndexCommit lastCommit; // the most recent commit point
+<b class="fc"><i>56</i>&nbsp;    private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
+<b class="fc"><i>59</i>&nbsp;                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {</b>
+<b class="fc"><i>60</i>&nbsp;        this.logger = logger;</b>
+<b class="fc"><i>61</i>&nbsp;        this.translogDeletionPolicy = translogDeletionPolicy;</b>
+<b class="fc"><i>62</i>&nbsp;        this.softDeletesPolicy = softDeletesPolicy;</b>
+<b class="fc"><i>63</i>&nbsp;        this.globalCheckpointSupplier = globalCheckpointSupplier;</b>
+<b class="fc"><i>64</i>&nbsp;        this.snapshottedCommits = new ObjectIntHashMap&lt;&gt;();</b>
+<b class="fc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    @Override
+<i>68</i>&nbsp;    public void onInit(List&lt;? extends IndexCommit&gt; commits) throws IOException {
+<b class="fc"><i>69</i>&nbsp;        assert commits.isEmpty() == false : &quot;index is opened, but we have no commits&quot;;</b>
+<b class="fc"><i>70</i>&nbsp;        onCommit(commits);</b>
+<b class="fc"><i>71</i>&nbsp;        if (safeCommit != commits.get(commits.size() - 1)) {</b>
+<b class="nc"><i>72</i>&nbsp;            throw new IllegalStateException(&quot;Engine is opened, but the last commit isn&#39;t safe. Global checkpoint [&quot;</b>
+<b class="nc"><i>73</i>&nbsp;                + globalCheckpointSupplier.getAsLong() + &quot;], seqNo is last commit [&quot;</b>
+<b class="nc"><i>74</i>&nbsp;                + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + &quot;], &quot;</b>
+<b class="nc"><i>75</i>&nbsp;                + &quot;seqNos in safe commit [&quot; + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet()) + &quot;]&quot;);</b>
+<i>76</i>&nbsp;        }
+<b class="fc"><i>77</i>&nbsp;    }</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    @Override
+<i>80</i>&nbsp;    public void onCommit(List&lt;? extends IndexCommit&gt; commits) throws IOException {
+<i>81</i>&nbsp;        final IndexCommit safeCommit;
+<b class="fc"><i>82</i>&nbsp;        synchronized (this) {</b>
+<b class="fc"><i>83</i>&nbsp;            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());</b>
+<b class="fc"><i>84</i>&nbsp;            this.safeCommitInfo = SafeCommitInfo.EMPTY;</b>
+<b class="fc"><i>85</i>&nbsp;            this.lastCommit = commits.get(commits.size() - 1);</b>
+<b class="fc"><i>86</i>&nbsp;            this.safeCommit = commits.get(keptPosition);</b>
+<b class="fc"><i>87</i>&nbsp;            if (keptPosition == commits.size() - 1) {</b>
+<b class="fc"><i>88</i>&nbsp;                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;</b>
+<i>89</i>&nbsp;            } else {
+<b class="nc"><i>90</i>&nbsp;                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));</b>
+<i>91</i>&nbsp;            }
+<b class="fc"><i>92</i>&nbsp;            for (int i = 0; i &lt; keptPosition; i++) {</b>
+<b class="nc"><i>93</i>&nbsp;                if (snapshottedCommits.containsKey(commits.get(i)) == false) {</b>
+<b class="nc"><i>94</i>&nbsp;                    deleteCommit(commits.get(i));</b>
+<i>95</i>&nbsp;                }
+<i>96</i>&nbsp;            }
+<b class="fc"><i>97</i>&nbsp;            updateRetentionPolicy();</b>
+<b class="fc"><i>98</i>&nbsp;            safeCommit = this.safeCommit;</b>
+<b class="fc"><i>99</i>&nbsp;        }</b>
+<i>100</i>&nbsp;
+<b class="fc"><i>101</i>&nbsp;        assert Thread.holdsLock(this) == false : &quot;should not block concurrent acquire or relesase&quot;;</b>
+<b class="fc"><i>102</i>&nbsp;        safeCommitInfo = new SafeCommitInfo(Long.parseLong(</b>
+<b class="fc"><i>103</i>&nbsp;            safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));</b>
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;        // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
+<i>106</i>&nbsp;        // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
+<i>107</i>&nbsp;        // bit more history and do a few more ops-based recoveries than we would otherwise.
+<b class="fc"><i>108</i>&nbsp;        final IndexCommit newSafeCommit = this.safeCommit;</b>
+<b class="fc"><i>109</i>&nbsp;        assert safeCommit == newSafeCommit</b>
+<b class="nc"><i>110</i>&nbsp;            : &quot;onCommit called concurrently? &quot; + safeCommit.getGeneration() + &quot; vs &quot; + newSafeCommit.getGeneration();</b>
+<b class="fc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    private void deleteCommit(IndexCommit commit) throws IOException {
+<b class="nc"><i>114</i>&nbsp;        assert commit.isDeleted() == false : &quot;Index commit [&quot; + commitDescription(commit) + &quot;] is deleted twice&quot;;</b>
+<b class="nc"><i>115</i>&nbsp;        logger.debug(&quot;Delete index commit [{}]&quot;, commitDescription(commit));</b>
+<b class="nc"><i>116</i>&nbsp;        commit.delete();</b>
+<b class="nc"><i>117</i>&nbsp;        assert commit.isDeleted() : &quot;Deletion commit [&quot; + commitDescription(commit) + &quot;] was suppressed&quot;;</b>
+<b class="nc"><i>118</i>&nbsp;    }</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;    private void updateRetentionPolicy() throws IOException {
+<b class="fc"><i>121</i>&nbsp;        assert Thread.holdsLock(this);</b>
+<b class="fc"><i>122</i>&nbsp;        logger.debug(&quot;Safe commit [{}], last commit [{}]&quot;, commitDescription(safeCommit), commitDescription(lastCommit));</b>
+<b class="fc"><i>123</i>&nbsp;        assert safeCommit.isDeleted() == false : &quot;The safe commit must not be deleted&quot;;</b>
+<b class="fc"><i>124</i>&nbsp;        final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));</b>
+<b class="fc"><i>125</i>&nbsp;        assert lastCommit.isDeleted() == false : &quot;The last commit must not be deleted&quot;;</b>
+<b class="fc"><i>126</i>&nbsp;        final long lastGen = Long.parseLong(lastCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));</b>
+<i>127</i>&nbsp;
+<b class="fc"><i>128</i>&nbsp;        assert minRequiredGen &lt;= lastGen : &quot;minRequiredGen must not be greater than lastGen&quot;;</b>
+<b class="fc"><i>129</i>&nbsp;        translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);</b>
+<b class="fc"><i>130</i>&nbsp;        translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);</b>
+<i>131</i>&nbsp;
+<b class="fc"><i>132</i>&nbsp;        softDeletesPolicy.setLocalCheckpointOfSafeCommit(</b>
+<b class="fc"><i>133</i>&nbsp;            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));</b>
+<b class="fc"><i>134</i>&nbsp;    }</b>
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {
+<b class="fc"><i>137</i>&nbsp;        return SegmentInfos.readCommit(indexCommit.getDirectory(), indexCommit.getSegmentsFileName()).totalMaxDoc();</b>
+<i>138</i>&nbsp;    }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;    SafeCommitInfo getSafeCommitInfo() {
+<b class="nc"><i>141</i>&nbsp;        return safeCommitInfo;</b>
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;    /**
+<i>145</i>&nbsp;     * Captures the most recent commit point {@link #lastCommit} or the most recent safe commit point {@link #safeCommit}.
+<i>146</i>&nbsp;     * Index files of the capturing commit point won&#39;t be released until the commit reference is closed.
+<i>147</i>&nbsp;     *
+<i>148</i>&nbsp;     * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
+<i>149</i>&nbsp;     */
+<i>150</i>&nbsp;    synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+<b class="nc"><i>151</i>&nbsp;        assert safeCommit != null : &quot;Safe commit is not initialized yet&quot;;</b>
+<b class="nc"><i>152</i>&nbsp;        assert lastCommit != null : &quot;Last commit is not initialized yet&quot;;</b>
+<b class="nc"><i>153</i>&nbsp;        final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;</b>
+<b class="nc"><i>154</i>&nbsp;        snapshottedCommits.addTo(snapshotting, 1); // increase refCount</b>
+<b class="nc"><i>155</i>&nbsp;        return new SnapshotIndexCommit(snapshotting);</b>
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    /**
+<i>159</i>&nbsp;     * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
+<i>160</i>&nbsp;     *
+<i>161</i>&nbsp;     * @return true if the snapshotting commit can be clean up.
+<i>162</i>&nbsp;     */
+<i>163</i>&nbsp;    synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
+<b class="nc"><i>164</i>&nbsp;        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;</b>
+<b class="nc"><i>165</i>&nbsp;        assert snapshottedCommits.containsKey(releasingCommit) : &quot;Release non-snapshotted commit;&quot; +</b>
+<i>166</i>&nbsp;            &quot;snapshotted commits [&quot; + snapshottedCommits + &quot;], releasing commit [&quot; + releasingCommit + &quot;]&quot;;
+<b class="nc"><i>167</i>&nbsp;        final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount</b>
+<b class="nc"><i>168</i>&nbsp;        assert refCount &gt;= 0 : &quot;Number of snapshots can not be negative [&quot; + refCount + &quot;]&quot;;</b>
+<b class="nc"><i>169</i>&nbsp;        if (refCount == 0) {</b>
+<b class="nc"><i>170</i>&nbsp;            snapshottedCommits.remove(releasingCommit);</b>
+<i>171</i>&nbsp;        }
+<i>172</i>&nbsp;        // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
+<b class="nc"><i>173</i>&nbsp;        return refCount == 0 &amp;&amp; releasingCommit.equals(safeCommit) == false &amp;&amp; releasingCommit.equals(lastCommit) == false;</b>
+<i>174</i>&nbsp;    }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;    /**
+<i>177</i>&nbsp;     * Find a safe commit point from a list of existing commits based on the supplied global checkpoint.
+<i>178</i>&nbsp;     * The max sequence number of a safe commit point should be at most the global checkpoint.
+<i>179</i>&nbsp;     * If an index was created before 6.2 or recovered from remote, we might not have a safe commit.
+<i>180</i>&nbsp;     * In this case, this method will return the oldest index commit.
+<i>181</i>&nbsp;     *
+<i>182</i>&nbsp;     * @param commits          a list of existing commit points
+<i>183</i>&nbsp;     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path, String)}
+<i>184</i>&nbsp;     * @return a safe commit or the oldest commit if a safe commit is not found
+<i>185</i>&nbsp;     */
+<i>186</i>&nbsp;    public static IndexCommit findSafeCommitPoint(List&lt;IndexCommit&gt; commits, long globalCheckpoint) throws IOException {
+<b class="fc"><i>187</i>&nbsp;        if (commits.isEmpty()) {</b>
+<b class="nc"><i>188</i>&nbsp;            throw new IllegalArgumentException(&quot;Commit list must not empty&quot;);</b>
+<i>189</i>&nbsp;        }
+<b class="fc"><i>190</i>&nbsp;        final int keptPosition = indexOfKeptCommits(commits, globalCheckpoint);</b>
+<b class="fc"><i>191</i>&nbsp;        return commits.get(keptPosition);</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    /**
+<i>195</i>&nbsp;     * Find the highest index position of a safe index commit whose max sequence number is not greater than the global checkpoint.
+<i>196</i>&nbsp;     * Index commits with different translog UUID will be filtered out as they don&#39;t belong to this engine.
+<i>197</i>&nbsp;     */
+<i>198</i>&nbsp;    private static int indexOfKeptCommits(List&lt;? extends IndexCommit&gt; commits, long globalCheckpoint) throws IOException {
+<b class="fc"><i>199</i>&nbsp;        final String expectedTranslogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);</b>
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;        // Commits are sorted by age (the 0th one is the oldest commit).
+<b class="fc"><i>202</i>&nbsp;        for (int i = commits.size() - 1; i &gt;= 0; i--) {</b>
+<b class="fc"><i>203</i>&nbsp;            final Map&lt;String, String&gt; commitUserData = commits.get(i).getUserData();</b>
+<i>204</i>&nbsp;            // Ignore index commits with different translog uuid.
+<b class="fc"><i>205</i>&nbsp;            if (expectedTranslogUUID.equals(commitUserData.get(Translog.TRANSLOG_UUID_KEY)) == false) {</b>
+<b class="nc"><i>206</i>&nbsp;                return i + 1;</b>
+<i>207</i>&nbsp;            }
+<b class="fc"><i>208</i>&nbsp;            final long maxSeqNoFromCommit = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO));</b>
+<b class="fc"><i>209</i>&nbsp;            if (maxSeqNoFromCommit &lt;= globalCheckpoint) {</b>
+<b class="fc"><i>210</i>&nbsp;                return i;</b>
+<i>211</i>&nbsp;            }
+<i>212</i>&nbsp;        }
+<i>213</i>&nbsp;        // If an index was created before 6.2 or recovered from remote, we might not have a safe commit.
+<i>214</i>&nbsp;        // In this case, we return the oldest index commit instead.
+<b class="nc"><i>215</i>&nbsp;        return 0;</b>
+<i>216</i>&nbsp;    }
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;    /**
+<i>219</i>&nbsp;     * Checks whether the deletion policy is holding on to snapshotted commits
+<i>220</i>&nbsp;     */
+<i>221</i>&nbsp;    synchronized boolean hasSnapshottedCommits() {
+<b class="nc"><i>222</i>&nbsp;        return snapshottedCommits.isEmpty() == false;</b>
+<i>223</i>&nbsp;    }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    /**
+<i>226</i>&nbsp;     * Checks if the deletion policy can delete some index commits with the latest global checkpoint.
+<i>227</i>&nbsp;     */
+<i>228</i>&nbsp;    boolean hasUnreferencedCommits() {
+<b class="fc"><i>229</i>&nbsp;        return maxSeqNoOfNextSafeCommit &lt;= globalCheckpointSupplier.getAsLong();</b>
+<i>230</i>&nbsp;    }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    /**
+<i>233</i>&nbsp;     * Returns a description for a given {@link IndexCommit}. This should be only used for logging and debugging.
+<i>234</i>&nbsp;     */
+<i>235</i>&nbsp;    public static String commitDescription(IndexCommit commit) throws IOException {
+<b class="fc"><i>236</i>&nbsp;        return String.format(Locale.ROOT, &quot;CommitPoint{segment[%s], userData[%s]}&quot;, commit.getSegmentsFileName(), commit.getUserData());</b>
+<i>237</i>&nbsp;    }
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    /**
+<i>240</i>&nbsp;     * A wrapper of an index commit that prevents it from being deleted.
+<i>241</i>&nbsp;     */
+<b class="nc"><i>242</i>&nbsp;    private static class SnapshotIndexCommit extends IndexCommit {</b>
+<i>243</i>&nbsp;        private final IndexCommit delegate;
+<i>244</i>&nbsp;
+<b class="nc"><i>245</i>&nbsp;        SnapshotIndexCommit(IndexCommit delegate) {</b>
+<b class="nc"><i>246</i>&nbsp;            this.delegate = delegate;</b>
+<b class="nc"><i>247</i>&nbsp;        }</b>
+<i>248</i>&nbsp;
+<i>249</i>&nbsp;        @Override
+<i>250</i>&nbsp;        public String getSegmentsFileName() {
+<b class="nc"><i>251</i>&nbsp;            return delegate.getSegmentsFileName();</b>
+<i>252</i>&nbsp;        }
+<i>253</i>&nbsp;
+<i>254</i>&nbsp;        @Override
+<i>255</i>&nbsp;        public Collection&lt;String&gt; getFileNames() throws IOException {
+<b class="nc"><i>256</i>&nbsp;            return delegate.getFileNames();</b>
+<i>257</i>&nbsp;        }
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;        @Override
+<i>260</i>&nbsp;        public Directory getDirectory() {
+<b class="nc"><i>261</i>&nbsp;            return delegate.getDirectory();</b>
+<i>262</i>&nbsp;        }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;        @Override
+<i>265</i>&nbsp;        public void delete() {
+<b class="nc"><i>266</i>&nbsp;            throw new UnsupportedOperationException(&quot;A snapshot commit does not support deletion&quot;);</b>
+<i>267</i>&nbsp;        }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;        @Override
+<i>270</i>&nbsp;        public boolean isDeleted() {
+<b class="nc"><i>271</i>&nbsp;            return delegate.isDeleted();</b>
+<i>272</i>&nbsp;        }
+<i>273</i>&nbsp;
+<i>274</i>&nbsp;        @Override
+<i>275</i>&nbsp;        public int getSegmentCount() {
+<b class="nc"><i>276</i>&nbsp;            return delegate.getSegmentCount();</b>
+<i>277</i>&nbsp;        }
+<i>278</i>&nbsp;
+<i>279</i>&nbsp;        @Override
+<i>280</i>&nbsp;        public long getGeneration() {
+<b class="nc"><i>281</i>&nbsp;            return delegate.getGeneration();</b>
+<i>282</i>&nbsp;        }
+<i>283</i>&nbsp;
+<i>284</i>&nbsp;        @Override
+<i>285</i>&nbsp;        public Map&lt;String, String&gt; getUserData() throws IOException {
+<b class="nc"><i>286</i>&nbsp;            return delegate.getUserData();</b>
+<i>287</i>&nbsp;        }
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;        @Override
+<i>290</i>&nbsp;        public String toString() {
+<b class="nc"><i>291</i>&nbsp;            return &quot;SnapshotIndexCommit{&quot; + delegate + &quot;}&quot;;</b>
+<i>292</i>&nbsp;        }
+<i>293</i>&nbsp;    }
+<i>294</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

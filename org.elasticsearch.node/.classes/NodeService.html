@@ -1,0 +1,230 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: NodeService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.node</a> ]
+</div>
+
+<h1>Coverage Summary for Class: NodeService (org.elasticsearch.node)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">NodeService</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    57.1%
+  </span>
+  <span class="absValue">
+    (4/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    44.7%
+  </span>
+  <span class="absValue">
+    (21/ 47)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.node;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>23</i>&nbsp;import org.elasticsearch.Build;
+<i>24</i>&nbsp;import org.elasticsearch.Version;
+<i>25</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+<i>28</i>&nbsp;import org.elasticsearch.action.search.SearchTransportService;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>30</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>31</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>32</i>&nbsp;import org.elasticsearch.common.settings.SettingsFilter;
+<i>33</i>&nbsp;import org.elasticsearch.discovery.Discovery;
+<i>34</i>&nbsp;import org.elasticsearch.http.HttpServerTransport;
+<i>35</i>&nbsp;import org.elasticsearch.indices.IndicesService;
+<i>36</i>&nbsp;import org.elasticsearch.indices.breaker.CircuitBreakerService;
+<i>37</i>&nbsp;import org.elasticsearch.ingest.IngestService;
+<i>38</i>&nbsp;import org.elasticsearch.monitor.MonitorService;
+<i>39</i>&nbsp;import org.elasticsearch.plugins.PluginsService;
+<i>40</i>&nbsp;import org.elasticsearch.script.ScriptService;
+<i>41</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>42</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import java.io.Closeable;
+<i>45</i>&nbsp;import java.io.IOException;
+<i>46</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;public class NodeService implements Closeable {
+<i>49</i>&nbsp;    private final Settings settings;
+<i>50</i>&nbsp;    private final ThreadPool threadPool;
+<i>51</i>&nbsp;    private final MonitorService monitorService;
+<i>52</i>&nbsp;    private final TransportService transportService;
+<i>53</i>&nbsp;    private final IndicesService indicesService;
+<i>54</i>&nbsp;    private final PluginsService pluginService;
+<i>55</i>&nbsp;    private final CircuitBreakerService circuitBreakerService;
+<i>56</i>&nbsp;    private final IngestService ingestService;
+<i>57</i>&nbsp;    private final SettingsFilter settingsFilter;
+<i>58</i>&nbsp;    private final ScriptService scriptService;
+<i>59</i>&nbsp;    private final HttpServerTransport httpServerTransport;
+<i>60</i>&nbsp;    private final ResponseCollectorService responseCollectorService;
+<i>61</i>&nbsp;    private final SearchTransportService searchTransportService;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    private final Discovery discovery;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+<i>66</i>&nbsp;                TransportService transportService, IndicesService indicesService, PluginsService pluginService,
+<i>67</i>&nbsp;                CircuitBreakerService circuitBreakerService, ScriptService scriptService,
+<i>68</i>&nbsp;                @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
+<i>69</i>&nbsp;                SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
+<b class="fc"><i>70</i>&nbsp;                SearchTransportService searchTransportService) {</b>
+<b class="fc"><i>71</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>72</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>73</i>&nbsp;        this.monitorService = monitorService;</b>
+<b class="fc"><i>74</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>75</i>&nbsp;        this.indicesService = indicesService;</b>
+<b class="fc"><i>76</i>&nbsp;        this.discovery = discovery;</b>
+<b class="fc"><i>77</i>&nbsp;        this.pluginService = pluginService;</b>
+<b class="fc"><i>78</i>&nbsp;        this.circuitBreakerService = circuitBreakerService;</b>
+<b class="fc"><i>79</i>&nbsp;        this.httpServerTransport = httpServerTransport;</b>
+<b class="fc"><i>80</i>&nbsp;        this.ingestService = ingestService;</b>
+<b class="fc"><i>81</i>&nbsp;        this.settingsFilter = settingsFilter;</b>
+<b class="fc"><i>82</i>&nbsp;        this.scriptService = scriptService;</b>
+<b class="fc"><i>83</i>&nbsp;        this.responseCollectorService = responseCollectorService;</b>
+<b class="fc"><i>84</i>&nbsp;        this.searchTransportService = searchTransportService;</b>
+<b class="fc"><i>85</i>&nbsp;        clusterService.addStateApplier(ingestService);</b>
+<b class="fc"><i>86</i>&nbsp;    }</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
+<i>89</i>&nbsp;                boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
+<b class="nc"><i>90</i>&nbsp;        return new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(),</b>
+<b class="nc"><i>91</i>&nbsp;                settings ? settingsFilter.filter(this.settings) : null,</b>
+<b class="nc"><i>92</i>&nbsp;                os ? monitorService.osService().info() : null,</b>
+<b class="nc"><i>93</i>&nbsp;                process ? monitorService.processService().info() : null,</b>
+<b class="nc"><i>94</i>&nbsp;                jvm ? monitorService.jvmService().info() : null,</b>
+<b class="nc"><i>95</i>&nbsp;                threadPool ? this.threadPool.info() : null,</b>
+<b class="nc"><i>96</i>&nbsp;                transport ? transportService.info() : null,</b>
+<b class="nc"><i>97</i>&nbsp;                http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,</b>
+<b class="nc"><i>98</i>&nbsp;                plugin ? (pluginService == null ? null : pluginService.info()) : null,</b>
+<b class="nc"><i>99</i>&nbsp;                ingest ? (ingestService == null ? null : ingestService.info()) : null,</b>
+<b class="nc"><i>100</i>&nbsp;                indices ? indicesService.getTotalIndexingBufferBytes() : null</b>
+<i>101</i>&nbsp;        );
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
+<i>105</i>&nbsp;                           boolean fs, boolean transport, boolean http, boolean circuitBreaker,
+<i>106</i>&nbsp;                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection) {
+<i>107</i>&nbsp;        // for indices stats we want to include previous allocated shards stats as well (it will
+<i>108</i>&nbsp;        // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
+<b class="nc"><i>109</i>&nbsp;        return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),</b>
+<b class="nc"><i>110</i>&nbsp;                indices.anySet() ? indicesService.stats(indices) : null,</b>
+<b class="nc"><i>111</i>&nbsp;                os ? monitorService.osService().stats() : null,</b>
+<b class="nc"><i>112</i>&nbsp;                process ? monitorService.processService().stats() : null,</b>
+<b class="nc"><i>113</i>&nbsp;                jvm ? monitorService.jvmService().stats() : null,</b>
+<b class="nc"><i>114</i>&nbsp;                threadPool ? this.threadPool.stats() : null,</b>
+<b class="nc"><i>115</i>&nbsp;                fs ? monitorService.fsService().stats() : null,</b>
+<b class="nc"><i>116</i>&nbsp;                transport ? transportService.stats() : null,</b>
+<b class="nc"><i>117</i>&nbsp;                http ? (httpServerTransport == null ? null : httpServerTransport.stats()) : null,</b>
+<b class="nc"><i>118</i>&nbsp;                circuitBreaker ? circuitBreakerService.stats() : null,</b>
+<b class="nc"><i>119</i>&nbsp;                script ? scriptService.stats() : null,</b>
+<b class="nc"><i>120</i>&nbsp;                discoveryStats ? discovery.stats() : null,</b>
+<b class="nc"><i>121</i>&nbsp;                ingest ? ingestService.stats() : null,</b>
+<b class="nc"><i>122</i>&nbsp;                adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null</b>
+<i>123</i>&nbsp;        );
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;    public IngestService getIngestService() {
+<b class="nc"><i>127</i>&nbsp;        return ingestService;</b>
+<i>128</i>&nbsp;    }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;    public MonitorService getMonitorService() {
+<b class="fc"><i>131</i>&nbsp;        return monitorService;</b>
+<i>132</i>&nbsp;    }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;    @Override
+<i>135</i>&nbsp;    public void close() throws IOException {
+<b class="fc"><i>136</i>&nbsp;        IOUtils.close(indicesService);</b>
+<b class="fc"><i>137</i>&nbsp;    }</b>
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * Wait for the node to be effectively closed.
+<i>141</i>&nbsp;     * @see IndicesService#awaitClose(long, TimeUnit)
+<i>142</i>&nbsp;     */
+<i>143</i>&nbsp;    public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+<b class="fc"><i>144</i>&nbsp;        return indicesService.awaitClose(timeout, timeUnit);</b>
+<i>145</i>&nbsp;    }
+<i>146</i>&nbsp;
+<i>147</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

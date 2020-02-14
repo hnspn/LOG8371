@@ -1,0 +1,208 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SerialDiffPipelineAggregator</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.pipeline</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SerialDiffPipelineAggregator (org.elasticsearch.search.aggregations.pipeline)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SerialDiffPipelineAggregator</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 40)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.pipeline;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>23</i>&nbsp;import org.elasticsearch.common.collect.EvictingQueue;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>26</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>27</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation;
+<i>28</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+<i>29</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregations;
+<i>30</i>&nbsp;import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+<i>31</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+<i>32</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
+<i>33</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+<i>34</i>&nbsp;
+<i>35</i>&nbsp;import java.io.IOException;
+<i>36</i>&nbsp;import java.util.ArrayList;
+<i>37</i>&nbsp;import java.util.List;
+<i>38</i>&nbsp;import java.util.Map;
+<i>39</i>&nbsp;import java.util.stream.Collectors;
+<i>40</i>&nbsp;import java.util.stream.StreamSupport;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;public class SerialDiffPipelineAggregator extends PipelineAggregator {
+<i>45</i>&nbsp;    private DocValueFormat formatter;
+<i>46</i>&nbsp;    private GapPolicy gapPolicy;
+<i>47</i>&nbsp;    private int lag;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable DocValueFormat formatter, GapPolicy gapPolicy,
+<i>50</i>&nbsp;                                 int lag, Map&lt;String, Object&gt; metadata) {
+<b class="nc"><i>51</i>&nbsp;        super(name, bucketsPaths, metadata);</b>
+<b class="nc"><i>52</i>&nbsp;        this.formatter = formatter;</b>
+<b class="nc"><i>53</i>&nbsp;        this.gapPolicy = gapPolicy;</b>
+<b class="nc"><i>54</i>&nbsp;        this.lag = lag;</b>
+<b class="nc"><i>55</i>&nbsp;    }</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    /**
+<i>58</i>&nbsp;     * Read from a stream.
+<i>59</i>&nbsp;     */
+<i>60</i>&nbsp;    public SerialDiffPipelineAggregator(StreamInput in) throws IOException {
+<b class="nc"><i>61</i>&nbsp;        super(in);</b>
+<b class="nc"><i>62</i>&nbsp;        formatter = in.readNamedWriteable(DocValueFormat.class);</b>
+<b class="nc"><i>63</i>&nbsp;        gapPolicy = GapPolicy.readFrom(in);</b>
+<b class="nc"><i>64</i>&nbsp;        lag = in.readVInt();</b>
+<b class="nc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    @Override
+<i>68</i>&nbsp;    public void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>69</i>&nbsp;        out.writeNamedWriteable(formatter);</b>
+<b class="nc"><i>70</i>&nbsp;        gapPolicy.writeTo(out);</b>
+<b class="nc"><i>71</i>&nbsp;        out.writeVInt(lag);</b>
+<b class="nc"><i>72</i>&nbsp;    }</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    @Override
+<i>75</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>76</i>&nbsp;        return SerialDiffPipelineAggregationBuilder.NAME;</b>
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    @Override
+<i>80</i>&nbsp;    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+<i>81</i>&nbsp;        InternalMultiBucketAggregation&lt;? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket&gt;
+<b class="nc"><i>82</i>&nbsp;                histo = (InternalMultiBucketAggregation&lt;? extends InternalMultiBucketAggregation, ? extends</b>
+<i>83</i>&nbsp;                InternalMultiBucketAggregation.InternalBucket&gt;) aggregation;
+<b class="nc"><i>84</i>&nbsp;        List&lt;? extends InternalMultiBucketAggregation.InternalBucket&gt; buckets = histo.getBuckets();</b>
+<b class="nc"><i>85</i>&nbsp;        HistogramFactory factory = (HistogramFactory) histo;</b>
+<i>86</i>&nbsp;
+<b class="nc"><i>87</i>&nbsp;        List&lt;Bucket&gt; newBuckets = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>88</i>&nbsp;        EvictingQueue&lt;Double&gt; lagWindow = new EvictingQueue&lt;&gt;(lag);</b>
+<b class="nc"><i>89</i>&nbsp;        int counter = 0;</b>
+<i>90</i>&nbsp;
+<b class="nc"><i>91</i>&nbsp;        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {</b>
+<b class="nc"><i>92</i>&nbsp;            Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);</b>
+<b class="nc"><i>93</i>&nbsp;            Bucket newBucket = bucket;</b>
+<i>94</i>&nbsp;
+<b class="nc"><i>95</i>&nbsp;            counter += 1;</b>
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;            // Still under the initial lag period, add nothing and move on
+<i>98</i>&nbsp;            Double lagValue;
+<b class="nc"><i>99</i>&nbsp;            if (counter &lt;= lag) {</b>
+<b class="nc"><i>100</i>&nbsp;                lagValue = Double.NaN;</b>
+<i>101</i>&nbsp;            } else {
+<b class="nc"><i>102</i>&nbsp;                lagValue = lagWindow.peek();  // Peek here, because we rely on add&#39;ing to always move the window</b>
+<i>103</i>&nbsp;            }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;            // Normalize null&#39;s to NaN
+<b class="nc"><i>106</i>&nbsp;            if (thisBucketValue == null) {</b>
+<b class="nc"><i>107</i>&nbsp;                thisBucketValue = Double.NaN;</b>
+<i>108</i>&nbsp;            }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;            // Both have values, calculate diff and replace the &quot;empty&quot; bucket
+<b class="nc"><i>111</i>&nbsp;            if (!Double.isNaN(thisBucketValue) &amp;&amp; !Double.isNaN(lagValue)) {</b>
+<b class="nc"><i>112</i>&nbsp;                double diff = thisBucketValue - lagValue;</b>
+<i>113</i>&nbsp;
+<b class="nc"><i>114</i>&nbsp;                List&lt;InternalAggregation&gt; aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(</b>
+<b class="nc"><i>115</i>&nbsp;                        (p) -&gt; (InternalAggregation) p).collect(Collectors.toList());</b>
+<b class="nc"><i>116</i>&nbsp;                aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList&lt;&gt;(), metaData()));</b>
+<b class="nc"><i>117</i>&nbsp;                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));</b>
+<i>118</i>&nbsp;            }
+<i>119</i>&nbsp;
+<b class="nc"><i>120</i>&nbsp;            newBuckets.add(newBucket);</b>
+<b class="nc"><i>121</i>&nbsp;            lagWindow.add(thisBucketValue);</b>
+<b class="nc"><i>122</i>&nbsp;        }</b>
+<b class="nc"><i>123</i>&nbsp;        return factory.createAggregation(newBuckets);</b>
+<i>124</i>&nbsp;    }
+<i>125</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,205 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PersistentTasksExecutor</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.persistent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PersistentTasksExecutor (org.elasticsearch.persistent)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PersistentTasksExecutor</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 27)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.persistent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>24</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>25</i>&nbsp;import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+<i>26</i>&nbsp;import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+<i>27</i>&nbsp;import org.elasticsearch.tasks.TaskId;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;import java.util.Map;
+<i>30</i>&nbsp;import java.util.function.Predicate;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;/**
+<i>33</i>&nbsp; * An executor of tasks that can survive restart of requesting or executing node.
+<i>34</i>&nbsp; * These tasks are using cluster state rather than only transport service to send requests and responses.
+<i>35</i>&nbsp; */
+<i>36</i>&nbsp;public abstract class PersistentTasksExecutor&lt;Params extends PersistentTaskParams&gt; {
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    private final String executor;
+<i>39</i>&nbsp;    private final String taskName;
+<i>40</i>&nbsp;
+<b class="nc"><i>41</i>&nbsp;    protected PersistentTasksExecutor(String taskName, String executor) {</b>
+<b class="nc"><i>42</i>&nbsp;        this.taskName = taskName;</b>
+<b class="nc"><i>43</i>&nbsp;        this.executor = executor;</b>
+<b class="nc"><i>44</i>&nbsp;    }</b>
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    public String getTaskName() {
+<b class="nc"><i>47</i>&nbsp;        return taskName;</b>
+<i>48</i>&nbsp;    }
+<i>49</i>&nbsp;
+<b class="nc"><i>50</i>&nbsp;    public static final Assignment NO_NODE_FOUND = new Assignment(null, &quot;no appropriate nodes found for the assignment&quot;);</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    /**
+<i>53</i>&nbsp;     * Returns the node id where the params has to be executed,
+<i>54</i>&nbsp;     * &lt;p&gt;
+<i>55</i>&nbsp;     * The default implementation returns the least loaded data node
+<i>56</i>&nbsp;     */
+<i>57</i>&nbsp;    public Assignment getAssignment(Params params, ClusterState clusterState) {
+<b class="nc"><i>58</i>&nbsp;        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, DiscoveryNode::isDataNode);</b>
+<b class="nc"><i>59</i>&nbsp;        if (discoveryNode == null) {</b>
+<b class="nc"><i>60</i>&nbsp;            return NO_NODE_FOUND;</b>
+<i>61</i>&nbsp;        } else {
+<b class="nc"><i>62</i>&nbsp;            return new Assignment(discoveryNode.getId(), &quot;&quot;);</b>
+<i>63</i>&nbsp;        }
+<i>64</i>&nbsp;    }
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    /**
+<i>67</i>&nbsp;     * Finds the least loaded node that satisfies the selector criteria
+<i>68</i>&nbsp;     */
+<i>69</i>&nbsp;    protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState, Predicate&lt;DiscoveryNode&gt; selector) {
+<b class="nc"><i>70</i>&nbsp;        long minLoad = Long.MAX_VALUE;</b>
+<b class="nc"><i>71</i>&nbsp;        DiscoveryNode minLoadedNode = null;</b>
+<b class="nc"><i>72</i>&nbsp;        PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);</b>
+<b class="nc"><i>73</i>&nbsp;        for (DiscoveryNode node : clusterState.getNodes()) {</b>
+<b class="nc"><i>74</i>&nbsp;            if (selector.test(node)) {</b>
+<b class="nc"><i>75</i>&nbsp;                if (persistentTasks == null) {</b>
+<i>76</i>&nbsp;                    // We don&#39;t have any task running yet, pick the first available node
+<b class="nc"><i>77</i>&nbsp;                    return node;</b>
+<i>78</i>&nbsp;                }
+<b class="nc"><i>79</i>&nbsp;                long numberOfTasks = persistentTasks.getNumberOfTasksOnNode(node.getId(), taskName);</b>
+<b class="nc"><i>80</i>&nbsp;                if (minLoad &gt; numberOfTasks) {</b>
+<b class="nc"><i>81</i>&nbsp;                    minLoad = numberOfTasks;</b>
+<b class="nc"><i>82</i>&nbsp;                    minLoadedNode = node;</b>
+<i>83</i>&nbsp;                }
+<i>84</i>&nbsp;            }
+<b class="nc"><i>85</i>&nbsp;        }</b>
+<b class="nc"><i>86</i>&nbsp;        return minLoadedNode;</b>
+<i>87</i>&nbsp;    }
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    /**
+<i>90</i>&nbsp;     * Checks the current cluster state for compatibility with the params
+<i>91</i>&nbsp;     * &lt;p&gt;
+<i>92</i>&nbsp;     * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
+<i>93</i>&nbsp;     */
+<b class="nc"><i>94</i>&nbsp;    public void validate(Params params, ClusterState clusterState) {}</b>
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    /**
+<i>97</i>&nbsp;     * Creates a AllocatedPersistentTask for communicating with task manager
+<i>98</i>&nbsp;     */
+<i>99</i>&nbsp;    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+<i>100</i>&nbsp;                                                 PersistentTask&lt;Params&gt; taskInProgress, Map&lt;String, String&gt; headers) {
+<b class="nc"><i>101</i>&nbsp;        return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers);</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    /**
+<i>105</i>&nbsp;     * Returns task description that will be available via task manager
+<i>106</i>&nbsp;     */
+<i>107</i>&nbsp;    protected String getDescription(PersistentTask&lt;Params&gt; taskInProgress) {
+<b class="nc"><i>108</i>&nbsp;        return &quot;id=&quot; + taskInProgress.getId();</b>
+<i>109</i>&nbsp;    }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    /**
+<i>112</i>&nbsp;     * This operation will be executed on the executor node.
+<i>113</i>&nbsp;     * &lt;p&gt;
+<i>114</i>&nbsp;     * NOTE: The nodeOperation has to throw an exception, trigger task.markAsCompleted() or task.completeAndNotifyIfNeeded() methods to
+<i>115</i>&nbsp;     * indicate that the persistent task has finished.
+<i>116</i>&nbsp;     */
+<i>117</i>&nbsp;    protected abstract void nodeOperation(AllocatedPersistentTask task, Params params, @Nullable PersistentTaskState state);
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    public String getExecutor() {
+<b class="nc"><i>120</i>&nbsp;        return executor;</b>
+<i>121</i>&nbsp;    }
+<i>122</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

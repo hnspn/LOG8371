@@ -1,0 +1,250 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestAllocationAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.cat</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestAllocationAction (org.elasticsearch.rest.action.cat)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestAllocationAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.6%
+  </span>
+  <span class="absValue">
+    (2/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    8.3%
+  </span>
+  <span class="absValue">
+    (6/ 72)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.cat;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.ObjectIntScatterMap;
+<i>23</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+<i>29</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>32</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>33</i>&nbsp;import org.elasticsearch.common.Table;
+<i>34</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>35</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>36</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>37</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>38</i>&nbsp;import org.elasticsearch.rest.action.RestActionListener;
+<i>39</i>&nbsp;import org.elasticsearch.rest.action.RestResponseListener;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;
+<b class="nc"><i>44</i>&nbsp;public class RestAllocationAction extends AbstractCatAction {</b>
+<i>45</i>&nbsp;
+<b class="fc"><i>46</i>&nbsp;    public RestAllocationAction(RestController controller) {</b>
+<b class="fc"><i>47</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/allocation&quot;, this);</b>
+<b class="fc"><i>48</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/allocation/{nodes}&quot;, this);</b>
+<b class="fc"><i>49</i>&nbsp;    }</b>
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    @Override
+<i>52</i>&nbsp;    public String getName() {
+<b class="nc"><i>53</i>&nbsp;        return &quot;cat_allocation_action&quot;;</b>
+<i>54</i>&nbsp;    }
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    @Override
+<i>57</i>&nbsp;    protected void documentation(StringBuilder sb) {
+<b class="fc"><i>58</i>&nbsp;        sb.append(&quot;/_cat/allocation\n&quot;);</b>
+<b class="fc"><i>59</i>&nbsp;    }</b>
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    @Override
+<i>62</i>&nbsp;    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+<b class="nc"><i>63</i>&nbsp;        final String[] nodes = Strings.splitStringByCommaToArray(request.param(&quot;nodes&quot;, &quot;data:true&quot;));</b>
+<b class="nc"><i>64</i>&nbsp;        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();</b>
+<b class="nc"><i>65</i>&nbsp;        clusterStateRequest.clear().routingTable(true);</b>
+<b class="nc"><i>66</i>&nbsp;        clusterStateRequest.local(request.paramAsBoolean(&quot;local&quot;, clusterStateRequest.local()));</b>
+<b class="nc"><i>67</i>&nbsp;        clusterStateRequest.masterNodeTimeout(request.paramAsTime(&quot;master_timeout&quot;, clusterStateRequest.masterNodeTimeout()));</b>
+<i>68</i>&nbsp;
+<b class="nc"><i>69</i>&nbsp;        return channel -&gt; client.admin().cluster().state(clusterStateRequest, new RestActionListener&lt;ClusterStateResponse&gt;(channel) {</b>
+<i>70</i>&nbsp;            @Override
+<i>71</i>&nbsp;            public void processResponse(final ClusterStateResponse state) {
+<i>72</i>&nbsp;                NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
+<i>73</i>&nbsp;                statsRequest.clear().fs(true).indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;                client.admin().cluster().nodesStats(statsRequest, new RestResponseListener&lt;NodesStatsResponse&gt;(channel) {
+<i>76</i>&nbsp;                    @Override
+<i>77</i>&nbsp;                    public RestResponse buildResponse(NodesStatsResponse stats) throws Exception {
+<i>78</i>&nbsp;                        Table tab = buildTable(request, state, stats);
+<i>79</i>&nbsp;                        return RestTable.buildResponse(tab, channel);
+<i>80</i>&nbsp;                    }
+<i>81</i>&nbsp;                });
+<i>82</i>&nbsp;            }
+<i>83</i>&nbsp;        });
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    }
+<i>86</i>&nbsp;
+<i>87</i>&nbsp;    @Override
+<i>88</i>&nbsp;    protected Table getTableWithHeader(final RestRequest request) {
+<b class="nc"><i>89</i>&nbsp;        final Table table = new Table();</b>
+<b class="nc"><i>90</i>&nbsp;        table.startHeaders();</b>
+<b class="nc"><i>91</i>&nbsp;        table.addCell(&quot;shards&quot;, &quot;alias:s;text-align:right;desc:number of shards on node&quot;);</b>
+<b class="nc"><i>92</i>&nbsp;        table.addCell(&quot;disk.indices&quot;, &quot;alias:di,diskIndices;text-align:right;desc:disk used by ES indices&quot;);</b>
+<b class="nc"><i>93</i>&nbsp;        table.addCell(&quot;disk.used&quot;, &quot;alias:du,diskUsed;text-align:right;desc:disk used (total, not just ES)&quot;);</b>
+<b class="nc"><i>94</i>&nbsp;        table.addCell(&quot;disk.avail&quot;, &quot;alias:da,diskAvail;text-align:right;desc:disk available&quot;);</b>
+<b class="nc"><i>95</i>&nbsp;        table.addCell(&quot;disk.total&quot;, &quot;alias:dt,diskTotal;text-align:right;desc:total capacity of all volumes&quot;);</b>
+<b class="nc"><i>96</i>&nbsp;        table.addCell(&quot;disk.percent&quot;, &quot;alias:dp,diskPercent;text-align:right;desc:percent disk used&quot;);</b>
+<b class="nc"><i>97</i>&nbsp;        table.addCell(&quot;host&quot;, &quot;alias:h;desc:host of node&quot;);</b>
+<b class="nc"><i>98</i>&nbsp;        table.addCell(&quot;ip&quot;, &quot;desc:ip of node&quot;);</b>
+<b class="nc"><i>99</i>&nbsp;        table.addCell(&quot;node&quot;, &quot;alias:n;desc:name of node&quot;);</b>
+<b class="nc"><i>100</i>&nbsp;        table.endHeaders();</b>
+<b class="nc"><i>101</i>&nbsp;        return table;</b>
+<i>102</i>&nbsp;    }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
+<b class="nc"><i>105</i>&nbsp;        final ObjectIntScatterMap&lt;String&gt; allocs = new ObjectIntScatterMap&lt;&gt;();</b>
+<i>106</i>&nbsp;
+<b class="nc"><i>107</i>&nbsp;        for (ShardRouting shard : state.getState().routingTable().allShards()) {</b>
+<b class="nc"><i>108</i>&nbsp;            String nodeId = &quot;UNASSIGNED&quot;;</b>
+<i>109</i>&nbsp;
+<b class="nc"><i>110</i>&nbsp;            if (shard.assignedToNode()) {</b>
+<b class="nc"><i>111</i>&nbsp;                nodeId = shard.currentNodeId();</b>
+<i>112</i>&nbsp;            }
+<i>113</i>&nbsp;
+<b class="nc"><i>114</i>&nbsp;            allocs.addTo(nodeId, 1);</b>
+<b class="nc"><i>115</i>&nbsp;        }</b>
+<i>116</i>&nbsp;
+<b class="nc"><i>117</i>&nbsp;        Table table = getTableWithHeader(request);</b>
+<i>118</i>&nbsp;
+<b class="nc"><i>119</i>&nbsp;        for (NodeStats nodeStats : stats.getNodes()) {</b>
+<b class="nc"><i>120</i>&nbsp;            DiscoveryNode node = nodeStats.getNode();</b>
+<i>121</i>&nbsp;
+<b class="nc"><i>122</i>&nbsp;            int shardCount = allocs.getOrDefault(node.getId(), 0);</b>
+<i>123</i>&nbsp;
+<b class="nc"><i>124</i>&nbsp;            ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();</b>
+<b class="nc"><i>125</i>&nbsp;            ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();</b>
+<i>126</i>&nbsp;            //if we don&#39;t know how much we use (non data nodes), it means 0
+<b class="nc"><i>127</i>&nbsp;            long used = 0;</b>
+<b class="nc"><i>128</i>&nbsp;            short diskPercent = -1;</b>
+<b class="nc"><i>129</i>&nbsp;            if (total.getBytes() &gt; 0) {</b>
+<b class="nc"><i>130</i>&nbsp;                used = total.getBytes() - avail.getBytes();</b>
+<b class="nc"><i>131</i>&nbsp;                if (used &gt;= 0 &amp;&amp; avail.getBytes() &gt;= 0) {</b>
+<b class="nc"><i>132</i>&nbsp;                    diskPercent = (short) (used * 100 / (used + avail.getBytes()));</b>
+<i>133</i>&nbsp;                }
+<i>134</i>&nbsp;            }
+<i>135</i>&nbsp;
+<b class="nc"><i>136</i>&nbsp;            table.startRow();</b>
+<b class="nc"><i>137</i>&nbsp;            table.addCell(shardCount);</b>
+<b class="nc"><i>138</i>&nbsp;            table.addCell(nodeStats.getIndices().getStore().getSize());</b>
+<b class="nc"><i>139</i>&nbsp;            table.addCell(used &lt; 0 ? null : new ByteSizeValue(used));</b>
+<b class="nc"><i>140</i>&nbsp;            table.addCell(avail.getBytes() &lt; 0 ? null : avail);</b>
+<b class="nc"><i>141</i>&nbsp;            table.addCell(total.getBytes() &lt; 0 ? null : total);</b>
+<b class="nc"><i>142</i>&nbsp;            table.addCell(diskPercent &lt; 0 ? null : diskPercent);</b>
+<b class="nc"><i>143</i>&nbsp;            table.addCell(node.getHostName());</b>
+<b class="nc"><i>144</i>&nbsp;            table.addCell(node.getHostAddress());</b>
+<b class="nc"><i>145</i>&nbsp;            table.addCell(node.getName());</b>
+<b class="nc"><i>146</i>&nbsp;            table.endRow();</b>
+<b class="nc"><i>147</i>&nbsp;        }</b>
+<i>148</i>&nbsp;
+<b class="nc"><i>149</i>&nbsp;        final String UNASSIGNED = &quot;UNASSIGNED&quot;;</b>
+<b class="nc"><i>150</i>&nbsp;        if (allocs.containsKey(UNASSIGNED)) {</b>
+<b class="nc"><i>151</i>&nbsp;            table.startRow();</b>
+<b class="nc"><i>152</i>&nbsp;            table.addCell(allocs.get(UNASSIGNED));</b>
+<b class="nc"><i>153</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>154</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>155</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>156</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>157</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>158</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>159</i>&nbsp;            table.addCell(null);</b>
+<b class="nc"><i>160</i>&nbsp;            table.addCell(UNASSIGNED);</b>
+<b class="nc"><i>161</i>&nbsp;            table.endRow();</b>
+<i>162</i>&nbsp;        }
+<i>163</i>&nbsp;
+<b class="nc"><i>164</i>&nbsp;        return table;</b>
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

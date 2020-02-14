@@ -1,0 +1,219 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ReplicationGroup</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.shard</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ReplicationGroup (org.elasticsearch.index.shard)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ReplicationGroup</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30%
+  </span>
+  <span class="absValue">
+    (3/ 10)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    52.5%
+  </span>
+  <span class="absValue">
+    (21/ 40)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.shard;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>24</i>&nbsp;import org.elasticsearch.common.util.set.Sets;
+<i>25</i>&nbsp;
+<i>26</i>&nbsp;import java.util.ArrayList;
+<i>27</i>&nbsp;import java.util.List;
+<i>28</i>&nbsp;import java.util.Set;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;/**
+<i>31</i>&nbsp; * Replication group for a shard. Used by a primary shard to coordinate replication and recoveries.
+<i>32</i>&nbsp; */
+<b class="fc"><i>33</i>&nbsp;public class ReplicationGroup {</b>
+<i>34</i>&nbsp;    private final IndexShardRoutingTable routingTable;
+<i>35</i>&nbsp;    private final Set&lt;String&gt; inSyncAllocationIds;
+<i>36</i>&nbsp;    private final Set&lt;String&gt; trackedAllocationIds;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    private final Set&lt;String&gt; unavailableInSyncShards; // derived from the other fields
+<i>39</i>&nbsp;    private final List&lt;ShardRouting&gt; replicationTargets; // derived from the other fields
+<i>40</i>&nbsp;    private final List&lt;ShardRouting&gt; skippedShards; // derived from the other fields
+<i>41</i>&nbsp;
+<b class="fc"><i>42</i>&nbsp;    public ReplicationGroup(IndexShardRoutingTable routingTable, Set&lt;String&gt; inSyncAllocationIds, Set&lt;String&gt; trackedAllocationIds) {</b>
+<b class="fc"><i>43</i>&nbsp;        this.routingTable = routingTable;</b>
+<b class="fc"><i>44</i>&nbsp;        this.inSyncAllocationIds = inSyncAllocationIds;</b>
+<b class="fc"><i>45</i>&nbsp;        this.trackedAllocationIds = trackedAllocationIds;</b>
+<i>46</i>&nbsp;
+<b class="fc"><i>47</i>&nbsp;        this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());</b>
+<b class="fc"><i>48</i>&nbsp;        this.replicationTargets = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>49</i>&nbsp;        this.skippedShards = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>50</i>&nbsp;        for (final ShardRouting shard : routingTable) {</b>
+<b class="fc"><i>51</i>&nbsp;            if (shard.unassigned()) {</b>
+<b class="nc"><i>52</i>&nbsp;                assert shard.primary() == false : &quot;primary shard should not be unassigned in a replication group: &quot; + shard;</b>
+<b class="nc"><i>53</i>&nbsp;                skippedShards.add(shard);</b>
+<i>54</i>&nbsp;            } else {
+<b class="fc"><i>55</i>&nbsp;                if (trackedAllocationIds.contains(shard.allocationId().getId())) {</b>
+<b class="fc"><i>56</i>&nbsp;                    replicationTargets.add(shard);</b>
+<i>57</i>&nbsp;                } else {
+<b class="nc"><i>58</i>&nbsp;                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false :</b>
+<i>59</i>&nbsp;                        &quot;in-sync shard copy but not tracked: &quot; + shard;
+<b class="nc"><i>60</i>&nbsp;                    skippedShards.add(shard);</b>
+<i>61</i>&nbsp;                }
+<b class="fc"><i>62</i>&nbsp;                if (shard.relocating()) {</b>
+<b class="nc"><i>63</i>&nbsp;                    ShardRouting relocationTarget = shard.getTargetRelocatingShard();</b>
+<b class="nc"><i>64</i>&nbsp;                    if (trackedAllocationIds.contains(relocationTarget.allocationId().getId())) {</b>
+<b class="nc"><i>65</i>&nbsp;                        replicationTargets.add(relocationTarget);</b>
+<i>66</i>&nbsp;                    } else {
+<b class="nc"><i>67</i>&nbsp;                        skippedShards.add(relocationTarget);</b>
+<b class="nc"><i>68</i>&nbsp;                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false :</b>
+<i>69</i>&nbsp;                            &quot;in-sync shard copy but not tracked: &quot; + shard;
+<i>70</i>&nbsp;                    }
+<i>71</i>&nbsp;                }
+<i>72</i>&nbsp;            }
+<b class="fc"><i>73</i>&nbsp;        }</b>
+<b class="fc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    public IndexShardRoutingTable getRoutingTable() {
+<b class="nc"><i>77</i>&nbsp;        return routingTable;</b>
+<i>78</i>&nbsp;    }
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    public Set&lt;String&gt; getInSyncAllocationIds() {
+<b class="nc"><i>81</i>&nbsp;        return inSyncAllocationIds;</b>
+<i>82</i>&nbsp;    }
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    /**
+<i>85</i>&nbsp;     * Returns the set of shard allocation ids that are in the in-sync set but have no assigned routing entry
+<i>86</i>&nbsp;     */
+<i>87</i>&nbsp;    public Set&lt;String&gt; getUnavailableInSyncShards() {
+<b class="nc"><i>88</i>&nbsp;        return unavailableInSyncShards;</b>
+<i>89</i>&nbsp;    }
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    /**
+<i>92</i>&nbsp;     * Returns the subset of shards in the routing table that should be replicated to. Includes relocation targets.
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public List&lt;ShardRouting&gt; getReplicationTargets() {
+<b class="nc"><i>95</i>&nbsp;        return replicationTargets;</b>
+<i>96</i>&nbsp;    }
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    /**
+<i>99</i>&nbsp;     * Returns the subset of shards in the routing table that are unassigned or initializing and not ready yet to receive operations
+<i>100</i>&nbsp;     * (i.e. engine not opened yet). Includes relocation targets.
+<i>101</i>&nbsp;     */
+<i>102</i>&nbsp;    public List&lt;ShardRouting&gt; getSkippedShards() {
+<b class="nc"><i>103</i>&nbsp;        return skippedShards;</b>
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    @Override
+<i>108</i>&nbsp;    public boolean equals(Object o) {
+<b class="fc"><i>109</i>&nbsp;        if (this == o) return true;</b>
+<b class="fc"><i>110</i>&nbsp;        if (o == null || getClass() != o.getClass()) return false;</b>
+<i>111</i>&nbsp;
+<b class="fc"><i>112</i>&nbsp;        ReplicationGroup that = (ReplicationGroup) o;</b>
+<i>113</i>&nbsp;
+<b class="fc"><i>114</i>&nbsp;        if (!routingTable.equals(that.routingTable)) return false;</b>
+<b class="fc"><i>115</i>&nbsp;        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;</b>
+<b class="fc"><i>116</i>&nbsp;        return trackedAllocationIds.equals(that.trackedAllocationIds);</b>
+<i>117</i>&nbsp;    }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    @Override
+<i>120</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>121</i>&nbsp;        int result = routingTable.hashCode();</b>
+<b class="nc"><i>122</i>&nbsp;        result = 31 * result + inSyncAllocationIds.hashCode();</b>
+<b class="nc"><i>123</i>&nbsp;        result = 31 * result + trackedAllocationIds.hashCode();</b>
+<b class="nc"><i>124</i>&nbsp;        return result;</b>
+<i>125</i>&nbsp;    }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;    @Override
+<i>128</i>&nbsp;    public String toString() {
+<b class="nc"><i>129</i>&nbsp;        return &quot;ReplicationGroup{&quot; +</b>
+<i>130</i>&nbsp;            &quot;routingTable=&quot; + routingTable +
+<i>131</i>&nbsp;            &quot;, inSyncAllocationIds=&quot; + inSyncAllocationIds +
+<i>132</i>&nbsp;            &quot;, trackedAllocationIds=&quot; + trackedAllocationIds +
+<i>133</i>&nbsp;            &#39;}&#39;;
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

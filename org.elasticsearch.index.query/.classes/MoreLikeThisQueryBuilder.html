@@ -1,0 +1,1318 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: MoreLikeThisQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: MoreLikeThisQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">MoreLikeThisQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 54)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 410)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.lucene.analysis.Analyzer;
+<i>24</i>&nbsp;import org.apache.lucene.index.Fields;
+<i>25</i>&nbsp;import org.apache.lucene.search.BooleanClause;
+<i>26</i>&nbsp;import org.apache.lucene.search.BooleanQuery;
+<i>27</i>&nbsp;import org.apache.lucene.search.Query;
+<i>28</i>&nbsp;import org.elasticsearch.ElasticsearchParseException;
+<i>29</i>&nbsp;import org.elasticsearch.ExceptionsHelper;
+<i>30</i>&nbsp;import org.elasticsearch.action.RoutingMissingException;
+<i>31</i>&nbsp;import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
+<i>32</i>&nbsp;import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+<i>33</i>&nbsp;import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+<i>34</i>&nbsp;import org.elasticsearch.action.termvectors.TermVectorsRequest;
+<i>35</i>&nbsp;import org.elasticsearch.action.termvectors.TermVectorsResponse;
+<i>36</i>&nbsp;import org.elasticsearch.client.Client;
+<i>37</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>38</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>39</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>40</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>41</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>42</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>43</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>44</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>45</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>46</i>&nbsp;import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
+<i>47</i>&nbsp;import org.elasticsearch.common.lucene.search.XMoreLikeThis;
+<i>48</i>&nbsp;import org.elasticsearch.common.lucene.uid.Versions;
+<i>49</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>50</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>51</i>&nbsp;import org.elasticsearch.common.xcontent.XContentFactory;
+<i>52</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>53</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>54</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>55</i>&nbsp;import org.elasticsearch.index.mapper.IdFieldMapper;
+<i>56</i>&nbsp;import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+<i>57</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>58</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>59</i>&nbsp;import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;import java.io.IOException;
+<i>62</i>&nbsp;import java.io.InputStream;
+<i>63</i>&nbsp;import java.util.ArrayList;
+<i>64</i>&nbsp;import java.util.Arrays;
+<i>65</i>&nbsp;import java.util.HashSet;
+<i>66</i>&nbsp;import java.util.List;
+<i>67</i>&nbsp;import java.util.Locale;
+<i>68</i>&nbsp;import java.util.Map;
+<i>69</i>&nbsp;import java.util.Objects;
+<i>70</i>&nbsp;import java.util.Optional;
+<i>71</i>&nbsp;import java.util.Set;
+<i>72</i>&nbsp;import java.util.stream.Stream;
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;/**
+<i>77</i>&nbsp; * A more like this query that finds documents that are &quot;like&quot; the provided set of document(s).
+<i>78</i>&nbsp; *
+<i>79</i>&nbsp; * The documents are provided as a set of strings and/or a list of {@link Item}.
+<i>80</i>&nbsp; */
+<b class="nc"><i>81</i>&nbsp;public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder&lt;MoreLikeThisQueryBuilder&gt; {</b>
+<i>82</i>&nbsp;    public static final String NAME = &quot;more_like_this&quot;;
+<b class="nc"><i>83</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(</b>
+<b class="nc"><i>84</i>&nbsp;        LogManager.getLogger(MoreLikeThisQueryBuilder.class));</b>
+<i>85</i>&nbsp;    static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal] Types are deprecated in [more_like_this] &quot; +
+<i>86</i>&nbsp;        &quot;queries. The type should no longer be specified in the [like] and [unlike] sections.&quot;;
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
+<i>90</i>&nbsp;    public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
+<i>91</i>&nbsp;    public static final int DEFAULT_MIN_DOC_FREQ = XMoreLikeThis.DEFAULT_MIN_DOC_FREQ;
+<i>92</i>&nbsp;    public static final int DEFAULT_MAX_DOC_FREQ = XMoreLikeThis.DEFAULT_MAX_DOC_FREQ;
+<i>93</i>&nbsp;    public static final int DEFAULT_MIN_WORD_LENGTH = XMoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
+<i>94</i>&nbsp;    public static final int DEFAULT_MAX_WORD_LENGTH = XMoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
+<i>95</i>&nbsp;    public static final String DEFAULT_MINIMUM_SHOULD_MATCH = MoreLikeThisQuery.DEFAULT_MINIMUM_SHOULD_MATCH;
+<i>96</i>&nbsp;    public static final float DEFAULT_BOOST_TERMS = 0;  // no boost terms
+<i>97</i>&nbsp;    public static final boolean DEFAULT_INCLUDE = false;
+<i>98</i>&nbsp;    public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
+<i>99</i>&nbsp;
+<b class="nc"><i>100</i>&nbsp;    private static final Set&lt;Class&lt;? extends MappedFieldType&gt;&gt; SUPPORTED_FIELD_TYPES = new HashSet&lt;&gt;(</b>
+<b class="nc"><i>101</i>&nbsp;            Arrays.asList(TextFieldType.class, KeywordFieldType.class));</b>
+<i>102</i>&nbsp;
+<b class="nc"><i>103</i>&nbsp;    private static final ParseField FIELDS = new ParseField(&quot;fields&quot;);</b>
+<b class="nc"><i>104</i>&nbsp;    private static final ParseField LIKE = new ParseField(&quot;like&quot;);</b>
+<b class="nc"><i>105</i>&nbsp;    private static final ParseField UNLIKE = new ParseField(&quot;unlike&quot;);</b>
+<b class="nc"><i>106</i>&nbsp;    private static final ParseField MAX_QUERY_TERMS = new ParseField(&quot;max_query_terms&quot;);</b>
+<b class="nc"><i>107</i>&nbsp;    private static final ParseField MIN_TERM_FREQ = new ParseField(&quot;min_term_freq&quot;);</b>
+<b class="nc"><i>108</i>&nbsp;    private static final ParseField MIN_DOC_FREQ = new ParseField(&quot;min_doc_freq&quot;);</b>
+<b class="nc"><i>109</i>&nbsp;    private static final ParseField MAX_DOC_FREQ = new ParseField(&quot;max_doc_freq&quot;);</b>
+<b class="nc"><i>110</i>&nbsp;    private static final ParseField MIN_WORD_LENGTH = new ParseField(&quot;min_word_length&quot;);</b>
+<b class="nc"><i>111</i>&nbsp;    private static final ParseField MAX_WORD_LENGTH = new ParseField(&quot;max_word_length&quot;);</b>
+<b class="nc"><i>112</i>&nbsp;    private static final ParseField STOP_WORDS = new ParseField(&quot;stop_words&quot;);</b>
+<b class="nc"><i>113</i>&nbsp;    private static final ParseField ANALYZER = new ParseField(&quot;analyzer&quot;);</b>
+<b class="nc"><i>114</i>&nbsp;    private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField(&quot;minimum_should_match&quot;);</b>
+<b class="nc"><i>115</i>&nbsp;    private static final ParseField BOOST_TERMS = new ParseField(&quot;boost_terms&quot;);</b>
+<b class="nc"><i>116</i>&nbsp;    private static final ParseField INCLUDE = new ParseField(&quot;include&quot;);</b>
+<b class="nc"><i>117</i>&nbsp;    private static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField(&quot;fail_on_unsupported_field&quot;);</b>
+<i>118</i>&nbsp;
+<b class="nc"><i>119</i>&nbsp;    private static final ParseField INDEX = new ParseField(&quot;_index&quot;);</b>
+<b class="nc"><i>120</i>&nbsp;    private static final ParseField TYPE = new ParseField(&quot;_type&quot;);</b>
+<b class="nc"><i>121</i>&nbsp;    private static final ParseField ID = new ParseField(&quot;_id&quot;);</b>
+<b class="nc"><i>122</i>&nbsp;    public static final ParseField DOC = new ParseField(&quot;doc&quot;);</b>
+<b class="nc"><i>123</i>&nbsp;    private static final ParseField PER_FIELD_ANALYZER = new ParseField(&quot;per_field_analyzer&quot;);</b>
+<b class="nc"><i>124</i>&nbsp;    private static final ParseField ROUTING = new ParseField(&quot;routing&quot;);</b>
+<b class="nc"><i>125</i>&nbsp;    private static final ParseField VERSION = new ParseField(&quot;version&quot;);</b>
+<b class="nc"><i>126</i>&nbsp;    private static final ParseField VERSION_TYPE = new ParseField(&quot;version_type&quot;);</b>
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;    // document inputs
+<i>130</i>&nbsp;    private final String[] fields;
+<i>131</i>&nbsp;    private final String[] likeTexts;
+<b class="nc"><i>132</i>&nbsp;    private String[] unlikeTexts = Strings.EMPTY_ARRAY;</b>
+<i>133</i>&nbsp;    private final Item[] likeItems;
+<b class="nc"><i>134</i>&nbsp;    private Item[] unlikeItems = new Item[0];</b>
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    // term selection parameters
+<b class="nc"><i>137</i>&nbsp;    private int maxQueryTerms = DEFAULT_MAX_QUERY_TERMS;</b>
+<b class="nc"><i>138</i>&nbsp;    private int minTermFreq = DEFAULT_MIN_TERM_FREQ;</b>
+<b class="nc"><i>139</i>&nbsp;    private int minDocFreq = DEFAULT_MIN_DOC_FREQ;</b>
+<b class="nc"><i>140</i>&nbsp;    private int maxDocFreq = DEFAULT_MAX_DOC_FREQ;</b>
+<b class="nc"><i>141</i>&nbsp;    private int minWordLength = DEFAULT_MIN_WORD_LENGTH;</b>
+<b class="nc"><i>142</i>&nbsp;    private int maxWordLength = DEFAULT_MAX_WORD_LENGTH;</b>
+<i>143</i>&nbsp;    private String[] stopWords;
+<i>144</i>&nbsp;    private String analyzer;
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    // query formation parameters
+<b class="nc"><i>147</i>&nbsp;    private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;</b>
+<b class="nc"><i>148</i>&nbsp;    private float boostTerms = DEFAULT_BOOST_TERMS;</b>
+<b class="nc"><i>149</i>&nbsp;    private boolean include = DEFAULT_INCLUDE;</b>
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;    // other parameters
+<b class="nc"><i>152</i>&nbsp;    private boolean failOnUnsupportedField = DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;</b>
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    /**
+<i>155</i>&nbsp;     * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
+<i>156</i>&nbsp;     */
+<i>157</i>&nbsp;    public static final class Item implements ToXContentObject, Writeable {
+<i>158</i>&nbsp;        public static final Item[] EMPTY_ARRAY = new Item[0];
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;        private String index;
+<i>161</i>&nbsp;        private String type;
+<i>162</i>&nbsp;        private String id;
+<i>163</i>&nbsp;        private BytesReference doc;
+<i>164</i>&nbsp;        private XContentType xContentType;
+<i>165</i>&nbsp;        private String[] fields;
+<i>166</i>&nbsp;        private Map&lt;String, String&gt; perFieldAnalyzer;
+<i>167</i>&nbsp;        private String routing;
+<i>168</i>&nbsp;        private long version = Versions.MATCH_ANY;
+<i>169</i>&nbsp;        private VersionType versionType = VersionType.INTERNAL;
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;        public Item() {
+<i>172</i>&nbsp;        }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;        Item(Item copy) {
+<i>175</i>&nbsp;            if (copy.id == null &amp;&amp; copy.doc == null) {
+<i>176</i>&nbsp;                throw new IllegalArgumentException(&quot;Item requires either id or doc to be non-null&quot;);
+<i>177</i>&nbsp;            }
+<i>178</i>&nbsp;            this.index = copy.index;
+<i>179</i>&nbsp;            this.type = copy.type;
+<i>180</i>&nbsp;            this.id = copy.id;
+<i>181</i>&nbsp;            this.routing = copy.routing;
+<i>182</i>&nbsp;            this.doc = copy.doc;
+<i>183</i>&nbsp;            this.xContentType = copy.xContentType;
+<i>184</i>&nbsp;            this.fields = copy.fields;
+<i>185</i>&nbsp;            this.perFieldAnalyzer = copy.perFieldAnalyzer;
+<i>186</i>&nbsp;            this.version = copy.version;
+<i>187</i>&nbsp;            this.versionType = copy.versionType;
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;        /**
+<i>191</i>&nbsp;         * Constructor for a given item / document request
+<i>192</i>&nbsp;         *
+<i>193</i>&nbsp;         * @param index the index where the document is located
+<i>194</i>&nbsp;         * @param id and its id
+<i>195</i>&nbsp;         */
+<i>196</i>&nbsp;        public Item(@Nullable String index, String id) {
+<i>197</i>&nbsp;            if (id == null) {
+<i>198</i>&nbsp;                throw new IllegalArgumentException(&quot;Item requires id to be non-null&quot;);
+<i>199</i>&nbsp;            }
+<i>200</i>&nbsp;            this.index = index;
+<i>201</i>&nbsp;            this.id = id;
+<i>202</i>&nbsp;        }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;        /**
+<i>205</i>&nbsp;         * Constructor for an artificial document request, that is not present in the index.
+<i>206</i>&nbsp;         *
+<i>207</i>&nbsp;         * @param index the index to be used for parsing the doc
+<i>208</i>&nbsp;         * @param doc the document specification
+<i>209</i>&nbsp;         */
+<i>210</i>&nbsp;        public Item(@Nullable String index, XContentBuilder doc) {
+<i>211</i>&nbsp;            if (doc == null) {
+<i>212</i>&nbsp;                throw new IllegalArgumentException(&quot;Item requires doc to be non-null&quot;);
+<i>213</i>&nbsp;            }
+<i>214</i>&nbsp;            this.index = index;
+<i>215</i>&nbsp;            this.doc = BytesReference.bytes(doc);
+<i>216</i>&nbsp;            this.xContentType = doc.contentType();
+<i>217</i>&nbsp;        }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;        /**
+<i>220</i>&nbsp;         * Constructor for a given item / document request
+<i>221</i>&nbsp;         *
+<i>222</i>&nbsp;         * @param index the index where the document is located
+<i>223</i>&nbsp;         * @param type the type of the document
+<i>224</i>&nbsp;         * @param id and its id
+<i>225</i>&nbsp;         *
+<i>226</i>&nbsp;         * @deprecated Types are in the process of being removed, use {@link Item(String, String)} instead.
+<i>227</i>&nbsp;         */
+<i>228</i>&nbsp;        @Deprecated
+<i>229</i>&nbsp;        public Item(@Nullable String index, @Nullable String type, String id) {
+<i>230</i>&nbsp;            if (id == null) {
+<i>231</i>&nbsp;                throw new IllegalArgumentException(&quot;Item requires id to be non-null&quot;);
+<i>232</i>&nbsp;            }
+<i>233</i>&nbsp;            this.index = index;
+<i>234</i>&nbsp;            this.type = type;
+<i>235</i>&nbsp;            this.id = id;
+<i>236</i>&nbsp;        }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;        /**
+<i>239</i>&nbsp;         * Constructor for an artificial document request, that is not present in the index.
+<i>240</i>&nbsp;         *
+<i>241</i>&nbsp;         * @param index the index to be used for parsing the doc
+<i>242</i>&nbsp;         * @param type the type to be used for parsing the doc
+<i>243</i>&nbsp;         * @param doc the document specification
+<i>244</i>&nbsp;         *
+<i>245</i>&nbsp;         * @deprecated Types are in the process of being removed, use {@link Item(String, XContentBuilder)} instead.
+<i>246</i>&nbsp;         */
+<i>247</i>&nbsp;        @Deprecated
+<i>248</i>&nbsp;        public Item(@Nullable String index, @Nullable String type, XContentBuilder doc) {
+<i>249</i>&nbsp;            if (doc == null) {
+<i>250</i>&nbsp;                throw new IllegalArgumentException(&quot;Item requires doc to be non-null&quot;);
+<i>251</i>&nbsp;            }
+<i>252</i>&nbsp;            this.index = index;
+<i>253</i>&nbsp;            this.type = type;
+<i>254</i>&nbsp;            this.doc = BytesReference.bytes(doc);
+<i>255</i>&nbsp;            this.xContentType = doc.contentType();
+<i>256</i>&nbsp;        }
+<i>257</i>&nbsp;
+<i>258</i>&nbsp;        /**
+<i>259</i>&nbsp;         * Read from a stream.
+<i>260</i>&nbsp;         */
+<i>261</i>&nbsp;        Item(StreamInput in) throws IOException {
+<i>262</i>&nbsp;            index = in.readOptionalString();
+<i>263</i>&nbsp;            type = in.readOptionalString();
+<i>264</i>&nbsp;            if (in.readBoolean()) {
+<i>265</i>&nbsp;                doc = (BytesReference) in.readGenericValue();
+<i>266</i>&nbsp;                xContentType = in.readEnum(XContentType.class);
+<i>267</i>&nbsp;            } else {
+<i>268</i>&nbsp;                id = in.readString();
+<i>269</i>&nbsp;            }
+<i>270</i>&nbsp;            fields = in.readOptionalStringArray();
+<i>271</i>&nbsp;            perFieldAnalyzer = (Map&lt;String, String&gt;) in.readGenericValue();
+<i>272</i>&nbsp;            routing = in.readOptionalString();
+<i>273</i>&nbsp;            version = in.readLong();
+<i>274</i>&nbsp;            versionType = VersionType.readFromStream(in);
+<i>275</i>&nbsp;        }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;        @Override
+<i>278</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>279</i>&nbsp;            out.writeOptionalString(index);
+<i>280</i>&nbsp;            out.writeOptionalString(type);
+<i>281</i>&nbsp;            out.writeBoolean(doc != null);
+<i>282</i>&nbsp;            if (doc != null) {
+<i>283</i>&nbsp;                out.writeGenericValue(doc);
+<i>284</i>&nbsp;                out.writeEnum(xContentType);
+<i>285</i>&nbsp;            } else {
+<i>286</i>&nbsp;                out.writeString(id);
+<i>287</i>&nbsp;            }
+<i>288</i>&nbsp;            out.writeOptionalStringArray(fields);
+<i>289</i>&nbsp;            out.writeGenericValue(perFieldAnalyzer);
+<i>290</i>&nbsp;            out.writeOptionalString(routing);
+<i>291</i>&nbsp;            out.writeLong(version);
+<i>292</i>&nbsp;            versionType.writeTo(out);
+<i>293</i>&nbsp;        }
+<i>294</i>&nbsp;
+<i>295</i>&nbsp;        public String index() {
+<i>296</i>&nbsp;            return index;
+<i>297</i>&nbsp;        }
+<i>298</i>&nbsp;
+<i>299</i>&nbsp;        public Item index(String index) {
+<i>300</i>&nbsp;            this.index = index;
+<i>301</i>&nbsp;            return this;
+<i>302</i>&nbsp;        }
+<i>303</i>&nbsp;
+<i>304</i>&nbsp;        /**
+<i>305</i>&nbsp;         * @deprecated Types are in the process of being removed.
+<i>306</i>&nbsp;         */
+<i>307</i>&nbsp;        @Deprecated
+<i>308</i>&nbsp;        public String type() {
+<i>309</i>&nbsp;            return type;
+<i>310</i>&nbsp;        }
+<i>311</i>&nbsp;
+<i>312</i>&nbsp;        /**
+<i>313</i>&nbsp;         * @deprecated Types are in the process of being removed.
+<i>314</i>&nbsp;         */
+<i>315</i>&nbsp;        @Deprecated
+<i>316</i>&nbsp;        public Item type(String type) {
+<i>317</i>&nbsp;            this.type = type;
+<i>318</i>&nbsp;            return this;
+<i>319</i>&nbsp;        }
+<i>320</i>&nbsp;
+<i>321</i>&nbsp;        public String id() {
+<i>322</i>&nbsp;            return id;
+<i>323</i>&nbsp;        }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;        public BytesReference doc() {
+<i>326</i>&nbsp;            return doc;
+<i>327</i>&nbsp;        }
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;        public String[] fields() {
+<i>330</i>&nbsp;            return fields;
+<i>331</i>&nbsp;        }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;        public Item fields(String... fields) {
+<i>334</i>&nbsp;            this.fields = fields;
+<i>335</i>&nbsp;            return this;
+<i>336</i>&nbsp;        }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;        public Map&lt;String, String&gt; perFieldAnalyzer() {
+<i>339</i>&nbsp;            return perFieldAnalyzer;
+<i>340</i>&nbsp;        }
+<i>341</i>&nbsp;
+<i>342</i>&nbsp;        /**
+<i>343</i>&nbsp;         * Sets the analyzer(s) to use at any given field.
+<i>344</i>&nbsp;         */
+<i>345</i>&nbsp;        public Item perFieldAnalyzer(Map&lt;String, String&gt; perFieldAnalyzer) {
+<i>346</i>&nbsp;            this.perFieldAnalyzer = perFieldAnalyzer;
+<i>347</i>&nbsp;            return this;
+<i>348</i>&nbsp;        }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;        public String routing() {
+<i>351</i>&nbsp;            return routing;
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        public Item routing(String routing) {
+<i>355</i>&nbsp;            this.routing = routing;
+<i>356</i>&nbsp;            return this;
+<i>357</i>&nbsp;        }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;        public long version() {
+<i>360</i>&nbsp;            return version;
+<i>361</i>&nbsp;        }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;        public Item version(long version) {
+<i>364</i>&nbsp;            this.version = version;
+<i>365</i>&nbsp;            return this;
+<i>366</i>&nbsp;        }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;        public VersionType versionType() {
+<i>369</i>&nbsp;            return versionType;
+<i>370</i>&nbsp;        }
+<i>371</i>&nbsp;
+<i>372</i>&nbsp;        public Item versionType(VersionType versionType) {
+<i>373</i>&nbsp;            this.versionType = versionType;
+<i>374</i>&nbsp;            return this;
+<i>375</i>&nbsp;        }
+<i>376</i>&nbsp;
+<i>377</i>&nbsp;        XContentType xContentType() {
+<i>378</i>&nbsp;            return xContentType;
+<i>379</i>&nbsp;        }
+<i>380</i>&nbsp;
+<i>381</i>&nbsp;        /**
+<i>382</i>&nbsp;         * Convert this to a {@link TermVectorsRequest} for fetching the terms of the document.
+<i>383</i>&nbsp;         */
+<i>384</i>&nbsp;        TermVectorsRequest toTermVectorsRequest() {
+<i>385</i>&nbsp;            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(index, type, id)
+<i>386</i>&nbsp;                    .selectedFields(fields)
+<i>387</i>&nbsp;                    .routing(routing)
+<i>388</i>&nbsp;                    .version(version)
+<i>389</i>&nbsp;                    .versionType(versionType)
+<i>390</i>&nbsp;                    .perFieldAnalyzer(perFieldAnalyzer)
+<i>391</i>&nbsp;                    .positions(false)  // ensures these following parameters are never set
+<i>392</i>&nbsp;                    .offsets(false)
+<i>393</i>&nbsp;                    .payloads(false)
+<i>394</i>&nbsp;                    .fieldStatistics(false)
+<i>395</i>&nbsp;                    .termStatistics(false);
+<i>396</i>&nbsp;            // for artificial docs to make sure that the id has changed in the item too
+<i>397</i>&nbsp;            if (doc != null) {
+<i>398</i>&nbsp;                termVectorsRequest.doc(doc, true, xContentType);
+<i>399</i>&nbsp;                this.id = termVectorsRequest.id();
+<i>400</i>&nbsp;            }
+<i>401</i>&nbsp;            return termVectorsRequest;
+<i>402</i>&nbsp;        }
+<i>403</i>&nbsp;
+<i>404</i>&nbsp;        /**
+<i>405</i>&nbsp;         * Parses and returns the given item.
+<i>406</i>&nbsp;         */
+<i>407</i>&nbsp;        public static Item parse(XContentParser parser, Item item) throws IOException {
+<i>408</i>&nbsp;            XContentParser.Token token;
+<i>409</i>&nbsp;            String currentFieldName = null;
+<i>410</i>&nbsp;            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+<i>411</i>&nbsp;                if (token == XContentParser.Token.FIELD_NAME) {
+<i>412</i>&nbsp;                    currentFieldName = parser.currentName();
+<i>413</i>&nbsp;                } else if (currentFieldName != null) {
+<i>414</i>&nbsp;                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>415</i>&nbsp;                        item.index = parser.text();
+<i>416</i>&nbsp;                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>417</i>&nbsp;                        item.type = parser.text();
+<i>418</i>&nbsp;                    } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>419</i>&nbsp;                        item.id = parser.text();
+<i>420</i>&nbsp;                    } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>421</i>&nbsp;                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
+<i>422</i>&nbsp;                        item.xContentType = XContentType.JSON;
+<i>423</i>&nbsp;                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>424</i>&nbsp;                        if (token == XContentParser.Token.START_ARRAY) {
+<i>425</i>&nbsp;                            List&lt;String&gt; fields = new ArrayList&lt;&gt;();
+<i>426</i>&nbsp;                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+<i>427</i>&nbsp;                                fields.add(parser.text());
+<i>428</i>&nbsp;                            }
+<i>429</i>&nbsp;                            item.fields(fields.toArray(new String[fields.size()]));
+<i>430</i>&nbsp;                        } else {
+<i>431</i>&nbsp;                            throw new ElasticsearchParseException(
+<i>432</i>&nbsp;                                    &quot;failed to parse More Like This item. field [fields] must be an array&quot;);
+<i>433</i>&nbsp;                        }
+<i>434</i>&nbsp;                    } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>435</i>&nbsp;                        item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
+<i>436</i>&nbsp;                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>437</i>&nbsp;                        item.routing = parser.text();
+<i>438</i>&nbsp;                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>439</i>&nbsp;                        item.version = parser.longValue();
+<i>440</i>&nbsp;                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+<i>441</i>&nbsp;                        item.versionType = VersionType.fromString(parser.text());
+<i>442</i>&nbsp;                    } else {
+<i>443</i>&nbsp;                        throw new ElasticsearchParseException(
+<i>444</i>&nbsp;                                &quot;failed to parse More Like This item. unknown field [{}]&quot;, currentFieldName);
+<i>445</i>&nbsp;                    }
+<i>446</i>&nbsp;                }
+<i>447</i>&nbsp;            }
+<i>448</i>&nbsp;            if (item.id != null &amp;&amp; item.doc != null) {
+<i>449</i>&nbsp;                throw new ElasticsearchParseException(
+<i>450</i>&nbsp;                        &quot;failed to parse More Like This item. either [id] or [doc] can be specified, but not both!&quot;);
+<i>451</i>&nbsp;            }
+<i>452</i>&nbsp;            if (item.id == null &amp;&amp; item.doc == null) {
+<i>453</i>&nbsp;                throw new ElasticsearchParseException(
+<i>454</i>&nbsp;                        &quot;failed to parse More Like This item. neither [id] nor [doc] is specified!&quot;);
+<i>455</i>&nbsp;            }
+<i>456</i>&nbsp;            return item;
+<i>457</i>&nbsp;        }
+<i>458</i>&nbsp;
+<i>459</i>&nbsp;        @Override
+<i>460</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<i>461</i>&nbsp;            builder.startObject();
+<i>462</i>&nbsp;            if (this.index != null) {
+<i>463</i>&nbsp;                builder.field(INDEX.getPreferredName(), this.index);
+<i>464</i>&nbsp;            }
+<i>465</i>&nbsp;            if (this.type != null) {
+<i>466</i>&nbsp;                builder.field(TYPE.getPreferredName(), this.type);
+<i>467</i>&nbsp;            }
+<i>468</i>&nbsp;            if (this.id != null) {
+<i>469</i>&nbsp;                builder.field(ID.getPreferredName(), this.id);
+<i>470</i>&nbsp;            }
+<i>471</i>&nbsp;            if (this.doc != null) {
+<i>472</i>&nbsp;                try (InputStream stream = this.doc.streamInput()) {
+<i>473</i>&nbsp;                    builder.rawField(DOC.getPreferredName(), stream, xContentType);
+<i>474</i>&nbsp;                }
+<i>475</i>&nbsp;            }
+<i>476</i>&nbsp;            if (this.fields != null) {
+<i>477</i>&nbsp;                builder.array(FIELDS.getPreferredName(), this.fields);
+<i>478</i>&nbsp;            }
+<i>479</i>&nbsp;            if (this.perFieldAnalyzer != null) {
+<i>480</i>&nbsp;                builder.field(PER_FIELD_ANALYZER.getPreferredName(), this.perFieldAnalyzer);
+<i>481</i>&nbsp;            }
+<i>482</i>&nbsp;            if (this.routing != null) {
+<i>483</i>&nbsp;                builder.field(ROUTING.getPreferredName(), this.routing);
+<i>484</i>&nbsp;            }
+<i>485</i>&nbsp;            if (this.version != Versions.MATCH_ANY) {
+<i>486</i>&nbsp;                builder.field(VERSION.getPreferredName(), this.version);
+<i>487</i>&nbsp;            }
+<i>488</i>&nbsp;            if (this.versionType != VersionType.INTERNAL) {
+<i>489</i>&nbsp;                builder.field(VERSION_TYPE.getPreferredName(), this.versionType.toString().toLowerCase(Locale.ROOT));
+<i>490</i>&nbsp;            }
+<i>491</i>&nbsp;            return builder.endObject();
+<i>492</i>&nbsp;        }
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;        @Override
+<i>495</i>&nbsp;        public String toString() {
+<i>496</i>&nbsp;            try {
+<i>497</i>&nbsp;                XContentBuilder builder = XContentFactory.jsonBuilder();
+<i>498</i>&nbsp;                builder.prettyPrint();
+<i>499</i>&nbsp;                toXContent(builder, EMPTY_PARAMS);
+<i>500</i>&nbsp;                return Strings.toString(builder);
+<i>501</i>&nbsp;            } catch (Exception e) {
+<i>502</i>&nbsp;                return &quot;{ \&quot;error\&quot; : \&quot;&quot; + ExceptionsHelper.detailedMessage(e) + &quot;\&quot;}&quot;;
+<i>503</i>&nbsp;            }
+<i>504</i>&nbsp;        }
+<i>505</i>&nbsp;
+<i>506</i>&nbsp;        @Override
+<i>507</i>&nbsp;        public int hashCode() {
+<i>508</i>&nbsp;            return Objects.hash(index, type, id, doc, Arrays.hashCode(fields), perFieldAnalyzer, routing,
+<i>509</i>&nbsp;                    version, versionType);
+<i>510</i>&nbsp;        }
+<i>511</i>&nbsp;
+<i>512</i>&nbsp;        @Override
+<i>513</i>&nbsp;        public boolean equals(Object o) {
+<i>514</i>&nbsp;            if (this == o) return true;
+<i>515</i>&nbsp;            if (!(o instanceof Item)) return false;
+<i>516</i>&nbsp;            Item other = (Item) o;
+<i>517</i>&nbsp;            return Objects.equals(index, other.index) &amp;&amp;
+<i>518</i>&nbsp;                    Objects.equals(type, other.type) &amp;&amp;
+<i>519</i>&nbsp;                    Objects.equals(id, other.id) &amp;&amp;
+<i>520</i>&nbsp;                    Objects.equals(doc, other.doc) &amp;&amp;
+<i>521</i>&nbsp;                    Arrays.equals(fields, other.fields) &amp;&amp;  // otherwise we are comparing pointers
+<i>522</i>&nbsp;                    Objects.equals(perFieldAnalyzer, other.perFieldAnalyzer) &amp;&amp;
+<i>523</i>&nbsp;                    Objects.equals(routing, other.routing) &amp;&amp;
+<i>524</i>&nbsp;                    Objects.equals(version, other.version) &amp;&amp;
+<i>525</i>&nbsp;                    Objects.equals(versionType, other.versionType);
+<i>526</i>&nbsp;        }
+<i>527</i>&nbsp;    }
+<i>528</i>&nbsp;
+<i>529</i>&nbsp;    /**
+<i>530</i>&nbsp;     * Constructs a new more like this query which uses the default search field.
+<i>531</i>&nbsp;     * @param likeTexts the text to use when generating the &#39;More Like This&#39; query.
+<i>532</i>&nbsp;     * @param likeItems the documents to use when generating the &#39;More Like This&#39; query.
+<i>533</i>&nbsp;     */
+<i>534</i>&nbsp;    public MoreLikeThisQueryBuilder(String[] likeTexts, Item[] likeItems) {
+<b class="nc"><i>535</i>&nbsp;        this(null, likeTexts, likeItems);</b>
+<b class="nc"><i>536</i>&nbsp;    }</b>
+<i>537</i>&nbsp;
+<i>538</i>&nbsp;    /**
+<i>539</i>&nbsp;     * Sets the field names that will be used when generating the &#39;More Like This&#39; query.
+<i>540</i>&nbsp;     *
+<i>541</i>&nbsp;     * @param fields the field names that will be used when generating the &#39;More Like This&#39; query.
+<i>542</i>&nbsp;     * @param likeTexts the text to use when generating the &#39;More Like This&#39; query.
+<i>543</i>&nbsp;     * @param likeItems the documents to use when generating the &#39;More Like This&#39; query.
+<i>544</i>&nbsp;     */
+<b class="nc"><i>545</i>&nbsp;    public MoreLikeThisQueryBuilder(@Nullable String[] fields, @Nullable String[] likeTexts, @Nullable Item[] likeItems) {</b>
+<i>546</i>&nbsp;        // TODO we allow null here for the _all field, but this is forbidden in the parser. Re-check
+<b class="nc"><i>547</i>&nbsp;        if (fields != null &amp;&amp; fields.length == 0) {</b>
+<b class="nc"><i>548</i>&nbsp;            throw new IllegalArgumentException(NAME + &quot; query requires &#39;fields&#39; to be specified&quot;);</b>
+<i>549</i>&nbsp;        }
+<b class="nc"><i>550</i>&nbsp;        if ((likeTexts == null || likeTexts.length == 0) &amp;&amp; (likeItems == null || likeItems.length == 0)) {</b>
+<b class="nc"><i>551</i>&nbsp;            throw new IllegalArgumentException(NAME + &quot; query requires either &#39;like&#39; texts or items to be specified.&quot;);</b>
+<i>552</i>&nbsp;        }
+<b class="nc"><i>553</i>&nbsp;        this.fields = fields;</b>
+<b class="nc"><i>554</i>&nbsp;        this.likeTexts = Optional.ofNullable(likeTexts).orElse(Strings.EMPTY_ARRAY);</b>
+<b class="nc"><i>555</i>&nbsp;        this.likeItems = Optional.ofNullable(likeItems).orElse(new Item[0]);</b>
+<b class="nc"><i>556</i>&nbsp;    }</b>
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;    /**
+<i>559</i>&nbsp;     * Read from a stream.
+<i>560</i>&nbsp;     */
+<i>561</i>&nbsp;    public MoreLikeThisQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>562</i>&nbsp;        super(in);</b>
+<b class="nc"><i>563</i>&nbsp;        fields = in.readOptionalStringArray();</b>
+<b class="nc"><i>564</i>&nbsp;        likeTexts = in.readStringArray();</b>
+<b class="nc"><i>565</i>&nbsp;        likeItems = in.readList(Item::new).toArray(new Item[0]);</b>
+<b class="nc"><i>566</i>&nbsp;        unlikeTexts = in.readStringArray();</b>
+<b class="nc"><i>567</i>&nbsp;        unlikeItems = in.readList(Item::new).toArray(new Item[0]);</b>
+<b class="nc"><i>568</i>&nbsp;        maxQueryTerms = in.readVInt();</b>
+<b class="nc"><i>569</i>&nbsp;        minTermFreq = in.readVInt();</b>
+<b class="nc"><i>570</i>&nbsp;        minDocFreq = in.readVInt();</b>
+<b class="nc"><i>571</i>&nbsp;        maxDocFreq = in.readVInt();</b>
+<b class="nc"><i>572</i>&nbsp;        minWordLength = in.readVInt();</b>
+<b class="nc"><i>573</i>&nbsp;        maxWordLength = in.readVInt();</b>
+<b class="nc"><i>574</i>&nbsp;        stopWords = in.readOptionalStringArray();</b>
+<b class="nc"><i>575</i>&nbsp;        analyzer = in.readOptionalString();</b>
+<b class="nc"><i>576</i>&nbsp;        minimumShouldMatch = in.readString();</b>
+<b class="nc"><i>577</i>&nbsp;        boostTerms = (Float) in.readGenericValue();</b>
+<b class="nc"><i>578</i>&nbsp;        include = in.readBoolean();</b>
+<b class="nc"><i>579</i>&nbsp;        failOnUnsupportedField = in.readBoolean();</b>
+<b class="nc"><i>580</i>&nbsp;    }</b>
+<i>581</i>&nbsp;
+<i>582</i>&nbsp;    @Override
+<i>583</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>584</i>&nbsp;        out.writeOptionalStringArray(fields);</b>
+<b class="nc"><i>585</i>&nbsp;        out.writeStringArray(likeTexts);</b>
+<b class="nc"><i>586</i>&nbsp;        out.writeList(Arrays.asList(likeItems));</b>
+<b class="nc"><i>587</i>&nbsp;        out.writeStringArray(unlikeTexts);</b>
+<b class="nc"><i>588</i>&nbsp;        out.writeList(Arrays.asList(unlikeItems));</b>
+<b class="nc"><i>589</i>&nbsp;        out.writeVInt(maxQueryTerms);</b>
+<b class="nc"><i>590</i>&nbsp;        out.writeVInt(minTermFreq);</b>
+<b class="nc"><i>591</i>&nbsp;        out.writeVInt(minDocFreq);</b>
+<b class="nc"><i>592</i>&nbsp;        out.writeVInt(maxDocFreq);</b>
+<b class="nc"><i>593</i>&nbsp;        out.writeVInt(minWordLength);</b>
+<b class="nc"><i>594</i>&nbsp;        out.writeVInt(maxWordLength);</b>
+<b class="nc"><i>595</i>&nbsp;        out.writeOptionalStringArray(stopWords);</b>
+<b class="nc"><i>596</i>&nbsp;        out.writeOptionalString(analyzer);</b>
+<b class="nc"><i>597</i>&nbsp;        out.writeString(minimumShouldMatch);</b>
+<b class="nc"><i>598</i>&nbsp;        out.writeGenericValue(boostTerms);</b>
+<b class="nc"><i>599</i>&nbsp;        out.writeBoolean(include);</b>
+<b class="nc"><i>600</i>&nbsp;        out.writeBoolean(failOnUnsupportedField);</b>
+<b class="nc"><i>601</i>&nbsp;    }</b>
+<i>602</i>&nbsp;
+<i>603</i>&nbsp;    public String[] fields() {
+<b class="nc"><i>604</i>&nbsp;        return this.fields;</b>
+<i>605</i>&nbsp;    }
+<i>606</i>&nbsp;
+<i>607</i>&nbsp;    public String[] likeTexts() {
+<b class="nc"><i>608</i>&nbsp;        return likeTexts;</b>
+<i>609</i>&nbsp;    }
+<i>610</i>&nbsp;
+<i>611</i>&nbsp;    public Item[] likeItems() {
+<b class="nc"><i>612</i>&nbsp;        return likeItems;</b>
+<i>613</i>&nbsp;    }
+<i>614</i>&nbsp;
+<i>615</i>&nbsp;    /**
+<i>616</i>&nbsp;     * Sets the text from which the terms should not be selected from.
+<i>617</i>&nbsp;     */
+<i>618</i>&nbsp;    public MoreLikeThisQueryBuilder unlike(String[] unlikeTexts) {
+<b class="nc"><i>619</i>&nbsp;        this.unlikeTexts = Optional.ofNullable(unlikeTexts).orElse(Strings.EMPTY_ARRAY);</b>
+<b class="nc"><i>620</i>&nbsp;        return this;</b>
+<i>621</i>&nbsp;    }
+<i>622</i>&nbsp;
+<i>623</i>&nbsp;    public String[] unlikeTexts() {
+<b class="nc"><i>624</i>&nbsp;        return unlikeTexts;</b>
+<i>625</i>&nbsp;    }
+<i>626</i>&nbsp;
+<i>627</i>&nbsp;    /**
+<i>628</i>&nbsp;     * Sets the documents from which the terms should not be selected from.
+<i>629</i>&nbsp;     */
+<i>630</i>&nbsp;    public MoreLikeThisQueryBuilder unlike(Item[] unlikeItems) {
+<b class="nc"><i>631</i>&nbsp;        this.unlikeItems = Optional.ofNullable(unlikeItems).orElse(new Item[0]);</b>
+<b class="nc"><i>632</i>&nbsp;        return this;</b>
+<i>633</i>&nbsp;    }
+<i>634</i>&nbsp;
+<i>635</i>&nbsp;    public Item[] unlikeItems() {
+<b class="nc"><i>636</i>&nbsp;        return unlikeItems;</b>
+<i>637</i>&nbsp;    }
+<i>638</i>&nbsp;
+<i>639</i>&nbsp;    /**
+<i>640</i>&nbsp;     * Sets the maximum number of query terms that will be included in any generated query.
+<i>641</i>&nbsp;     * Defaults to {@code 25}.
+<i>642</i>&nbsp;     */
+<i>643</i>&nbsp;    public MoreLikeThisQueryBuilder maxQueryTerms(int maxQueryTerms) {
+<b class="nc"><i>644</i>&nbsp;        this.maxQueryTerms = maxQueryTerms;</b>
+<b class="nc"><i>645</i>&nbsp;        return this;</b>
+<i>646</i>&nbsp;    }
+<i>647</i>&nbsp;
+<i>648</i>&nbsp;    public int maxQueryTerms() {
+<b class="nc"><i>649</i>&nbsp;        return maxQueryTerms;</b>
+<i>650</i>&nbsp;    }
+<i>651</i>&nbsp;
+<i>652</i>&nbsp;    /**
+<i>653</i>&nbsp;     * The frequency below which terms will be ignored in the source doc. The default
+<i>654</i>&nbsp;     * frequency is {@code 2}.
+<i>655</i>&nbsp;     */
+<i>656</i>&nbsp;    public MoreLikeThisQueryBuilder minTermFreq(int minTermFreq) {
+<b class="nc"><i>657</i>&nbsp;        this.minTermFreq = minTermFreq;</b>
+<b class="nc"><i>658</i>&nbsp;        return this;</b>
+<i>659</i>&nbsp;    }
+<i>660</i>&nbsp;
+<i>661</i>&nbsp;    public int minTermFreq() {
+<b class="nc"><i>662</i>&nbsp;        return minTermFreq;</b>
+<i>663</i>&nbsp;    }
+<i>664</i>&nbsp;
+<i>665</i>&nbsp;    /**
+<i>666</i>&nbsp;     * Sets the frequency at which words will be ignored which do not occur in at least this
+<i>667</i>&nbsp;     * many docs. Defaults to {@code 5}.
+<i>668</i>&nbsp;     */
+<i>669</i>&nbsp;    public MoreLikeThisQueryBuilder minDocFreq(int minDocFreq) {
+<b class="nc"><i>670</i>&nbsp;        this.minDocFreq = minDocFreq;</b>
+<b class="nc"><i>671</i>&nbsp;        return this;</b>
+<i>672</i>&nbsp;    }
+<i>673</i>&nbsp;
+<i>674</i>&nbsp;    public int minDocFreq() {
+<b class="nc"><i>675</i>&nbsp;        return minDocFreq;</b>
+<i>676</i>&nbsp;    }
+<i>677</i>&nbsp;
+<i>678</i>&nbsp;    /**
+<i>679</i>&nbsp;     * Set the maximum frequency in which words may still appear. Words that appear
+<i>680</i>&nbsp;     * in more than this many docs will be ignored. Defaults to unbounded.
+<i>681</i>&nbsp;     */
+<i>682</i>&nbsp;    public MoreLikeThisQueryBuilder maxDocFreq(int maxDocFreq) {
+<b class="nc"><i>683</i>&nbsp;        this.maxDocFreq = maxDocFreq;</b>
+<b class="nc"><i>684</i>&nbsp;        return this;</b>
+<i>685</i>&nbsp;    }
+<i>686</i>&nbsp;
+<i>687</i>&nbsp;    public int maxDocFreq() {
+<b class="nc"><i>688</i>&nbsp;        return maxDocFreq;</b>
+<i>689</i>&nbsp;    }
+<i>690</i>&nbsp;
+<i>691</i>&nbsp;    /**
+<i>692</i>&nbsp;     * Sets the minimum word length below which words will be ignored. Defaults
+<i>693</i>&nbsp;     * to {@code 0}.
+<i>694</i>&nbsp;     */
+<i>695</i>&nbsp;    public MoreLikeThisQueryBuilder minWordLength(int minWordLength) {
+<b class="nc"><i>696</i>&nbsp;        this.minWordLength = minWordLength;</b>
+<b class="nc"><i>697</i>&nbsp;        return this;</b>
+<i>698</i>&nbsp;    }
+<i>699</i>&nbsp;
+<i>700</i>&nbsp;    public int minWordLength() {
+<b class="nc"><i>701</i>&nbsp;        return minWordLength;</b>
+<i>702</i>&nbsp;    }
+<i>703</i>&nbsp;
+<i>704</i>&nbsp;    /**
+<i>705</i>&nbsp;     * Sets the maximum word length above which words will be ignored. Defaults to
+<i>706</i>&nbsp;     * unbounded ({@code 0}).
+<i>707</i>&nbsp;     */
+<i>708</i>&nbsp;    public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
+<b class="nc"><i>709</i>&nbsp;        this.maxWordLength = maxWordLength;</b>
+<b class="nc"><i>710</i>&nbsp;        return this;</b>
+<i>711</i>&nbsp;    }
+<i>712</i>&nbsp;
+<i>713</i>&nbsp;    public int maxWordLength() {
+<b class="nc"><i>714</i>&nbsp;        return maxWordLength;</b>
+<i>715</i>&nbsp;    }
+<i>716</i>&nbsp;
+<i>717</i>&nbsp;    /**
+<i>718</i>&nbsp;     * Set the set of stopwords.
+<i>719</i>&nbsp;     * &lt;p&gt;
+<i>720</i>&nbsp;     * Any word in this set is considered &quot;uninteresting&quot; and ignored. Even if your Analyzer allows stopwords, you
+<i>721</i>&nbsp;     * might want to tell the MoreLikeThis code to ignore them, as for the purposes of document similarity it seems
+<i>722</i>&nbsp;     * reasonable to assume that &quot;a stop word is never interesting&quot;.
+<i>723</i>&nbsp;     */
+<i>724</i>&nbsp;    public MoreLikeThisQueryBuilder stopWords(String... stopWords) {
+<b class="nc"><i>725</i>&nbsp;        this.stopWords = stopWords;</b>
+<b class="nc"><i>726</i>&nbsp;        return this;</b>
+<i>727</i>&nbsp;    }
+<i>728</i>&nbsp;
+<i>729</i>&nbsp;    public MoreLikeThisQueryBuilder stopWords(List&lt;String&gt; stopWords) {
+<b class="nc"><i>730</i>&nbsp;        if (stopWords == null) {</b>
+<b class="nc"><i>731</i>&nbsp;            throw new IllegalArgumentException(&quot;requires stopwords to be non-null&quot;);</b>
+<i>732</i>&nbsp;        }
+<b class="nc"><i>733</i>&nbsp;        this.stopWords = stopWords.toArray(new String[stopWords.size()]);</b>
+<b class="nc"><i>734</i>&nbsp;        return this;</b>
+<i>735</i>&nbsp;    }
+<i>736</i>&nbsp;
+<i>737</i>&nbsp;    public String[] stopWords() {
+<b class="nc"><i>738</i>&nbsp;        return stopWords;</b>
+<i>739</i>&nbsp;    }
+<i>740</i>&nbsp;
+<i>741</i>&nbsp;    /**
+<i>742</i>&nbsp;     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the field.
+<i>743</i>&nbsp;     */
+<i>744</i>&nbsp;    public MoreLikeThisQueryBuilder analyzer(String analyzer) {
+<b class="nc"><i>745</i>&nbsp;        this.analyzer = analyzer;</b>
+<b class="nc"><i>746</i>&nbsp;        return this;</b>
+<i>747</i>&nbsp;    }
+<i>748</i>&nbsp;
+<i>749</i>&nbsp;    public String analyzer() {
+<b class="nc"><i>750</i>&nbsp;        return analyzer;</b>
+<i>751</i>&nbsp;    }
+<i>752</i>&nbsp;
+<i>753</i>&nbsp;    /**
+<i>754</i>&nbsp;     * Number of terms that must match the generated query expressed in the
+<i>755</i>&nbsp;     * common syntax for minimum should match. Defaults to {@code 30%}.
+<i>756</i>&nbsp;     *
+<i>757</i>&nbsp;     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+<i>758</i>&nbsp;     */
+<i>759</i>&nbsp;    public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+<b class="nc"><i>760</i>&nbsp;        if (minimumShouldMatch == null) {</b>
+<b class="nc"><i>761</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + NAME + &quot;] requires minimum should match to be non-null&quot;);</b>
+<i>762</i>&nbsp;        }
+<b class="nc"><i>763</i>&nbsp;        this.minimumShouldMatch = minimumShouldMatch;</b>
+<b class="nc"><i>764</i>&nbsp;        return this;</b>
+<i>765</i>&nbsp;    }
+<i>766</i>&nbsp;
+<i>767</i>&nbsp;    public String minimumShouldMatch() {
+<b class="nc"><i>768</i>&nbsp;        return minimumShouldMatch;</b>
+<i>769</i>&nbsp;    }
+<i>770</i>&nbsp;
+<i>771</i>&nbsp;    /**
+<i>772</i>&nbsp;     * Sets the boost factor to use when boosting terms. Defaults to {@code 0} (deactivated).
+<i>773</i>&nbsp;     */
+<i>774</i>&nbsp;    public MoreLikeThisQueryBuilder boostTerms(float boostTerms) {
+<b class="nc"><i>775</i>&nbsp;        this.boostTerms = boostTerms;</b>
+<b class="nc"><i>776</i>&nbsp;        return this;</b>
+<i>777</i>&nbsp;    }
+<i>778</i>&nbsp;
+<i>779</i>&nbsp;    public float boostTerms() {
+<b class="nc"><i>780</i>&nbsp;        return boostTerms;</b>
+<i>781</i>&nbsp;    }
+<i>782</i>&nbsp;
+<i>783</i>&nbsp;    /**
+<i>784</i>&nbsp;     * Whether to include the input documents. Defaults to {@code false}
+<i>785</i>&nbsp;     */
+<i>786</i>&nbsp;    public MoreLikeThisQueryBuilder include(boolean include) {
+<b class="nc"><i>787</i>&nbsp;        this.include = include;</b>
+<b class="nc"><i>788</i>&nbsp;        return this;</b>
+<i>789</i>&nbsp;    }
+<i>790</i>&nbsp;
+<i>791</i>&nbsp;    public boolean include() {
+<b class="nc"><i>792</i>&nbsp;        return include;</b>
+<i>793</i>&nbsp;    }
+<i>794</i>&nbsp;
+<i>795</i>&nbsp;    /**
+<i>796</i>&nbsp;     * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
+<i>797</i>&nbsp;     */
+<i>798</i>&nbsp;    public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
+<b class="nc"><i>799</i>&nbsp;        this.failOnUnsupportedField = fail;</b>
+<b class="nc"><i>800</i>&nbsp;        return this;</b>
+<i>801</i>&nbsp;    }
+<i>802</i>&nbsp;
+<i>803</i>&nbsp;    public boolean failOnUnsupportedField() {
+<b class="nc"><i>804</i>&nbsp;        return failOnUnsupportedField;</b>
+<i>805</i>&nbsp;    }
+<i>806</i>&nbsp;
+<i>807</i>&nbsp;    @Override
+<i>808</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>809</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>810</i>&nbsp;        if (fields != null) {</b>
+<b class="nc"><i>811</i>&nbsp;            builder.array(FIELDS.getPreferredName(), fields);</b>
+<i>812</i>&nbsp;        }
+<b class="nc"><i>813</i>&nbsp;        buildLikeField(builder, LIKE.getPreferredName(), likeTexts, likeItems);</b>
+<b class="nc"><i>814</i>&nbsp;        buildLikeField(builder, UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);</b>
+<b class="nc"><i>815</i>&nbsp;        builder.field(MAX_QUERY_TERMS.getPreferredName(), maxQueryTerms);</b>
+<b class="nc"><i>816</i>&nbsp;        builder.field(MIN_TERM_FREQ.getPreferredName(), minTermFreq);</b>
+<b class="nc"><i>817</i>&nbsp;        builder.field(MIN_DOC_FREQ.getPreferredName(), minDocFreq);</b>
+<b class="nc"><i>818</i>&nbsp;        builder.field(MAX_DOC_FREQ.getPreferredName(), maxDocFreq);</b>
+<b class="nc"><i>819</i>&nbsp;        builder.field(MIN_WORD_LENGTH.getPreferredName(), minWordLength);</b>
+<b class="nc"><i>820</i>&nbsp;        builder.field(MAX_WORD_LENGTH.getPreferredName(), maxWordLength);</b>
+<b class="nc"><i>821</i>&nbsp;        if (stopWords != null) {</b>
+<b class="nc"><i>822</i>&nbsp;            builder.array(STOP_WORDS.getPreferredName(), stopWords);</b>
+<i>823</i>&nbsp;        }
+<b class="nc"><i>824</i>&nbsp;        if (analyzer != null) {</b>
+<b class="nc"><i>825</i>&nbsp;            builder.field(ANALYZER.getPreferredName(), analyzer);</b>
+<i>826</i>&nbsp;        }
+<b class="nc"><i>827</i>&nbsp;        builder.field(MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);</b>
+<b class="nc"><i>828</i>&nbsp;        builder.field(BOOST_TERMS.getPreferredName(), boostTerms);</b>
+<b class="nc"><i>829</i>&nbsp;        builder.field(INCLUDE.getPreferredName(), include);</b>
+<b class="nc"><i>830</i>&nbsp;        builder.field(FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);</b>
+<b class="nc"><i>831</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>832</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>833</i>&nbsp;    }</b>
+<i>834</i>&nbsp;
+<i>835</i>&nbsp;    public static MoreLikeThisQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<i>836</i>&nbsp;        // document inputs
+<b class="nc"><i>837</i>&nbsp;        List&lt;String&gt; fields = null;</b>
+<b class="nc"><i>838</i>&nbsp;        List&lt;String&gt; likeTexts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>839</i>&nbsp;        List&lt;String&gt; unlikeTexts = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>840</i>&nbsp;        List&lt;Item&gt; likeItems = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>841</i>&nbsp;        List&lt;Item&gt; unlikeItems = new ArrayList&lt;&gt;();</b>
+<i>842</i>&nbsp;
+<i>843</i>&nbsp;        // term selection parameters
+<b class="nc"><i>844</i>&nbsp;        int maxQueryTerms = MoreLikeThisQueryBuilder.DEFAULT_MAX_QUERY_TERMS;</b>
+<b class="nc"><i>845</i>&nbsp;        int minTermFreq = MoreLikeThisQueryBuilder.DEFAULT_MIN_TERM_FREQ;</b>
+<b class="nc"><i>846</i>&nbsp;        int minDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MIN_DOC_FREQ;</b>
+<b class="nc"><i>847</i>&nbsp;        int maxDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MAX_DOC_FREQ;</b>
+<b class="nc"><i>848</i>&nbsp;        int minWordLength = MoreLikeThisQueryBuilder.DEFAULT_MIN_WORD_LENGTH;</b>
+<b class="nc"><i>849</i>&nbsp;        int maxWordLength = MoreLikeThisQueryBuilder.DEFAULT_MAX_WORD_LENGTH;</b>
+<b class="nc"><i>850</i>&nbsp;        List&lt;String&gt; stopWords = null;</b>
+<b class="nc"><i>851</i>&nbsp;        String analyzer = null;</b>
+<i>852</i>&nbsp;
+<i>853</i>&nbsp;        // query formation parameters
+<b class="nc"><i>854</i>&nbsp;        String minimumShouldMatch = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH;</b>
+<b class="nc"><i>855</i>&nbsp;        float boostTerms = MoreLikeThisQueryBuilder.DEFAULT_BOOST_TERMS;</b>
+<b class="nc"><i>856</i>&nbsp;        boolean include = MoreLikeThisQueryBuilder.DEFAULT_INCLUDE;</b>
+<i>857</i>&nbsp;
+<i>858</i>&nbsp;        // other parameters
+<b class="nc"><i>859</i>&nbsp;        boolean failOnUnsupportedField = MoreLikeThisQueryBuilder.DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;</b>
+<b class="nc"><i>860</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>861</i>&nbsp;        String queryName = null;</b>
+<i>862</i>&nbsp;
+<i>863</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>864</i>&nbsp;        String currentFieldName = null;</b>
+<b class="nc"><i>865</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>866</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>867</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>868</i>&nbsp;            } else if (token.isValue()) {</b>
+<b class="nc"><i>869</i>&nbsp;                if (LIKE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>870</i>&nbsp;                    parseLikeField(parser, likeTexts, likeItems);</b>
+<b class="nc"><i>871</i>&nbsp;                } else if (UNLIKE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>872</i>&nbsp;                    parseLikeField(parser, unlikeTexts, unlikeItems);</b>
+<b class="nc"><i>873</i>&nbsp;                } else if (MAX_QUERY_TERMS.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>874</i>&nbsp;                    maxQueryTerms = parser.intValue();</b>
+<b class="nc"><i>875</i>&nbsp;                } else if (MIN_TERM_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>876</i>&nbsp;                    minTermFreq =parser.intValue();</b>
+<b class="nc"><i>877</i>&nbsp;                } else if (MIN_DOC_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>878</i>&nbsp;                    minDocFreq = parser.intValue();</b>
+<b class="nc"><i>879</i>&nbsp;                } else if (MAX_DOC_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>880</i>&nbsp;                    maxDocFreq = parser.intValue();</b>
+<b class="nc"><i>881</i>&nbsp;                } else if (MIN_WORD_LENGTH.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>882</i>&nbsp;                    minWordLength = parser.intValue();</b>
+<b class="nc"><i>883</i>&nbsp;                } else if (MAX_WORD_LENGTH.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>884</i>&nbsp;                    maxWordLength = parser.intValue();</b>
+<b class="nc"><i>885</i>&nbsp;                } else if (ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>886</i>&nbsp;                    analyzer = parser.text();</b>
+<b class="nc"><i>887</i>&nbsp;                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>888</i>&nbsp;                    minimumShouldMatch = parser.text();</b>
+<b class="nc"><i>889</i>&nbsp;                } else if (BOOST_TERMS.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>890</i>&nbsp;                    boostTerms = parser.floatValue();</b>
+<b class="nc"><i>891</i>&nbsp;                } else if (INCLUDE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>892</i>&nbsp;                    include = parser.booleanValue();</b>
+<b class="nc"><i>893</i>&nbsp;                } else if (FAIL_ON_UNSUPPORTED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>894</i>&nbsp;                    failOnUnsupportedField = parser.booleanValue();</b>
+<b class="nc"><i>895</i>&nbsp;                } else if (&quot;boost&quot;.equals(currentFieldName)) {</b>
+<b class="nc"><i>896</i>&nbsp;                    boost = parser.floatValue();</b>
+<b class="nc"><i>897</i>&nbsp;                } else if (&quot;_name&quot;.equals(currentFieldName)) {</b>
+<b class="nc"><i>898</i>&nbsp;                    queryName = parser.text();</b>
+<i>899</i>&nbsp;                } else {
+<b class="nc"><i>900</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[mlt] query does not support [&quot; + currentFieldName + &quot;]&quot;);</b>
+<i>901</i>&nbsp;                }
+<b class="nc"><i>902</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>903</i>&nbsp;                if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>904</i>&nbsp;                    fields = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>905</i>&nbsp;                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>906</i>&nbsp;                        fields.add(parser.text());</b>
+<i>907</i>&nbsp;                    }
+<b class="nc"><i>908</i>&nbsp;                } else if (LIKE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>909</i>&nbsp;                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>910</i>&nbsp;                        parseLikeField(parser, likeTexts, likeItems);</b>
+<i>911</i>&nbsp;                    }
+<b class="nc"><i>912</i>&nbsp;                } else if (UNLIKE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>913</i>&nbsp;                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>914</i>&nbsp;                        parseLikeField(parser, unlikeTexts, unlikeItems);</b>
+<i>915</i>&nbsp;                    }
+<b class="nc"><i>916</i>&nbsp;                } else if (STOP_WORDS.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>917</i>&nbsp;                    stopWords = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>918</i>&nbsp;                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>919</i>&nbsp;                        stopWords.add(parser.text());</b>
+<i>920</i>&nbsp;                    }
+<i>921</i>&nbsp;                } else {
+<b class="nc"><i>922</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[mlt] query does not support [&quot; + currentFieldName + &quot;]&quot;);</b>
+<i>923</i>&nbsp;                }
+<b class="nc"><i>924</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>925</i>&nbsp;                if (LIKE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>926</i>&nbsp;                    parseLikeField(parser, likeTexts, likeItems);</b>
+<b class="nc"><i>927</i>&nbsp;                } else if (UNLIKE.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>928</i>&nbsp;                    parseLikeField(parser, unlikeTexts, unlikeItems);</b>
+<i>929</i>&nbsp;                } else {
+<b class="nc"><i>930</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(), &quot;[mlt] query does not support [&quot; + currentFieldName + &quot;]&quot;);</b>
+<i>931</i>&nbsp;                }
+<i>932</i>&nbsp;            }
+<i>933</i>&nbsp;        }
+<i>934</i>&nbsp;
+<b class="nc"><i>935</i>&nbsp;        if (likeTexts.isEmpty() &amp;&amp; likeItems.isEmpty()) {</b>
+<b class="nc"><i>936</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;more_like_this requires &#39;like&#39; to be specified&quot;);</b>
+<i>937</i>&nbsp;        }
+<b class="nc"><i>938</i>&nbsp;        if (fields != null &amp;&amp; fields.isEmpty()) {</b>
+<b class="nc"><i>939</i>&nbsp;            throw new ParsingException(parser.getTokenLocation(), &quot;more_like_this requires &#39;fields&#39; to be non-empty&quot;);</b>
+<i>940</i>&nbsp;        }
+<i>941</i>&nbsp;
+<b class="nc"><i>942</i>&nbsp;        String[] fieldsArray = fields == null ? null : fields.toArray(new String[fields.size()]);</b>
+<b class="nc"><i>943</i>&nbsp;        String[] likeTextsArray = likeTexts.isEmpty() ? null : likeTexts.toArray(new String[likeTexts.size()]);</b>
+<b class="nc"><i>944</i>&nbsp;        String[] unlikeTextsArray = unlikeTexts.isEmpty() ? null : unlikeTexts.toArray(new String[unlikeTexts.size()]);</b>
+<b class="nc"><i>945</i>&nbsp;        Item[] likeItemsArray = likeItems.isEmpty() ? null : likeItems.toArray(new Item[likeItems.size()]);</b>
+<b class="nc"><i>946</i>&nbsp;        Item[] unlikeItemsArray = unlikeItems.isEmpty() ? null : unlikeItems.toArray(new Item[unlikeItems.size()]);</b>
+<i>947</i>&nbsp;
+<b class="nc"><i>948</i>&nbsp;        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fieldsArray, likeTextsArray, likeItemsArray)</b>
+<b class="nc"><i>949</i>&nbsp;                .unlike(unlikeTextsArray)</b>
+<b class="nc"><i>950</i>&nbsp;                .unlike(unlikeItemsArray)</b>
+<b class="nc"><i>951</i>&nbsp;                .maxQueryTerms(maxQueryTerms)</b>
+<b class="nc"><i>952</i>&nbsp;                .minTermFreq(minTermFreq)</b>
+<b class="nc"><i>953</i>&nbsp;                .minDocFreq(minDocFreq)</b>
+<b class="nc"><i>954</i>&nbsp;                .maxDocFreq(maxDocFreq)</b>
+<b class="nc"><i>955</i>&nbsp;                .minWordLength(minWordLength)</b>
+<b class="nc"><i>956</i>&nbsp;                .maxWordLength(maxWordLength)</b>
+<b class="nc"><i>957</i>&nbsp;                .analyzer(analyzer)</b>
+<b class="nc"><i>958</i>&nbsp;                .minimumShouldMatch(minimumShouldMatch)</b>
+<b class="nc"><i>959</i>&nbsp;                .boostTerms(boostTerms)</b>
+<b class="nc"><i>960</i>&nbsp;                .include(include)</b>
+<b class="nc"><i>961</i>&nbsp;                .failOnUnsupportedField(failOnUnsupportedField)</b>
+<b class="nc"><i>962</i>&nbsp;                .boost(boost)</b>
+<b class="nc"><i>963</i>&nbsp;                .queryName(queryName);</b>
+<b class="nc"><i>964</i>&nbsp;        if (stopWords != null) {</b>
+<b class="nc"><i>965</i>&nbsp;            moreLikeThisQueryBuilder.stopWords(stopWords);</b>
+<i>966</i>&nbsp;        }
+<i>967</i>&nbsp;
+<b class="nc"><i>968</i>&nbsp;        if (moreLikeThisQueryBuilder.isTypeless() == false) {</b>
+<b class="nc"><i>969</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;more_like_this_query_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<i>970</i>&nbsp;        }
+<b class="nc"><i>971</i>&nbsp;        return moreLikeThisQueryBuilder;</b>
+<i>972</i>&nbsp;    }
+<i>973</i>&nbsp;
+<i>974</i>&nbsp;    public boolean isTypeless() {
+<b class="nc"><i>975</i>&nbsp;        return Stream.concat(Arrays.stream(likeItems), Arrays.stream(unlikeItems))</b>
+<b class="nc"><i>976</i>&nbsp;            .allMatch(item -&gt; item.type == null);</b>
+<i>977</i>&nbsp;    }
+<i>978</i>&nbsp;
+<i>979</i>&nbsp;    private static void parseLikeField(XContentParser parser, List&lt;String&gt; texts, List&lt;Item&gt; items) throws IOException {
+<b class="nc"><i>980</i>&nbsp;        if (parser.currentToken().isValue()) {</b>
+<b class="nc"><i>981</i>&nbsp;            texts.add(parser.text());</b>
+<b class="nc"><i>982</i>&nbsp;        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>983</i>&nbsp;            items.add(Item.parse(parser, new Item()));</b>
+<i>984</i>&nbsp;        } else {
+<b class="nc"><i>985</i>&nbsp;            throw new IllegalArgumentException(&quot;Content of &#39;like&#39; parameter should either be a string or an object&quot;);</b>
+<i>986</i>&nbsp;        }
+<b class="nc"><i>987</i>&nbsp;    }</b>
+<i>988</i>&nbsp;
+<i>989</i>&nbsp;    private static void buildLikeField(XContentBuilder builder, String fieldName, String[] texts, Item[] items) throws IOException {
+<b class="nc"><i>990</i>&nbsp;        if (texts.length &gt; 0 || items.length &gt; 0) {</b>
+<b class="nc"><i>991</i>&nbsp;            builder.startArray(fieldName);</b>
+<b class="nc"><i>992</i>&nbsp;            for (String text : texts) {</b>
+<b class="nc"><i>993</i>&nbsp;                builder.value(text);</b>
+<i>994</i>&nbsp;            }
+<b class="nc"><i>995</i>&nbsp;            for (Item item : items) {</b>
+<b class="nc"><i>996</i>&nbsp;                builder.value(item);</b>
+<i>997</i>&nbsp;            }
+<b class="nc"><i>998</i>&nbsp;            builder.endArray();</b>
+<i>999</i>&nbsp;        }
+<b class="nc"><i>1000</i>&nbsp;    }</b>
+<i>1001</i>&nbsp;
+<i>1002</i>&nbsp;    @Override
+<i>1003</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>1004</i>&nbsp;        return NAME;</b>
+<i>1005</i>&nbsp;    }
+<i>1006</i>&nbsp;
+<i>1007</i>&nbsp;    @Override
+<i>1008</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<b class="nc"><i>1009</i>&nbsp;        Item[] likeItems = new Item[this.likeItems.length];</b>
+<b class="nc"><i>1010</i>&nbsp;        for (int i = 0; i &lt; likeItems.length; i++) {</b>
+<b class="nc"><i>1011</i>&nbsp;            likeItems[i] = new Item(this.likeItems[i]);</b>
+<i>1012</i>&nbsp;        }
+<b class="nc"><i>1013</i>&nbsp;        Item[] unlikeItems = new Item[this.unlikeItems.length];</b>
+<b class="nc"><i>1014</i>&nbsp;        for (int i = 0; i &lt; unlikeItems.length; i++) {</b>
+<b class="nc"><i>1015</i>&nbsp;            unlikeItems[i] = new Item(this.unlikeItems[i]);</b>
+<i>1016</i>&nbsp;        }
+<i>1017</i>&nbsp;
+<b class="nc"><i>1018</i>&nbsp;        MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();</b>
+<i>1019</i>&nbsp;
+<i>1020</i>&nbsp;        // set similarity
+<b class="nc"><i>1021</i>&nbsp;        mltQuery.setSimilarity(context.getSearchSimilarity());</b>
+<i>1022</i>&nbsp;
+<i>1023</i>&nbsp;        // set query parameters
+<b class="nc"><i>1024</i>&nbsp;        mltQuery.setMaxQueryTerms(maxQueryTerms);</b>
+<b class="nc"><i>1025</i>&nbsp;        mltQuery.setMinTermFrequency(minTermFreq);</b>
+<b class="nc"><i>1026</i>&nbsp;        mltQuery.setMinDocFreq(minDocFreq);</b>
+<b class="nc"><i>1027</i>&nbsp;        mltQuery.setMaxDocFreq(maxDocFreq);</b>
+<b class="nc"><i>1028</i>&nbsp;        mltQuery.setMinWordLen(minWordLength);</b>
+<b class="nc"><i>1029</i>&nbsp;        mltQuery.setMaxWordLen(maxWordLength);</b>
+<b class="nc"><i>1030</i>&nbsp;        mltQuery.setMinimumShouldMatch(minimumShouldMatch);</b>
+<b class="nc"><i>1031</i>&nbsp;        if (stopWords != null) {</b>
+<b class="nc"><i>1032</i>&nbsp;            mltQuery.setStopWords(new HashSet&lt;&gt;(Arrays.asList(stopWords)));</b>
+<i>1033</i>&nbsp;        }
+<i>1034</i>&nbsp;
+<i>1035</i>&nbsp;        // sets boost terms
+<b class="nc"><i>1036</i>&nbsp;        if (boostTerms != 0) {</b>
+<b class="nc"><i>1037</i>&nbsp;            mltQuery.setBoostTerms(true);</b>
+<b class="nc"><i>1038</i>&nbsp;            mltQuery.setBoostTermsFactor(boostTerms);</b>
+<i>1039</i>&nbsp;        }
+<i>1040</i>&nbsp;
+<i>1041</i>&nbsp;        // set analyzer
+<b class="nc"><i>1042</i>&nbsp;        Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);</b>
+<b class="nc"><i>1043</i>&nbsp;        if (analyzerObj == null) {</b>
+<b class="nc"><i>1044</i>&nbsp;            analyzerObj = context.getMapperService().searchAnalyzer();</b>
+<i>1045</i>&nbsp;        }
+<b class="nc"><i>1046</i>&nbsp;        mltQuery.setAnalyzer(analyzerObj);</b>
+<i>1047</i>&nbsp;
+<i>1048</i>&nbsp;        // set like text fields
+<b class="nc"><i>1049</i>&nbsp;        boolean useDefaultField = (fields == null);</b>
+<b class="nc"><i>1050</i>&nbsp;        List&lt;String&gt; moreLikeFields = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1051</i>&nbsp;        if (useDefaultField) {</b>
+<b class="nc"><i>1052</i>&nbsp;            moreLikeFields = context.defaultFields();</b>
+<b class="nc"><i>1053</i>&nbsp;            if (moreLikeFields.size() == 1</b>
+<b class="nc"><i>1054</i>&nbsp;                    &amp;&amp; moreLikeFields.get(0).equals(&quot;*&quot;)</b>
+<i>1055</i>&nbsp;                    &amp;&amp; (likeTexts.length &gt; 0 || unlikeTexts.length &gt; 0)) {
+<b class="nc"><i>1056</i>&nbsp;                throw new IllegalArgumentException(&quot;[more_like_this] query cannot infer the field to analyze the free text, &quot; +</b>
+<i>1057</i>&nbsp;                    &quot;you should update the [index.query.default_field] index setting to a field that exists in the mapping or &quot; +
+<i>1058</i>&nbsp;                    &quot;set the [fields] option in the query.&quot;);
+<i>1059</i>&nbsp;            }
+<i>1060</i>&nbsp;        } else {
+<b class="nc"><i>1061</i>&nbsp;            for (String field : fields) {</b>
+<b class="nc"><i>1062</i>&nbsp;                MappedFieldType fieldType = context.fieldMapper(field);</b>
+<b class="nc"><i>1063</i>&nbsp;                if (fieldType != null &amp;&amp; SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {</b>
+<b class="nc"><i>1064</i>&nbsp;                    if (failOnUnsupportedField) {</b>
+<b class="nc"><i>1065</i>&nbsp;                        throw new IllegalArgumentException(&quot;more_like_this only supports text/keyword fields: [&quot; + field + &quot;]&quot;);</b>
+<i>1066</i>&nbsp;                    } else {
+<i>1067</i>&nbsp;                        // skip
+<i>1068</i>&nbsp;                        continue;
+<i>1069</i>&nbsp;                    }
+<i>1070</i>&nbsp;                }
+<b class="nc"><i>1071</i>&nbsp;                moreLikeFields.add(fieldType == null ? field : fieldType.name());</b>
+<i>1072</i>&nbsp;            }
+<i>1073</i>&nbsp;        }
+<i>1074</i>&nbsp;
+<b class="nc"><i>1075</i>&nbsp;        if (moreLikeFields.isEmpty()) {</b>
+<b class="nc"><i>1076</i>&nbsp;            return null;</b>
+<i>1077</i>&nbsp;        }
+<b class="nc"><i>1078</i>&nbsp;        mltQuery.setMoreLikeFields(moreLikeFields.toArray(new String[moreLikeFields.size()]));</b>
+<i>1079</i>&nbsp;
+<i>1080</i>&nbsp;        // handle like texts
+<b class="nc"><i>1081</i>&nbsp;        if (likeTexts.length &gt; 0) {</b>
+<b class="nc"><i>1082</i>&nbsp;            mltQuery.setLikeText(likeTexts);</b>
+<i>1083</i>&nbsp;        }
+<b class="nc"><i>1084</i>&nbsp;        if (unlikeTexts.length &gt; 0) {</b>
+<b class="nc"><i>1085</i>&nbsp;            mltQuery.setUnlikeText(unlikeTexts);</b>
+<i>1086</i>&nbsp;        }
+<i>1087</i>&nbsp;
+<i>1088</i>&nbsp;        // handle items
+<b class="nc"><i>1089</i>&nbsp;        if (likeItems.length &gt; 0) {</b>
+<b class="nc"><i>1090</i>&nbsp;            return handleItems(context, mltQuery, likeItems, unlikeItems, include, moreLikeFields, useDefaultField);</b>
+<i>1091</i>&nbsp;        } else {
+<b class="nc"><i>1092</i>&nbsp;            return mltQuery;</b>
+<i>1093</i>&nbsp;        }
+<i>1094</i>&nbsp;    }
+<i>1095</i>&nbsp;
+<i>1096</i>&nbsp;    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
+<i>1097</i>&nbsp;                              boolean include, List&lt;String&gt; moreLikeFields, boolean useDefaultField) throws IOException {
+<i>1098</i>&nbsp;        // set default index, type and fields if not specified
+<b class="nc"><i>1099</i>&nbsp;        for (Item item : likeItems) {</b>
+<b class="nc"><i>1100</i>&nbsp;            setDefaultIndexTypeFields(context, item, moreLikeFields, useDefaultField);</b>
+<i>1101</i>&nbsp;        }
+<b class="nc"><i>1102</i>&nbsp;        for (Item item : unlikeItems) {</b>
+<b class="nc"><i>1103</i>&nbsp;            setDefaultIndexTypeFields(context, item, moreLikeFields, useDefaultField);</b>
+<i>1104</i>&nbsp;        }
+<i>1105</i>&nbsp;
+<i>1106</i>&nbsp;        // fetching the items with multi-termvectors API
+<b class="nc"><i>1107</i>&nbsp;        MultiTermVectorsResponse likeItemsResponse = fetchResponse(context.getClient(), likeItems);</b>
+<i>1108</i>&nbsp;        // getting the Fields for liked items
+<b class="nc"><i>1109</i>&nbsp;        mltQuery.setLikeFields(getFieldsFor(likeItemsResponse));</b>
+<i>1110</i>&nbsp;
+<i>1111</i>&nbsp;        // getting the Fields for unliked items
+<b class="nc"><i>1112</i>&nbsp;        if (unlikeItems.length &gt; 0) {</b>
+<b class="nc"><i>1113</i>&nbsp;            MultiTermVectorsResponse unlikeItemsResponse = fetchResponse(context.getClient(), unlikeItems);</b>
+<b class="nc"><i>1114</i>&nbsp;            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(unlikeItemsResponse);</b>
+<b class="nc"><i>1115</i>&nbsp;            if (unlikeFields.length &gt; 0) {</b>
+<b class="nc"><i>1116</i>&nbsp;                mltQuery.setUnlikeFields(unlikeFields);</b>
+<i>1117</i>&nbsp;            }
+<i>1118</i>&nbsp;        }
+<i>1119</i>&nbsp;
+<b class="nc"><i>1120</i>&nbsp;        BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();</b>
+<b class="nc"><i>1121</i>&nbsp;        boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);</b>
+<i>1122</i>&nbsp;
+<i>1123</i>&nbsp;        // exclude the items from the search
+<b class="nc"><i>1124</i>&nbsp;        if (!include) {</b>
+<b class="nc"><i>1125</i>&nbsp;            handleExclude(boolQuery, likeItems, context);</b>
+<i>1126</i>&nbsp;        }
+<b class="nc"><i>1127</i>&nbsp;        return boolQuery.build();</b>
+<i>1128</i>&nbsp;    }
+<i>1129</i>&nbsp;
+<i>1130</i>&nbsp;    private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List&lt;String&gt; moreLikeFields,
+<i>1131</i>&nbsp;                                                  boolean useDefaultField) {
+<b class="nc"><i>1132</i>&nbsp;        if (item.index() == null) {</b>
+<b class="nc"><i>1133</i>&nbsp;            item.index(context.index().getName());</b>
+<i>1134</i>&nbsp;        }
+<b class="nc"><i>1135</i>&nbsp;        if (item.type() == null) {</b>
+<b class="nc"><i>1136</i>&nbsp;            item.type(MapperService.SINGLE_MAPPING_NAME);</b>
+<i>1137</i>&nbsp;        }
+<i>1138</i>&nbsp;        // default fields if not present but don&#39;t override for artificial docs
+<b class="nc"><i>1139</i>&nbsp;        if ((item.fields() == null || item.fields().length == 0) &amp;&amp; item.doc() == null) {</b>
+<b class="nc"><i>1140</i>&nbsp;            if (useDefaultField) {</b>
+<b class="nc"><i>1141</i>&nbsp;                item.fields(&quot;*&quot;);</b>
+<i>1142</i>&nbsp;            } else {
+<b class="nc"><i>1143</i>&nbsp;                item.fields(moreLikeFields.toArray(new String[moreLikeFields.size()]));</b>
+<i>1144</i>&nbsp;            }
+<i>1145</i>&nbsp;        }
+<b class="nc"><i>1146</i>&nbsp;    }</b>
+<i>1147</i>&nbsp;
+<i>1148</i>&nbsp;    private MultiTermVectorsResponse fetchResponse(Client client, Item[] items) throws IOException {
+<b class="nc"><i>1149</i>&nbsp;        MultiTermVectorsRequest request = new MultiTermVectorsRequest();</b>
+<b class="nc"><i>1150</i>&nbsp;        for (Item item : items) {</b>
+<b class="nc"><i>1151</i>&nbsp;            request.add(item.toTermVectorsRequest());</b>
+<i>1152</i>&nbsp;        }
+<i>1153</i>&nbsp;
+<b class="nc"><i>1154</i>&nbsp;        return client.multiTermVectors(request).actionGet();</b>
+<i>1155</i>&nbsp;    }
+<i>1156</i>&nbsp;
+<i>1157</i>&nbsp;    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses) throws IOException {
+<b class="nc"><i>1158</i>&nbsp;        List&lt;Fields&gt; likeFields = new ArrayList&lt;&gt;();</b>
+<i>1159</i>&nbsp;
+<b class="nc"><i>1160</i>&nbsp;        for (MultiTermVectorsItemResponse response : responses) {</b>
+<b class="nc"><i>1161</i>&nbsp;            if (response.isFailed()) {</b>
+<b class="nc"><i>1162</i>&nbsp;                checkRoutingMissingException(response);</b>
+<b class="nc"><i>1163</i>&nbsp;                continue;</b>
+<i>1164</i>&nbsp;            }
+<b class="nc"><i>1165</i>&nbsp;            TermVectorsResponse getResponse = response.getResponse();</b>
+<b class="nc"><i>1166</i>&nbsp;            if (!getResponse.isExists()) {</b>
+<b class="nc"><i>1167</i>&nbsp;                continue;</b>
+<i>1168</i>&nbsp;            }
+<b class="nc"><i>1169</i>&nbsp;            likeFields.add(getResponse.getFields());</b>
+<b class="nc"><i>1170</i>&nbsp;        }</b>
+<b class="nc"><i>1171</i>&nbsp;        return likeFields.toArray(Fields.EMPTY_ARRAY);</b>
+<i>1172</i>&nbsp;    }
+<i>1173</i>&nbsp;
+<i>1174</i>&nbsp;    private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
+<b class="nc"><i>1175</i>&nbsp;        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);</b>
+<b class="nc"><i>1176</i>&nbsp;        if (cause != null) {</b>
+<b class="nc"><i>1177</i>&nbsp;            throw ((RoutingMissingException) cause);</b>
+<i>1178</i>&nbsp;        }
+<b class="nc"><i>1179</i>&nbsp;    }</b>
+<i>1180</i>&nbsp;
+<i>1181</i>&nbsp;    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
+<b class="nc"><i>1182</i>&nbsp;        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);</b>
+<b class="nc"><i>1183</i>&nbsp;        if (idField == null) {</b>
+<i>1184</i>&nbsp;            // no mappings, nothing to exclude
+<b class="nc"><i>1185</i>&nbsp;            return;</b>
+<i>1186</i>&nbsp;        }
+<i>1187</i>&nbsp;        // artificial docs get assigned a random id and should be disregarded
+<b class="nc"><i>1188</i>&nbsp;        List&lt;String&gt; ids = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1189</i>&nbsp;        for (Item item : likeItems) {</b>
+<b class="nc"><i>1190</i>&nbsp;            if (item.doc() != null) {</b>
+<b class="nc"><i>1191</i>&nbsp;                continue;</b>
+<i>1192</i>&nbsp;            }
+<b class="nc"><i>1193</i>&nbsp;            ids.add(item.id());</b>
+<i>1194</i>&nbsp;        }
+<b class="nc"><i>1195</i>&nbsp;        if (!ids.isEmpty()) {</b>
+<b class="nc"><i>1196</i>&nbsp;            Query query = idField.termsQuery(ids, context);</b>
+<b class="nc"><i>1197</i>&nbsp;            boolQuery.add(query, BooleanClause.Occur.MUST_NOT);</b>
+<i>1198</i>&nbsp;        }
+<b class="nc"><i>1199</i>&nbsp;    }</b>
+<i>1200</i>&nbsp;
+<i>1201</i>&nbsp;    @Override
+<i>1202</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>1203</i>&nbsp;        return Objects.hash(Arrays.hashCode(fields), Arrays.hashCode(likeTexts),</b>
+<b class="nc"><i>1204</i>&nbsp;                Arrays.hashCode(unlikeTexts), Arrays.hashCode(likeItems), Arrays.hashCode(unlikeItems),</b>
+<b class="nc"><i>1205</i>&nbsp;                maxQueryTerms, minTermFreq, minDocFreq, maxDocFreq, minWordLength, maxWordLength,</b>
+<b class="nc"><i>1206</i>&nbsp;                Arrays.hashCode(stopWords), analyzer, minimumShouldMatch, boostTerms, include, failOnUnsupportedField);</b>
+<i>1207</i>&nbsp;    }
+<i>1208</i>&nbsp;
+<i>1209</i>&nbsp;    @Override
+<i>1210</i>&nbsp;    protected boolean doEquals(MoreLikeThisQueryBuilder other) {
+<b class="nc"><i>1211</i>&nbsp;        return Arrays.equals(fields, other.fields) &amp;&amp;</b>
+<b class="nc"><i>1212</i>&nbsp;                Arrays.equals(likeTexts, other.likeTexts) &amp;&amp;</b>
+<b class="nc"><i>1213</i>&nbsp;                Arrays.equals(unlikeTexts, other.unlikeTexts) &amp;&amp;</b>
+<b class="nc"><i>1214</i>&nbsp;                Arrays.equals(likeItems, other.likeItems) &amp;&amp;</b>
+<b class="nc"><i>1215</i>&nbsp;                Arrays.equals(unlikeItems, other.unlikeItems) &amp;&amp;</b>
+<b class="nc"><i>1216</i>&nbsp;                Objects.equals(maxQueryTerms, other.maxQueryTerms) &amp;&amp;</b>
+<b class="nc"><i>1217</i>&nbsp;                Objects.equals(minTermFreq, other.minTermFreq) &amp;&amp;</b>
+<b class="nc"><i>1218</i>&nbsp;                Objects.equals(minDocFreq, other.minDocFreq) &amp;&amp;</b>
+<b class="nc"><i>1219</i>&nbsp;                Objects.equals(maxDocFreq, other.maxDocFreq) &amp;&amp;</b>
+<b class="nc"><i>1220</i>&nbsp;                Objects.equals(minWordLength, other.minWordLength) &amp;&amp;</b>
+<b class="nc"><i>1221</i>&nbsp;                Objects.equals(maxWordLength, other.maxWordLength) &amp;&amp;</b>
+<b class="nc"><i>1222</i>&nbsp;                Arrays.equals(stopWords, other.stopWords) &amp;&amp;  // otherwise we are comparing pointers</b>
+<b class="nc"><i>1223</i>&nbsp;                Objects.equals(analyzer, other.analyzer) &amp;&amp;</b>
+<b class="nc"><i>1224</i>&nbsp;                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &amp;&amp;</b>
+<b class="nc"><i>1225</i>&nbsp;                Objects.equals(boostTerms, other.boostTerms) &amp;&amp;</b>
+<b class="nc"><i>1226</i>&nbsp;                Objects.equals(include, other.include) &amp;&amp;</b>
+<b class="nc"><i>1227</i>&nbsp;                Objects.equals(failOnUnsupportedField, other.failOnUnsupportedField);</b>
+<i>1228</i>&nbsp;    }
+<i>1229</i>&nbsp;
+<i>1230</i>&nbsp;    @Override
+<i>1231</i>&nbsp;    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+<i>1232</i>&nbsp;        // TODO this needs heavy cleanups before we can rewrite it
+<b class="nc"><i>1233</i>&nbsp;        return this;</b>
+<i>1234</i>&nbsp;    }
+<i>1235</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

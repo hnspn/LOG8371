@@ -1,0 +1,308 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ResponseCollectorService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.node</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ResponseCollectorService (org.elasticsearch.node)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">ResponseCollectorService</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.2%
+  </span>
+  <span class="absValue">
+    (2/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    20%
+  </span>
+  <span class="absValue">
+    (6/ 30)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.node;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.ClusterStateListener;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>26</i>&nbsp;import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>30</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>31</i>&nbsp;
+<i>32</i>&nbsp;import java.io.IOException;
+<i>33</i>&nbsp;import java.util.HashMap;
+<i>34</i>&nbsp;import java.util.Locale;
+<i>35</i>&nbsp;import java.util.Map;
+<i>36</i>&nbsp;import java.util.Optional;
+<i>37</i>&nbsp;import java.util.concurrent.ConcurrentMap;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;/**
+<i>40</i>&nbsp; * Collects statistics about queue size, response time, and service time of
+<i>41</i>&nbsp; * tasks executed on each node, making the EWMA of the values available to the
+<i>42</i>&nbsp; * coordinating node.
+<i>43</i>&nbsp; */
+<i>44</i>&nbsp;public final class ResponseCollectorService implements ClusterStateListener {
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    private static final double ALPHA = 0.3;
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;    private final ConcurrentMap&lt;String, NodeStatistics&gt; nodeIdToStats = ConcurrentCollections.newConcurrentMap();</b>
+<i>49</i>&nbsp;
+<b class="fc"><i>50</i>&nbsp;    public ResponseCollectorService(ClusterService clusterService) {</b>
+<b class="fc"><i>51</i>&nbsp;        clusterService.addListener(this);</b>
+<b class="fc"><i>52</i>&nbsp;    }</b>
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    @Override
+<i>55</i>&nbsp;    public void clusterChanged(ClusterChangedEvent event) {
+<b class="fc"><i>56</i>&nbsp;        if (event.nodesRemoved()) {</b>
+<b class="nc"><i>57</i>&nbsp;            for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {</b>
+<b class="nc"><i>58</i>&nbsp;                removeNode(removedNode.getId());</b>
+<b class="nc"><i>59</i>&nbsp;            }</b>
+<i>60</i>&nbsp;        }
+<b class="fc"><i>61</i>&nbsp;    }</b>
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    void removeNode(String nodeId) {
+<b class="nc"><i>64</i>&nbsp;        nodeIdToStats.remove(nodeId);</b>
+<b class="nc"><i>65</i>&nbsp;    }</b>
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;    public void addNodeStatistics(String nodeId, int queueSize, long responseTimeNanos, long avgServiceTimeNanos) {
+<b class="nc"><i>68</i>&nbsp;        nodeIdToStats.compute(nodeId, (id, ns) -&gt; {</b>
+<b class="nc"><i>69</i>&nbsp;            if (ns == null) {</b>
+<b class="nc"><i>70</i>&nbsp;                ExponentiallyWeightedMovingAverage queueEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, queueSize);</b>
+<b class="nc"><i>71</i>&nbsp;                ExponentiallyWeightedMovingAverage responseEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, responseTimeNanos);</b>
+<b class="nc"><i>72</i>&nbsp;                return new NodeStatistics(nodeId, queueEWMA, responseEWMA, avgServiceTimeNanos);</b>
+<i>73</i>&nbsp;            } else {
+<b class="nc"><i>74</i>&nbsp;                ns.queueSize.addValue((double) queueSize);</b>
+<b class="nc"><i>75</i>&nbsp;                ns.responseTime.addValue((double) responseTimeNanos);</b>
+<b class="nc"><i>76</i>&nbsp;                ns.serviceTime = avgServiceTimeNanos;</b>
+<b class="nc"><i>77</i>&nbsp;                return ns;</b>
+<i>78</i>&nbsp;            }
+<i>79</i>&nbsp;        });
+<b class="nc"><i>80</i>&nbsp;    }</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    public Map&lt;String, ComputedNodeStats&gt; getAllNodeStatistics() {
+<b class="nc"><i>83</i>&nbsp;        final int clientNum = nodeIdToStats.size();</b>
+<i>84</i>&nbsp;        // Transform the mutable object internally used for accounting into the computed version
+<b class="nc"><i>85</i>&nbsp;        Map&lt;String, ComputedNodeStats&gt; nodeStats = new HashMap&lt;&gt;(nodeIdToStats.size());</b>
+<b class="nc"><i>86</i>&nbsp;        nodeIdToStats.forEach((k, v) -&gt; {</b>
+<b class="nc"><i>87</i>&nbsp;            nodeStats.put(k, new ComputedNodeStats(clientNum, v));</b>
+<b class="nc"><i>88</i>&nbsp;        });</b>
+<b class="nc"><i>89</i>&nbsp;        return nodeStats;</b>
+<i>90</i>&nbsp;    }
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    public AdaptiveSelectionStats getAdaptiveStats(Map&lt;String, Long&gt; clientSearchConnections) {
+<b class="nc"><i>93</i>&nbsp;        return new AdaptiveSelectionStats(clientSearchConnections, getAllNodeStatistics());</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    /**
+<i>97</i>&nbsp;     * Optionally return a {@code NodeStatistics} for the given nodeid, if
+<i>98</i>&nbsp;     * response information exists for the given node. Returns an empty
+<i>99</i>&nbsp;     * {@code Optional} if the node was not found.
+<i>100</i>&nbsp;     */
+<i>101</i>&nbsp;    public Optional&lt;ComputedNodeStats&gt; getNodeStatistics(final String nodeId) {
+<b class="nc"><i>102</i>&nbsp;        final int clientNum = nodeIdToStats.size();</b>
+<b class="nc"><i>103</i>&nbsp;        return Optional.ofNullable(nodeIdToStats.get(nodeId)).map(ns -&gt; new ComputedNodeStats(clientNum, ns));</b>
+<i>104</i>&nbsp;    }
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    /**
+<i>107</i>&nbsp;     * Struct-like class encapsulating a point-in-time snapshot of a particular
+<i>108</i>&nbsp;     * node&#39;s statistics. This includes the EWMA of queue size, response time,
+<i>109</i>&nbsp;     * and service time.
+<i>110</i>&nbsp;     */
+<i>111</i>&nbsp;    public static class ComputedNodeStats implements Writeable {
+<i>112</i>&nbsp;        // We store timestamps with nanosecond precision, however, the
+<i>113</i>&nbsp;        // formula specifies milliseconds, therefore we need to convert
+<i>114</i>&nbsp;        // the values so the times don&#39;t unduely weight the formula
+<i>115</i>&nbsp;        private final double FACTOR = 1000000.0;
+<i>116</i>&nbsp;        private final int clientNum;
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;        private double cachedRank = 0;
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;        public final String nodeId;
+<i>121</i>&nbsp;        public final int queueSize;
+<i>122</i>&nbsp;        public final double responseTime;
+<i>123</i>&nbsp;        public final double serviceTime;
+<i>124</i>&nbsp;
+<i>125</i>&nbsp;        public ComputedNodeStats(String nodeId, int clientNum, int queueSize, double responseTime, double serviceTime) {
+<i>126</i>&nbsp;            this.nodeId = nodeId;
+<i>127</i>&nbsp;            this.clientNum = clientNum;
+<i>128</i>&nbsp;            this.queueSize = queueSize;
+<i>129</i>&nbsp;            this.responseTime = responseTime;
+<i>130</i>&nbsp;            this.serviceTime = serviceTime;
+<i>131</i>&nbsp;        }
+<i>132</i>&nbsp;
+<i>133</i>&nbsp;        ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
+<i>134</i>&nbsp;            this(nodeStats.nodeId, clientNum,
+<i>135</i>&nbsp;                    (int) nodeStats.queueSize.getAverage(), nodeStats.responseTime.getAverage(), nodeStats.serviceTime);
+<i>136</i>&nbsp;        }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;        ComputedNodeStats(StreamInput in) throws IOException {
+<i>139</i>&nbsp;            this.nodeId = in.readString();
+<i>140</i>&nbsp;            this.clientNum = in.readInt();
+<i>141</i>&nbsp;            this.queueSize = in.readInt();
+<i>142</i>&nbsp;            this.responseTime = in.readDouble();
+<i>143</i>&nbsp;            this.serviceTime = in.readDouble();
+<i>144</i>&nbsp;        }
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;        @Override
+<i>147</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>148</i>&nbsp;            out.writeString(this.nodeId);
+<i>149</i>&nbsp;            out.writeInt(this.clientNum);
+<i>150</i>&nbsp;            out.writeInt(this.queueSize);
+<i>151</i>&nbsp;            out.writeDouble(this.responseTime);
+<i>152</i>&nbsp;            out.writeDouble(this.serviceTime);
+<i>153</i>&nbsp;        }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;        /**
+<i>156</i>&nbsp;         * Rank this copy of the data, according to the adaptive replica selection formula from the C3 paper
+<i>157</i>&nbsp;         * https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-suresh.pdf
+<i>158</i>&nbsp;         */
+<i>159</i>&nbsp;        private double innerRank(long outstandingRequests) {
+<i>160</i>&nbsp;            // the concurrency compensation is defined as the number of
+<i>161</i>&nbsp;            // outstanding requests from the client to the node times the number
+<i>162</i>&nbsp;            // of clients in the system
+<i>163</i>&nbsp;            double concurrencyCompensation = outstandingRequests * clientNum;
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;            // Cubic queue adjustment factor. The paper chose 3 though we could
+<i>166</i>&nbsp;            // potentially make this configurable if desired.
+<i>167</i>&nbsp;            int queueAdjustmentFactor = 3;
+<i>168</i>&nbsp;
+<i>169</i>&nbsp;            // EWMA of queue size
+<i>170</i>&nbsp;            double qBar = queueSize;
+<i>171</i>&nbsp;            double qHatS = 1 + concurrencyCompensation + qBar;
+<i>172</i>&nbsp;
+<i>173</i>&nbsp;            // EWMA of response time
+<i>174</i>&nbsp;            double rS = responseTime / FACTOR;
+<i>175</i>&nbsp;            // EWMA of service time
+<i>176</i>&nbsp;            double muBarS = serviceTime / FACTOR;
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;            // The final formula
+<i>179</i>&nbsp;            double rank = rS - (1.0 / muBarS) + (Math.pow(qHatS, queueAdjustmentFactor) / muBarS);
+<i>180</i>&nbsp;            return rank;
+<i>181</i>&nbsp;        }
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;        public double rank(long outstandingRequests) {
+<i>184</i>&nbsp;            if (cachedRank == 0) {
+<i>185</i>&nbsp;                cachedRank = innerRank(outstandingRequests);
+<i>186</i>&nbsp;            }
+<i>187</i>&nbsp;            return cachedRank;
+<i>188</i>&nbsp;        }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;        @Override
+<i>191</i>&nbsp;        public String toString() {
+<i>192</i>&nbsp;            StringBuilder sb = new StringBuilder(&quot;ComputedNodeStats[&quot;);
+<i>193</i>&nbsp;            sb.append(nodeId).append(&quot;](&quot;);
+<i>194</i>&nbsp;            sb.append(&quot;nodes: &quot;).append(clientNum);
+<i>195</i>&nbsp;            sb.append(&quot;, queue: &quot;).append(queueSize);
+<i>196</i>&nbsp;            sb.append(&quot;, response time: &quot;).append(String.format(Locale.ROOT, &quot;%.1f&quot;, responseTime));
+<i>197</i>&nbsp;            sb.append(&quot;, service time: &quot;).append(String.format(Locale.ROOT, &quot;%.1f&quot;, serviceTime));
+<i>198</i>&nbsp;            sb.append(&quot;, rank: &quot;).append(String.format(Locale.ROOT, &quot;%.1f&quot;, rank(1)));
+<i>199</i>&nbsp;            sb.append(&quot;)&quot;);
+<i>200</i>&nbsp;            return sb.toString();
+<i>201</i>&nbsp;        }
+<i>202</i>&nbsp;    }
+<i>203</i>&nbsp;
+<i>204</i>&nbsp;    /**
+<i>205</i>&nbsp;     * Class encapsulating a node&#39;s exponentially weighted queue size, response
+<i>206</i>&nbsp;     * time, and service time, however, this class is private and intended only
+<i>207</i>&nbsp;     * to be used for the internal accounting of {@code ResponseCollectorService}.
+<i>208</i>&nbsp;     */
+<i>209</i>&nbsp;    private static class NodeStatistics {
+<i>210</i>&nbsp;        final String nodeId;
+<i>211</i>&nbsp;        final ExponentiallyWeightedMovingAverage queueSize;
+<i>212</i>&nbsp;        final ExponentiallyWeightedMovingAverage responseTime;
+<i>213</i>&nbsp;        double serviceTime;
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;        NodeStatistics(String nodeId,
+<i>216</i>&nbsp;                       ExponentiallyWeightedMovingAverage queueSizeEWMA,
+<i>217</i>&nbsp;                       ExponentiallyWeightedMovingAverage responseTimeEWMA,
+<i>218</i>&nbsp;                       double serviceTimeEWMA) {
+<i>219</i>&nbsp;            this.nodeId = nodeId;
+<i>220</i>&nbsp;            this.queueSize = queueSizeEWMA;
+<i>221</i>&nbsp;            this.responseTime = responseTimeEWMA;
+<i>222</i>&nbsp;            this.serviceTime = serviceTimeEWMA;
+<i>223</i>&nbsp;        }
+<i>224</i>&nbsp;    }
+<i>225</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

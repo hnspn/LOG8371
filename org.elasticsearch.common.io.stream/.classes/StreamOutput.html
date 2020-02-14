@@ -1,0 +1,1254 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: StreamOutput</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.io.stream</a> ]
+</div>
+
+<h1>Coverage Summary for Class: StreamOutput (org.elasticsearch.common.io.stream)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">StreamOutput</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    37.3%
+  </span>
+  <span class="absValue">
+    (38/ 102)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    32.9%
+  </span>
+  <span class="absValue">
+    (193/ 587)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.io.stream;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.CorruptIndexException;
+<i>23</i>&nbsp;import org.apache.lucene.index.IndexFormatTooNewException;
+<i>24</i>&nbsp;import org.apache.lucene.index.IndexFormatTooOldException;
+<i>25</i>&nbsp;import org.apache.lucene.store.AlreadyClosedException;
+<i>26</i>&nbsp;import org.apache.lucene.store.LockObtainFailedException;
+<i>27</i>&nbsp;import org.apache.lucene.util.BitUtil;
+<i>28</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>29</i>&nbsp;import org.apache.lucene.util.BytesRefBuilder;
+<i>30</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>31</i>&nbsp;import org.elasticsearch.Version;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>34</i>&nbsp;import org.elasticsearch.common.CharArrays;
+<i>35</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>36</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>37</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>38</i>&nbsp;import org.elasticsearch.common.geo.GeoPoint;
+<i>39</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable.Writer;
+<i>40</i>&nbsp;import org.elasticsearch.common.settings.SecureString;
+<i>41</i>&nbsp;import org.elasticsearch.common.text.Text;
+<i>42</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>43</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+<i>44</i>&nbsp;import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+<i>45</i>&nbsp;import org.joda.time.DateTimeZone;
+<i>46</i>&nbsp;import org.joda.time.ReadableInstant;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;import java.io.EOFException;
+<i>49</i>&nbsp;import java.io.FileNotFoundException;
+<i>50</i>&nbsp;import java.io.IOException;
+<i>51</i>&nbsp;import java.io.OutputStream;
+<i>52</i>&nbsp;import java.nio.file.AccessDeniedException;
+<i>53</i>&nbsp;import java.nio.file.AtomicMoveNotSupportedException;
+<i>54</i>&nbsp;import java.nio.file.DirectoryNotEmptyException;
+<i>55</i>&nbsp;import java.nio.file.FileAlreadyExistsException;
+<i>56</i>&nbsp;import java.nio.file.FileSystemException;
+<i>57</i>&nbsp;import java.nio.file.FileSystemLoopException;
+<i>58</i>&nbsp;import java.nio.file.NoSuchFileException;
+<i>59</i>&nbsp;import java.nio.file.NotDirectoryException;
+<i>60</i>&nbsp;import java.time.ZoneId;
+<i>61</i>&nbsp;import java.time.Instant;
+<i>62</i>&nbsp;import java.time.ZonedDateTime;
+<i>63</i>&nbsp;import java.util.Arrays;
+<i>64</i>&nbsp;import java.util.Collection;
+<i>65</i>&nbsp;import java.util.Collections;
+<i>66</i>&nbsp;import java.util.Date;
+<i>67</i>&nbsp;import java.util.EnumMap;
+<i>68</i>&nbsp;import java.util.EnumSet;
+<i>69</i>&nbsp;import java.util.HashMap;
+<i>70</i>&nbsp;import java.util.HashSet;
+<i>71</i>&nbsp;import java.util.Iterator;
+<i>72</i>&nbsp;import java.util.LinkedHashMap;
+<i>73</i>&nbsp;import java.util.List;
+<i>74</i>&nbsp;import java.util.Map;
+<i>75</i>&nbsp;import java.util.Set;
+<i>76</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>77</i>&nbsp;import java.util.function.IntFunction;
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;/**
+<i>80</i>&nbsp; * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
+<i>81</i>&nbsp; *
+<i>82</i>&nbsp; * This class&#39;s methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+<i>83</i>&nbsp; * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+<i>84</i>&nbsp; * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamInput}. Finally
+<i>85</i>&nbsp; * it means that the &quot;barrier to entry&quot; for adding new methods to this class is relatively low even though it is a shared class with code
+<i>86</i>&nbsp; * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+<i>87</i>&nbsp; * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+<i>88</i>&nbsp; * on {@link StreamInput}.
+<i>89</i>&nbsp; */
+<b class="fc"><i>90</i>&nbsp;public abstract class StreamOutput extends OutputStream {</b>
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    private static final Map&lt;TimeUnit, Byte&gt; TIME_UNIT_BYTE_MAP;
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    static {
+<b class="fc"><i>95</i>&nbsp;        final Map&lt;TimeUnit, Byte&gt; timeUnitByteMap = new EnumMap&lt;&gt;(TimeUnit.class);</b>
+<b class="fc"><i>96</i>&nbsp;        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);</b>
+<b class="fc"><i>97</i>&nbsp;        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);</b>
+<b class="fc"><i>98</i>&nbsp;        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);</b>
+<b class="fc"><i>99</i>&nbsp;        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);</b>
+<b class="fc"><i>100</i>&nbsp;        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);</b>
+<b class="fc"><i>101</i>&nbsp;        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);</b>
+<b class="fc"><i>102</i>&nbsp;        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);</b>
+<i>103</i>&nbsp;
+<b class="fc"><i>104</i>&nbsp;        for (TimeUnit value : TimeUnit.values()) {</b>
+<b class="fc"><i>105</i>&nbsp;            assert timeUnitByteMap.containsKey(value) : value;</b>
+<i>106</i>&nbsp;        }
+<i>107</i>&nbsp;
+<b class="fc"><i>108</i>&nbsp;        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);</b>
+<i>109</i>&nbsp;    }
+<i>110</i>&nbsp;
+<b class="fc"><i>111</i>&nbsp;    private Version version = Version.CURRENT;</b>
+<b class="fc"><i>112</i>&nbsp;    private Set&lt;String&gt; features = Collections.emptySet();</b>
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /**
+<i>115</i>&nbsp;     * The version of the node on the other side of this stream.
+<i>116</i>&nbsp;     */
+<i>117</i>&nbsp;    public Version getVersion() {
+<b class="fc"><i>118</i>&nbsp;        return this.version;</b>
+<i>119</i>&nbsp;    }
+<i>120</i>&nbsp;
+<i>121</i>&nbsp;    /**
+<i>122</i>&nbsp;     * Set the version of the node on the other side of this stream.
+<i>123</i>&nbsp;     */
+<i>124</i>&nbsp;    public void setVersion(Version version) {
+<b class="fc"><i>125</i>&nbsp;        this.version = version;</b>
+<b class="fc"><i>126</i>&nbsp;    }</b>
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    /**
+<i>129</i>&nbsp;     * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
+<i>130</i>&nbsp;     * {@link MetaData.Custom}; see also {@link ClusterState.FeatureAware}.
+<i>131</i>&nbsp;     *
+<i>132</i>&nbsp;     * @param feature the feature to test
+<i>133</i>&nbsp;     * @return true if the stream has the specified feature
+<i>134</i>&nbsp;     */
+<i>135</i>&nbsp;    public boolean hasFeature(final String feature) {
+<b class="nc"><i>136</i>&nbsp;        return this.features.contains(feature);</b>
+<i>137</i>&nbsp;    }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;    /**
+<i>140</i>&nbsp;     * Set the features on the stream. See {@link StreamOutput#hasFeature(String)}.
+<i>141</i>&nbsp;     *
+<i>142</i>&nbsp;     * @param features the features on the stream
+<i>143</i>&nbsp;     */
+<i>144</i>&nbsp;    public void setFeatures(final Set&lt;String&gt; features) {
+<b class="nc"><i>145</i>&nbsp;        assert this.features.isEmpty() : this.features;</b>
+<b class="nc"><i>146</i>&nbsp;        this.features = Collections.unmodifiableSet(new HashSet&lt;&gt;(features));</b>
+<b class="nc"><i>147</i>&nbsp;    }</b>
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    public long position() throws IOException {
+<b class="nc"><i>150</i>&nbsp;        throw new UnsupportedOperationException();</b>
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;    public void seek(long position) throws IOException {
+<b class="nc"><i>154</i>&nbsp;        throw new UnsupportedOperationException();</b>
+<i>155</i>&nbsp;    }
+<i>156</i>&nbsp;
+<i>157</i>&nbsp;    /**
+<i>158</i>&nbsp;     * Writes a single byte.
+<i>159</i>&nbsp;     */
+<i>160</i>&nbsp;    public abstract void writeByte(byte b) throws IOException;
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;    /**
+<i>163</i>&nbsp;     * Writes an array of bytes.
+<i>164</i>&nbsp;     *
+<i>165</i>&nbsp;     * @param b the bytes to write
+<i>166</i>&nbsp;     */
+<i>167</i>&nbsp;    public void writeBytes(byte[] b) throws IOException {
+<b class="fc"><i>168</i>&nbsp;        writeBytes(b, 0, b.length);</b>
+<b class="fc"><i>169</i>&nbsp;    }</b>
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;    /**
+<i>172</i>&nbsp;     * Writes an array of bytes.
+<i>173</i>&nbsp;     *
+<i>174</i>&nbsp;     * @param b      the bytes to write
+<i>175</i>&nbsp;     * @param length the number of bytes to write
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    public void writeBytes(byte[] b, int length) throws IOException {
+<b class="fc"><i>178</i>&nbsp;        writeBytes(b, 0, length);</b>
+<b class="fc"><i>179</i>&nbsp;    }</b>
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Writes an array of bytes.
+<i>183</i>&nbsp;     *
+<i>184</i>&nbsp;     * @param b      the bytes to write
+<i>185</i>&nbsp;     * @param offset the offset in the byte array
+<i>186</i>&nbsp;     * @param length the number of bytes to write
+<i>187</i>&nbsp;     */
+<i>188</i>&nbsp;    public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    /**
+<i>191</i>&nbsp;     * Writes an array of bytes.
+<i>192</i>&nbsp;     *
+<i>193</i>&nbsp;     * @param b the bytes to write
+<i>194</i>&nbsp;     */
+<i>195</i>&nbsp;    public void writeByteArray(byte[] b) throws IOException {
+<b class="fc"><i>196</i>&nbsp;        writeVInt(b.length);</b>
+<b class="fc"><i>197</i>&nbsp;        writeBytes(b, 0, b.length);</b>
+<b class="fc"><i>198</i>&nbsp;    }</b>
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    /**
+<i>201</i>&nbsp;     * Writes the bytes reference, including a length header.
+<i>202</i>&nbsp;     */
+<i>203</i>&nbsp;    public void writeBytesReference(@Nullable BytesReference bytes) throws IOException {
+<b class="nc"><i>204</i>&nbsp;        if (bytes == null) {</b>
+<b class="nc"><i>205</i>&nbsp;            writeVInt(0);</b>
+<b class="nc"><i>206</i>&nbsp;            return;</b>
+<i>207</i>&nbsp;        }
+<b class="nc"><i>208</i>&nbsp;        writeVInt(bytes.length());</b>
+<b class="nc"><i>209</i>&nbsp;        bytes.writeTo(this);</b>
+<b class="nc"><i>210</i>&nbsp;    }</b>
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    /**
+<i>213</i>&nbsp;     * Writes an optional bytes reference including a length header. Use this if you need to differentiate between null and empty bytes
+<i>214</i>&nbsp;     * references. Use {@link #writeBytesReference(BytesReference)} and {@link StreamInput#readBytesReference()} if you do not.
+<i>215</i>&nbsp;     */
+<i>216</i>&nbsp;    public void writeOptionalBytesReference(@Nullable BytesReference bytes) throws IOException {
+<b class="nc"><i>217</i>&nbsp;        if (bytes == null) {</b>
+<b class="nc"><i>218</i>&nbsp;            writeVInt(0);</b>
+<b class="nc"><i>219</i>&nbsp;            return;</b>
+<i>220</i>&nbsp;        }
+<b class="nc"><i>221</i>&nbsp;        writeVInt(bytes.length() + 1);</b>
+<b class="nc"><i>222</i>&nbsp;        bytes.writeTo(this);</b>
+<b class="nc"><i>223</i>&nbsp;    }</b>
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    public void writeBytesRef(BytesRef bytes) throws IOException {
+<b class="nc"><i>226</i>&nbsp;        if (bytes == null) {</b>
+<b class="nc"><i>227</i>&nbsp;            writeVInt(0);</b>
+<b class="nc"><i>228</i>&nbsp;            return;</b>
+<i>229</i>&nbsp;        }
+<b class="nc"><i>230</i>&nbsp;        writeVInt(bytes.length);</b>
+<b class="nc"><i>231</i>&nbsp;        write(bytes.bytes, bytes.offset, bytes.length);</b>
+<b class="nc"><i>232</i>&nbsp;    }</b>
+<i>233</i>&nbsp;
+<b class="fc"><i>234</i>&nbsp;    private static final ThreadLocal&lt;byte[]&gt; scratch = ThreadLocal.withInitial(() -&gt; new byte[1024]);</b>
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    public final void writeShort(short v) throws IOException {
+<b class="nc"><i>237</i>&nbsp;        final byte[] buffer = scratch.get();</b>
+<b class="nc"><i>238</i>&nbsp;        buffer[0] = (byte) (v &gt;&gt; 8);</b>
+<b class="nc"><i>239</i>&nbsp;        buffer[1] = (byte) v;</b>
+<b class="nc"><i>240</i>&nbsp;        writeBytes(buffer, 0, 2);</b>
+<b class="nc"><i>241</i>&nbsp;    }</b>
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;    /**
+<i>244</i>&nbsp;     * Writes an int as four bytes.
+<i>245</i>&nbsp;     */
+<i>246</i>&nbsp;    public void writeInt(int i) throws IOException {
+<b class="fc"><i>247</i>&nbsp;        final byte[] buffer = scratch.get();</b>
+<b class="fc"><i>248</i>&nbsp;        buffer[0] = (byte) (i &gt;&gt; 24);</b>
+<b class="fc"><i>249</i>&nbsp;        buffer[1] = (byte) (i &gt;&gt; 16);</b>
+<b class="fc"><i>250</i>&nbsp;        buffer[2] = (byte) (i &gt;&gt; 8);</b>
+<b class="fc"><i>251</i>&nbsp;        buffer[3] = (byte) i;</b>
+<b class="fc"><i>252</i>&nbsp;        writeBytes(buffer, 0, 4);</b>
+<b class="fc"><i>253</i>&nbsp;    }</b>
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    /**
+<i>256</i>&nbsp;     * Writes an int in a variable-length format.  Writes between one and
+<i>257</i>&nbsp;     * five bytes.  Smaller values take fewer bytes.  Negative numbers
+<i>258</i>&nbsp;     * will always use all 5 bytes and are therefore better serialized
+<i>259</i>&nbsp;     * using {@link #writeInt}
+<i>260</i>&nbsp;     */
+<i>261</i>&nbsp;    public void writeVInt(int i) throws IOException {
+<b class="fc"><i>262</i>&nbsp;        final byte[] buffer = scratch.get();</b>
+<b class="fc"><i>263</i>&nbsp;        int index = 0;</b>
+<b class="fc"><i>264</i>&nbsp;        while ((i &amp; ~0x7F) != 0) {</b>
+<b class="fc"><i>265</i>&nbsp;            buffer[index++] = ((byte) ((i &amp; 0x7f) | 0x80));</b>
+<b class="fc"><i>266</i>&nbsp;            i &gt;&gt;&gt;= 7;</b>
+<i>267</i>&nbsp;        }
+<b class="fc"><i>268</i>&nbsp;        buffer[index++] = ((byte) i);</b>
+<b class="fc"><i>269</i>&nbsp;        writeBytes(buffer, 0, index);</b>
+<b class="fc"><i>270</i>&nbsp;    }</b>
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    /**
+<i>273</i>&nbsp;     * Writes a long as eight bytes.
+<i>274</i>&nbsp;     */
+<i>275</i>&nbsp;    public void writeLong(long i) throws IOException {
+<b class="fc"><i>276</i>&nbsp;        final byte[] buffer = scratch.get();</b>
+<b class="fc"><i>277</i>&nbsp;        buffer[0] = (byte) (i &gt;&gt; 56);</b>
+<b class="fc"><i>278</i>&nbsp;        buffer[1] = (byte) (i &gt;&gt; 48);</b>
+<b class="fc"><i>279</i>&nbsp;        buffer[2] = (byte) (i &gt;&gt; 40);</b>
+<b class="fc"><i>280</i>&nbsp;        buffer[3] = (byte) (i &gt;&gt; 32);</b>
+<b class="fc"><i>281</i>&nbsp;        buffer[4] = (byte) (i &gt;&gt; 24);</b>
+<b class="fc"><i>282</i>&nbsp;        buffer[5] = (byte) (i &gt;&gt; 16);</b>
+<b class="fc"><i>283</i>&nbsp;        buffer[6] = (byte) (i &gt;&gt; 8);</b>
+<b class="fc"><i>284</i>&nbsp;        buffer[7] = (byte) i;</b>
+<b class="fc"><i>285</i>&nbsp;        writeBytes(buffer, 0, 8);</b>
+<b class="fc"><i>286</i>&nbsp;    }</b>
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    /**
+<i>289</i>&nbsp;     * Writes a non-negative long in a variable-length format. Writes between one and ten bytes. Smaller values take fewer bytes. Negative
+<i>290</i>&nbsp;     * numbers use ten bytes and trip assertions (if running in tests) so prefer {@link #writeLong(long)} or {@link #writeZLong(long)} for
+<i>291</i>&nbsp;     * negative numbers.
+<i>292</i>&nbsp;     */
+<i>293</i>&nbsp;    public void writeVLong(long i) throws IOException {
+<b class="fc"><i>294</i>&nbsp;        if (i &lt; 0) {</b>
+<b class="nc"><i>295</i>&nbsp;            throw new IllegalStateException(&quot;Negative longs unsupported, use writeLong or writeZLong for negative numbers [&quot; + i + &quot;]&quot;);</b>
+<i>296</i>&nbsp;        }
+<b class="fc"><i>297</i>&nbsp;        writeVLongNoCheck(i);</b>
+<b class="fc"><i>298</i>&nbsp;    }</b>
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;    /**
+<i>301</i>&nbsp;     * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
+<i>302</i>&nbsp;     * {@link #writeVLong(long)} instead.
+<i>303</i>&nbsp;     */
+<i>304</i>&nbsp;    void writeVLongNoCheck(long i) throws IOException {
+<b class="fc"><i>305</i>&nbsp;        final byte[] buffer = scratch.get();</b>
+<b class="fc"><i>306</i>&nbsp;        int index = 0;</b>
+<b class="fc"><i>307</i>&nbsp;        while ((i &amp; ~0x7F) != 0) {</b>
+<b class="fc"><i>308</i>&nbsp;            buffer[index++] = ((byte) ((i &amp; 0x7f) | 0x80));</b>
+<b class="fc"><i>309</i>&nbsp;            i &gt;&gt;&gt;= 7;</b>
+<i>310</i>&nbsp;        }
+<b class="fc"><i>311</i>&nbsp;        buffer[index++] = ((byte) i);</b>
+<b class="fc"><i>312</i>&nbsp;        writeBytes(buffer, 0, index);</b>
+<b class="fc"><i>313</i>&nbsp;    }</b>
+<i>314</i>&nbsp;
+<i>315</i>&nbsp;    /**
+<i>316</i>&nbsp;     * Writes a long in a variable-length format. Writes between one and ten bytes.
+<i>317</i>&nbsp;     * Values are remapped by sliding the sign bit into the lsb and then encoded as an unsigned number
+<i>318</i>&nbsp;     * e.g., 0 -;&amp;gt; 0, -1 -;&amp;gt; 1, 1 -;&amp;gt; 2, ..., Long.MIN_VALUE -;&amp;gt; -1, Long.MAX_VALUE -;&amp;gt; -2
+<i>319</i>&nbsp;     * Numbers with small absolute value will have a small encoding
+<i>320</i>&nbsp;     * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
+<i>321</i>&nbsp;     */
+<i>322</i>&nbsp;    public void writeZLong(long i) throws IOException {
+<b class="nc"><i>323</i>&nbsp;        final byte[] buffer = scratch.get();</b>
+<b class="nc"><i>324</i>&nbsp;        int index = 0;</b>
+<i>325</i>&nbsp;        // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
+<b class="nc"><i>326</i>&nbsp;        long value = BitUtil.zigZagEncode(i);</b>
+<b class="nc"><i>327</i>&nbsp;        while ((value &amp; 0xFFFFFFFFFFFFFF80L) != 0L) {</b>
+<b class="nc"><i>328</i>&nbsp;            buffer[index++] = (byte) ((value &amp; 0x7F) | 0x80);</b>
+<b class="nc"><i>329</i>&nbsp;            value &gt;&gt;&gt;= 7;</b>
+<i>330</i>&nbsp;        }
+<b class="nc"><i>331</i>&nbsp;        buffer[index++] = (byte) (value &amp; 0x7F);</b>
+<b class="nc"><i>332</i>&nbsp;        writeBytes(buffer, 0, index);</b>
+<b class="nc"><i>333</i>&nbsp;    }</b>
+<i>334</i>&nbsp;
+<i>335</i>&nbsp;    public void writeOptionalLong(@Nullable Long l) throws IOException {
+<b class="nc"><i>336</i>&nbsp;        if (l == null) {</b>
+<b class="nc"><i>337</i>&nbsp;            writeBoolean(false);</b>
+<i>338</i>&nbsp;        } else {
+<b class="nc"><i>339</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>340</i>&nbsp;            writeLong(l);</b>
+<i>341</i>&nbsp;        }
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    public void writeOptionalString(@Nullable String str) throws IOException {
+<b class="fc"><i>345</i>&nbsp;        if (str == null) {</b>
+<b class="fc"><i>346</i>&nbsp;            writeBoolean(false);</b>
+<i>347</i>&nbsp;        } else {
+<b class="fc"><i>348</i>&nbsp;            writeBoolean(true);</b>
+<b class="fc"><i>349</i>&nbsp;            writeString(str);</b>
+<i>350</i>&nbsp;        }
+<b class="fc"><i>351</i>&nbsp;    }</b>
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    public void writeOptionalSecureString(@Nullable SecureString secureStr) throws IOException {
+<b class="nc"><i>354</i>&nbsp;        if (secureStr == null) {</b>
+<b class="nc"><i>355</i>&nbsp;            writeOptionalBytesReference(null);</b>
+<i>356</i>&nbsp;        } else {
+<b class="nc"><i>357</i>&nbsp;            final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());</b>
+<i>358</i>&nbsp;            try {
+<b class="nc"><i>359</i>&nbsp;                writeOptionalBytesReference(new BytesArray(secureStrBytes));</b>
+<i>360</i>&nbsp;            } finally {
+<b class="nc"><i>361</i>&nbsp;                Arrays.fill(secureStrBytes, (byte) 0);</b>
+<b class="nc"><i>362</i>&nbsp;            }</b>
+<i>363</i>&nbsp;        }
+<b class="nc"><i>364</i>&nbsp;    }</b>
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;    /**
+<i>367</i>&nbsp;     * Writes an optional {@link Integer}.
+<i>368</i>&nbsp;     */
+<i>369</i>&nbsp;    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
+<b class="nc"><i>370</i>&nbsp;        if (integer == null) {</b>
+<b class="nc"><i>371</i>&nbsp;            writeBoolean(false);</b>
+<i>372</i>&nbsp;        } else {
+<b class="nc"><i>373</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>374</i>&nbsp;            writeInt(integer);</b>
+<i>375</i>&nbsp;        }
+<b class="nc"><i>376</i>&nbsp;    }</b>
+<i>377</i>&nbsp;
+<i>378</i>&nbsp;    public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
+<b class="fc"><i>379</i>&nbsp;        if (integer == null) {</b>
+<b class="fc"><i>380</i>&nbsp;            writeBoolean(false);</b>
+<i>381</i>&nbsp;        } else {
+<b class="nc"><i>382</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>383</i>&nbsp;            writeVInt(integer);</b>
+<i>384</i>&nbsp;        }
+<b class="fc"><i>385</i>&nbsp;    }</b>
+<i>386</i>&nbsp;
+<i>387</i>&nbsp;    public void writeOptionalFloat(@Nullable Float floatValue) throws IOException {
+<b class="nc"><i>388</i>&nbsp;        if (floatValue == null) {</b>
+<b class="nc"><i>389</i>&nbsp;            writeBoolean(false);</b>
+<i>390</i>&nbsp;        } else {
+<b class="nc"><i>391</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>392</i>&nbsp;            writeFloat(floatValue);</b>
+<i>393</i>&nbsp;        }
+<b class="nc"><i>394</i>&nbsp;    }</b>
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;    public void writeOptionalText(@Nullable Text text) throws IOException {
+<b class="nc"><i>397</i>&nbsp;        if (text == null) {</b>
+<b class="nc"><i>398</i>&nbsp;            writeInt(-1);</b>
+<i>399</i>&nbsp;        } else {
+<b class="nc"><i>400</i>&nbsp;            writeText(text);</b>
+<i>401</i>&nbsp;        }
+<b class="nc"><i>402</i>&nbsp;    }</b>
+<i>403</i>&nbsp;
+<b class="fc"><i>404</i>&nbsp;    private final BytesRefBuilder spare = new BytesRefBuilder();</b>
+<i>405</i>&nbsp;
+<i>406</i>&nbsp;    public void writeText(Text text) throws IOException {
+<b class="nc"><i>407</i>&nbsp;        if (!text.hasBytes()) {</b>
+<b class="nc"><i>408</i>&nbsp;            final String string = text.string();</b>
+<b class="nc"><i>409</i>&nbsp;            spare.copyChars(string);</b>
+<b class="nc"><i>410</i>&nbsp;            writeInt(spare.length());</b>
+<b class="nc"><i>411</i>&nbsp;            write(spare.bytes(), 0, spare.length());</b>
+<b class="nc"><i>412</i>&nbsp;        } else {</b>
+<b class="nc"><i>413</i>&nbsp;            BytesReference bytes = text.bytes();</b>
+<b class="nc"><i>414</i>&nbsp;            writeInt(bytes.length());</b>
+<b class="nc"><i>415</i>&nbsp;            bytes.writeTo(this);</b>
+<i>416</i>&nbsp;        }
+<b class="nc"><i>417</i>&nbsp;    }</b>
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    public void writeString(String str) throws IOException {
+<b class="fc"><i>420</i>&nbsp;        final int charCount = str.length();</b>
+<b class="fc"><i>421</i>&nbsp;        byte[] buffer = scratch.get();</b>
+<b class="fc"><i>422</i>&nbsp;        int offset = 0;</b>
+<b class="fc"><i>423</i>&nbsp;        writeVInt(charCount);</b>
+<b class="fc"><i>424</i>&nbsp;        for (int i = 0; i &lt; charCount; i++) {</b>
+<b class="fc"><i>425</i>&nbsp;            final int c = str.charAt(i);</b>
+<b class="fc"><i>426</i>&nbsp;            if (c &lt;= 0x007F) {</b>
+<b class="fc"><i>427</i>&nbsp;                buffer[offset++] = ((byte) c);</b>
+<b class="nc"><i>428</i>&nbsp;            } else if (c &gt; 0x07FF) {</b>
+<b class="nc"><i>429</i>&nbsp;                buffer[offset++] = ((byte) (0xE0 | c &gt;&gt; 12 &amp; 0x0F));</b>
+<b class="nc"><i>430</i>&nbsp;                buffer[offset++] = ((byte) (0x80 | c &gt;&gt; 6 &amp; 0x3F));</b>
+<b class="nc"><i>431</i>&nbsp;                buffer[offset++] = ((byte) (0x80 | c &gt;&gt; 0 &amp; 0x3F));</b>
+<i>432</i>&nbsp;            } else {
+<b class="nc"><i>433</i>&nbsp;                buffer[offset++] = ((byte) (0xC0 | c &gt;&gt; 6 &amp; 0x1F));</b>
+<b class="nc"><i>434</i>&nbsp;                buffer[offset++] = ((byte) (0x80 | c &gt;&gt; 0 &amp; 0x3F));</b>
+<i>435</i>&nbsp;            }
+<i>436</i>&nbsp;            // make sure any possible char can fit into the buffer in any possible iteration
+<i>437</i>&nbsp;            // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
+<i>438</i>&nbsp;            // left before we start another iteration
+<b class="fc"><i>439</i>&nbsp;            if (offset &gt; buffer.length - 3) {</b>
+<b class="nc"><i>440</i>&nbsp;                writeBytes(buffer, offset);</b>
+<b class="nc"><i>441</i>&nbsp;                offset = 0;</b>
+<i>442</i>&nbsp;            }
+<i>443</i>&nbsp;        }
+<b class="fc"><i>444</i>&nbsp;        writeBytes(buffer, offset);</b>
+<b class="fc"><i>445</i>&nbsp;    }</b>
+<i>446</i>&nbsp;
+<i>447</i>&nbsp;    public void writeSecureString(SecureString secureStr) throws IOException {
+<b class="nc"><i>448</i>&nbsp;        final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());</b>
+<i>449</i>&nbsp;        try {
+<b class="nc"><i>450</i>&nbsp;            writeBytesReference(new BytesArray(secureStrBytes));</b>
+<i>451</i>&nbsp;        } finally {
+<b class="nc"><i>452</i>&nbsp;            Arrays.fill(secureStrBytes, (byte) 0);</b>
+<b class="nc"><i>453</i>&nbsp;        }</b>
+<b class="nc"><i>454</i>&nbsp;    }</b>
+<i>455</i>&nbsp;
+<i>456</i>&nbsp;    public void writeFloat(float v) throws IOException {
+<b class="fc"><i>457</i>&nbsp;        writeInt(Float.floatToIntBits(v));</b>
+<b class="fc"><i>458</i>&nbsp;    }</b>
+<i>459</i>&nbsp;
+<i>460</i>&nbsp;    public void writeDouble(double v) throws IOException {
+<b class="fc"><i>461</i>&nbsp;        writeLong(Double.doubleToLongBits(v));</b>
+<b class="fc"><i>462</i>&nbsp;    }</b>
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;    public void writeOptionalDouble(@Nullable Double v) throws IOException {
+<b class="nc"><i>465</i>&nbsp;        if (v == null) {</b>
+<b class="nc"><i>466</i>&nbsp;            writeBoolean(false);</b>
+<i>467</i>&nbsp;        } else {
+<b class="nc"><i>468</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>469</i>&nbsp;            writeDouble(v);</b>
+<i>470</i>&nbsp;        }
+<b class="nc"><i>471</i>&nbsp;    }</b>
+<i>472</i>&nbsp;
+<b class="fc"><i>473</i>&nbsp;    private static byte ZERO = 0;</b>
+<b class="fc"><i>474</i>&nbsp;    private static byte ONE = 1;</b>
+<b class="fc"><i>475</i>&nbsp;    private static byte TWO = 2;</b>
+<i>476</i>&nbsp;
+<i>477</i>&nbsp;    /**
+<i>478</i>&nbsp;     * Writes a boolean.
+<i>479</i>&nbsp;     */
+<i>480</i>&nbsp;    public void writeBoolean(boolean b) throws IOException {
+<b class="fc"><i>481</i>&nbsp;        writeByte(b ? ONE : ZERO);</b>
+<b class="fc"><i>482</i>&nbsp;    }</b>
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;    public void writeOptionalBoolean(@Nullable Boolean b) throws IOException {
+<b class="nc"><i>485</i>&nbsp;        if (b == null) {</b>
+<b class="nc"><i>486</i>&nbsp;            writeByte(TWO);</b>
+<i>487</i>&nbsp;        } else {
+<b class="nc"><i>488</i>&nbsp;            writeBoolean(b);</b>
+<i>489</i>&nbsp;        }
+<b class="nc"><i>490</i>&nbsp;    }</b>
+<i>491</i>&nbsp;
+<i>492</i>&nbsp;    /**
+<i>493</i>&nbsp;     * Forces any buffered output to be written.
+<i>494</i>&nbsp;     */
+<i>495</i>&nbsp;    @Override
+<i>496</i>&nbsp;    public abstract void flush() throws IOException;
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;    /**
+<i>499</i>&nbsp;     * Closes this stream to further operations.
+<i>500</i>&nbsp;     */
+<i>501</i>&nbsp;    @Override
+<i>502</i>&nbsp;    public abstract void close() throws IOException;
+<i>503</i>&nbsp;
+<i>504</i>&nbsp;    public abstract void reset() throws IOException;
+<i>505</i>&nbsp;
+<i>506</i>&nbsp;    @Override
+<i>507</i>&nbsp;    public void write(int b) throws IOException {
+<b class="fc"><i>508</i>&nbsp;        writeByte((byte) b);</b>
+<b class="fc"><i>509</i>&nbsp;    }</b>
+<i>510</i>&nbsp;
+<i>511</i>&nbsp;    @Override
+<i>512</i>&nbsp;    public void write(byte[] b, int off, int len) throws IOException {
+<b class="fc"><i>513</i>&nbsp;        writeBytes(b, off, len);</b>
+<b class="fc"><i>514</i>&nbsp;    }</b>
+<i>515</i>&nbsp;
+<i>516</i>&nbsp;    public void writeStringArray(String[] array) throws IOException {
+<b class="fc"><i>517</i>&nbsp;        writeVInt(array.length);</b>
+<b class="fc"><i>518</i>&nbsp;        for (String s : array) {</b>
+<b class="fc"><i>519</i>&nbsp;            writeString(s);</b>
+<i>520</i>&nbsp;        }
+<b class="fc"><i>521</i>&nbsp;    }</b>
+<i>522</i>&nbsp;
+<i>523</i>&nbsp;    /**
+<i>524</i>&nbsp;     * Writes a string array, for nullable string, writes it as 0 (empty string).
+<i>525</i>&nbsp;     */
+<i>526</i>&nbsp;    public void writeStringArrayNullable(@Nullable String[] array) throws IOException {
+<b class="nc"><i>527</i>&nbsp;        if (array == null) {</b>
+<b class="nc"><i>528</i>&nbsp;            writeVInt(0);</b>
+<i>529</i>&nbsp;        } else {
+<b class="nc"><i>530</i>&nbsp;            writeVInt(array.length);</b>
+<b class="nc"><i>531</i>&nbsp;            for (String s : array) {</b>
+<b class="nc"><i>532</i>&nbsp;                writeString(s);</b>
+<i>533</i>&nbsp;            }
+<i>534</i>&nbsp;        }
+<b class="nc"><i>535</i>&nbsp;    }</b>
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    /**
+<i>538</i>&nbsp;     * Writes a string array, for nullable string, writes false.
+<i>539</i>&nbsp;     */
+<i>540</i>&nbsp;    public void writeOptionalStringArray(@Nullable String[] array) throws IOException {
+<b class="nc"><i>541</i>&nbsp;        if (array == null) {</b>
+<b class="nc"><i>542</i>&nbsp;            writeBoolean(false);</b>
+<i>543</i>&nbsp;        } else {
+<b class="nc"><i>544</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>545</i>&nbsp;            writeStringArray(array);</b>
+<i>546</i>&nbsp;        }
+<b class="nc"><i>547</i>&nbsp;    }</b>
+<i>548</i>&nbsp;
+<i>549</i>&nbsp;    public void writeMap(@Nullable Map&lt;String, Object&gt; map) throws IOException {
+<b class="fc"><i>550</i>&nbsp;        writeGenericValue(map);</b>
+<b class="fc"><i>551</i>&nbsp;    }</b>
+<i>552</i>&nbsp;
+<i>553</i>&nbsp;    /**
+<i>554</i>&nbsp;     * write map to stream with consistent order
+<i>555</i>&nbsp;     * to make sure every map generated bytes order are same.
+<i>556</i>&nbsp;     * This method is compatible with {@code StreamInput.readMap} and {@code StreamInput.readGenericValue}
+<i>557</i>&nbsp;     * This method only will handle the map keys order, not maps contained within the map
+<i>558</i>&nbsp;     */
+<i>559</i>&nbsp;    public void writeMapWithConsistentOrder(@Nullable Map&lt;String, ? extends Object&gt; map)
+<i>560</i>&nbsp;        throws IOException {
+<b class="nc"><i>561</i>&nbsp;        if (map == null) {</b>
+<b class="nc"><i>562</i>&nbsp;            writeByte((byte) -1);</b>
+<b class="nc"><i>563</i>&nbsp;            return;</b>
+<i>564</i>&nbsp;        }
+<b class="nc"><i>565</i>&nbsp;        assert false == (map instanceof LinkedHashMap);</b>
+<b class="nc"><i>566</i>&nbsp;        this.writeByte((byte) 10);</b>
+<b class="nc"><i>567</i>&nbsp;        this.writeVInt(map.size());</b>
+<b class="nc"><i>568</i>&nbsp;        Iterator&lt;? extends Map.Entry&lt;String, ?&gt;&gt; iterator =</b>
+<b class="nc"><i>569</i>&nbsp;            map.entrySet().stream().sorted((a, b) -&gt; a.getKey().compareTo(b.getKey())).iterator();</b>
+<b class="nc"><i>570</i>&nbsp;        while (iterator.hasNext()) {</b>
+<b class="nc"><i>571</i>&nbsp;            Map.Entry&lt;String, ?&gt; next = iterator.next();</b>
+<b class="nc"><i>572</i>&nbsp;            this.writeString(next.getKey());</b>
+<b class="nc"><i>573</i>&nbsp;            this.writeGenericValue(next.getValue());</b>
+<b class="nc"><i>574</i>&nbsp;        }</b>
+<b class="nc"><i>575</i>&nbsp;    }</b>
+<i>576</i>&nbsp;
+<i>577</i>&nbsp;    /**
+<i>578</i>&nbsp;     * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+<i>579</i>&nbsp;     * &lt;pre&gt;&lt;code&gt;
+<i>580</i>&nbsp;     * Map&amp;lt;String, List&amp;lt;String&amp;gt;&amp;gt; map = ...;
+<i>581</i>&nbsp;     * out.writeMapOfLists(map, StreamOutput::writeString, StreamOutput::writeString);
+<i>582</i>&nbsp;     * &lt;/code&gt;&lt;/pre&gt;
+<i>583</i>&nbsp;     *
+<i>584</i>&nbsp;     * @param keyWriter The key writer
+<i>585</i>&nbsp;     * @param valueWriter The value writer
+<i>586</i>&nbsp;     */
+<i>587</i>&nbsp;    public final &lt;K, V&gt; void writeMapOfLists(final Map&lt;K, List&lt;V&gt;&gt; map, final Writer&lt;K&gt; keyWriter, final Writer&lt;V&gt; valueWriter)
+<i>588</i>&nbsp;            throws IOException {
+<b class="nc"><i>589</i>&nbsp;        writeMap(map, keyWriter, (stream, list) -&gt; {</b>
+<b class="nc"><i>590</i>&nbsp;            writeVInt(list.size());</b>
+<b class="nc"><i>591</i>&nbsp;            for (final V value : list) {</b>
+<b class="nc"><i>592</i>&nbsp;                valueWriter.write(this, value);</b>
+<b class="nc"><i>593</i>&nbsp;            }</b>
+<b class="nc"><i>594</i>&nbsp;        });</b>
+<b class="nc"><i>595</i>&nbsp;    }</b>
+<i>596</i>&nbsp;
+<i>597</i>&nbsp;    /**
+<i>598</i>&nbsp;     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+<i>599</i>&nbsp;     * &lt;pre&gt;&lt;code&gt;
+<i>600</i>&nbsp;     * Map&amp;lt;String, String&amp;gt; map = ...;
+<i>601</i>&nbsp;     * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
+<i>602</i>&nbsp;     * &lt;/code&gt;&lt;/pre&gt;
+<i>603</i>&nbsp;     *
+<i>604</i>&nbsp;     * @param keyWriter The key writer
+<i>605</i>&nbsp;     * @param valueWriter The value writer
+<i>606</i>&nbsp;     */
+<i>607</i>&nbsp;    public final &lt;K, V&gt; void writeMap(final Map&lt;K, V&gt; map, final Writer&lt;K&gt; keyWriter, final Writer&lt;V&gt; valueWriter)
+<i>608</i>&nbsp;        throws IOException {
+<b class="nc"><i>609</i>&nbsp;        writeVInt(map.size());</b>
+<b class="nc"><i>610</i>&nbsp;        for (final Map.Entry&lt;K, V&gt; entry : map.entrySet()) {</b>
+<b class="nc"><i>611</i>&nbsp;            keyWriter.write(this, entry.getKey());</b>
+<b class="nc"><i>612</i>&nbsp;            valueWriter.write(this, entry.getValue());</b>
+<b class="nc"><i>613</i>&nbsp;        }</b>
+<b class="nc"><i>614</i>&nbsp;    }</b>
+<i>615</i>&nbsp;
+<i>616</i>&nbsp;    /**
+<i>617</i>&nbsp;     * Writes an {@link Instant} to the stream with nanosecond resolution
+<i>618</i>&nbsp;     */
+<i>619</i>&nbsp;    public final void writeInstant(Instant instant) throws IOException {
+<b class="nc"><i>620</i>&nbsp;        writeLong(instant.getEpochSecond());</b>
+<b class="nc"><i>621</i>&nbsp;        writeInt(instant.getNano());</b>
+<b class="nc"><i>622</i>&nbsp;    }</b>
+<i>623</i>&nbsp;
+<i>624</i>&nbsp;    /**
+<i>625</i>&nbsp;     * Writes an {@link Instant} to the stream, which could possibly be null
+<i>626</i>&nbsp;     */
+<i>627</i>&nbsp;    public final void writeOptionalInstant(@Nullable Instant instant) throws IOException {
+<b class="nc"><i>628</i>&nbsp;        if (instant == null) {</b>
+<b class="nc"><i>629</i>&nbsp;            writeBoolean(false);</b>
+<i>630</i>&nbsp;        } else {
+<b class="nc"><i>631</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>632</i>&nbsp;            writeInstant(instant);</b>
+<i>633</i>&nbsp;        }
+<b class="nc"><i>634</i>&nbsp;    }</b>
+<i>635</i>&nbsp;
+<i>636</i>&nbsp;    private static final Map&lt;Class&lt;?&gt;, Writer&gt; WRITERS;
+<i>637</i>&nbsp;
+<i>638</i>&nbsp;    static {
+<b class="fc"><i>639</i>&nbsp;        Map&lt;Class&lt;?&gt;, Writer&gt; writers = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>640</i>&nbsp;        writers.put(String.class, (o, v) -&gt; {</b>
+<b class="fc"><i>641</i>&nbsp;            o.writeByte((byte) 0);</b>
+<b class="fc"><i>642</i>&nbsp;            o.writeString((String) v);</b>
+<b class="fc"><i>643</i>&nbsp;        });</b>
+<b class="fc"><i>644</i>&nbsp;        writers.put(Integer.class, (o, v) -&gt; {</b>
+<b class="nc"><i>645</i>&nbsp;            o.writeByte((byte) 1);</b>
+<b class="nc"><i>646</i>&nbsp;            o.writeInt((Integer) v);</b>
+<b class="nc"><i>647</i>&nbsp;        });</b>
+<b class="fc"><i>648</i>&nbsp;        writers.put(Long.class, (o, v) -&gt; {</b>
+<b class="nc"><i>649</i>&nbsp;            o.writeByte((byte) 2);</b>
+<b class="nc"><i>650</i>&nbsp;            o.writeLong((Long) v);</b>
+<b class="nc"><i>651</i>&nbsp;        });</b>
+<b class="fc"><i>652</i>&nbsp;        writers.put(Float.class, (o, v) -&gt; {</b>
+<b class="nc"><i>653</i>&nbsp;            o.writeByte((byte) 3);</b>
+<b class="nc"><i>654</i>&nbsp;            o.writeFloat((float) v);</b>
+<b class="nc"><i>655</i>&nbsp;        });</b>
+<b class="fc"><i>656</i>&nbsp;        writers.put(Double.class, (o, v) -&gt; {</b>
+<b class="nc"><i>657</i>&nbsp;            o.writeByte((byte) 4);</b>
+<b class="nc"><i>658</i>&nbsp;            o.writeDouble((double) v);</b>
+<b class="nc"><i>659</i>&nbsp;        });</b>
+<b class="fc"><i>660</i>&nbsp;        writers.put(Boolean.class, (o, v) -&gt; {</b>
+<b class="nc"><i>661</i>&nbsp;            o.writeByte((byte) 5);</b>
+<b class="nc"><i>662</i>&nbsp;            o.writeBoolean((boolean) v);</b>
+<b class="nc"><i>663</i>&nbsp;        });</b>
+<b class="fc"><i>664</i>&nbsp;        writers.put(byte[].class, (o, v) -&gt; {</b>
+<b class="nc"><i>665</i>&nbsp;            o.writeByte((byte) 6);</b>
+<b class="nc"><i>666</i>&nbsp;            final byte[] bytes = (byte[]) v;</b>
+<b class="nc"><i>667</i>&nbsp;            o.writeVInt(bytes.length);</b>
+<b class="nc"><i>668</i>&nbsp;            o.writeBytes(bytes);</b>
+<b class="nc"><i>669</i>&nbsp;        });</b>
+<b class="fc"><i>670</i>&nbsp;        writers.put(List.class, (o, v) -&gt; {</b>
+<b class="nc"><i>671</i>&nbsp;            o.writeByte((byte) 7);</b>
+<b class="nc"><i>672</i>&nbsp;            final List list = (List) v;</b>
+<b class="nc"><i>673</i>&nbsp;            o.writeVInt(list.size());</b>
+<b class="nc"><i>674</i>&nbsp;            for (Object item : list) {</b>
+<b class="nc"><i>675</i>&nbsp;                o.writeGenericValue(item);</b>
+<b class="nc"><i>676</i>&nbsp;            }</b>
+<b class="nc"><i>677</i>&nbsp;        });</b>
+<b class="fc"><i>678</i>&nbsp;        writers.put(Object[].class, (o, v) -&gt; {</b>
+<b class="nc"><i>679</i>&nbsp;            o.writeByte((byte) 8);</b>
+<b class="nc"><i>680</i>&nbsp;            final Object[] list = (Object[]) v;</b>
+<b class="nc"><i>681</i>&nbsp;            o.writeVInt(list.length);</b>
+<b class="nc"><i>682</i>&nbsp;            for (Object item : list) {</b>
+<b class="nc"><i>683</i>&nbsp;                o.writeGenericValue(item);</b>
+<i>684</i>&nbsp;            }
+<b class="nc"><i>685</i>&nbsp;        });</b>
+<b class="fc"><i>686</i>&nbsp;        writers.put(Map.class, (o, v) -&gt; {</b>
+<b class="fc"><i>687</i>&nbsp;            if (v instanceof LinkedHashMap) {</b>
+<b class="nc"><i>688</i>&nbsp;                o.writeByte((byte) 9);</b>
+<i>689</i>&nbsp;            } else {
+<b class="fc"><i>690</i>&nbsp;                o.writeByte((byte) 10);</b>
+<i>691</i>&nbsp;            }
+<i>692</i>&nbsp;            @SuppressWarnings(&quot;unchecked&quot;)
+<b class="fc"><i>693</i>&nbsp;            final Map&lt;String, Object&gt; map = (Map&lt;String, Object&gt;) v;</b>
+<b class="fc"><i>694</i>&nbsp;            o.writeVInt(map.size());</b>
+<b class="fc"><i>695</i>&nbsp;            for (Map.Entry&lt;String, Object&gt; entry : map.entrySet()) {</b>
+<b class="fc"><i>696</i>&nbsp;                o.writeString(entry.getKey());</b>
+<b class="fc"><i>697</i>&nbsp;                o.writeGenericValue(entry.getValue());</b>
+<b class="fc"><i>698</i>&nbsp;            }</b>
+<b class="fc"><i>699</i>&nbsp;        });</b>
+<b class="fc"><i>700</i>&nbsp;        writers.put(Byte.class, (o, v) -&gt; {</b>
+<b class="nc"><i>701</i>&nbsp;            o.writeByte((byte) 11);</b>
+<b class="nc"><i>702</i>&nbsp;            o.writeByte((Byte) v);</b>
+<b class="nc"><i>703</i>&nbsp;        });</b>
+<b class="fc"><i>704</i>&nbsp;        writers.put(Date.class, (o, v) -&gt; {</b>
+<b class="nc"><i>705</i>&nbsp;            o.writeByte((byte) 12);</b>
+<b class="nc"><i>706</i>&nbsp;            o.writeLong(((Date) v).getTime());</b>
+<b class="nc"><i>707</i>&nbsp;        });</b>
+<b class="fc"><i>708</i>&nbsp;        writers.put(ReadableInstant.class, (o, v) -&gt; {</b>
+<b class="nc"><i>709</i>&nbsp;            o.writeByte((byte) 13);</b>
+<b class="nc"><i>710</i>&nbsp;            final ReadableInstant instant = (ReadableInstant) v;</b>
+<b class="nc"><i>711</i>&nbsp;            o.writeString(instant.getZone().getID());</b>
+<b class="nc"><i>712</i>&nbsp;            o.writeLong(instant.getMillis());</b>
+<b class="nc"><i>713</i>&nbsp;        });</b>
+<b class="fc"><i>714</i>&nbsp;        writers.put(BytesReference.class, (o, v) -&gt; {</b>
+<b class="nc"><i>715</i>&nbsp;            o.writeByte((byte) 14);</b>
+<b class="nc"><i>716</i>&nbsp;            o.writeBytesReference((BytesReference) v);</b>
+<b class="nc"><i>717</i>&nbsp;        });</b>
+<b class="fc"><i>718</i>&nbsp;        writers.put(Text.class, (o, v) -&gt; {</b>
+<b class="nc"><i>719</i>&nbsp;            o.writeByte((byte) 15);</b>
+<b class="nc"><i>720</i>&nbsp;            o.writeText((Text) v);</b>
+<b class="nc"><i>721</i>&nbsp;        });</b>
+<b class="fc"><i>722</i>&nbsp;        writers.put(Short.class, (o, v) -&gt; {</b>
+<b class="nc"><i>723</i>&nbsp;            o.writeByte((byte) 16);</b>
+<b class="nc"><i>724</i>&nbsp;            o.writeShort((Short) v);</b>
+<b class="nc"><i>725</i>&nbsp;        });</b>
+<b class="fc"><i>726</i>&nbsp;        writers.put(int[].class, (o, v) -&gt; {</b>
+<b class="nc"><i>727</i>&nbsp;            o.writeByte((byte) 17);</b>
+<b class="nc"><i>728</i>&nbsp;            o.writeIntArray((int[]) v);</b>
+<b class="nc"><i>729</i>&nbsp;        });</b>
+<b class="fc"><i>730</i>&nbsp;        writers.put(long[].class, (o, v) -&gt; {</b>
+<b class="nc"><i>731</i>&nbsp;            o.writeByte((byte) 18);</b>
+<b class="nc"><i>732</i>&nbsp;            o.writeLongArray((long[]) v);</b>
+<b class="nc"><i>733</i>&nbsp;        });</b>
+<b class="fc"><i>734</i>&nbsp;        writers.put(float[].class, (o, v) -&gt; {</b>
+<b class="nc"><i>735</i>&nbsp;            o.writeByte((byte) 19);</b>
+<b class="nc"><i>736</i>&nbsp;            o.writeFloatArray((float[]) v);</b>
+<b class="nc"><i>737</i>&nbsp;        });</b>
+<b class="fc"><i>738</i>&nbsp;        writers.put(double[].class, (o, v) -&gt; {</b>
+<b class="nc"><i>739</i>&nbsp;            o.writeByte((byte) 20);</b>
+<b class="nc"><i>740</i>&nbsp;            o.writeDoubleArray((double[]) v);</b>
+<b class="nc"><i>741</i>&nbsp;        });</b>
+<b class="fc"><i>742</i>&nbsp;        writers.put(BytesRef.class, (o, v) -&gt; {</b>
+<b class="nc"><i>743</i>&nbsp;            o.writeByte((byte) 21);</b>
+<b class="nc"><i>744</i>&nbsp;            o.writeBytesRef((BytesRef) v);</b>
+<b class="nc"><i>745</i>&nbsp;        });</b>
+<b class="fc"><i>746</i>&nbsp;        writers.put(GeoPoint.class, (o, v) -&gt; {</b>
+<b class="nc"><i>747</i>&nbsp;            o.writeByte((byte) 22);</b>
+<b class="nc"><i>748</i>&nbsp;            o.writeGeoPoint((GeoPoint) v);</b>
+<b class="nc"><i>749</i>&nbsp;        });</b>
+<b class="fc"><i>750</i>&nbsp;        writers.put(ZonedDateTime.class, (o, v) -&gt; {</b>
+<b class="nc"><i>751</i>&nbsp;            o.writeByte((byte) 23);</b>
+<b class="nc"><i>752</i>&nbsp;            final ZonedDateTime zonedDateTime = (ZonedDateTime) v;</b>
+<b class="nc"><i>753</i>&nbsp;            o.writeString(zonedDateTime.getZone().getId());</b>
+<b class="nc"><i>754</i>&nbsp;            o.writeLong(zonedDateTime.toInstant().toEpochMilli());</b>
+<b class="nc"><i>755</i>&nbsp;        });</b>
+<b class="fc"><i>756</i>&nbsp;        writers.put(JodaCompatibleZonedDateTime.class, (o, v) -&gt; {</b>
+<i>757</i>&nbsp;            // write the joda compatibility datetime as joda datetime
+<b class="nc"><i>758</i>&nbsp;            o.writeByte((byte) 13);</b>
+<b class="nc"><i>759</i>&nbsp;            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;</b>
+<b class="nc"><i>760</i>&nbsp;            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();</b>
+<i>761</i>&nbsp;            // joda does not understand &quot;Z&quot; for utc, so we must special case
+<b class="nc"><i>762</i>&nbsp;            o.writeString(zoneId.equals(&quot;Z&quot;) ? DateTimeZone.UTC.getID() : zoneId);</b>
+<b class="nc"><i>763</i>&nbsp;            o.writeLong(zonedDateTime.toInstant().toEpochMilli());</b>
+<b class="nc"><i>764</i>&nbsp;        });</b>
+<b class="fc"><i>765</i>&nbsp;        WRITERS = Collections.unmodifiableMap(writers);</b>
+<b class="fc"><i>766</i>&nbsp;    }</b>
+<i>767</i>&nbsp;
+<i>768</i>&nbsp;    /**
+<i>769</i>&nbsp;     * Notice: when serialization a map, the stream out map with the stream in map maybe have the
+<i>770</i>&nbsp;     * different key-value orders, they will maybe have different stream order.
+<i>771</i>&nbsp;     * If want to keep stream out map and stream in map have the same stream order when stream,
+<i>772</i>&nbsp;     * can use {@code writeMapWithConsistentOrder}
+<i>773</i>&nbsp;     */
+<i>774</i>&nbsp;    public void writeGenericValue(@Nullable Object value) throws IOException {
+<b class="fc"><i>775</i>&nbsp;        if (value == null) {</b>
+<b class="fc"><i>776</i>&nbsp;            writeByte((byte) -1);</b>
+<b class="fc"><i>777</i>&nbsp;            return;</b>
+<i>778</i>&nbsp;        }
+<i>779</i>&nbsp;        final Class type;
+<b class="fc"><i>780</i>&nbsp;        if (value instanceof List) {</b>
+<b class="nc"><i>781</i>&nbsp;            type = List.class;</b>
+<b class="fc"><i>782</i>&nbsp;        } else if (value instanceof Object[]) {</b>
+<b class="nc"><i>783</i>&nbsp;            type = Object[].class;</b>
+<b class="fc"><i>784</i>&nbsp;        } else if (value instanceof Map) {</b>
+<b class="fc"><i>785</i>&nbsp;            type = Map.class;</b>
+<b class="fc"><i>786</i>&nbsp;        } else if (value instanceof ReadableInstant) {</b>
+<b class="nc"><i>787</i>&nbsp;            type = ReadableInstant.class;</b>
+<b class="fc"><i>788</i>&nbsp;        } else if (value instanceof BytesReference) {</b>
+<b class="nc"><i>789</i>&nbsp;            type = BytesReference.class;</b>
+<i>790</i>&nbsp;        } else {
+<b class="fc"><i>791</i>&nbsp;            type = value.getClass();</b>
+<i>792</i>&nbsp;        }
+<b class="fc"><i>793</i>&nbsp;        final Writer writer = WRITERS.get(type);</b>
+<b class="fc"><i>794</i>&nbsp;        if (writer != null) {</b>
+<b class="fc"><i>795</i>&nbsp;            writer.write(this, value);</b>
+<i>796</i>&nbsp;        } else {
+<b class="nc"><i>797</i>&nbsp;            throw new IOException(&quot;can not write type [&quot; + type + &quot;]&quot;);</b>
+<i>798</i>&nbsp;        }
+<b class="fc"><i>799</i>&nbsp;    }</b>
+<i>800</i>&nbsp;
+<i>801</i>&nbsp;    public void writeIntArray(int[] values) throws IOException {
+<b class="nc"><i>802</i>&nbsp;        writeVInt(values.length);</b>
+<b class="nc"><i>803</i>&nbsp;        for (int value : values) {</b>
+<b class="nc"><i>804</i>&nbsp;            writeInt(value);</b>
+<i>805</i>&nbsp;        }
+<b class="nc"><i>806</i>&nbsp;    }</b>
+<i>807</i>&nbsp;
+<i>808</i>&nbsp;    public void writeVIntArray(int[] values) throws IOException {
+<b class="nc"><i>809</i>&nbsp;        writeVInt(values.length);</b>
+<b class="nc"><i>810</i>&nbsp;        for (int value : values) {</b>
+<b class="nc"><i>811</i>&nbsp;            writeVInt(value);</b>
+<i>812</i>&nbsp;        }
+<b class="nc"><i>813</i>&nbsp;    }</b>
+<i>814</i>&nbsp;
+<i>815</i>&nbsp;    public void writeLongArray(long[] values) throws IOException {
+<b class="nc"><i>816</i>&nbsp;        writeVInt(values.length);</b>
+<b class="nc"><i>817</i>&nbsp;        for (long value : values) {</b>
+<b class="nc"><i>818</i>&nbsp;            writeLong(value);</b>
+<i>819</i>&nbsp;        }
+<b class="nc"><i>820</i>&nbsp;    }</b>
+<i>821</i>&nbsp;
+<i>822</i>&nbsp;    public void writeVLongArray(long[] values) throws IOException {
+<b class="fc"><i>823</i>&nbsp;        writeVInt(values.length);</b>
+<b class="fc"><i>824</i>&nbsp;        for (long value : values) {</b>
+<b class="fc"><i>825</i>&nbsp;            writeVLong(value);</b>
+<i>826</i>&nbsp;        }
+<b class="fc"><i>827</i>&nbsp;    }</b>
+<i>828</i>&nbsp;
+<i>829</i>&nbsp;    public void writeFloatArray(float[] values) throws IOException {
+<b class="nc"><i>830</i>&nbsp;        writeVInt(values.length);</b>
+<b class="nc"><i>831</i>&nbsp;        for (float value : values) {</b>
+<b class="nc"><i>832</i>&nbsp;            writeFloat(value);</b>
+<i>833</i>&nbsp;        }
+<b class="nc"><i>834</i>&nbsp;    }</b>
+<i>835</i>&nbsp;
+<i>836</i>&nbsp;    public void writeDoubleArray(double[] values) throws IOException {
+<b class="nc"><i>837</i>&nbsp;        writeVInt(values.length);</b>
+<b class="nc"><i>838</i>&nbsp;        for (double value : values) {</b>
+<b class="nc"><i>839</i>&nbsp;            writeDouble(value);</b>
+<i>840</i>&nbsp;        }
+<b class="nc"><i>841</i>&nbsp;    }</b>
+<i>842</i>&nbsp;
+<i>843</i>&nbsp;    /**
+<i>844</i>&nbsp;     * Writes the specified array to the stream using the specified {@link Writer} for each element in the array. This method can be seen as
+<i>845</i>&nbsp;     * writer version of {@link StreamInput#readArray(Writeable.Reader, IntFunction)}. The length of array encoded as a variable-length
+<i>846</i>&nbsp;     * integer is first written to the stream, and then the elements of the array are written to the stream.
+<i>847</i>&nbsp;     *
+<i>848</i>&nbsp;     * @param writer the writer used to write individual elements
+<i>849</i>&nbsp;     * @param array  the array
+<i>850</i>&nbsp;     * @param &lt;T&gt;    the type of the elements of the array
+<i>851</i>&nbsp;     * @throws IOException if an I/O exception occurs while writing the array
+<i>852</i>&nbsp;     */
+<i>853</i>&nbsp;    public &lt;T&gt; void writeArray(final Writer&lt;T&gt; writer, final T[] array) throws IOException {
+<b class="nc"><i>854</i>&nbsp;        writeVInt(array.length);</b>
+<b class="nc"><i>855</i>&nbsp;        for (T value : array) {</b>
+<b class="nc"><i>856</i>&nbsp;            writer.write(this, value);</b>
+<i>857</i>&nbsp;        }
+<b class="nc"><i>858</i>&nbsp;    }</b>
+<i>859</i>&nbsp;
+<i>860</i>&nbsp;    /**
+<i>861</i>&nbsp;     * Same as {@link #writeArray(Writer, Object[])} but the provided array may be null. An additional boolean value is
+<i>862</i>&nbsp;     * serialized to indicate whether the array was null or not.
+<i>863</i>&nbsp;     */
+<i>864</i>&nbsp;    public &lt;T&gt; void writeOptionalArray(final Writer&lt;T&gt; writer, final @Nullable T[] array) throws IOException {
+<b class="nc"><i>865</i>&nbsp;        if (array == null) {</b>
+<b class="nc"><i>866</i>&nbsp;            writeBoolean(false);</b>
+<i>867</i>&nbsp;        } else {
+<b class="nc"><i>868</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>869</i>&nbsp;            writeArray(writer, array);</b>
+<i>870</i>&nbsp;        }
+<b class="nc"><i>871</i>&nbsp;    }</b>
+<i>872</i>&nbsp;
+<i>873</i>&nbsp;    /**
+<i>874</i>&nbsp;     * Writes the specified array of {@link Writeable}s. This method can be seen as
+<i>875</i>&nbsp;     * writer version of {@link StreamInput#readArray(Writeable.Reader, IntFunction)}. The length of array encoded as a variable-length
+<i>876</i>&nbsp;     * integer is first written to the stream, and then the elements of the array are written to the stream.
+<i>877</i>&nbsp;     */
+<i>878</i>&nbsp;    public &lt;T extends Writeable&gt; void writeArray(T[] array) throws IOException {
+<b class="nc"><i>879</i>&nbsp;        writeArray((out, value) -&gt; value.writeTo(out), array);</b>
+<b class="nc"><i>880</i>&nbsp;    }</b>
+<i>881</i>&nbsp;
+<i>882</i>&nbsp;    /**
+<i>883</i>&nbsp;     * Same as {@link #writeArray(Writeable[])} but the provided array may be null. An additional boolean value is
+<i>884</i>&nbsp;     * serialized to indicate whether the array was null or not.
+<i>885</i>&nbsp;     */
+<i>886</i>&nbsp;    public &lt;T extends Writeable&gt; void writeOptionalArray(@Nullable T[] array) throws IOException {
+<b class="nc"><i>887</i>&nbsp;        writeOptionalArray((out, value) -&gt; value.writeTo(out), array);</b>
+<b class="nc"><i>888</i>&nbsp;    }</b>
+<i>889</i>&nbsp;
+<i>890</i>&nbsp;    public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
+<b class="fc"><i>891</i>&nbsp;        if (writeable != null) {</b>
+<b class="fc"><i>892</i>&nbsp;            writeBoolean(true);</b>
+<b class="fc"><i>893</i>&nbsp;            writeable.writeTo(this);</b>
+<i>894</i>&nbsp;        } else {
+<b class="fc"><i>895</i>&nbsp;            writeBoolean(false);</b>
+<i>896</i>&nbsp;        }
+<b class="fc"><i>897</i>&nbsp;    }</b>
+<i>898</i>&nbsp;
+<i>899</i>&nbsp;    public void writeException(Throwable throwable) throws IOException {
+<b class="fc"><i>900</i>&nbsp;        if (throwable == null) {</b>
+<b class="fc"><i>901</i>&nbsp;            writeBoolean(false);</b>
+<i>902</i>&nbsp;        } else {
+<b class="nc"><i>903</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>904</i>&nbsp;            boolean writeCause = true;</b>
+<b class="nc"><i>905</i>&nbsp;            boolean writeMessage = true;</b>
+<b class="nc"><i>906</i>&nbsp;            if (throwable instanceof CorruptIndexException) {</b>
+<b class="nc"><i>907</i>&nbsp;                writeVInt(1);</b>
+<b class="nc"><i>908</i>&nbsp;                writeOptionalString(((CorruptIndexException)throwable).getOriginalMessage());</b>
+<b class="nc"><i>909</i>&nbsp;                writeOptionalString(((CorruptIndexException)throwable).getResourceDescription());</b>
+<b class="nc"><i>910</i>&nbsp;                writeMessage = false;</b>
+<b class="nc"><i>911</i>&nbsp;            } else if (throwable instanceof IndexFormatTooNewException) {</b>
+<b class="nc"><i>912</i>&nbsp;                writeVInt(2);</b>
+<b class="nc"><i>913</i>&nbsp;                writeOptionalString(((IndexFormatTooNewException)throwable).getResourceDescription());</b>
+<b class="nc"><i>914</i>&nbsp;                writeInt(((IndexFormatTooNewException)throwable).getVersion());</b>
+<b class="nc"><i>915</i>&nbsp;                writeInt(((IndexFormatTooNewException)throwable).getMinVersion());</b>
+<b class="nc"><i>916</i>&nbsp;                writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());</b>
+<b class="nc"><i>917</i>&nbsp;                writeMessage = false;</b>
+<b class="nc"><i>918</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>919</i>&nbsp;            } else if (throwable instanceof IndexFormatTooOldException) {</b>
+<b class="nc"><i>920</i>&nbsp;                writeVInt(3);</b>
+<b class="nc"><i>921</i>&nbsp;                IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;</b>
+<b class="nc"><i>922</i>&nbsp;                writeOptionalString(t.getResourceDescription());</b>
+<b class="nc"><i>923</i>&nbsp;                if (t.getVersion() == null) {</b>
+<b class="nc"><i>924</i>&nbsp;                    writeBoolean(false);</b>
+<b class="nc"><i>925</i>&nbsp;                    writeOptionalString(t.getReason());</b>
+<i>926</i>&nbsp;                } else {
+<b class="nc"><i>927</i>&nbsp;                    writeBoolean(true);</b>
+<b class="nc"><i>928</i>&nbsp;                    writeInt(t.getVersion());</b>
+<b class="nc"><i>929</i>&nbsp;                    writeInt(t.getMinVersion());</b>
+<b class="nc"><i>930</i>&nbsp;                    writeInt(t.getMaxVersion());</b>
+<i>931</i>&nbsp;                }
+<b class="nc"><i>932</i>&nbsp;                writeMessage = false;</b>
+<b class="nc"><i>933</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>934</i>&nbsp;            } else if (throwable instanceof NullPointerException) {</b>
+<b class="nc"><i>935</i>&nbsp;                writeVInt(4);</b>
+<b class="nc"><i>936</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>937</i>&nbsp;            } else if (throwable instanceof NumberFormatException) {</b>
+<b class="nc"><i>938</i>&nbsp;                writeVInt(5);</b>
+<b class="nc"><i>939</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>940</i>&nbsp;            } else if (throwable instanceof IllegalArgumentException) {</b>
+<b class="nc"><i>941</i>&nbsp;                writeVInt(6);</b>
+<b class="nc"><i>942</i>&nbsp;            } else if (throwable instanceof AlreadyClosedException) {</b>
+<b class="nc"><i>943</i>&nbsp;                writeVInt(7);</b>
+<b class="nc"><i>944</i>&nbsp;            } else if (throwable instanceof EOFException) {</b>
+<b class="nc"><i>945</i>&nbsp;                writeVInt(8);</b>
+<b class="nc"><i>946</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>947</i>&nbsp;            } else if (throwable instanceof SecurityException) {</b>
+<b class="nc"><i>948</i>&nbsp;                writeVInt(9);</b>
+<b class="nc"><i>949</i>&nbsp;            } else if (throwable instanceof StringIndexOutOfBoundsException) {</b>
+<b class="nc"><i>950</i>&nbsp;                writeVInt(10);</b>
+<b class="nc"><i>951</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>952</i>&nbsp;            } else if (throwable instanceof ArrayIndexOutOfBoundsException) {</b>
+<b class="nc"><i>953</i>&nbsp;                writeVInt(11);</b>
+<b class="nc"><i>954</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>955</i>&nbsp;            } else if (throwable instanceof FileNotFoundException) {</b>
+<b class="nc"><i>956</i>&nbsp;                writeVInt(12);</b>
+<b class="nc"><i>957</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>958</i>&nbsp;            } else if (throwable instanceof FileSystemException) {</b>
+<b class="nc"><i>959</i>&nbsp;                writeVInt(13);</b>
+<b class="nc"><i>960</i>&nbsp;                if (throwable instanceof NoSuchFileException) {</b>
+<b class="nc"><i>961</i>&nbsp;                    writeVInt(0);</b>
+<b class="nc"><i>962</i>&nbsp;                } else if (throwable instanceof NotDirectoryException) {</b>
+<b class="nc"><i>963</i>&nbsp;                    writeVInt(1);</b>
+<b class="nc"><i>964</i>&nbsp;                } else if (throwable instanceof DirectoryNotEmptyException) {</b>
+<b class="nc"><i>965</i>&nbsp;                    writeVInt(2);</b>
+<b class="nc"><i>966</i>&nbsp;                } else if (throwable instanceof AtomicMoveNotSupportedException) {</b>
+<b class="nc"><i>967</i>&nbsp;                    writeVInt(3);</b>
+<b class="nc"><i>968</i>&nbsp;                } else if (throwable instanceof FileAlreadyExistsException) {</b>
+<b class="nc"><i>969</i>&nbsp;                    writeVInt(4);</b>
+<b class="nc"><i>970</i>&nbsp;                } else if (throwable instanceof AccessDeniedException) {</b>
+<b class="nc"><i>971</i>&nbsp;                    writeVInt(5);</b>
+<b class="nc"><i>972</i>&nbsp;                } else if (throwable instanceof FileSystemLoopException) {</b>
+<b class="nc"><i>973</i>&nbsp;                    writeVInt(6);</b>
+<i>974</i>&nbsp;                } else {
+<b class="nc"><i>975</i>&nbsp;                    writeVInt(7);</b>
+<i>976</i>&nbsp;                }
+<b class="nc"><i>977</i>&nbsp;                writeOptionalString(((FileSystemException) throwable).getFile());</b>
+<b class="nc"><i>978</i>&nbsp;                writeOptionalString(((FileSystemException) throwable).getOtherFile());</b>
+<b class="nc"><i>979</i>&nbsp;                writeOptionalString(((FileSystemException) throwable).getReason());</b>
+<b class="nc"><i>980</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>981</i>&nbsp;            } else if (throwable instanceof IllegalStateException) {</b>
+<b class="nc"><i>982</i>&nbsp;                writeVInt(14);</b>
+<b class="nc"><i>983</i>&nbsp;            } else if (throwable instanceof LockObtainFailedException) {</b>
+<b class="nc"><i>984</i>&nbsp;                writeVInt(15);</b>
+<b class="nc"><i>985</i>&nbsp;            } else if (throwable instanceof InterruptedException) {</b>
+<b class="nc"><i>986</i>&nbsp;                writeVInt(16);</b>
+<b class="nc"><i>987</i>&nbsp;                writeCause = false;</b>
+<b class="nc"><i>988</i>&nbsp;            } else if (throwable instanceof IOException) {</b>
+<b class="nc"><i>989</i>&nbsp;                writeVInt(17);</b>
+<b class="nc"><i>990</i>&nbsp;            } else if (throwable instanceof EsRejectedExecutionException) {</b>
+<b class="nc"><i>991</i>&nbsp;                writeVInt(18);</b>
+<b class="nc"><i>992</i>&nbsp;                writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());</b>
+<b class="nc"><i>993</i>&nbsp;                writeCause = false;</b>
+<i>994</i>&nbsp;            } else {
+<i>995</i>&nbsp;                final ElasticsearchException ex;
+<b class="nc"><i>996</i>&nbsp;                if (throwable instanceof ElasticsearchException &amp;&amp; ElasticsearchException.isRegistered(throwable.getClass(), version)) {</b>
+<b class="nc"><i>997</i>&nbsp;                    ex = (ElasticsearchException) throwable;</b>
+<i>998</i>&nbsp;                } else {
+<b class="nc"><i>999</i>&nbsp;                    ex = new NotSerializableExceptionWrapper(throwable);</b>
+<i>1000</i>&nbsp;                }
+<b class="nc"><i>1001</i>&nbsp;                writeVInt(0);</b>
+<b class="nc"><i>1002</i>&nbsp;                writeVInt(ElasticsearchException.getId(ex.getClass()));</b>
+<b class="nc"><i>1003</i>&nbsp;                ex.writeTo(this);</b>
+<b class="nc"><i>1004</i>&nbsp;                return;</b>
+<i>1005</i>&nbsp;            }
+<b class="nc"><i>1006</i>&nbsp;            if (writeMessage) {</b>
+<b class="nc"><i>1007</i>&nbsp;                writeOptionalString(throwable.getMessage());</b>
+<i>1008</i>&nbsp;            }
+<b class="nc"><i>1009</i>&nbsp;            if (writeCause) {</b>
+<b class="nc"><i>1010</i>&nbsp;                writeException(throwable.getCause());</b>
+<i>1011</i>&nbsp;            }
+<b class="nc"><i>1012</i>&nbsp;            ElasticsearchException.writeStackTraces(throwable, this);</b>
+<i>1013</i>&nbsp;        }
+<b class="fc"><i>1014</i>&nbsp;    }</b>
+<i>1015</i>&nbsp;
+<i>1016</i>&nbsp;    /**
+<i>1017</i>&nbsp;     * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
+<i>1018</i>&nbsp;     */
+<i>1019</i>&nbsp;    public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+<b class="fc"><i>1020</i>&nbsp;        writeString(namedWriteable.getWriteableName());</b>
+<b class="fc"><i>1021</i>&nbsp;        namedWriteable.writeTo(this);</b>
+<b class="fc"><i>1022</i>&nbsp;    }</b>
+<i>1023</i>&nbsp;
+<i>1024</i>&nbsp;    /**
+<i>1025</i>&nbsp;     * Write an optional {@link NamedWriteable} to the stream.
+<i>1026</i>&nbsp;     */
+<i>1027</i>&nbsp;    public void writeOptionalNamedWriteable(@Nullable NamedWriteable namedWriteable) throws IOException {
+<b class="fc"><i>1028</i>&nbsp;        if (namedWriteable == null) {</b>
+<b class="fc"><i>1029</i>&nbsp;            writeBoolean(false);</b>
+<i>1030</i>&nbsp;        } else {
+<b class="nc"><i>1031</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>1032</i>&nbsp;            writeNamedWriteable(namedWriteable);</b>
+<i>1033</i>&nbsp;        }
+<b class="fc"><i>1034</i>&nbsp;    }</b>
+<i>1035</i>&nbsp;
+<i>1036</i>&nbsp;    /**
+<i>1037</i>&nbsp;     * Writes the given {@link GeoPoint} to the stream
+<i>1038</i>&nbsp;     */
+<i>1039</i>&nbsp;    public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
+<b class="nc"><i>1040</i>&nbsp;        writeDouble(geoPoint.lat());</b>
+<b class="nc"><i>1041</i>&nbsp;        writeDouble(geoPoint.lon());</b>
+<b class="nc"><i>1042</i>&nbsp;    }</b>
+<i>1043</i>&nbsp;
+<i>1044</i>&nbsp;    /**
+<i>1045</i>&nbsp;     * Write a {@linkplain DateTimeZone} to the stream.
+<i>1046</i>&nbsp;     */
+<i>1047</i>&nbsp;    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
+<b class="nc"><i>1048</i>&nbsp;        writeString(timeZone.getID());</b>
+<b class="nc"><i>1049</i>&nbsp;    }</b>
+<i>1050</i>&nbsp;
+<i>1051</i>&nbsp;    /**
+<i>1052</i>&nbsp;     * Write a {@linkplain ZoneId} to the stream.
+<i>1053</i>&nbsp;     */
+<i>1054</i>&nbsp;    public void writeZoneId(ZoneId timeZone) throws IOException {
+<b class="nc"><i>1055</i>&nbsp;        writeString(timeZone.getId());</b>
+<b class="nc"><i>1056</i>&nbsp;    }</b>
+<i>1057</i>&nbsp;
+<i>1058</i>&nbsp;    /**
+<i>1059</i>&nbsp;     * Write an optional {@linkplain DateTimeZone} to the stream.
+<i>1060</i>&nbsp;     */
+<i>1061</i>&nbsp;    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
+<b class="nc"><i>1062</i>&nbsp;        if (timeZone == null) {</b>
+<b class="nc"><i>1063</i>&nbsp;            writeBoolean(false);</b>
+<i>1064</i>&nbsp;        } else {
+<b class="nc"><i>1065</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>1066</i>&nbsp;            writeTimeZone(timeZone);</b>
+<i>1067</i>&nbsp;        }
+<b class="nc"><i>1068</i>&nbsp;    }</b>
+<i>1069</i>&nbsp;
+<i>1070</i>&nbsp;    /**
+<i>1071</i>&nbsp;     * Write an optional {@linkplain ZoneId} to the stream.
+<i>1072</i>&nbsp;     */
+<i>1073</i>&nbsp;    public void writeOptionalZoneId(@Nullable ZoneId timeZone) throws IOException {
+<b class="fc"><i>1074</i>&nbsp;        if (timeZone == null) {</b>
+<b class="fc"><i>1075</i>&nbsp;            writeBoolean(false);</b>
+<i>1076</i>&nbsp;        } else {
+<b class="nc"><i>1077</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>1078</i>&nbsp;            writeZoneId(timeZone);</b>
+<i>1079</i>&nbsp;        }
+<b class="fc"><i>1080</i>&nbsp;    }</b>
+<i>1081</i>&nbsp;
+<i>1082</i>&nbsp;    /**
+<i>1083</i>&nbsp;     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
+<i>1084</i>&nbsp;     * {@link StreamInput#readList(Writeable.Reader)}.
+<i>1085</i>&nbsp;     *
+<i>1086</i>&nbsp;     * @param collection the collection to write to this stream
+<i>1087</i>&nbsp;     * @throws IOException if an I/O exception occurs writing the collection
+<i>1088</i>&nbsp;     */
+<i>1089</i>&nbsp;    public void writeCollection(final Collection&lt;? extends Writeable&gt; collection) throws IOException {
+<b class="fc"><i>1090</i>&nbsp;        writeCollection(collection, (o, v) -&gt; v.writeTo(o));</b>
+<b class="fc"><i>1091</i>&nbsp;    }</b>
+<i>1092</i>&nbsp;
+<i>1093</i>&nbsp;    /**
+<i>1094</i>&nbsp;     * Writes a list of {@link Writeable} objects
+<i>1095</i>&nbsp;     */
+<i>1096</i>&nbsp;    public void writeList(List&lt;? extends Writeable&gt; list) throws IOException {
+<b class="fc"><i>1097</i>&nbsp;        writeCollection(list);</b>
+<b class="fc"><i>1098</i>&nbsp;    }</b>
+<i>1099</i>&nbsp;
+<i>1100</i>&nbsp;    /**
+<i>1101</i>&nbsp;     * Writes a collection of objects via a {@link Writer}.
+<i>1102</i>&nbsp;     *
+<i>1103</i>&nbsp;     * @param collection the collection of objects
+<i>1104</i>&nbsp;     * @throws IOException if an I/O exception occurs writing the collection
+<i>1105</i>&nbsp;     */
+<i>1106</i>&nbsp;    public &lt;T&gt; void writeCollection(final Collection&lt;T&gt; collection, final Writer&lt;T&gt; writer) throws IOException {
+<b class="fc"><i>1107</i>&nbsp;        writeVInt(collection.size());</b>
+<b class="fc"><i>1108</i>&nbsp;        for (final T val: collection) {</b>
+<b class="fc"><i>1109</i>&nbsp;            writer.write(this, val);</b>
+<b class="fc"><i>1110</i>&nbsp;        }</b>
+<b class="fc"><i>1111</i>&nbsp;    }</b>
+<i>1112</i>&nbsp;
+<i>1113</i>&nbsp;    /**
+<i>1114</i>&nbsp;     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
+<i>1115</i>&nbsp;     * {@link StreamInput#readList(Writeable.Reader)}.
+<i>1116</i>&nbsp;     *
+<i>1117</i>&nbsp;     * @param collection the collection of strings
+<i>1118</i>&nbsp;     * @throws IOException if an I/O exception occurs writing the collection
+<i>1119</i>&nbsp;     */
+<i>1120</i>&nbsp;    public void writeStringCollection(final Collection&lt;String&gt; collection) throws IOException {
+<b class="fc"><i>1121</i>&nbsp;        writeCollection(collection, StreamOutput::writeString);</b>
+<b class="fc"><i>1122</i>&nbsp;    }</b>
+<i>1123</i>&nbsp;
+<i>1124</i>&nbsp;    /**
+<i>1125</i>&nbsp;     * Writes a list of {@link NamedWriteable} objects.
+<i>1126</i>&nbsp;     */
+<i>1127</i>&nbsp;    public void writeNamedWriteableList(List&lt;? extends NamedWriteable&gt; list) throws IOException {
+<b class="fc"><i>1128</i>&nbsp;        writeVInt(list.size());</b>
+<b class="fc"><i>1129</i>&nbsp;        for (NamedWriteable obj: list) {</b>
+<b class="fc"><i>1130</i>&nbsp;            writeNamedWriteable(obj);</b>
+<b class="fc"><i>1131</i>&nbsp;        }</b>
+<b class="fc"><i>1132</i>&nbsp;    }</b>
+<i>1133</i>&nbsp;
+<i>1134</i>&nbsp;    /**
+<i>1135</i>&nbsp;     * Writes an enum with type E based on its ordinal value
+<i>1136</i>&nbsp;     */
+<i>1137</i>&nbsp;    public &lt;E extends Enum&lt;E&gt;&gt; void writeEnum(E enumValue) throws IOException {
+<b class="fc"><i>1138</i>&nbsp;        writeVInt(enumValue.ordinal());</b>
+<b class="fc"><i>1139</i>&nbsp;    }</b>
+<i>1140</i>&nbsp;
+<i>1141</i>&nbsp;    /**
+<i>1142</i>&nbsp;     * Writes an EnumSet with type E that by serialized it based on it&#39;s ordinal value
+<i>1143</i>&nbsp;     */
+<i>1144</i>&nbsp;    public &lt;E extends Enum&lt;E&gt;&gt; void writeEnumSet(EnumSet&lt;E&gt; enumSet) throws IOException {
+<b class="nc"><i>1145</i>&nbsp;        writeVInt(enumSet.size());</b>
+<b class="nc"><i>1146</i>&nbsp;        for (E e : enumSet) {</b>
+<b class="nc"><i>1147</i>&nbsp;            writeEnum(e);</b>
+<b class="nc"><i>1148</i>&nbsp;        }</b>
+<b class="nc"><i>1149</i>&nbsp;    }</b>
+<i>1150</i>&nbsp;
+<i>1151</i>&nbsp;    /**
+<i>1152</i>&nbsp;     * Write a {@link TimeValue} to the stream
+<i>1153</i>&nbsp;     */
+<i>1154</i>&nbsp;    public void writeTimeValue(TimeValue timeValue) throws IOException {
+<b class="nc"><i>1155</i>&nbsp;        writeZLong(timeValue.duration());</b>
+<b class="nc"><i>1156</i>&nbsp;        writeByte(TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit()));</b>
+<b class="nc"><i>1157</i>&nbsp;    }</b>
+<i>1158</i>&nbsp;
+<i>1159</i>&nbsp;    /**
+<i>1160</i>&nbsp;     * Write an optional {@link TimeValue} to the stream.
+<i>1161</i>&nbsp;     */
+<i>1162</i>&nbsp;    public void writeOptionalTimeValue(@Nullable TimeValue timeValue) throws IOException {
+<b class="nc"><i>1163</i>&nbsp;        if (timeValue == null) {</b>
+<b class="nc"><i>1164</i>&nbsp;            writeBoolean(false);</b>
+<i>1165</i>&nbsp;        } else {
+<b class="nc"><i>1166</i>&nbsp;            writeBoolean(true);</b>
+<b class="nc"><i>1167</i>&nbsp;            writeTimeValue(timeValue);</b>
+<i>1168</i>&nbsp;        }
+<b class="nc"><i>1169</i>&nbsp;    }</b>
+<i>1170</i>&nbsp;
+<i>1171</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

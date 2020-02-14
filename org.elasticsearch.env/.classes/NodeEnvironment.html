@@ -1,0 +1,1427 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: NodeEnvironment</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.env</a> ]
+</div>
+
+<h1>Coverage Summary for Class: NodeEnvironment (org.elasticsearch.env)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">NodeEnvironment</td>
+<td class="coverageStat">
+  <span class="percent">
+    63.2%
+  </span>
+  <span class="absValue">
+    (36/ 57)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    51.9%
+  </span>
+  <span class="absValue">
+    (233/ 449)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">NodeEnvironment$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (2/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (4/ 4)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">NodeEnvironment$InternalShardLock</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (6/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    82.4%
+  </span>
+  <span class="absValue">
+    (28/ 34)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">NodeEnvironment$NodeLock</td>
+<td class="coverageStat">
+  <span class="percent">
+    40%
+  </span>
+  <span class="absValue">
+    (2/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    56.2%
+  </span>
+  <span class="absValue">
+    (18/ 32)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">NodeEnvironment$NodePath</td>
+<td class="coverageStat">
+  <span class="percent">
+    80%
+  </span>
+  <span class="absValue">
+    (4/ 5)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    78.6%
+  </span>
+  <span class="absValue">
+    (11/ 14)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (50/ 75)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    55.2%
+  </span>
+  <span class="absValue">
+    (294/ 533)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.env;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>25</i>&nbsp;import org.apache.lucene.index.IndexWriter;
+<i>26</i>&nbsp;import org.apache.lucene.index.SegmentInfos;
+<i>27</i>&nbsp;import org.apache.lucene.store.Directory;
+<i>28</i>&nbsp;import org.apache.lucene.store.FSDirectory;
+<i>29</i>&nbsp;import org.apache.lucene.store.Lock;
+<i>30</i>&nbsp;import org.apache.lucene.store.LockObtainFailedException;
+<i>31</i>&nbsp;import org.apache.lucene.store.NativeFSLockFactory;
+<i>32</i>&nbsp;import org.apache.lucene.store.SimpleFSDirectory;
+<i>33</i>&nbsp;import org.elasticsearch.ElasticsearchException;
+<i>34</i>&nbsp;import org.elasticsearch.Version;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>36</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>37</i>&nbsp;import org.elasticsearch.common.CheckedFunction;
+<i>38</i>&nbsp;import org.elasticsearch.common.Randomness;
+<i>39</i>&nbsp;import org.elasticsearch.common.SuppressForbidden;
+<i>40</i>&nbsp;import org.elasticsearch.common.UUIDs;
+<i>41</i>&nbsp;import org.elasticsearch.common.io.FileSystemUtils;
+<i>42</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>43</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>44</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>45</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>46</i>&nbsp;import org.elasticsearch.common.unit.ByteSizeValue;
+<i>47</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>48</i>&nbsp;import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+<i>49</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>50</i>&nbsp;import org.elasticsearch.gateway.MetaDataStateFormat;
+<i>51</i>&nbsp;import org.elasticsearch.index.Index;
+<i>52</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>53</i>&nbsp;import org.elasticsearch.index.shard.ShardId;
+<i>54</i>&nbsp;import org.elasticsearch.index.shard.ShardPath;
+<i>55</i>&nbsp;import org.elasticsearch.index.store.FsDirectoryFactory;
+<i>56</i>&nbsp;import org.elasticsearch.monitor.fs.FsInfo;
+<i>57</i>&nbsp;import org.elasticsearch.monitor.fs.FsProbe;
+<i>58</i>&nbsp;import org.elasticsearch.monitor.jvm.JvmInfo;
+<i>59</i>&nbsp;import org.elasticsearch.node.Node;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;import java.io.Closeable;
+<i>62</i>&nbsp;import java.io.IOException;
+<i>63</i>&nbsp;import java.io.UncheckedIOException;
+<i>64</i>&nbsp;import java.nio.file.AtomicMoveNotSupportedException;
+<i>65</i>&nbsp;import java.nio.file.DirectoryStream;
+<i>66</i>&nbsp;import java.nio.file.FileStore;
+<i>67</i>&nbsp;import java.nio.file.Files;
+<i>68</i>&nbsp;import java.nio.file.Path;
+<i>69</i>&nbsp;import java.nio.file.StandardCopyOption;
+<i>70</i>&nbsp;import java.util.ArrayList;
+<i>71</i>&nbsp;import java.util.Arrays;
+<i>72</i>&nbsp;import java.util.Collection;
+<i>73</i>&nbsp;import java.util.Collections;
+<i>74</i>&nbsp;import java.util.HashMap;
+<i>75</i>&nbsp;import java.util.HashSet;
+<i>76</i>&nbsp;import java.util.Iterator;
+<i>77</i>&nbsp;import java.util.List;
+<i>78</i>&nbsp;import java.util.Locale;
+<i>79</i>&nbsp;import java.util.Map;
+<i>80</i>&nbsp;import java.util.Random;
+<i>81</i>&nbsp;import java.util.Set;
+<i>82</i>&nbsp;import java.util.concurrent.Semaphore;
+<i>83</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>84</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>85</i>&nbsp;import java.util.concurrent.atomic.AtomicReference;
+<i>86</i>&nbsp;import java.util.function.Predicate;
+<i>87</i>&nbsp;import java.util.stream.Collectors;
+<i>88</i>&nbsp;import java.util.stream.Stream;
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;import static java.util.Collections.unmodifiableSet;
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;/**
+<i>93</i>&nbsp; * A component that holds all data paths for a single node.
+<i>94</i>&nbsp; */
+<b class="fc"><i>95</i>&nbsp;public final class NodeEnvironment  implements Closeable {</b>
+<i>96</i>&nbsp;    public static class NodePath {
+<i>97</i>&nbsp;        /* ${data.paths}/nodes/{node.id} */
+<i>98</i>&nbsp;        public final Path path;
+<i>99</i>&nbsp;        /* ${data.paths}/nodes/{node.id}/indices */
+<i>100</i>&nbsp;        public final Path indicesPath;
+<i>101</i>&nbsp;        /** Cached FileStore from path */
+<i>102</i>&nbsp;        public final FileStore fileStore;
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;        public final int majorDeviceNumber;
+<i>105</i>&nbsp;        public final int minorDeviceNumber;
+<i>106</i>&nbsp;
+<b class="fc"><i>107</i>&nbsp;        public NodePath(Path path) throws IOException {</b>
+<b class="fc"><i>108</i>&nbsp;            this.path = path;</b>
+<b class="fc"><i>109</i>&nbsp;            this.indicesPath = path.resolve(INDICES_FOLDER);</b>
+<b class="fc"><i>110</i>&nbsp;            this.fileStore = Environment.getFileStore(path);</b>
+<b class="fc"><i>111</i>&nbsp;            if (fileStore.supportsFileAttributeView(&quot;lucene&quot;)) {</b>
+<b class="fc"><i>112</i>&nbsp;                this.majorDeviceNumber = (int) fileStore.getAttribute(&quot;lucene:major_device_number&quot;);</b>
+<b class="fc"><i>113</i>&nbsp;                this.minorDeviceNumber = (int) fileStore.getAttribute(&quot;lucene:minor_device_number&quot;);</b>
+<i>114</i>&nbsp;            } else {
+<b class="nc"><i>115</i>&nbsp;                this.majorDeviceNumber = -1;</b>
+<b class="nc"><i>116</i>&nbsp;                this.minorDeviceNumber = -1;</b>
+<i>117</i>&nbsp;            }
+<b class="fc"><i>118</i>&nbsp;        }</b>
+<i>119</i>&nbsp;
+<i>120</i>&nbsp;        /**
+<i>121</i>&nbsp;         * Resolves the given shards directory against this NodePath
+<i>122</i>&nbsp;         * ${data.paths}/nodes/{node.id}/indices/{index.uuid}/{shard.id}
+<i>123</i>&nbsp;         */
+<i>124</i>&nbsp;        public Path resolve(ShardId shardId) {
+<b class="fc"><i>125</i>&nbsp;            return resolve(shardId.getIndex()).resolve(Integer.toString(shardId.id()));</b>
+<i>126</i>&nbsp;        }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;        /**
+<i>129</i>&nbsp;         * Resolves index directory against this NodePath
+<i>130</i>&nbsp;         * ${data.paths}/nodes/{node.id}/indices/{index.uuid}
+<i>131</i>&nbsp;         */
+<i>132</i>&nbsp;        public Path resolve(Index index) {
+<b class="fc"><i>133</i>&nbsp;            return resolve(index.getUUID());</b>
+<i>134</i>&nbsp;        }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;        Path resolve(String uuid) {
+<b class="fc"><i>137</i>&nbsp;            return indicesPath.resolve(uuid);</b>
+<i>138</i>&nbsp;        }
+<i>139</i>&nbsp;
+<i>140</i>&nbsp;        @Override
+<i>141</i>&nbsp;        public String toString() {
+<b class="nc"><i>142</i>&nbsp;            return &quot;NodePath{&quot; +</b>
+<i>143</i>&nbsp;                    &quot;path=&quot; + path +
+<i>144</i>&nbsp;                    &quot;, indicesPath=&quot; + indicesPath +
+<i>145</i>&nbsp;                    &quot;, fileStore=&quot; + fileStore +
+<i>146</i>&nbsp;                    &quot;, majorDeviceNumber=&quot; + majorDeviceNumber +
+<i>147</i>&nbsp;                    &quot;, minorDeviceNumber=&quot; + minorDeviceNumber +
+<i>148</i>&nbsp;                    &#39;}&#39;;
+<i>149</i>&nbsp;        }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;    }
+<i>152</i>&nbsp;
+<b class="fc"><i>153</i>&nbsp;    private final Logger logger = LogManager.getLogger(NodeEnvironment.class);</b>
+<i>154</i>&nbsp;    private final NodePath[] nodePaths;
+<i>155</i>&nbsp;    private final Path sharedDataPath;
+<i>156</i>&nbsp;    private final Lock[] locks;
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    private final int nodeLockId;
+<b class="fc"><i>159</i>&nbsp;    private final AtomicBoolean closed = new AtomicBoolean(false);</b>
+<b class="fc"><i>160</i>&nbsp;    private final Map&lt;ShardId, InternalShardLock&gt; shardLocks = new HashMap&lt;&gt;();</b>
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;    private final NodeMetaData nodeMetaData;
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    /**
+<i>165</i>&nbsp;     * Maximum number of data nodes that should run in an environment.
+<i>166</i>&nbsp;     */
+<b class="fc"><i>167</i>&nbsp;    public static final Setting&lt;Integer&gt; MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting(&quot;node.max_local_storage_nodes&quot;, 1, 1,</b>
+<i>168</i>&nbsp;        Property.NodeScope, Property.Deprecated);
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    /**
+<i>171</i>&nbsp;     * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
+<i>172</i>&nbsp;     * this seed will be ignored and the uuid from disk will be reused.
+<i>173</i>&nbsp;     */
+<b class="fc"><i>174</i>&nbsp;    public static final Setting&lt;Long&gt; NODE_ID_SEED_SETTING =</b>
+<b class="fc"><i>175</i>&nbsp;        Setting.longSetting(&quot;node.id.seed&quot;, 0L, Long.MIN_VALUE, Property.NodeScope);</b>
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;
+<i>178</i>&nbsp;    /**
+<i>179</i>&nbsp;     * If true the [verbose] SegmentInfos.infoStream logging is sent to System.out.
+<i>180</i>&nbsp;     */
+<b class="fc"><i>181</i>&nbsp;    public static final Setting&lt;Boolean&gt; ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING =</b>
+<b class="fc"><i>182</i>&nbsp;        Setting.boolSetting(&quot;node.enable_lucene_segment_infos_trace&quot;, false, Property.NodeScope);</b>
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    public static final String NODES_FOLDER = &quot;nodes&quot;;
+<i>185</i>&nbsp;    public static final String INDICES_FOLDER = &quot;indices&quot;;
+<i>186</i>&nbsp;    public static final String NODE_LOCK_FILENAME = &quot;node.lock&quot;;
+<i>187</i>&nbsp;
+<b class="fc"><i>188</i>&nbsp;    public static class NodeLock implements Releasable {</b>
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;        private final int nodeId;
+<i>191</i>&nbsp;        private final Lock[] locks;
+<i>192</i>&nbsp;        private final NodePath[] nodePaths;
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;        /**
+<i>195</i>&nbsp;         * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
+<i>196</i>&nbsp;         * @param pathFunction function to check node path before attempt of acquiring a node lock
+<i>197</i>&nbsp;         */
+<i>198</i>&nbsp;        public NodeLock(final int nodeId, final Logger logger,
+<i>199</i>&nbsp;                        final Environment environment,
+<b class="fc"><i>200</i>&nbsp;                        final CheckedFunction&lt;Path, Boolean, IOException&gt; pathFunction) throws IOException {</b>
+<b class="fc"><i>201</i>&nbsp;            this.nodeId = nodeId;</b>
+<b class="fc"><i>202</i>&nbsp;            nodePaths = new NodePath[environment.dataFiles().length];</b>
+<b class="fc"><i>203</i>&nbsp;            locks = new Lock[nodePaths.length];</b>
+<i>204</i>&nbsp;            try {
+<b class="fc"><i>205</i>&nbsp;                final Path[] dataPaths = environment.dataFiles();</b>
+<b class="fc"><i>206</i>&nbsp;                for (int dirIndex = 0; dirIndex &lt; dataPaths.length; dirIndex++) {</b>
+<b class="fc"><i>207</i>&nbsp;                    Path dataDir = dataPaths[dirIndex];</b>
+<b class="fc"><i>208</i>&nbsp;                    Path dir = resolveNodePath(dataDir, nodeId);</b>
+<b class="fc"><i>209</i>&nbsp;                    if (pathFunction.apply(dir) == false) {</b>
+<b class="nc"><i>210</i>&nbsp;                        continue;</b>
+<i>211</i>&nbsp;                    }
+<b class="fc"><i>212</i>&nbsp;                    try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {</b>
+<b class="fc"><i>213</i>&nbsp;                        logger.trace(&quot;obtaining node lock on {} ...&quot;, dir.toAbsolutePath());</b>
+<b class="fc"><i>214</i>&nbsp;                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);</b>
+<b class="fc"><i>215</i>&nbsp;                        nodePaths[dirIndex] = new NodePath(dir);</b>
+<b class="fc"><i>216</i>&nbsp;                    } catch (IOException e) {</b>
+<b class="nc"><i>217</i>&nbsp;                        logger.trace(() -&gt; new ParameterizedMessage(</b>
+<b class="nc"><i>218</i>&nbsp;                            &quot;failed to obtain node lock on {}&quot;, dir.toAbsolutePath()), e);</b>
+<i>219</i>&nbsp;                        // release all the ones that were obtained up until now
+<b class="nc"><i>220</i>&nbsp;                        throw (e instanceof LockObtainFailedException ? e</b>
+<b class="nc"><i>221</i>&nbsp;                            : new IOException(&quot;failed to obtain lock on &quot; + dir.toAbsolutePath(), e));</b>
+<b class="fc"><i>222</i>&nbsp;                    }</b>
+<i>223</i>&nbsp;                }
+<b class="nc"><i>224</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>225</i>&nbsp;                close();</b>
+<b class="nc"><i>226</i>&nbsp;                throw e;</b>
+<b class="fc"><i>227</i>&nbsp;            }</b>
+<b class="fc"><i>228</i>&nbsp;        }</b>
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;        public NodePath[] getNodePaths() {
+<b class="nc"><i>231</i>&nbsp;            return nodePaths;</b>
+<i>232</i>&nbsp;        }
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;        @Override
+<i>235</i>&nbsp;        public void close() {
+<b class="nc"><i>236</i>&nbsp;            for (int i = 0; i &lt; locks.length; i++) {</b>
+<b class="nc"><i>237</i>&nbsp;                if (locks[i] != null) {</b>
+<b class="nc"><i>238</i>&nbsp;                    IOUtils.closeWhileHandlingException(locks[i]);</b>
+<i>239</i>&nbsp;                }
+<b class="nc"><i>240</i>&nbsp;                locks[i] = null;</b>
+<i>241</i>&nbsp;            }
+<b class="nc"><i>242</i>&nbsp;        }</b>
+<i>243</i>&nbsp;    }
+<i>244</i>&nbsp;
+<i>245</i>&nbsp;    /**
+<i>246</i>&nbsp;     * Setup the environment.
+<i>247</i>&nbsp;     * @param settings settings from elasticsearch.yml
+<i>248</i>&nbsp;     */
+<b class="fc"><i>249</i>&nbsp;    public NodeEnvironment(Settings settings, Environment environment) throws IOException {</b>
+<b class="fc"><i>250</i>&nbsp;        if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {</b>
+<b class="nc"><i>251</i>&nbsp;            nodePaths = null;</b>
+<b class="nc"><i>252</i>&nbsp;            sharedDataPath = null;</b>
+<b class="nc"><i>253</i>&nbsp;            locks = null;</b>
+<b class="nc"><i>254</i>&nbsp;            nodeLockId = -1;</b>
+<b class="nc"><i>255</i>&nbsp;            nodeMetaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);</b>
+<b class="nc"><i>256</i>&nbsp;            return;</b>
+<i>257</i>&nbsp;        }
+<b class="fc"><i>258</i>&nbsp;        boolean success = false;</b>
+<b class="fc"><i>259</i>&nbsp;        NodeLock nodeLock = null;</b>
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;        try {
+<b class="fc"><i>262</i>&nbsp;            sharedDataPath = environment.sharedDataFile();</b>
+<b class="fc"><i>263</i>&nbsp;            IOException lastException = null;</b>
+<b class="fc"><i>264</i>&nbsp;            int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);</b>
+<i>265</i>&nbsp;
+<b class="fc"><i>266</i>&nbsp;            final AtomicReference&lt;IOException&gt; onCreateDirectoriesException = new AtomicReference&lt;&gt;();</b>
+<b class="fc"><i>267</i>&nbsp;            for (int possibleLockId = 0; possibleLockId &lt; maxLocalStorageNodes; possibleLockId++) {</b>
+<i>268</i>&nbsp;                try {
+<b class="fc"><i>269</i>&nbsp;                    nodeLock = new NodeLock(possibleLockId, logger, environment,</b>
+<i>270</i>&nbsp;                        dir -&gt; {
+<i>271</i>&nbsp;                            try {
+<b class="fc"><i>272</i>&nbsp;                                Files.createDirectories(dir);</b>
+<b class="nc"><i>273</i>&nbsp;                            } catch (IOException e) {</b>
+<b class="nc"><i>274</i>&nbsp;                                onCreateDirectoriesException.set(e);</b>
+<b class="nc"><i>275</i>&nbsp;                                throw e;</b>
+<b class="fc"><i>276</i>&nbsp;                            }</b>
+<b class="fc"><i>277</i>&nbsp;                            return true;</b>
+<i>278</i>&nbsp;                        });
+<b class="fc"><i>279</i>&nbsp;                    break;</b>
+<b class="nc"><i>280</i>&nbsp;                } catch (LockObtainFailedException e) {</b>
+<i>281</i>&nbsp;                    // ignore any LockObtainFailedException
+<b class="nc"><i>282</i>&nbsp;                } catch (IOException e) {</b>
+<b class="nc"><i>283</i>&nbsp;                    if (onCreateDirectoriesException.get() != null) {</b>
+<b class="nc"><i>284</i>&nbsp;                        throw onCreateDirectoriesException.get();</b>
+<i>285</i>&nbsp;                    }
+<b class="nc"><i>286</i>&nbsp;                    lastException = e;</b>
+<b class="nc"><i>287</i>&nbsp;                }</b>
+<i>288</i>&nbsp;            }
+<i>289</i>&nbsp;
+<b class="fc"><i>290</i>&nbsp;            if (nodeLock == null) {</b>
+<b class="nc"><i>291</i>&nbsp;                final String message = String.format(</b>
+<i>292</i>&nbsp;                    Locale.ROOT,
+<i>293</i>&nbsp;                    &quot;failed to obtain node locks, tried [%s] with lock id%s;&quot; +
+<i>294</i>&nbsp;                        &quot; maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?&quot;,
+<b class="nc"><i>295</i>&nbsp;                    Arrays.toString(environment.dataFiles()),</b>
+<b class="nc"><i>296</i>&nbsp;                    maxLocalStorageNodes == 1 ? &quot; [0]&quot; : &quot;s [0--&quot; + (maxLocalStorageNodes - 1) + &quot;]&quot;,</b>
+<b class="nc"><i>297</i>&nbsp;                    MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),</b>
+<b class="nc"><i>298</i>&nbsp;                    maxLocalStorageNodes);</b>
+<b class="nc"><i>299</i>&nbsp;                throw new IllegalStateException(message, lastException);</b>
+<i>300</i>&nbsp;            }
+<b class="fc"><i>301</i>&nbsp;            this.locks = nodeLock.locks;</b>
+<b class="fc"><i>302</i>&nbsp;            this.nodePaths = nodeLock.nodePaths;</b>
+<b class="fc"><i>303</i>&nbsp;            this.nodeLockId = nodeLock.nodeId;</b>
+<b class="fc"><i>304</i>&nbsp;            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);</b>
+<i>305</i>&nbsp;
+<b class="fc"><i>306</i>&nbsp;            if (logger.isDebugEnabled()) {</b>
+<b class="nc"><i>307</i>&nbsp;                logger.debug(&quot;using node location [{}], local_lock_id [{}]&quot;, nodePaths, nodeLockId);</b>
+<i>308</i>&nbsp;            }
+<i>309</i>&nbsp;
+<b class="fc"><i>310</i>&nbsp;            maybeLogPathDetails();</b>
+<b class="fc"><i>311</i>&nbsp;            maybeLogHeapDetails();</b>
+<i>312</i>&nbsp;
+<b class="fc"><i>313</i>&nbsp;            applySegmentInfosTrace(settings);</b>
+<b class="fc"><i>314</i>&nbsp;            assertCanWrite();</b>
+<i>315</i>&nbsp;
+<b class="fc"><i>316</i>&nbsp;            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {</b>
+<b class="fc"><i>317</i>&nbsp;                ensureAtomicMoveSupported(nodePaths);</b>
+<i>318</i>&nbsp;            }
+<i>319</i>&nbsp;
+<b class="fc"><i>320</i>&nbsp;            if (DiscoveryNode.isDataNode(settings) == false) {</b>
+<b class="nc"><i>321</i>&nbsp;                if (DiscoveryNode.isMasterNode(settings) == false) {</b>
+<b class="nc"><i>322</i>&nbsp;                    ensureNoIndexMetaData(nodePaths);</b>
+<i>323</i>&nbsp;                }
+<i>324</i>&nbsp;
+<b class="nc"><i>325</i>&nbsp;                ensureNoShardData(nodePaths);</b>
+<i>326</i>&nbsp;            }
+<i>327</i>&nbsp;
+<b class="fc"><i>328</i>&nbsp;            success = true;</b>
+<i>329</i>&nbsp;        } finally {
+<b class="fc"><i>330</i>&nbsp;            if (success == false) {</b>
+<b class="nc"><i>331</i>&nbsp;                close();</b>
+<i>332</i>&nbsp;            }
+<b class="nc"><i>333</i>&nbsp;        }</b>
+<b class="fc"><i>334</i>&nbsp;    }</b>
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    /**
+<i>337</i>&nbsp;     * Resolve a specific nodes/{node.id} path for the specified path and node lock id.
+<i>338</i>&nbsp;     *
+<i>339</i>&nbsp;     * @param path       the path
+<i>340</i>&nbsp;     * @param nodeLockId the node lock id
+<i>341</i>&nbsp;     * @return the resolved path
+<i>342</i>&nbsp;     */
+<i>343</i>&nbsp;    public static Path resolveNodePath(final Path path, final int nodeLockId) {
+<b class="fc"><i>344</i>&nbsp;        return path.resolve(NODES_FOLDER).resolve(Integer.toString(nodeLockId));</b>
+<i>345</i>&nbsp;    }
+<i>346</i>&nbsp;
+<i>347</i>&nbsp;    private void maybeLogPathDetails() throws IOException {
+<i>348</i>&nbsp;
+<i>349</i>&nbsp;        // We do some I/O in here, so skip this if DEBUG/INFO are not enabled:
+<b class="fc"><i>350</i>&nbsp;        if (logger.isDebugEnabled()) {</b>
+<i>351</i>&nbsp;            // Log one line per path.data:
+<b class="nc"><i>352</i>&nbsp;            StringBuilder sb = new StringBuilder();</b>
+<b class="nc"><i>353</i>&nbsp;            for (NodePath nodePath : nodePaths) {</b>
+<b class="nc"><i>354</i>&nbsp;                sb.append(&#39;\n&#39;).append(&quot; -&gt; &quot;).append(nodePath.path.toAbsolutePath());</b>
+<i>355</i>&nbsp;
+<b class="nc"><i>356</i>&nbsp;                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);</b>
+<b class="nc"><i>357</i>&nbsp;                sb.append(&quot;, free_space [&quot;)</b>
+<b class="nc"><i>358</i>&nbsp;                    .append(fsPath.getFree())</b>
+<b class="nc"><i>359</i>&nbsp;                    .append(&quot;], usable_space [&quot;)</b>
+<b class="nc"><i>360</i>&nbsp;                    .append(fsPath.getAvailable())</b>
+<b class="nc"><i>361</i>&nbsp;                    .append(&quot;], total_space [&quot;)</b>
+<b class="nc"><i>362</i>&nbsp;                    .append(fsPath.getTotal())</b>
+<b class="nc"><i>363</i>&nbsp;                    .append(&quot;], mount [&quot;)</b>
+<b class="nc"><i>364</i>&nbsp;                    .append(fsPath.getMount())</b>
+<b class="nc"><i>365</i>&nbsp;                    .append(&quot;], type [&quot;)</b>
+<b class="nc"><i>366</i>&nbsp;                    .append(fsPath.getType())</b>
+<b class="nc"><i>367</i>&nbsp;                    .append(&#39;]&#39;);</b>
+<i>368</i>&nbsp;            }
+<b class="nc"><i>369</i>&nbsp;            logger.debug(&quot;node data locations details:{}&quot;, sb);</b>
+<b class="nc"><i>370</i>&nbsp;        } else if (logger.isInfoEnabled()) {</b>
+<b class="fc"><i>371</i>&nbsp;            FsInfo.Path totFSPath = new FsInfo.Path();</b>
+<b class="fc"><i>372</i>&nbsp;            Set&lt;String&gt; allTypes = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>373</i>&nbsp;            Set&lt;String&gt; allMounts = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>374</i>&nbsp;            for (NodePath nodePath : nodePaths) {</b>
+<b class="fc"><i>375</i>&nbsp;                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);</b>
+<b class="fc"><i>376</i>&nbsp;                String mount = fsPath.getMount();</b>
+<b class="fc"><i>377</i>&nbsp;                if (allMounts.contains(mount) == false) {</b>
+<b class="fc"><i>378</i>&nbsp;                    allMounts.add(mount);</b>
+<b class="fc"><i>379</i>&nbsp;                    String type = fsPath.getType();</b>
+<b class="fc"><i>380</i>&nbsp;                    if (type != null) {</b>
+<b class="fc"><i>381</i>&nbsp;                        allTypes.add(type);</b>
+<i>382</i>&nbsp;                    }
+<b class="fc"><i>383</i>&nbsp;                    totFSPath.add(fsPath);</b>
+<i>384</i>&nbsp;                }
+<i>385</i>&nbsp;            }
+<i>386</i>&nbsp;
+<i>387</i>&nbsp;            // Just log a 1-line summary:
+<b class="fc"><i>388</i>&nbsp;            logger.info(&quot;using [{}] data paths, mounts [{}], net usable_space [{}], net total_space [{}], types [{}]&quot;,</b>
+<b class="fc"><i>389</i>&nbsp;                nodePaths.length, allMounts, totFSPath.getAvailable(), totFSPath.getTotal(), toString(allTypes));</b>
+<i>390</i>&nbsp;        }
+<b class="fc"><i>391</i>&nbsp;    }</b>
+<i>392</i>&nbsp;
+<i>393</i>&nbsp;    private void maybeLogHeapDetails() {
+<b class="fc"><i>394</i>&nbsp;        JvmInfo jvmInfo = JvmInfo.jvmInfo();</b>
+<b class="fc"><i>395</i>&nbsp;        ByteSizeValue maxHeapSize = jvmInfo.getMem().getHeapMax();</b>
+<b class="fc"><i>396</i>&nbsp;        String useCompressedOops = jvmInfo.useCompressedOops();</b>
+<b class="fc"><i>397</i>&nbsp;        logger.info(&quot;heap size [{}], compressed ordinary object pointers [{}]&quot;, maxHeapSize, useCompressedOops);</b>
+<b class="fc"><i>398</i>&nbsp;    }</b>
+<i>399</i>&nbsp;
+<i>400</i>&nbsp;    /**
+<i>401</i>&nbsp;     * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
+<i>402</i>&nbsp;     * and persisted into the nodePaths
+<i>403</i>&nbsp;     */
+<i>404</i>&nbsp;    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
+<i>405</i>&nbsp;                                                         NodePath... nodePaths) throws IOException {
+<b class="fc"><i>406</i>&nbsp;        final Path[] paths = Arrays.stream(nodePaths).map(np -&gt; np.path).toArray(Path[]::new);</b>
+<i>407</i>&nbsp;
+<b class="fc"><i>408</i>&nbsp;        final Set&lt;String&gt; nodeIds = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>409</i>&nbsp;        for (final Path path : paths) {</b>
+<b class="fc"><i>410</i>&nbsp;            final NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);</b>
+<b class="fc"><i>411</i>&nbsp;            if (metaData != null) {</b>
+<b class="nc"><i>412</i>&nbsp;                nodeIds.add(metaData.nodeId());</b>
+<i>413</i>&nbsp;            }
+<i>414</i>&nbsp;        }
+<b class="fc"><i>415</i>&nbsp;        if (nodeIds.size() &gt; 1) {</b>
+<b class="nc"><i>416</i>&nbsp;            throw new IllegalStateException(</b>
+<b class="nc"><i>417</i>&nbsp;                &quot;data paths &quot; + Arrays.toString(paths) + &quot; belong to multiple nodes with IDs &quot; + nodeIds);</b>
+<i>418</i>&nbsp;        }
+<i>419</i>&nbsp;
+<b class="fc"><i>420</i>&nbsp;        NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);</b>
+<b class="fc"><i>421</i>&nbsp;        if (metaData == null) {</b>
+<b class="fc"><i>422</i>&nbsp;            assert nodeIds.isEmpty() : nodeIds;</b>
+<b class="fc"><i>423</i>&nbsp;            metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);</b>
+<i>424</i>&nbsp;        } else {
+<b class="nc"><i>425</i>&nbsp;            assert nodeIds.equals(Collections.singleton(metaData.nodeId())) : nodeIds + &quot; doesn&#39;t match &quot; + metaData;</b>
+<b class="nc"><i>426</i>&nbsp;            metaData = metaData.upgradeToCurrentVersion();</b>
+<i>427</i>&nbsp;        }
+<i>428</i>&nbsp;
+<i>429</i>&nbsp;        // we write again to make sure all paths have the latest state file
+<b class="fc"><i>430</i>&nbsp;        assert metaData.nodeVersion().equals(Version.CURRENT) : metaData.nodeVersion() + &quot; != &quot; + Version.CURRENT;</b>
+<b class="fc"><i>431</i>&nbsp;        NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);</b>
+<i>432</i>&nbsp;
+<b class="fc"><i>433</i>&nbsp;        return metaData;</b>
+<i>434</i>&nbsp;    }
+<i>435</i>&nbsp;
+<i>436</i>&nbsp;    public static String generateNodeId(Settings settings) {
+<b class="fc"><i>437</i>&nbsp;        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);</b>
+<b class="fc"><i>438</i>&nbsp;        return UUIDs.randomBase64UUID(random);</b>
+<i>439</i>&nbsp;    }
+<i>440</i>&nbsp;
+<i>441</i>&nbsp;    @SuppressForbidden(reason = &quot;System.out.*&quot;)
+<i>442</i>&nbsp;    static void applySegmentInfosTrace(Settings settings) {
+<b class="fc"><i>443</i>&nbsp;        if (ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING.get(settings)) {</b>
+<b class="nc"><i>444</i>&nbsp;            SegmentInfos.setInfoStream(System.out);</b>
+<i>445</i>&nbsp;        }
+<b class="fc"><i>446</i>&nbsp;    }</b>
+<i>447</i>&nbsp;
+<i>448</i>&nbsp;    private static String toString(Collection&lt;String&gt; items) {
+<b class="fc"><i>449</i>&nbsp;        StringBuilder b = new StringBuilder();</b>
+<b class="fc"><i>450</i>&nbsp;        for(String item : items) {</b>
+<b class="fc"><i>451</i>&nbsp;            if (b.length() &gt; 0) {</b>
+<b class="nc"><i>452</i>&nbsp;                b.append(&quot;, &quot;);</b>
+<i>453</i>&nbsp;            }
+<b class="fc"><i>454</i>&nbsp;            b.append(item);</b>
+<b class="fc"><i>455</i>&nbsp;        }</b>
+<b class="fc"><i>456</i>&nbsp;        return b.toString();</b>
+<i>457</i>&nbsp;    }
+<i>458</i>&nbsp;
+<i>459</i>&nbsp;    /**
+<i>460</i>&nbsp;     * Deletes a shard data directory iff the shards locks were successfully acquired.
+<i>461</i>&nbsp;     *
+<i>462</i>&nbsp;     * @param shardId the id of the shard to delete to delete
+<i>463</i>&nbsp;     * @throws IOException if an IOException occurs
+<i>464</i>&nbsp;     */
+<i>465</i>&nbsp;    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
+<b class="nc"><i>466</i>&nbsp;        final Path[] paths = availableShardPaths(shardId);</b>
+<b class="nc"><i>467</i>&nbsp;        logger.trace(&quot;deleting shard {} directory, paths: [{}]&quot;, shardId, paths);</b>
+<b class="nc"><i>468</i>&nbsp;        try (ShardLock lock = shardLock(shardId, &quot;shard deletion under lock&quot;)) {</b>
+<b class="nc"><i>469</i>&nbsp;            deleteShardDirectoryUnderLock(lock, indexSettings);</b>
+<b class="nc"><i>470</i>&nbsp;        }</b>
+<b class="nc"><i>471</i>&nbsp;    }</b>
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;    /**
+<i>474</i>&nbsp;     * Acquires, then releases, all {@code write.lock} files in the given
+<i>475</i>&nbsp;     * shard paths. The &quot;write.lock&quot; file is assumed to be under the shard
+<i>476</i>&nbsp;     * path&#39;s &quot;index&quot; directory as used by Elasticsearch.
+<i>477</i>&nbsp;     *
+<i>478</i>&nbsp;     * @throws LockObtainFailedException if any of the locks could not be acquired
+<i>479</i>&nbsp;     */
+<i>480</i>&nbsp;    public static void acquireFSLockForPaths(IndexSettings indexSettings, Path... shardPaths) throws IOException {
+<b class="fc"><i>481</i>&nbsp;        Lock[] locks = new Lock[shardPaths.length];</b>
+<b class="fc"><i>482</i>&nbsp;        Directory[] dirs = new Directory[shardPaths.length];</b>
+<i>483</i>&nbsp;        try {
+<b class="fc"><i>484</i>&nbsp;            for (int i = 0; i &lt; shardPaths.length; i++) {</b>
+<i>485</i>&nbsp;                // resolve the directory the shard actually lives in
+<b class="fc"><i>486</i>&nbsp;                Path p = shardPaths[i].resolve(&quot;index&quot;);</b>
+<i>487</i>&nbsp;                // open a directory (will be immediately closed) on the shard&#39;s location
+<b class="fc"><i>488</i>&nbsp;                dirs[i] = new SimpleFSDirectory(p, indexSettings.getValue(FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING));</b>
+<i>489</i>&nbsp;                // create a lock for the &quot;write.lock&quot; file
+<i>490</i>&nbsp;                try {
+<b class="fc"><i>491</i>&nbsp;                    locks[i] = dirs[i].obtainLock(IndexWriter.WRITE_LOCK_NAME);</b>
+<b class="nc"><i>492</i>&nbsp;                } catch (IOException ex) {</b>
+<b class="nc"><i>493</i>&nbsp;                    throw new LockObtainFailedException(&quot;unable to acquire &quot; +</b>
+<i>494</i>&nbsp;                                    IndexWriter.WRITE_LOCK_NAME + &quot; for &quot; + p, ex);
+<b class="fc"><i>495</i>&nbsp;                }</b>
+<i>496</i>&nbsp;            }
+<i>497</i>&nbsp;        } finally {
+<b class="fc"><i>498</i>&nbsp;            IOUtils.closeWhileHandlingException(locks);</b>
+<b class="fc"><i>499</i>&nbsp;            IOUtils.closeWhileHandlingException(dirs);</b>
+<b class="fc"><i>500</i>&nbsp;        }</b>
+<b class="fc"><i>501</i>&nbsp;    }</b>
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;    /**
+<i>504</i>&nbsp;     * Deletes a shard data directory. Note: this method assumes that the shard
+<i>505</i>&nbsp;     * lock is acquired. This method will also attempt to acquire the write
+<i>506</i>&nbsp;     * locks for the shard&#39;s paths before deleting the data, but this is best
+<i>507</i>&nbsp;     * effort, as the lock is released before the deletion happens in order to
+<i>508</i>&nbsp;     * allow the folder to be deleted
+<i>509</i>&nbsp;     *
+<i>510</i>&nbsp;     * @param lock the shards lock
+<i>511</i>&nbsp;     * @throws IOException if an IOException occurs
+<i>512</i>&nbsp;     * @throws ElasticsearchException if the write.lock is not acquirable
+<i>513</i>&nbsp;     */
+<i>514</i>&nbsp;    public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
+<b class="fc"><i>515</i>&nbsp;        final ShardId shardId = lock.getShardId();</b>
+<b class="fc"><i>516</i>&nbsp;        assert isShardLocked(shardId) : &quot;shard &quot; + shardId + &quot; is not locked&quot;;</b>
+<b class="fc"><i>517</i>&nbsp;        final Path[] paths = availableShardPaths(shardId);</b>
+<b class="fc"><i>518</i>&nbsp;        logger.trace(&quot;acquiring locks for {}, paths: [{}]&quot;, shardId, paths);</b>
+<b class="fc"><i>519</i>&nbsp;        acquireFSLockForPaths(indexSettings, paths);</b>
+<b class="fc"><i>520</i>&nbsp;        IOUtils.rm(paths);</b>
+<b class="fc"><i>521</i>&nbsp;        if (indexSettings.hasCustomDataPath()) {</b>
+<b class="nc"><i>522</i>&nbsp;            Path customLocation = resolveCustomLocation(indexSettings, shardId);</b>
+<b class="nc"><i>523</i>&nbsp;            logger.trace(&quot;acquiring lock for {}, custom path: [{}]&quot;, shardId, customLocation);</b>
+<b class="nc"><i>524</i>&nbsp;            acquireFSLockForPaths(indexSettings, customLocation);</b>
+<b class="nc"><i>525</i>&nbsp;            logger.trace(&quot;deleting custom shard {} directory [{}]&quot;, shardId, customLocation);</b>
+<b class="nc"><i>526</i>&nbsp;            IOUtils.rm(customLocation);</b>
+<i>527</i>&nbsp;        }
+<b class="fc"><i>528</i>&nbsp;        logger.trace(&quot;deleted shard {} directory, paths: [{}]&quot;, shardId, paths);</b>
+<b class="fc"><i>529</i>&nbsp;        assert assertPathsDoNotExist(paths);</b>
+<b class="fc"><i>530</i>&nbsp;    }</b>
+<i>531</i>&nbsp;
+<i>532</i>&nbsp;    private static boolean assertPathsDoNotExist(final Path[] paths) {
+<b class="fc"><i>533</i>&nbsp;        Set&lt;Path&gt; existingPaths = Stream.of(paths)</b>
+<b class="fc"><i>534</i>&nbsp;            .filter(FileSystemUtils::exists)</b>
+<b class="fc"><i>535</i>&nbsp;            .filter(leftOver -&gt; {</b>
+<i>536</i>&nbsp;                // Relaxed assertion for the special case where only the empty state directory exists after deleting
+<i>537</i>&nbsp;                // the shard directory because it was created again as a result of a metadata read action concurrently.
+<b class="nc"><i>538</i>&nbsp;                try (DirectoryStream&lt;Path&gt; children = Files.newDirectoryStream(leftOver)) {</b>
+<b class="nc"><i>539</i>&nbsp;                    Iterator&lt;Path&gt; iter = children.iterator();</b>
+<b class="nc"><i>540</i>&nbsp;                    if (iter.hasNext() == false) {</b>
+<b class="nc"><i>541</i>&nbsp;                        return true;</b>
+<i>542</i>&nbsp;                    }
+<b class="nc"><i>543</i>&nbsp;                    Path maybeState = iter.next();</b>
+<b class="nc"><i>544</i>&nbsp;                    if (iter.hasNext() || maybeState.equals(leftOver.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {</b>
+<b class="nc"><i>545</i>&nbsp;                        return true;</b>
+<i>546</i>&nbsp;                    }
+<b class="nc"><i>547</i>&nbsp;                    try (DirectoryStream&lt;Path&gt; stateChildren = Files.newDirectoryStream(maybeState)) {</b>
+<b class="nc"><i>548</i>&nbsp;                        return stateChildren.iterator().hasNext();</b>
+<b class="nc"><i>549</i>&nbsp;                    }</b>
+<b class="nc"><i>550</i>&nbsp;                } catch (IOException e) {</b>
+<b class="nc"><i>551</i>&nbsp;                    throw new UncheckedIOException(e);</b>
+<i>552</i>&nbsp;                }
+<b class="fc"><i>553</i>&nbsp;            }).collect(Collectors.toSet());</b>
+<b class="fc"><i>554</i>&nbsp;        assert existingPaths.size() == 0 : &quot;Paths exist that should have been deleted: &quot; + existingPaths;</b>
+<b class="fc"><i>555</i>&nbsp;        return existingPaths.size() == 0;</b>
+<i>556</i>&nbsp;    }
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;    private boolean isShardLocked(ShardId id) {
+<i>559</i>&nbsp;        try {
+<b class="fc"><i>560</i>&nbsp;            shardLock(id, &quot;checking if shard is locked&quot;).close();</b>
+<b class="nc"><i>561</i>&nbsp;            return false;</b>
+<b class="fc"><i>562</i>&nbsp;        } catch (ShardLockObtainFailedException ex) {</b>
+<b class="fc"><i>563</i>&nbsp;            return true;</b>
+<i>564</i>&nbsp;        }
+<i>565</i>&nbsp;    }
+<i>566</i>&nbsp;
+<i>567</i>&nbsp;    /**
+<i>568</i>&nbsp;     * Deletes an indexes data directory recursively iff all of the indexes
+<i>569</i>&nbsp;     * shards locks were successfully acquired. If any of the indexes shard directories can&#39;t be locked
+<i>570</i>&nbsp;     * non of the shards will be deleted
+<i>571</i>&nbsp;     *
+<i>572</i>&nbsp;     * @param index the index to delete
+<i>573</i>&nbsp;     * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
+<i>574</i>&nbsp;     * @param indexSettings settings for the index being deleted
+<i>575</i>&nbsp;     * @throws IOException if any of the shards data directories can&#39;t be locked or deleted
+<i>576</i>&nbsp;     */
+<i>577</i>&nbsp;    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
+<i>578</i>&nbsp;            throws IOException, ShardLockObtainFailedException {
+<b class="fc"><i>579</i>&nbsp;        final List&lt;ShardLock&gt; locks = lockAllForIndex(index, indexSettings, &quot;deleting index directory&quot;, lockTimeoutMS);</b>
+<i>580</i>&nbsp;        try {
+<b class="fc"><i>581</i>&nbsp;            deleteIndexDirectoryUnderLock(index, indexSettings);</b>
+<i>582</i>&nbsp;        } finally {
+<b class="fc"><i>583</i>&nbsp;            IOUtils.closeWhileHandlingException(locks);</b>
+<b class="fc"><i>584</i>&nbsp;        }</b>
+<b class="fc"><i>585</i>&nbsp;    }</b>
+<i>586</i>&nbsp;
+<i>587</i>&nbsp;    /**
+<i>588</i>&nbsp;     * Deletes an indexes data directory recursively.
+<i>589</i>&nbsp;     * Note: this method assumes that the shard lock is acquired
+<i>590</i>&nbsp;     *
+<i>591</i>&nbsp;     * @param index the index to delete
+<i>592</i>&nbsp;     * @param indexSettings settings for the index being deleted
+<i>593</i>&nbsp;     */
+<i>594</i>&nbsp;    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
+<b class="fc"><i>595</i>&nbsp;        final Path[] indexPaths = indexPaths(index);</b>
+<b class="fc"><i>596</i>&nbsp;        logger.trace(&quot;deleting index {} directory, paths({}): [{}]&quot;, index, indexPaths.length, indexPaths);</b>
+<b class="fc"><i>597</i>&nbsp;        IOUtils.rm(indexPaths);</b>
+<b class="fc"><i>598</i>&nbsp;        if (indexSettings.hasCustomDataPath()) {</b>
+<b class="nc"><i>599</i>&nbsp;            Path customLocation = resolveIndexCustomLocation(indexSettings);</b>
+<b class="nc"><i>600</i>&nbsp;            logger.trace(&quot;deleting custom index {} directory [{}]&quot;, index, customLocation);</b>
+<b class="nc"><i>601</i>&nbsp;            IOUtils.rm(customLocation);</b>
+<i>602</i>&nbsp;        }
+<b class="fc"><i>603</i>&nbsp;    }</b>
+<i>604</i>&nbsp;
+<i>605</i>&nbsp;
+<i>606</i>&nbsp;    /**
+<i>607</i>&nbsp;     * Tries to lock all local shards for the given index. If any of the shard locks can&#39;t be acquired
+<i>608</i>&nbsp;     * a {@link ShardLockObtainFailedException} is thrown and all previously acquired locks are released.
+<i>609</i>&nbsp;     *
+<i>610</i>&nbsp;     * @param index the index to lock shards for
+<i>611</i>&nbsp;     * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
+<i>612</i>&nbsp;     * @return the {@link ShardLock} instances for this index.
+<i>613</i>&nbsp;     */
+<i>614</i>&nbsp;    public List&lt;ShardLock&gt; lockAllForIndex(final Index index, final IndexSettings settings,
+<i>615</i>&nbsp;                                           final String lockDetails, final long lockTimeoutMS) throws ShardLockObtainFailedException {
+<b class="fc"><i>616</i>&nbsp;        final int numShards = settings.getNumberOfShards();</b>
+<b class="fc"><i>617</i>&nbsp;        if (numShards &lt;= 0) {</b>
+<b class="nc"><i>618</i>&nbsp;            throw new IllegalArgumentException(&quot;settings must contain a non-null &gt; 0 number of shards&quot;);</b>
+<i>619</i>&nbsp;        }
+<b class="fc"><i>620</i>&nbsp;        logger.trace(&quot;locking all shards for index {} - [{}]&quot;, index, numShards);</b>
+<b class="fc"><i>621</i>&nbsp;        List&lt;ShardLock&gt; allLocks = new ArrayList&lt;&gt;(numShards);</b>
+<b class="fc"><i>622</i>&nbsp;        boolean success = false;</b>
+<b class="fc"><i>623</i>&nbsp;        long startTimeNS = System.nanoTime();</b>
+<i>624</i>&nbsp;        try {
+<b class="fc"><i>625</i>&nbsp;            for (int i = 0; i &lt; numShards; i++) {</b>
+<b class="fc"><i>626</i>&nbsp;                long timeoutLeftMS = Math.max(0, lockTimeoutMS - TimeValue.nsecToMSec((System.nanoTime() - startTimeNS)));</b>
+<b class="fc"><i>627</i>&nbsp;                allLocks.add(shardLock(new ShardId(index, i), lockDetails, timeoutLeftMS));</b>
+<i>628</i>&nbsp;            }
+<b class="fc"><i>629</i>&nbsp;            success = true;</b>
+<i>630</i>&nbsp;        } finally {
+<b class="fc"><i>631</i>&nbsp;            if (success == false) {</b>
+<b class="nc"><i>632</i>&nbsp;                logger.trace(&quot;unable to lock all shards for index {}&quot;, index);</b>
+<b class="nc"><i>633</i>&nbsp;                IOUtils.closeWhileHandlingException(allLocks);</b>
+<i>634</i>&nbsp;            }
+<b class="nc"><i>635</i>&nbsp;        }</b>
+<b class="fc"><i>636</i>&nbsp;        return allLocks;</b>
+<i>637</i>&nbsp;    }
+<i>638</i>&nbsp;
+<i>639</i>&nbsp;    /**
+<i>640</i>&nbsp;     * Tries to lock the given shards ID. A shard lock is required to perform any kind of
+<i>641</i>&nbsp;     * write operation on a shards data directory like deleting files, creating a new index writer
+<i>642</i>&nbsp;     * or recover from a different shard instance into it. If the shard lock can not be acquired
+<i>643</i>&nbsp;     * a {@link ShardLockObtainFailedException} is thrown.
+<i>644</i>&nbsp;     *
+<i>645</i>&nbsp;     * Note: this method will return immediately if the lock can&#39;t be acquired.
+<i>646</i>&nbsp;     *
+<i>647</i>&nbsp;     * @param id the shard ID to lock
+<i>648</i>&nbsp;     * @param details information about why the shard is being locked
+<i>649</i>&nbsp;     * @return the shard lock. Call {@link ShardLock#close()} to release the lock
+<i>650</i>&nbsp;     */
+<i>651</i>&nbsp;    public ShardLock shardLock(ShardId id, final String details) throws ShardLockObtainFailedException {
+<b class="fc"><i>652</i>&nbsp;        return shardLock(id, details, 0);</b>
+<i>653</i>&nbsp;    }
+<i>654</i>&nbsp;
+<i>655</i>&nbsp;    /**
+<i>656</i>&nbsp;     * Tries to lock the given shards ID. A shard lock is required to perform any kind of
+<i>657</i>&nbsp;     * write operation on a shards data directory like deleting files, creating a new index writer
+<i>658</i>&nbsp;     * or recover from a different shard instance into it. If the shard lock can not be acquired
+<i>659</i>&nbsp;     * a {@link ShardLockObtainFailedException} is thrown
+<i>660</i>&nbsp;     * @param shardId the shard ID to lock
+<i>661</i>&nbsp;     * @param details information about why the shard is being locked
+<i>662</i>&nbsp;     * @param lockTimeoutMS the lock timeout in milliseconds
+<i>663</i>&nbsp;     * @return the shard lock. Call {@link ShardLock#close()} to release the lock
+<i>664</i>&nbsp;     */
+<i>665</i>&nbsp;    public ShardLock shardLock(final ShardId shardId, final String details,
+<i>666</i>&nbsp;                               final long lockTimeoutMS) throws ShardLockObtainFailedException {
+<b class="fc"><i>667</i>&nbsp;        logger.trace(&quot;acquiring node shardlock on [{}], timeout [{}], details [{}]&quot;, shardId, lockTimeoutMS, details);</b>
+<i>668</i>&nbsp;        final InternalShardLock shardLock;
+<i>669</i>&nbsp;        final boolean acquired;
+<b class="fc"><i>670</i>&nbsp;        synchronized (shardLocks) {</b>
+<b class="fc"><i>671</i>&nbsp;            if (shardLocks.containsKey(shardId)) {</b>
+<b class="fc"><i>672</i>&nbsp;                shardLock = shardLocks.get(shardId);</b>
+<b class="fc"><i>673</i>&nbsp;                shardLock.incWaitCount();</b>
+<b class="fc"><i>674</i>&nbsp;                acquired = false;</b>
+<i>675</i>&nbsp;            } else {
+<b class="fc"><i>676</i>&nbsp;                shardLock = new InternalShardLock(shardId, details);</b>
+<b class="fc"><i>677</i>&nbsp;                shardLocks.put(shardId, shardLock);</b>
+<b class="fc"><i>678</i>&nbsp;                acquired = true;</b>
+<i>679</i>&nbsp;            }
+<b class="fc"><i>680</i>&nbsp;        }</b>
+<b class="fc"><i>681</i>&nbsp;        if (acquired == false) {</b>
+<b class="fc"><i>682</i>&nbsp;            boolean success = false;</b>
+<i>683</i>&nbsp;            try {
+<b class="fc"><i>684</i>&nbsp;                shardLock.acquire(lockTimeoutMS, details);</b>
+<b class="nc"><i>685</i>&nbsp;                success = true;</b>
+<i>686</i>&nbsp;            } finally {
+<b class="fc"><i>687</i>&nbsp;                if (success == false) {</b>
+<b class="fc"><i>688</i>&nbsp;                    shardLock.decWaitCount();</b>
+<i>689</i>&nbsp;                }
+<b class="fc"><i>690</i>&nbsp;            }</b>
+<i>691</i>&nbsp;        }
+<b class="fc"><i>692</i>&nbsp;        logger.trace(&quot;successfully acquired shardlock for [{}]&quot;, shardId);</b>
+<b class="fc"><i>693</i>&nbsp;        return new ShardLock(shardId) { // new instance prevents double closing</b>
+<i>694</i>&nbsp;            @Override
+<i>695</i>&nbsp;            protected void closeInternal() {
+<b class="fc"><i>696</i>&nbsp;                shardLock.release();</b>
+<b class="fc"><i>697</i>&nbsp;                logger.trace(&quot;released shard lock for [{}]&quot;, shardId);</b>
+<b class="fc"><i>698</i>&nbsp;            }</b>
+<i>699</i>&nbsp;        };
+<i>700</i>&nbsp;    }
+<i>701</i>&nbsp;
+<i>702</i>&nbsp;    /**
+<i>703</i>&nbsp;     * A functional interface that people can use to reference {@link #shardLock(ShardId, String, long)}
+<i>704</i>&nbsp;     */
+<i>705</i>&nbsp;    @FunctionalInterface
+<i>706</i>&nbsp;    public interface ShardLocker {
+<i>707</i>&nbsp;        ShardLock lock(ShardId shardId, String lockDetails, long lockTimeoutMS) throws ShardLockObtainFailedException;
+<i>708</i>&nbsp;    }
+<i>709</i>&nbsp;
+<i>710</i>&nbsp;    /**
+<i>711</i>&nbsp;     * Returns all currently lock shards.
+<i>712</i>&nbsp;     *
+<i>713</i>&nbsp;     * Note: the shard ids return do not contain a valid Index UUID
+<i>714</i>&nbsp;     */
+<i>715</i>&nbsp;    public Set&lt;ShardId&gt; lockedShards() {
+<b class="nc"><i>716</i>&nbsp;        synchronized (shardLocks) {</b>
+<b class="nc"><i>717</i>&nbsp;            return unmodifiableSet(new HashSet&lt;&gt;(shardLocks.keySet()));</b>
+<b class="nc"><i>718</i>&nbsp;        }</b>
+<i>719</i>&nbsp;    }
+<i>720</i>&nbsp;
+<b class="fc"><i>721</i>&nbsp;    private final class InternalShardLock {</b>
+<i>722</i>&nbsp;        /*
+<i>723</i>&nbsp;         * This class holds a mutex for exclusive access and timeout / wait semantics
+<i>724</i>&nbsp;         * and a reference count to cleanup the shard lock instance form the internal data
+<i>725</i>&nbsp;         * structure if nobody is waiting for it. the wait count is guarded by the same lock
+<i>726</i>&nbsp;         * that is used to mutate the map holding the shard locks to ensure exclusive access
+<i>727</i>&nbsp;         */
+<b class="fc"><i>728</i>&nbsp;        private final Semaphore mutex = new Semaphore(1);</b>
+<b class="fc"><i>729</i>&nbsp;        private int waitCount = 1; // guarded by shardLocks</b>
+<i>730</i>&nbsp;        private String lockDetails;
+<i>731</i>&nbsp;        private final ShardId shardId;
+<i>732</i>&nbsp;
+<b class="fc"><i>733</i>&nbsp;        InternalShardLock(final ShardId shardId, final String details) {</b>
+<b class="fc"><i>734</i>&nbsp;            this.shardId = shardId;</b>
+<b class="fc"><i>735</i>&nbsp;            mutex.acquireUninterruptibly();</b>
+<b class="fc"><i>736</i>&nbsp;            lockDetails = details;</b>
+<b class="fc"><i>737</i>&nbsp;        }</b>
+<i>738</i>&nbsp;
+<i>739</i>&nbsp;        protected void release() {
+<b class="fc"><i>740</i>&nbsp;            mutex.release();</b>
+<b class="fc"><i>741</i>&nbsp;            decWaitCount();</b>
+<b class="fc"><i>742</i>&nbsp;        }</b>
+<i>743</i>&nbsp;
+<i>744</i>&nbsp;        void incWaitCount() {
+<b class="fc"><i>745</i>&nbsp;            synchronized (shardLocks) {</b>
+<b class="fc"><i>746</i>&nbsp;                assert waitCount &gt; 0 : &quot;waitCount is &quot; + waitCount + &quot; but should be &gt; 0&quot;;</b>
+<b class="fc"><i>747</i>&nbsp;                waitCount++;</b>
+<b class="fc"><i>748</i>&nbsp;            }</b>
+<b class="fc"><i>749</i>&nbsp;        }</b>
+<i>750</i>&nbsp;
+<i>751</i>&nbsp;        private void decWaitCount() {
+<b class="fc"><i>752</i>&nbsp;            synchronized (shardLocks) {</b>
+<b class="fc"><i>753</i>&nbsp;                assert waitCount &gt; 0 : &quot;waitCount is &quot; + waitCount + &quot; but should be &gt; 0&quot;;</b>
+<b class="fc"><i>754</i>&nbsp;                --waitCount;</b>
+<b class="fc"><i>755</i>&nbsp;                logger.trace(&quot;shard lock wait count for {} is now [{}]&quot;, shardId, waitCount);</b>
+<b class="fc"><i>756</i>&nbsp;                if (waitCount == 0) {</b>
+<b class="fc"><i>757</i>&nbsp;                    logger.trace(&quot;last shard lock wait decremented, removing lock for {}&quot;, shardId);</b>
+<b class="fc"><i>758</i>&nbsp;                    InternalShardLock remove = shardLocks.remove(shardId);</b>
+<b class="fc"><i>759</i>&nbsp;                    assert remove != null : &quot;Removed lock was null&quot;;</b>
+<i>760</i>&nbsp;                }
+<b class="fc"><i>761</i>&nbsp;            }</b>
+<b class="fc"><i>762</i>&nbsp;        }</b>
+<i>763</i>&nbsp;
+<i>764</i>&nbsp;        void acquire(long timeoutInMillis, final String details) throws ShardLockObtainFailedException {
+<i>765</i>&nbsp;            try {
+<b class="fc"><i>766</i>&nbsp;                if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS)) {</b>
+<b class="nc"><i>767</i>&nbsp;                    lockDetails = details;</b>
+<i>768</i>&nbsp;                } else {
+<b class="fc"><i>769</i>&nbsp;                    throw new ShardLockObtainFailedException(shardId,</b>
+<i>770</i>&nbsp;                        &quot;obtaining shard lock timed out after &quot; + timeoutInMillis + &quot;ms, previous lock details: [&quot; + lockDetails +
+<i>771</i>&nbsp;                            &quot;] trying to lock for [&quot; + details + &quot;]&quot;);
+<i>772</i>&nbsp;                }
+<b class="nc"><i>773</i>&nbsp;            } catch (InterruptedException e) {</b>
+<b class="nc"><i>774</i>&nbsp;                Thread.currentThread().interrupt();</b>
+<b class="nc"><i>775</i>&nbsp;                throw new ShardLockObtainFailedException(shardId, &quot;thread interrupted while trying to obtain shard lock&quot;, e);</b>
+<b class="nc"><i>776</i>&nbsp;            }</b>
+<b class="nc"><i>777</i>&nbsp;        }</b>
+<i>778</i>&nbsp;    }
+<i>779</i>&nbsp;
+<i>780</i>&nbsp;    public boolean hasNodeFile() {
+<b class="fc"><i>781</i>&nbsp;        return nodePaths != null &amp;&amp; locks != null;</b>
+<i>782</i>&nbsp;    }
+<i>783</i>&nbsp;
+<i>784</i>&nbsp;    /**
+<i>785</i>&nbsp;     * Returns an array of all of the nodes data locations.
+<i>786</i>&nbsp;     * @throws IllegalStateException if the node is not configured to store local locations
+<i>787</i>&nbsp;     */
+<i>788</i>&nbsp;    public Path[] nodeDataPaths() {
+<b class="fc"><i>789</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>790</i>&nbsp;        Path[] paths = new Path[nodePaths.length];</b>
+<b class="fc"><i>791</i>&nbsp;        for(int i=0;i&lt;paths.length;i++) {</b>
+<b class="fc"><i>792</i>&nbsp;            paths[i] = nodePaths[i].path;</b>
+<i>793</i>&nbsp;        }
+<b class="fc"><i>794</i>&nbsp;        return paths;</b>
+<i>795</i>&nbsp;    }
+<i>796</i>&nbsp;
+<i>797</i>&nbsp;    /**
+<i>798</i>&nbsp;     * Returns shared data path for this node environment
+<i>799</i>&nbsp;     */
+<i>800</i>&nbsp;    public Path sharedDataPath() {
+<b class="fc"><i>801</i>&nbsp;        return sharedDataPath;</b>
+<i>802</i>&nbsp;    }
+<i>803</i>&nbsp;
+<i>804</i>&nbsp;    /**
+<i>805</i>&nbsp;     * returns the unique uuid describing this node. The uuid is persistent in the data folder of this node
+<i>806</i>&nbsp;     * and remains across restarts.
+<i>807</i>&nbsp;     **/
+<i>808</i>&nbsp;    public String nodeId() {
+<i>809</i>&nbsp;        // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
+<i>810</i>&nbsp;        // confusion with other &quot;metadata&quot; like node settings found in elasticsearch.yml. In future
+<i>811</i>&nbsp;        // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
+<b class="fc"><i>812</i>&nbsp;        return nodeMetaData.nodeId();</b>
+<i>813</i>&nbsp;    }
+<i>814</i>&nbsp;
+<i>815</i>&nbsp;    /**
+<i>816</i>&nbsp;     * Returns an array of all of the {@link NodePath}s.
+<i>817</i>&nbsp;     */
+<i>818</i>&nbsp;    public NodePath[] nodePaths() {
+<b class="fc"><i>819</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>820</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>821</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>822</i>&nbsp;        }
+<b class="fc"><i>823</i>&nbsp;        return nodePaths;</b>
+<i>824</i>&nbsp;    }
+<i>825</i>&nbsp;
+<i>826</i>&nbsp;    public int getNodeLockId() {
+<b class="fc"><i>827</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>828</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>829</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>830</i>&nbsp;        }
+<b class="fc"><i>831</i>&nbsp;        return nodeLockId;</b>
+<i>832</i>&nbsp;    }
+<i>833</i>&nbsp;
+<i>834</i>&nbsp;    /**
+<i>835</i>&nbsp;     * Returns all index paths.
+<i>836</i>&nbsp;     */
+<i>837</i>&nbsp;    public Path[] indexPaths(Index index) {
+<b class="fc"><i>838</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>839</i>&nbsp;        Path[] indexPaths = new Path[nodePaths.length];</b>
+<b class="fc"><i>840</i>&nbsp;        for (int i = 0; i &lt; nodePaths.length; i++) {</b>
+<b class="fc"><i>841</i>&nbsp;            indexPaths[i] = nodePaths[i].resolve(index);</b>
+<i>842</i>&nbsp;        }
+<b class="fc"><i>843</i>&nbsp;        return indexPaths;</b>
+<i>844</i>&nbsp;    }
+<i>845</i>&nbsp;
+<i>846</i>&nbsp;
+<i>847</i>&nbsp;
+<i>848</i>&nbsp;    /**
+<i>849</i>&nbsp;     * Returns all shard paths excluding custom shard path. Note: Shards are only allocated on one of the
+<i>850</i>&nbsp;     * returned paths. The returned array may contain paths to non-existing directories.
+<i>851</i>&nbsp;     *
+<i>852</i>&nbsp;     * @see IndexSettings#hasCustomDataPath()
+<i>853</i>&nbsp;     * @see #resolveCustomLocation(IndexSettings, ShardId)
+<i>854</i>&nbsp;     *
+<i>855</i>&nbsp;     */
+<i>856</i>&nbsp;    public Path[] availableShardPaths(ShardId shardId) {
+<b class="fc"><i>857</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>858</i>&nbsp;        final NodePath[] nodePaths = nodePaths();</b>
+<b class="fc"><i>859</i>&nbsp;        final Path[] shardLocations = new Path[nodePaths.length];</b>
+<b class="fc"><i>860</i>&nbsp;        for (int i = 0; i &lt; nodePaths.length; i++) {</b>
+<b class="fc"><i>861</i>&nbsp;            shardLocations[i] = nodePaths[i].resolve(shardId);</b>
+<i>862</i>&nbsp;        }
+<b class="fc"><i>863</i>&nbsp;        return shardLocations;</b>
+<i>864</i>&nbsp;    }
+<i>865</i>&nbsp;
+<i>866</i>&nbsp;    /**
+<i>867</i>&nbsp;     * Returns all folder names in ${data.paths}/nodes/{node.id}/indices folder
+<i>868</i>&nbsp;     */
+<i>869</i>&nbsp;    public Set&lt;String&gt; availableIndexFolders() throws IOException {
+<b class="fc"><i>870</i>&nbsp;        return availableIndexFolders(p -&gt; false);</b>
+<i>871</i>&nbsp;    }
+<i>872</i>&nbsp;
+<i>873</i>&nbsp;    /**
+<i>874</i>&nbsp;     * Returns folder names in ${data.paths}/nodes/{node.id}/indices folder that don&#39;t match the given predicate.
+<i>875</i>&nbsp;     * @param excludeIndexPathIdsPredicate folder names to exclude
+<i>876</i>&nbsp;     */
+<i>877</i>&nbsp;    public Set&lt;String&gt; availableIndexFolders(Predicate&lt;String&gt; excludeIndexPathIdsPredicate) throws IOException {
+<b class="fc"><i>878</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>879</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>880</i>&nbsp;        }
+<b class="fc"><i>881</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>882</i>&nbsp;        Set&lt;String&gt; indexFolders = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>883</i>&nbsp;        for (NodePath nodePath : nodePaths) {</b>
+<b class="fc"><i>884</i>&nbsp;            indexFolders.addAll(availableIndexFoldersForPath(nodePath, excludeIndexPathIdsPredicate));</b>
+<i>885</i>&nbsp;        }
+<b class="fc"><i>886</i>&nbsp;        return indexFolders;</b>
+<i>887</i>&nbsp;
+<i>888</i>&nbsp;    }
+<i>889</i>&nbsp;
+<i>890</i>&nbsp;    /**
+<i>891</i>&nbsp;     * Return all directory names in the nodes/{node.id}/indices directory for the given node path.
+<i>892</i>&nbsp;     *
+<i>893</i>&nbsp;     * @param nodePath the path
+<i>894</i>&nbsp;     * @return all directories that could be indices for the given node path.
+<i>895</i>&nbsp;     * @throws IOException if an I/O exception occurs traversing the filesystem
+<i>896</i>&nbsp;     */
+<i>897</i>&nbsp;    public Set&lt;String&gt; availableIndexFoldersForPath(final NodePath nodePath) throws IOException {
+<b class="nc"><i>898</i>&nbsp;        return availableIndexFoldersForPath(nodePath, p -&gt; false);</b>
+<i>899</i>&nbsp;    }
+<i>900</i>&nbsp;
+<i>901</i>&nbsp;    /**
+<i>902</i>&nbsp;     * Return directory names in the nodes/{node.id}/indices directory for the given node path that don&#39;t match the given predicate.
+<i>903</i>&nbsp;     *
+<i>904</i>&nbsp;     * @param nodePath the path
+<i>905</i>&nbsp;     * @param excludeIndexPathIdsPredicate folder names to exclude
+<i>906</i>&nbsp;     * @return all directories that could be indices for the given node path.
+<i>907</i>&nbsp;     * @throws IOException if an I/O exception occurs traversing the filesystem
+<i>908</i>&nbsp;     */
+<i>909</i>&nbsp;    public Set&lt;String&gt; availableIndexFoldersForPath(final NodePath nodePath, Predicate&lt;String&gt; excludeIndexPathIdsPredicate)
+<i>910</i>&nbsp;        throws IOException {
+<b class="fc"><i>911</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>912</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>913</i>&nbsp;        }
+<b class="fc"><i>914</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="fc"><i>915</i>&nbsp;        final Set&lt;String&gt; indexFolders = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>916</i>&nbsp;        Path indicesLocation = nodePath.indicesPath;</b>
+<b class="fc"><i>917</i>&nbsp;        if (Files.isDirectory(indicesLocation)) {</b>
+<b class="fc"><i>918</i>&nbsp;            try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(indicesLocation)) {</b>
+<b class="fc"><i>919</i>&nbsp;                for (Path index : stream) {</b>
+<b class="fc"><i>920</i>&nbsp;                    final String fileName = index.getFileName().toString();</b>
+<b class="fc"><i>921</i>&nbsp;                    if (excludeIndexPathIdsPredicate.test(fileName) == false &amp;&amp; Files.isDirectory(index)) {</b>
+<b class="nc"><i>922</i>&nbsp;                        indexFolders.add(fileName);</b>
+<i>923</i>&nbsp;                    }
+<b class="fc"><i>924</i>&nbsp;                }</b>
+<b class="fc"><i>925</i>&nbsp;            }</b>
+<i>926</i>&nbsp;        }
+<b class="fc"><i>927</i>&nbsp;        return indexFolders;</b>
+<i>928</i>&nbsp;    }
+<i>929</i>&nbsp;
+<i>930</i>&nbsp;    /**
+<i>931</i>&nbsp;     * Resolves all existing paths to &lt;code&gt;indexFolderName&lt;/code&gt; in ${data.paths}/nodes/{node.id}/indices
+<i>932</i>&nbsp;     */
+<i>933</i>&nbsp;    public Path[] resolveIndexFolder(String indexFolderName) {
+<b class="nc"><i>934</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>935</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>936</i>&nbsp;        }
+<b class="nc"><i>937</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="nc"><i>938</i>&nbsp;        List&lt;Path&gt; paths = new ArrayList&lt;&gt;(nodePaths.length);</b>
+<b class="nc"><i>939</i>&nbsp;        for (NodePath nodePath : nodePaths) {</b>
+<b class="nc"><i>940</i>&nbsp;            Path indexFolder = nodePath.indicesPath.resolve(indexFolderName);</b>
+<b class="nc"><i>941</i>&nbsp;            if (Files.exists(indexFolder)) {</b>
+<b class="nc"><i>942</i>&nbsp;                paths.add(indexFolder);</b>
+<i>943</i>&nbsp;            }
+<i>944</i>&nbsp;        }
+<b class="nc"><i>945</i>&nbsp;        return paths.toArray(new Path[paths.size()]);</b>
+<i>946</i>&nbsp;    }
+<i>947</i>&nbsp;
+<i>948</i>&nbsp;    /**
+<i>949</i>&nbsp;     * Tries to find all allocated shards for the given index
+<i>950</i>&nbsp;     * on the current node. NOTE: This methods is prone to race-conditions on the filesystem layer since it might not
+<i>951</i>&nbsp;     * see directories created concurrently or while it&#39;s traversing.
+<i>952</i>&nbsp;     * @param index the index to filter shards
+<i>953</i>&nbsp;     * @return a set of shard IDs
+<i>954</i>&nbsp;     * @throws IOException if an IOException occurs
+<i>955</i>&nbsp;     */
+<i>956</i>&nbsp;    public Set&lt;ShardId&gt; findAllShardIds(final Index index) throws IOException {
+<b class="nc"><i>957</i>&nbsp;        assert index != null;</b>
+<b class="nc"><i>958</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>959</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>960</i>&nbsp;        }
+<b class="nc"><i>961</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="nc"><i>962</i>&nbsp;        final Set&lt;ShardId&gt; shardIds = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>963</i>&nbsp;        final String indexUniquePathId = index.getUUID();</b>
+<b class="nc"><i>964</i>&nbsp;        for (final NodePath nodePath : nodePaths) {</b>
+<b class="nc"><i>965</i>&nbsp;            Path location = nodePath.indicesPath;</b>
+<b class="nc"><i>966</i>&nbsp;            if (Files.isDirectory(location)) {</b>
+<b class="nc"><i>967</i>&nbsp;                try (DirectoryStream&lt;Path&gt; indexStream = Files.newDirectoryStream(location)) {</b>
+<b class="nc"><i>968</i>&nbsp;                    for (Path indexPath : indexStream) {</b>
+<b class="nc"><i>969</i>&nbsp;                        if (indexUniquePathId.equals(indexPath.getFileName().toString())) {</b>
+<b class="nc"><i>970</i>&nbsp;                            shardIds.addAll(findAllShardsForIndex(indexPath, index));</b>
+<i>971</i>&nbsp;                        }
+<b class="nc"><i>972</i>&nbsp;                    }</b>
+<b class="nc"><i>973</i>&nbsp;                }</b>
+<i>974</i>&nbsp;            }
+<i>975</i>&nbsp;        }
+<b class="nc"><i>976</i>&nbsp;        return shardIds;</b>
+<i>977</i>&nbsp;    }
+<i>978</i>&nbsp;
+<i>979</i>&nbsp;    /**
+<i>980</i>&nbsp;     * Find all the shards for this index, returning a map of the {@code NodePath} to the number of shards on that path
+<i>981</i>&nbsp;     * @param index the index by which to filter shards
+<i>982</i>&nbsp;     * @return a map of NodePath to count of the shards for the index on that path
+<i>983</i>&nbsp;     * @throws IOException if an IOException occurs
+<i>984</i>&nbsp;     */
+<i>985</i>&nbsp;    public Map&lt;NodePath, Long&gt; shardCountPerPath(final Index index) throws IOException {
+<b class="nc"><i>986</i>&nbsp;        assert index != null;</b>
+<b class="nc"><i>987</i>&nbsp;        if (nodePaths == null || locks == null) {</b>
+<b class="nc"><i>988</i>&nbsp;            throw new IllegalStateException(&quot;node is not configured to store local location&quot;);</b>
+<i>989</i>&nbsp;        }
+<b class="nc"><i>990</i>&nbsp;        assertEnvIsLocked();</b>
+<b class="nc"><i>991</i>&nbsp;        final Map&lt;NodePath, Long&gt; shardCountPerPath = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>992</i>&nbsp;        final String indexUniquePathId = index.getUUID();</b>
+<b class="nc"><i>993</i>&nbsp;        for (final NodePath nodePath : nodePaths) {</b>
+<b class="nc"><i>994</i>&nbsp;            Path indexLocation = nodePath.indicesPath.resolve(indexUniquePathId);</b>
+<b class="nc"><i>995</i>&nbsp;            if (Files.isDirectory(indexLocation)) {</b>
+<b class="nc"><i>996</i>&nbsp;                shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexLocation, index).size());</b>
+<i>997</i>&nbsp;            }
+<i>998</i>&nbsp;        }
+<b class="nc"><i>999</i>&nbsp;        return shardCountPerPath;</b>
+<i>1000</i>&nbsp;    }
+<i>1001</i>&nbsp;
+<i>1002</i>&nbsp;    private static Set&lt;ShardId&gt; findAllShardsForIndex(Path indexPath, Index index) throws IOException {
+<b class="nc"><i>1003</i>&nbsp;        assert indexPath.getFileName().toString().equals(index.getUUID());</b>
+<b class="nc"><i>1004</i>&nbsp;        Set&lt;ShardId&gt; shardIds = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>1005</i>&nbsp;        if (Files.isDirectory(indexPath)) {</b>
+<b class="nc"><i>1006</i>&nbsp;            try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(indexPath)) {</b>
+<b class="nc"><i>1007</i>&nbsp;                for (Path shardPath : stream) {</b>
+<b class="nc"><i>1008</i>&nbsp;                    String fileName = shardPath.getFileName().toString();</b>
+<b class="nc"><i>1009</i>&nbsp;                    if (Files.isDirectory(shardPath) &amp;&amp; fileName.chars().allMatch(Character::isDigit)) {</b>
+<b class="nc"><i>1010</i>&nbsp;                        int shardId = Integer.parseInt(fileName);</b>
+<b class="nc"><i>1011</i>&nbsp;                        ShardId id = new ShardId(index, shardId);</b>
+<b class="nc"><i>1012</i>&nbsp;                        shardIds.add(id);</b>
+<i>1013</i>&nbsp;                    }
+<b class="nc"><i>1014</i>&nbsp;                }</b>
+<b class="nc"><i>1015</i>&nbsp;            }</b>
+<i>1016</i>&nbsp;        }
+<b class="nc"><i>1017</i>&nbsp;        return shardIds;</b>
+<i>1018</i>&nbsp;    }
+<i>1019</i>&nbsp;
+<i>1020</i>&nbsp;    @Override
+<i>1021</i>&nbsp;    public void close() {
+<b class="fc"><i>1022</i>&nbsp;        if (closed.compareAndSet(false, true) &amp;&amp; locks != null) {</b>
+<b class="fc"><i>1023</i>&nbsp;            for (Lock lock : locks) {</b>
+<i>1024</i>&nbsp;                try {
+<b class="fc"><i>1025</i>&nbsp;                    logger.trace(&quot;releasing lock [{}]&quot;, lock);</b>
+<b class="fc"><i>1026</i>&nbsp;                    lock.close();</b>
+<b class="nc"><i>1027</i>&nbsp;                } catch (IOException e) {</b>
+<b class="nc"><i>1028</i>&nbsp;                    logger.trace(() -&gt; new ParameterizedMessage(&quot;failed to release lock [{}]&quot;, lock), e);</b>
+<b class="fc"><i>1029</i>&nbsp;                }</b>
+<i>1030</i>&nbsp;            }
+<i>1031</i>&nbsp;        }
+<b class="fc"><i>1032</i>&nbsp;    }</b>
+<i>1033</i>&nbsp;
+<i>1034</i>&nbsp;
+<i>1035</i>&nbsp;    private void assertEnvIsLocked() {
+<b class="fc"><i>1036</i>&nbsp;        if (!closed.get() &amp;&amp; locks != null) {</b>
+<b class="fc"><i>1037</i>&nbsp;            for (Lock lock : locks) {</b>
+<i>1038</i>&nbsp;                try {
+<b class="fc"><i>1039</i>&nbsp;                    lock.ensureValid();</b>
+<b class="nc"><i>1040</i>&nbsp;                } catch (IOException e) {</b>
+<b class="nc"><i>1041</i>&nbsp;                    logger.warn(&quot;lock assertion failed&quot;, e);</b>
+<b class="nc"><i>1042</i>&nbsp;                    throw new IllegalStateException(&quot;environment is not locked&quot;, e);</b>
+<b class="fc"><i>1043</i>&nbsp;                }</b>
+<i>1044</i>&nbsp;            }
+<i>1045</i>&nbsp;        }
+<b class="fc"><i>1046</i>&nbsp;    }</b>
+<i>1047</i>&nbsp;
+<i>1048</i>&nbsp;    /**
+<i>1049</i>&nbsp;     * This method tries to write an empty file and moves it using an atomic move operation.
+<i>1050</i>&nbsp;     * This method throws an {@link IllegalStateException} if this operation is
+<i>1051</i>&nbsp;     * not supported by the filesystem. This test is executed on each of the data directories.
+<i>1052</i>&nbsp;     * This method cleans up all files even in the case of an error.
+<i>1053</i>&nbsp;     */
+<i>1054</i>&nbsp;    private static void ensureAtomicMoveSupported(final NodePath[] nodePaths) throws IOException {
+<b class="fc"><i>1055</i>&nbsp;        for (NodePath nodePath : nodePaths) {</b>
+<b class="fc"><i>1056</i>&nbsp;            assert Files.isDirectory(nodePath.path) : nodePath.path + &quot; is not a directory&quot;;</b>
+<b class="fc"><i>1057</i>&nbsp;            final Path src = nodePath.path.resolve(TEMP_FILE_NAME + &quot;.tmp&quot;);</b>
+<b class="fc"><i>1058</i>&nbsp;            final Path target = nodePath.path.resolve(TEMP_FILE_NAME + &quot;.final&quot;);</b>
+<i>1059</i>&nbsp;            try {
+<b class="fc"><i>1060</i>&nbsp;                Files.deleteIfExists(src);</b>
+<b class="fc"><i>1061</i>&nbsp;                Files.createFile(src);</b>
+<b class="fc"><i>1062</i>&nbsp;                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);</b>
+<b class="nc"><i>1063</i>&nbsp;            } catch (AtomicMoveNotSupportedException ex) {</b>
+<b class="nc"><i>1064</i>&nbsp;                throw new IllegalStateException(&quot;atomic_move is not supported by the filesystem on path [&quot;</b>
+<i>1065</i>&nbsp;                        + nodePath.path
+<i>1066</i>&nbsp;                        + &quot;] atomic_move is required for elasticsearch to work correctly.&quot;, ex);
+<i>1067</i>&nbsp;            } finally {
+<b class="nc"><i>1068</i>&nbsp;                try {</b>
+<b class="fc"><i>1069</i>&nbsp;                    Files.deleteIfExists(src);</b>
+<i>1070</i>&nbsp;                } finally {
+<b class="fc"><i>1071</i>&nbsp;                    Files.deleteIfExists(target);</b>
+<b class="fc"><i>1072</i>&nbsp;                }</b>
+<b class="fc"><i>1073</i>&nbsp;            }</b>
+<i>1074</i>&nbsp;        }
+<b class="fc"><i>1075</i>&nbsp;    }</b>
+<i>1076</i>&nbsp;
+<i>1077</i>&nbsp;    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+<b class="nc"><i>1078</i>&nbsp;        List&lt;Path&gt; shardDataPaths = collectShardDataPaths(nodePaths);</b>
+<b class="nc"><i>1079</i>&nbsp;        if (shardDataPaths.isEmpty() == false) {</b>
+<b class="nc"><i>1080</i>&nbsp;            throw new IllegalStateException(&quot;Node is started with &quot;</b>
+<b class="nc"><i>1081</i>&nbsp;                + Node.NODE_DATA_SETTING.getKey()</b>
+<i>1082</i>&nbsp;                + &quot;=false, but has shard data: &quot;
+<i>1083</i>&nbsp;                + shardDataPaths
+<i>1084</i>&nbsp;                + &quot;. Use &#39;elasticsearch-node repurpose&#39; tool to clean up&quot;
+<i>1085</i>&nbsp;            );
+<i>1086</i>&nbsp;        }
+<b class="nc"><i>1087</i>&nbsp;    }</b>
+<i>1088</i>&nbsp;
+<i>1089</i>&nbsp;    private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
+<b class="nc"><i>1090</i>&nbsp;        List&lt;Path&gt; indexMetaDataPaths = collectIndexMetaDataPaths(nodePaths);</b>
+<b class="nc"><i>1091</i>&nbsp;        if (indexMetaDataPaths.isEmpty() == false) {</b>
+<b class="nc"><i>1092</i>&nbsp;            throw new IllegalStateException(&quot;Node is started with &quot;</b>
+<b class="nc"><i>1093</i>&nbsp;                + Node.NODE_DATA_SETTING.getKey()</b>
+<i>1094</i>&nbsp;                + &quot;=false and &quot;
+<b class="nc"><i>1095</i>&nbsp;                + Node.NODE_MASTER_SETTING.getKey()</b>
+<i>1096</i>&nbsp;                + &quot;=false, but has index metadata: &quot;
+<i>1097</i>&nbsp;                + indexMetaDataPaths
+<i>1098</i>&nbsp;                + &quot;. Use &#39;elasticsearch-node repurpose&#39; tool to clean up&quot;
+<i>1099</i>&nbsp;            );
+<i>1100</i>&nbsp;        }
+<b class="nc"><i>1101</i>&nbsp;    }</b>
+<i>1102</i>&nbsp;
+<i>1103</i>&nbsp;    /**
+<i>1104</i>&nbsp;     * Collect the paths containing shard data in the indicated node paths. The returned paths will point to the shard data folder.
+<i>1105</i>&nbsp;     */
+<i>1106</i>&nbsp;    static List&lt;Path&gt; collectShardDataPaths(NodePath[] nodePaths) throws IOException {
+<b class="nc"><i>1107</i>&nbsp;        return collectIndexSubPaths(nodePaths, NodeEnvironment::isShardPath);</b>
+<i>1108</i>&nbsp;    }
+<i>1109</i>&nbsp;
+<i>1110</i>&nbsp;
+<i>1111</i>&nbsp;    /**
+<i>1112</i>&nbsp;     * Collect the paths containing index meta data in the indicated node paths. The returned paths will point to the
+<i>1113</i>&nbsp;     * {@link MetaDataStateFormat#STATE_DIR_NAME} folder
+<i>1114</i>&nbsp;     */
+<i>1115</i>&nbsp;    static List&lt;Path&gt; collectIndexMetaDataPaths(NodePath[] nodePaths) throws IOException {
+<b class="nc"><i>1116</i>&nbsp;        return collectIndexSubPaths(nodePaths, NodeEnvironment::isIndexMetaDataPath);</b>
+<i>1117</i>&nbsp;    }
+<i>1118</i>&nbsp;
+<i>1119</i>&nbsp;    private static List&lt;Path&gt; collectIndexSubPaths(NodePath[] nodePaths, Predicate&lt;Path&gt; subPathPredicate) throws IOException {
+<b class="nc"><i>1120</i>&nbsp;        List&lt;Path&gt; indexSubPaths = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>1121</i>&nbsp;        for (NodePath nodePath : nodePaths) {</b>
+<b class="nc"><i>1122</i>&nbsp;            Path indicesPath = nodePath.indicesPath;</b>
+<b class="nc"><i>1123</i>&nbsp;            if (Files.isDirectory(indicesPath)) {</b>
+<b class="nc"><i>1124</i>&nbsp;                try (DirectoryStream&lt;Path&gt; indexStream = Files.newDirectoryStream(indicesPath)) {</b>
+<b class="nc"><i>1125</i>&nbsp;                    for (Path indexPath : indexStream) {</b>
+<b class="nc"><i>1126</i>&nbsp;                        if (Files.isDirectory(indexPath)) {</b>
+<b class="nc"><i>1127</i>&nbsp;                            try (Stream&lt;Path&gt; shardStream = Files.list(indexPath)) {</b>
+<b class="nc"><i>1128</i>&nbsp;                                shardStream.filter(subPathPredicate)</b>
+<b class="nc"><i>1129</i>&nbsp;                                    .map(Path::toAbsolutePath)</b>
+<b class="nc"><i>1130</i>&nbsp;                                    .forEach(indexSubPaths::add);</b>
+<b class="nc"><i>1131</i>&nbsp;                            }</b>
+<i>1132</i>&nbsp;                        }
+<b class="nc"><i>1133</i>&nbsp;                    }</b>
+<b class="nc"><i>1134</i>&nbsp;                }</b>
+<i>1135</i>&nbsp;            }
+<i>1136</i>&nbsp;        }
+<i>1137</i>&nbsp;
+<b class="nc"><i>1138</i>&nbsp;        return indexSubPaths;</b>
+<i>1139</i>&nbsp;    }
+<i>1140</i>&nbsp;
+<i>1141</i>&nbsp;    private static boolean isShardPath(Path path) {
+<b class="nc"><i>1142</i>&nbsp;        return Files.isDirectory(path)</b>
+<b class="nc"><i>1143</i>&nbsp;            &amp;&amp; path.getFileName().toString().chars().allMatch(Character::isDigit);</b>
+<i>1144</i>&nbsp;    }
+<i>1145</i>&nbsp;
+<i>1146</i>&nbsp;    private static boolean isIndexMetaDataPath(Path path) {
+<b class="nc"><i>1147</i>&nbsp;        return Files.isDirectory(path)</b>
+<b class="nc"><i>1148</i>&nbsp;            &amp;&amp; path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);</b>
+<i>1149</i>&nbsp;    }
+<i>1150</i>&nbsp;
+<i>1151</i>&nbsp;    /**
+<i>1152</i>&nbsp;     * Resolve the custom path for a index&#39;s shard.
+<i>1153</i>&nbsp;     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+<i>1154</i>&nbsp;     * the root path for the index.
+<i>1155</i>&nbsp;     *
+<i>1156</i>&nbsp;     * @param indexSettings settings for the index
+<i>1157</i>&nbsp;     */
+<i>1158</i>&nbsp;    public static Path resolveBaseCustomLocation(IndexSettings indexSettings, Path sharedDataPath, int nodeLockId) {
+<b class="nc"><i>1159</i>&nbsp;        String customDataDir = indexSettings.customDataPath();</b>
+<b class="nc"><i>1160</i>&nbsp;        if (customDataDir != null) {</b>
+<i>1161</i>&nbsp;            // This assert is because this should be caught by MetaDataCreateIndexService
+<b class="nc"><i>1162</i>&nbsp;            assert sharedDataPath != null;</b>
+<b class="nc"><i>1163</i>&nbsp;            return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(nodeLockId));</b>
+<i>1164</i>&nbsp;        } else {
+<b class="nc"><i>1165</i>&nbsp;            throw new IllegalArgumentException(&quot;no custom &quot; + IndexMetaData.SETTING_DATA_PATH + &quot; setting available&quot;);</b>
+<i>1166</i>&nbsp;        }
+<i>1167</i>&nbsp;    }
+<i>1168</i>&nbsp;
+<i>1169</i>&nbsp;    /**
+<i>1170</i>&nbsp;     * Resolve the custom path for a index&#39;s shard.
+<i>1171</i>&nbsp;     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+<i>1172</i>&nbsp;     * the root path for the index.
+<i>1173</i>&nbsp;     *
+<i>1174</i>&nbsp;     * @param indexSettings settings for the index
+<i>1175</i>&nbsp;     */
+<i>1176</i>&nbsp;    private Path resolveIndexCustomLocation(IndexSettings indexSettings) {
+<b class="nc"><i>1177</i>&nbsp;        return resolveIndexCustomLocation(indexSettings, sharedDataPath, nodeLockId);</b>
+<i>1178</i>&nbsp;    }
+<i>1179</i>&nbsp;
+<i>1180</i>&nbsp;    private static Path resolveIndexCustomLocation(IndexSettings indexSettings, Path sharedDataPath, int nodeLockId) {
+<b class="nc"><i>1181</i>&nbsp;        return resolveBaseCustomLocation(indexSettings, sharedDataPath, nodeLockId).resolve(indexSettings.getUUID());</b>
+<i>1182</i>&nbsp;    }
+<i>1183</i>&nbsp;
+<i>1184</i>&nbsp;    /**
+<i>1185</i>&nbsp;     * Resolve the custom path for a index&#39;s shard.
+<i>1186</i>&nbsp;     * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
+<i>1187</i>&nbsp;     * the root path for the index.
+<i>1188</i>&nbsp;     *
+<i>1189</i>&nbsp;     * @param indexSettings settings for the index
+<i>1190</i>&nbsp;     * @param shardId shard to resolve the path to
+<i>1191</i>&nbsp;     */
+<i>1192</i>&nbsp;    public Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId) {
+<b class="nc"><i>1193</i>&nbsp;        return resolveCustomLocation(indexSettings, shardId, sharedDataPath, nodeLockId);</b>
+<i>1194</i>&nbsp;    }
+<i>1195</i>&nbsp;
+<i>1196</i>&nbsp;    public static Path resolveCustomLocation(IndexSettings indexSettings, final ShardId shardId, Path sharedDataPath, int nodeLockId) {
+<b class="nc"><i>1197</i>&nbsp;        return resolveIndexCustomLocation(indexSettings, sharedDataPath, nodeLockId).resolve(Integer.toString(shardId.id()));</b>
+<i>1198</i>&nbsp;    }
+<i>1199</i>&nbsp;
+<i>1200</i>&nbsp;    /**
+<i>1201</i>&nbsp;     * Returns the {@code NodePath.path} for this shard.
+<i>1202</i>&nbsp;     */
+<i>1203</i>&nbsp;    public static Path shardStatePathToDataPath(Path shardPath) {
+<b class="nc"><i>1204</i>&nbsp;        int count = shardPath.getNameCount();</b>
+<i>1205</i>&nbsp;
+<i>1206</i>&nbsp;        // Sanity check:
+<b class="nc"><i>1207</i>&nbsp;        assert Integer.parseInt(shardPath.getName(count-1).toString()) &gt;= 0;</b>
+<b class="nc"><i>1208</i>&nbsp;        assert &quot;indices&quot;.equals(shardPath.getName(count-3).toString());</b>
+<i>1209</i>&nbsp;
+<b class="nc"><i>1210</i>&nbsp;        return shardPath.getParent().getParent().getParent();</b>
+<i>1211</i>&nbsp;    }
+<i>1212</i>&nbsp;
+<i>1213</i>&nbsp;    /**
+<i>1214</i>&nbsp;     * This is a best effort to ensure that we actually have write permissions to write in all our data directories.
+<i>1215</i>&nbsp;     * This prevents disasters if nodes are started under the wrong username etc.
+<i>1216</i>&nbsp;     */
+<i>1217</i>&nbsp;    private void assertCanWrite() throws IOException {
+<b class="fc"><i>1218</i>&nbsp;        for (Path path : nodeDataPaths()) { // check node-paths are writable</b>
+<b class="fc"><i>1219</i>&nbsp;            tryWriteTempFile(path);</b>
+<i>1220</i>&nbsp;        }
+<b class="fc"><i>1221</i>&nbsp;        for (String indexFolderName : this.availableIndexFolders()) {</b>
+<b class="nc"><i>1222</i>&nbsp;            for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable</b>
+<b class="nc"><i>1223</i>&nbsp;                Path indexStatePath = indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME);</b>
+<b class="nc"><i>1224</i>&nbsp;                tryWriteTempFile(indexStatePath);</b>
+<b class="nc"><i>1225</i>&nbsp;                tryWriteTempFile(indexPath);</b>
+<b class="nc"><i>1226</i>&nbsp;                try (DirectoryStream&lt;Path&gt; stream = Files.newDirectoryStream(indexPath)) {</b>
+<b class="nc"><i>1227</i>&nbsp;                    for (Path shardPath : stream) {</b>
+<b class="nc"><i>1228</i>&nbsp;                        String fileName = shardPath.getFileName().toString();</b>
+<b class="nc"><i>1229</i>&nbsp;                        if (Files.isDirectory(shardPath) &amp;&amp; fileName.chars().allMatch(Character::isDigit)) {</b>
+<b class="nc"><i>1230</i>&nbsp;                            Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);</b>
+<b class="nc"><i>1231</i>&nbsp;                            Path statePath = shardPath.resolve(MetaDataStateFormat.STATE_DIR_NAME);</b>
+<b class="nc"><i>1232</i>&nbsp;                            Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);</b>
+<b class="nc"><i>1233</i>&nbsp;                            tryWriteTempFile(indexDir);</b>
+<b class="nc"><i>1234</i>&nbsp;                            tryWriteTempFile(translogDir);</b>
+<b class="nc"><i>1235</i>&nbsp;                            tryWriteTempFile(statePath);</b>
+<b class="nc"><i>1236</i>&nbsp;                            tryWriteTempFile(shardPath);</b>
+<i>1237</i>&nbsp;                        }
+<b class="nc"><i>1238</i>&nbsp;                    }</b>
+<b class="nc"><i>1239</i>&nbsp;                }</b>
+<i>1240</i>&nbsp;            }
+<b class="nc"><i>1241</i>&nbsp;        }</b>
+<b class="fc"><i>1242</i>&nbsp;    }</b>
+<i>1243</i>&nbsp;
+<i>1244</i>&nbsp;    // package private for testing
+<i>1245</i>&nbsp;    static final String TEMP_FILE_NAME = &quot;.es_temp_file&quot;;
+<i>1246</i>&nbsp;
+<i>1247</i>&nbsp;    private static void tryWriteTempFile(Path path) throws IOException {
+<b class="fc"><i>1248</i>&nbsp;        if (Files.exists(path)) {</b>
+<b class="fc"><i>1249</i>&nbsp;            Path resolve = path.resolve(TEMP_FILE_NAME);</b>
+<i>1250</i>&nbsp;            try {
+<i>1251</i>&nbsp;                // delete any lingering file from a previous failure
+<b class="fc"><i>1252</i>&nbsp;                Files.deleteIfExists(resolve);</b>
+<b class="fc"><i>1253</i>&nbsp;                Files.createFile(resolve);</b>
+<b class="fc"><i>1254</i>&nbsp;                Files.delete(resolve);</b>
+<b class="nc"><i>1255</i>&nbsp;            } catch (IOException ex) {</b>
+<b class="nc"><i>1256</i>&nbsp;                throw new IOException(&quot;failed to test writes in data directory [&quot; + path + &quot;] write permission is required&quot;, ex);</b>
+<b class="fc"><i>1257</i>&nbsp;            }</b>
+<i>1258</i>&nbsp;        }
+<b class="fc"><i>1259</i>&nbsp;    }</b>
+<i>1260</i>&nbsp;}
+<i>1261</i>&nbsp;
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

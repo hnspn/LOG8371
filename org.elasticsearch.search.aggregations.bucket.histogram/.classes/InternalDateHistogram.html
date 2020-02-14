@@ -1,0 +1,668 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: InternalDateHistogram</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.bucket.histogram</a> ]
+</div>
+
+<h1>Coverage Summary for Class: InternalDateHistogram (org.elasticsearch.search.aggregations.bucket.histogram)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">InternalDateHistogram</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 23)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 169)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">InternalDateHistogram$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 2)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">InternalDateHistogram$Bucket</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 43)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 39)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 214)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.search.aggregations.bucket.histogram;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.lucene.util.CollectionUtil;
+<i>22</i>&nbsp;import org.apache.lucene.util.PriorityQueue;
+<i>23</i>&nbsp;import org.elasticsearch.common.Rounding;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>27</i>&nbsp;import org.elasticsearch.search.DocValueFormat;
+<i>28</i>&nbsp;import org.elasticsearch.search.aggregations.Aggregations;
+<i>29</i>&nbsp;import org.elasticsearch.search.aggregations.BucketOrder;
+<i>30</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregation;
+<i>31</i>&nbsp;import org.elasticsearch.search.aggregations.InternalAggregations;
+<i>32</i>&nbsp;import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+<i>33</i>&nbsp;import org.elasticsearch.search.aggregations.InternalOrder;
+<i>34</i>&nbsp;import org.elasticsearch.search.aggregations.KeyComparable;
+<i>35</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+<i>36</i>&nbsp;import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.IOException;
+<i>39</i>&nbsp;import java.time.Instant;
+<i>40</i>&nbsp;import java.time.ZoneOffset;
+<i>41</i>&nbsp;import java.util.ArrayList;
+<i>42</i>&nbsp;import java.util.Collections;
+<i>43</i>&nbsp;import java.util.Iterator;
+<i>44</i>&nbsp;import java.util.List;
+<i>45</i>&nbsp;import java.util.ListIterator;
+<i>46</i>&nbsp;import java.util.Map;
+<i>47</i>&nbsp;import java.util.Objects;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * Implementation of {@link Histogram}.
+<i>51</i>&nbsp; */
+<b class="nc"><i>52</i>&nbsp;public final class InternalDateHistogram extends InternalMultiBucketAggregation&lt;InternalDateHistogram, InternalDateHistogram.Bucket&gt;</b>
+<i>53</i>&nbsp;        implements Histogram, HistogramFactory {
+<i>54</i>&nbsp;
+<b class="nc"><i>55</i>&nbsp;    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable&lt;Bucket&gt; {</b>
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;        final long key;
+<i>58</i>&nbsp;        final long docCount;
+<i>59</i>&nbsp;        final InternalAggregations aggregations;
+<i>60</i>&nbsp;        private final transient boolean keyed;
+<i>61</i>&nbsp;        protected final transient DocValueFormat format;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;        public Bucket(long key, long docCount, boolean keyed, DocValueFormat format,
+<b class="nc"><i>64</i>&nbsp;                InternalAggregations aggregations) {</b>
+<b class="nc"><i>65</i>&nbsp;            this.format = format;</b>
+<b class="nc"><i>66</i>&nbsp;            this.keyed = keyed;</b>
+<b class="nc"><i>67</i>&nbsp;            this.key = key;</b>
+<b class="nc"><i>68</i>&nbsp;            this.docCount = docCount;</b>
+<b class="nc"><i>69</i>&nbsp;            this.aggregations = aggregations;</b>
+<b class="nc"><i>70</i>&nbsp;        }</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;        /**
+<i>73</i>&nbsp;         * Read from a stream.
+<i>74</i>&nbsp;         */
+<b class="nc"><i>75</i>&nbsp;        public Bucket(StreamInput in, boolean keyed, DocValueFormat format) throws IOException {</b>
+<b class="nc"><i>76</i>&nbsp;            this.format = format;</b>
+<b class="nc"><i>77</i>&nbsp;            this.keyed = keyed;</b>
+<b class="nc"><i>78</i>&nbsp;            key = in.readLong();</b>
+<b class="nc"><i>79</i>&nbsp;            docCount = in.readVLong();</b>
+<b class="nc"><i>80</i>&nbsp;            aggregations = new InternalAggregations(in);</b>
+<b class="nc"><i>81</i>&nbsp;        }</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;        @Override
+<i>84</i>&nbsp;        public boolean equals(Object obj) {
+<b class="nc"><i>85</i>&nbsp;            if (obj == null || obj.getClass() != InternalDateHistogram.Bucket.class) {</b>
+<b class="nc"><i>86</i>&nbsp;                return false;</b>
+<i>87</i>&nbsp;            }
+<b class="nc"><i>88</i>&nbsp;            InternalDateHistogram.Bucket that = (InternalDateHistogram.Bucket) obj;</b>
+<i>89</i>&nbsp;            // No need to take the keyed and format parameters into account,
+<i>90</i>&nbsp;            // they are already stored and tested on the InternalDateHistogram object
+<b class="nc"><i>91</i>&nbsp;            return key == that.key</b>
+<i>92</i>&nbsp;                    &amp;&amp; docCount == that.docCount
+<b class="nc"><i>93</i>&nbsp;                    &amp;&amp; Objects.equals(aggregations, that.aggregations);</b>
+<i>94</i>&nbsp;        }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;        @Override
+<i>97</i>&nbsp;        public int hashCode() {
+<b class="nc"><i>98</i>&nbsp;            return Objects.hash(getClass(), key, docCount, aggregations);</b>
+<i>99</i>&nbsp;        }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;        @Override
+<i>102</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>103</i>&nbsp;            out.writeLong(key);</b>
+<b class="nc"><i>104</i>&nbsp;            out.writeVLong(docCount);</b>
+<b class="nc"><i>105</i>&nbsp;            aggregations.writeTo(out);</b>
+<b class="nc"><i>106</i>&nbsp;        }</b>
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;        @Override
+<i>109</i>&nbsp;        public String getKeyAsString() {
+<b class="nc"><i>110</i>&nbsp;            return format.format(key).toString();</b>
+<i>111</i>&nbsp;        }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;        @Override
+<i>114</i>&nbsp;        public Object getKey() {
+<b class="nc"><i>115</i>&nbsp;            return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);</b>
+<i>116</i>&nbsp;        }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;        @Override
+<i>119</i>&nbsp;        public long getDocCount() {
+<b class="nc"><i>120</i>&nbsp;            return docCount;</b>
+<i>121</i>&nbsp;        }
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;        @Override
+<i>124</i>&nbsp;        public Aggregations getAggregations() {
+<b class="nc"><i>125</i>&nbsp;            return aggregations;</b>
+<i>126</i>&nbsp;        }
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;        @Override
+<i>129</i>&nbsp;        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>130</i>&nbsp;            String keyAsString = format.format(key).toString();</b>
+<b class="nc"><i>131</i>&nbsp;            if (keyed) {</b>
+<b class="nc"><i>132</i>&nbsp;                builder.startObject(keyAsString);</b>
+<i>133</i>&nbsp;            } else {
+<b class="nc"><i>134</i>&nbsp;                builder.startObject();</b>
+<i>135</i>&nbsp;            }
+<b class="nc"><i>136</i>&nbsp;            if (format != DocValueFormat.RAW) {</b>
+<b class="nc"><i>137</i>&nbsp;                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);</b>
+<i>138</i>&nbsp;            }
+<b class="nc"><i>139</i>&nbsp;            builder.field(CommonFields.KEY.getPreferredName(), key);</b>
+<b class="nc"><i>140</i>&nbsp;            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);</b>
+<b class="nc"><i>141</i>&nbsp;            aggregations.toXContentInternal(builder, params);</b>
+<b class="nc"><i>142</i>&nbsp;            builder.endObject();</b>
+<b class="nc"><i>143</i>&nbsp;            return builder;</b>
+<i>144</i>&nbsp;        }
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;        @Override
+<i>147</i>&nbsp;        public int compareKey(Bucket other) {
+<b class="nc"><i>148</i>&nbsp;            return Long.compare(key, other.key);</b>
+<i>149</i>&nbsp;        }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;        public DocValueFormat getFormatter() {
+<b class="nc"><i>152</i>&nbsp;            return format;</b>
+<i>153</i>&nbsp;        }
+<i>154</i>&nbsp;
+<i>155</i>&nbsp;        public boolean getKeyed() {
+<b class="nc"><i>156</i>&nbsp;            return keyed;</b>
+<i>157</i>&nbsp;        }
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;    static class EmptyBucketInfo {
+<i>161</i>&nbsp;
+<i>162</i>&nbsp;        final Rounding rounding;
+<i>163</i>&nbsp;        final InternalAggregations subAggregations;
+<i>164</i>&nbsp;        final ExtendedBounds bounds;
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations) {
+<i>167</i>&nbsp;            this(rounding, subAggregations, null);
+<i>168</i>&nbsp;        }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, ExtendedBounds bounds) {
+<i>171</i>&nbsp;            this.rounding = rounding;
+<i>172</i>&nbsp;            this.subAggregations = subAggregations;
+<i>173</i>&nbsp;            this.bounds = bounds;
+<i>174</i>&nbsp;        }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;        EmptyBucketInfo(StreamInput in) throws IOException {
+<i>177</i>&nbsp;            rounding = Rounding.read(in);
+<i>178</i>&nbsp;            subAggregations = new InternalAggregations(in);
+<i>179</i>&nbsp;            bounds = in.readOptionalWriteable(ExtendedBounds::new);
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        void writeTo(StreamOutput out) throws IOException {
+<i>183</i>&nbsp;            rounding.writeTo(out);
+<i>184</i>&nbsp;            subAggregations.writeTo(out);
+<i>185</i>&nbsp;            out.writeOptionalWriteable(bounds);
+<i>186</i>&nbsp;        }
+<i>187</i>&nbsp;
+<i>188</i>&nbsp;        @Override
+<i>189</i>&nbsp;        public boolean equals(Object obj) {
+<i>190</i>&nbsp;            if (obj == null || getClass() != obj.getClass()) {
+<i>191</i>&nbsp;                return false;
+<i>192</i>&nbsp;            }
+<i>193</i>&nbsp;            EmptyBucketInfo that = (EmptyBucketInfo) obj;
+<i>194</i>&nbsp;            return Objects.equals(rounding, that.rounding)
+<i>195</i>&nbsp;                    &amp;&amp; Objects.equals(bounds, that.bounds)
+<i>196</i>&nbsp;                    &amp;&amp; Objects.equals(subAggregations, that.subAggregations);
+<i>197</i>&nbsp;        }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;        @Override
+<i>200</i>&nbsp;        public int hashCode() {
+<i>201</i>&nbsp;            return Objects.hash(getClass(), rounding, bounds, subAggregations);
+<i>202</i>&nbsp;        }
+<i>203</i>&nbsp;    }
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    private final List&lt;Bucket&gt; buckets;
+<i>206</i>&nbsp;    private final BucketOrder order;
+<i>207</i>&nbsp;    private final DocValueFormat format;
+<i>208</i>&nbsp;    private final boolean keyed;
+<i>209</i>&nbsp;    private final long minDocCount;
+<i>210</i>&nbsp;    private final long offset;
+<i>211</i>&nbsp;    final EmptyBucketInfo emptyBucketInfo;
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;    InternalDateHistogram(String name, List&lt;Bucket&gt; buckets, BucketOrder order, long minDocCount, long offset,
+<i>214</i>&nbsp;            EmptyBucketInfo emptyBucketInfo,
+<i>215</i>&nbsp;            DocValueFormat formatter, boolean keyed, List&lt;PipelineAggregator&gt; pipelineAggregators,
+<i>216</i>&nbsp;            Map&lt;String, Object&gt; metaData) {
+<b class="nc"><i>217</i>&nbsp;        super(name, pipelineAggregators, metaData);</b>
+<b class="nc"><i>218</i>&nbsp;        this.buckets = buckets;</b>
+<b class="nc"><i>219</i>&nbsp;        this.order = order;</b>
+<b class="nc"><i>220</i>&nbsp;        this.offset = offset;</b>
+<b class="nc"><i>221</i>&nbsp;        assert (minDocCount == 0) == (emptyBucketInfo != null);</b>
+<b class="nc"><i>222</i>&nbsp;        this.minDocCount = minDocCount;</b>
+<b class="nc"><i>223</i>&nbsp;        this.emptyBucketInfo = emptyBucketInfo;</b>
+<b class="nc"><i>224</i>&nbsp;        this.format = formatter;</b>
+<b class="nc"><i>225</i>&nbsp;        this.keyed = keyed;</b>
+<b class="nc"><i>226</i>&nbsp;    }</b>
+<i>227</i>&nbsp;
+<i>228</i>&nbsp;    /**
+<i>229</i>&nbsp;     * Stream from a stream.
+<i>230</i>&nbsp;     */
+<i>231</i>&nbsp;    public InternalDateHistogram(StreamInput in) throws IOException {
+<b class="nc"><i>232</i>&nbsp;        super(in);</b>
+<b class="nc"><i>233</i>&nbsp;        order = InternalOrder.Streams.readHistogramOrder(in, false);</b>
+<b class="nc"><i>234</i>&nbsp;        minDocCount = in.readVLong();</b>
+<b class="nc"><i>235</i>&nbsp;        if (minDocCount == 0) {</b>
+<b class="nc"><i>236</i>&nbsp;            emptyBucketInfo = new EmptyBucketInfo(in);</b>
+<i>237</i>&nbsp;        } else {
+<b class="nc"><i>238</i>&nbsp;            emptyBucketInfo = null;</b>
+<i>239</i>&nbsp;        }
+<b class="nc"><i>240</i>&nbsp;        offset = in.readLong();</b>
+<b class="nc"><i>241</i>&nbsp;        format = in.readNamedWriteable(DocValueFormat.class);</b>
+<b class="nc"><i>242</i>&nbsp;        keyed = in.readBoolean();</b>
+<b class="nc"><i>243</i>&nbsp;        buckets = in.readList(stream -&gt; new Bucket(stream, keyed, format));</b>
+<b class="nc"><i>244</i>&nbsp;    }</b>
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    @Override
+<i>247</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>248</i>&nbsp;        InternalOrder.Streams.writeHistogramOrder(order, out, false);</b>
+<b class="nc"><i>249</i>&nbsp;        out.writeVLong(minDocCount);</b>
+<b class="nc"><i>250</i>&nbsp;        if (minDocCount == 0) {</b>
+<b class="nc"><i>251</i>&nbsp;            emptyBucketInfo.writeTo(out);</b>
+<i>252</i>&nbsp;        }
+<b class="nc"><i>253</i>&nbsp;        out.writeLong(offset);</b>
+<b class="nc"><i>254</i>&nbsp;        out.writeNamedWriteable(format);</b>
+<b class="nc"><i>255</i>&nbsp;        out.writeBoolean(keyed);</b>
+<b class="nc"><i>256</i>&nbsp;        out.writeList(buckets);</b>
+<b class="nc"><i>257</i>&nbsp;    }</b>
+<i>258</i>&nbsp;
+<i>259</i>&nbsp;    @Override
+<i>260</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>261</i>&nbsp;        return DateHistogramAggregationBuilder.NAME;</b>
+<i>262</i>&nbsp;    }
+<i>263</i>&nbsp;
+<i>264</i>&nbsp;    @Override
+<i>265</i>&nbsp;    public List&lt;InternalDateHistogram.Bucket&gt; getBuckets() {
+<b class="nc"><i>266</i>&nbsp;        return Collections.unmodifiableList(buckets);</b>
+<i>267</i>&nbsp;    }
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    DocValueFormat getFormatter() {
+<b class="nc"><i>270</i>&nbsp;        return format;</b>
+<i>271</i>&nbsp;    }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;    long getMinDocCount() {
+<b class="nc"><i>274</i>&nbsp;        return minDocCount;</b>
+<i>275</i>&nbsp;    }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;    long getOffset() {
+<b class="nc"><i>278</i>&nbsp;        return offset;</b>
+<i>279</i>&nbsp;    }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;    BucketOrder getOrder() {
+<b class="nc"><i>282</i>&nbsp;        return order;</b>
+<i>283</i>&nbsp;    }
+<i>284</i>&nbsp;
+<i>285</i>&nbsp;    @Override
+<i>286</i>&nbsp;    public InternalDateHistogram create(List&lt;Bucket&gt; buckets) {
+<b class="nc"><i>287</i>&nbsp;        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format,</b>
+<b class="nc"><i>288</i>&nbsp;                keyed, pipelineAggregators(), metaData);</b>
+<i>289</i>&nbsp;    }
+<i>290</i>&nbsp;
+<i>291</i>&nbsp;    @Override
+<i>292</i>&nbsp;    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+<b class="nc"><i>293</i>&nbsp;        return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);</b>
+<i>294</i>&nbsp;    }
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;    private static class IteratorAndCurrent {
+<i>297</i>&nbsp;
+<i>298</i>&nbsp;        private final Iterator&lt;Bucket&gt; iterator;
+<i>299</i>&nbsp;        private Bucket current;
+<i>300</i>&nbsp;
+<i>301</i>&nbsp;        IteratorAndCurrent(Iterator&lt;Bucket&gt; iterator) {
+<i>302</i>&nbsp;            this.iterator = iterator;
+<i>303</i>&nbsp;            current = iterator.next();
+<i>304</i>&nbsp;        }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;    }
+<i>307</i>&nbsp;
+<i>308</i>&nbsp;    private List&lt;Bucket&gt; reduceBuckets(List&lt;InternalAggregation&gt; aggregations, ReduceContext reduceContext) {
+<i>309</i>&nbsp;
+<b class="nc"><i>310</i>&nbsp;        final PriorityQueue&lt;IteratorAndCurrent&gt; pq = new PriorityQueue&lt;IteratorAndCurrent&gt;(aggregations.size()) {</b>
+<i>311</i>&nbsp;            @Override
+<i>312</i>&nbsp;            protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
+<b class="nc"><i>313</i>&nbsp;                return a.current.key &lt; b.current.key;</b>
+<i>314</i>&nbsp;            }
+<i>315</i>&nbsp;        };
+<b class="nc"><i>316</i>&nbsp;        for (InternalAggregation aggregation : aggregations) {</b>
+<b class="nc"><i>317</i>&nbsp;            InternalDateHistogram histogram = (InternalDateHistogram) aggregation;</b>
+<b class="nc"><i>318</i>&nbsp;            if (histogram.buckets.isEmpty() == false) {</b>
+<b class="nc"><i>319</i>&nbsp;                pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));</b>
+<i>320</i>&nbsp;            }
+<b class="nc"><i>321</i>&nbsp;        }</b>
+<i>322</i>&nbsp;
+<b class="nc"><i>323</i>&nbsp;        List&lt;Bucket&gt; reducedBuckets = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>324</i>&nbsp;        if (pq.size() &gt; 0) {</b>
+<i>325</i>&nbsp;            // list of buckets coming from different shards that have the same key
+<b class="nc"><i>326</i>&nbsp;            List&lt;Bucket&gt; currentBuckets = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>327</i>&nbsp;            double key = pq.top().current.key;</b>
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;            do {
+<b class="nc"><i>330</i>&nbsp;                final IteratorAndCurrent top = pq.top();</b>
+<i>331</i>&nbsp;
+<b class="nc"><i>332</i>&nbsp;                if (top.current.key != key) {</b>
+<i>333</i>&nbsp;                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
+<b class="nc"><i>334</i>&nbsp;                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);</b>
+<b class="nc"><i>335</i>&nbsp;                    if (reduced.getDocCount() &gt;= minDocCount || reduceContext.isFinalReduce() == false) {</b>
+<b class="nc"><i>336</i>&nbsp;                        reduceContext.consumeBucketsAndMaybeBreak(1);</b>
+<b class="nc"><i>337</i>&nbsp;                        reducedBuckets.add(reduced);</b>
+<i>338</i>&nbsp;                    } else {
+<b class="nc"><i>339</i>&nbsp;                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));</b>
+<i>340</i>&nbsp;                    }
+<b class="nc"><i>341</i>&nbsp;                    currentBuckets.clear();</b>
+<b class="nc"><i>342</i>&nbsp;                    key = top.current.key;</b>
+<i>343</i>&nbsp;                }
+<i>344</i>&nbsp;
+<b class="nc"><i>345</i>&nbsp;                currentBuckets.add(top.current);</b>
+<i>346</i>&nbsp;
+<b class="nc"><i>347</i>&nbsp;                if (top.iterator.hasNext()) {</b>
+<b class="nc"><i>348</i>&nbsp;                    final Bucket next = top.iterator.next();</b>
+<b class="nc"><i>349</i>&nbsp;                    assert next.key &gt; top.current.key : &quot;shards must return data sorted by key&quot;;</b>
+<b class="nc"><i>350</i>&nbsp;                    top.current = next;</b>
+<b class="nc"><i>351</i>&nbsp;                    pq.updateTop();</b>
+<b class="nc"><i>352</i>&nbsp;                } else {</b>
+<b class="nc"><i>353</i>&nbsp;                    pq.pop();</b>
+<i>354</i>&nbsp;                }
+<b class="nc"><i>355</i>&nbsp;            } while (pq.size() &gt; 0);</b>
+<i>356</i>&nbsp;
+<b class="nc"><i>357</i>&nbsp;            if (currentBuckets.isEmpty() == false) {</b>
+<b class="nc"><i>358</i>&nbsp;                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);</b>
+<b class="nc"><i>359</i>&nbsp;                if (reduced.getDocCount() &gt;= minDocCount || reduceContext.isFinalReduce() == false) {</b>
+<b class="nc"><i>360</i>&nbsp;                    reduceContext.consumeBucketsAndMaybeBreak(1);</b>
+<b class="nc"><i>361</i>&nbsp;                    reducedBuckets.add(reduced);</b>
+<i>362</i>&nbsp;                } else {
+<b class="nc"><i>363</i>&nbsp;                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));</b>
+<i>364</i>&nbsp;                }
+<i>365</i>&nbsp;            }
+<i>366</i>&nbsp;        }
+<i>367</i>&nbsp;
+<b class="nc"><i>368</i>&nbsp;        return reducedBuckets;</b>
+<i>369</i>&nbsp;    }
+<i>370</i>&nbsp;
+<i>371</i>&nbsp;    /**
+<i>372</i>&nbsp;     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
+<i>373</i>&nbsp;     * requires all buckets to have the same key.
+<i>374</i>&nbsp;     */
+<i>375</i>&nbsp;    @Override
+<i>376</i>&nbsp;    protected Bucket reduceBucket(List&lt;Bucket&gt; buckets, ReduceContext context) {
+<b class="nc"><i>377</i>&nbsp;        assert buckets.size() &gt; 0;</b>
+<b class="nc"><i>378</i>&nbsp;        List&lt;InternalAggregations&gt; aggregations = new ArrayList&lt;&gt;(buckets.size());</b>
+<b class="nc"><i>379</i>&nbsp;        long docCount = 0;</b>
+<b class="nc"><i>380</i>&nbsp;        for (Bucket bucket : buckets) {</b>
+<b class="nc"><i>381</i>&nbsp;            docCount += bucket.docCount;</b>
+<b class="nc"><i>382</i>&nbsp;            aggregations.add((InternalAggregations) bucket.getAggregations());</b>
+<b class="nc"><i>383</i>&nbsp;        }</b>
+<b class="nc"><i>384</i>&nbsp;        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);</b>
+<b class="nc"><i>385</i>&nbsp;        return createBucket(buckets.get(0).key, docCount, aggs);</b>
+<i>386</i>&nbsp;    }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;    private void addEmptyBuckets(List&lt;Bucket&gt; list, ReduceContext reduceContext) {
+<b class="nc"><i>389</i>&nbsp;        Bucket lastBucket = null;</b>
+<b class="nc"><i>390</i>&nbsp;        ExtendedBounds bounds = emptyBucketInfo.bounds;</b>
+<b class="nc"><i>391</i>&nbsp;        ListIterator&lt;Bucket&gt; iter = list.listIterator();</b>
+<i>392</i>&nbsp;
+<i>393</i>&nbsp;        // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+<b class="nc"><i>394</i>&nbsp;        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(Collections.singletonList(emptyBucketInfo.subAggregations),</b>
+<i>395</i>&nbsp;                reduceContext);
+<b class="nc"><i>396</i>&nbsp;        if (bounds != null) {</b>
+<b class="nc"><i>397</i>&nbsp;            Bucket firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;</b>
+<b class="nc"><i>398</i>&nbsp;            if (firstBucket == null) {</b>
+<b class="nc"><i>399</i>&nbsp;                if (bounds.getMin() != null &amp;&amp; bounds.getMax() != null) {</b>
+<b class="nc"><i>400</i>&nbsp;                    long key = bounds.getMin() + offset;</b>
+<b class="nc"><i>401</i>&nbsp;                    long max = bounds.getMax() + offset;</b>
+<b class="nc"><i>402</i>&nbsp;                    while (key &lt;= max) {</b>
+<b class="nc"><i>403</i>&nbsp;                        reduceContext.consumeBucketsAndMaybeBreak(1);</b>
+<b class="nc"><i>404</i>&nbsp;                        iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));</b>
+<b class="nc"><i>405</i>&nbsp;                        key = nextKey(key).longValue();</b>
+<i>406</i>&nbsp;                    }
+<b class="nc"><i>407</i>&nbsp;                }</b>
+<i>408</i>&nbsp;            } else {
+<b class="nc"><i>409</i>&nbsp;                if (bounds.getMin() != null) {</b>
+<b class="nc"><i>410</i>&nbsp;                    long key = bounds.getMin() + offset;</b>
+<b class="nc"><i>411</i>&nbsp;                    if (key &lt; firstBucket.key) {</b>
+<b class="nc"><i>412</i>&nbsp;                        while (key &lt; firstBucket.key) {</b>
+<b class="nc"><i>413</i>&nbsp;                            reduceContext.consumeBucketsAndMaybeBreak(1);</b>
+<b class="nc"><i>414</i>&nbsp;                            iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));</b>
+<b class="nc"><i>415</i>&nbsp;                            key = nextKey(key).longValue();</b>
+<i>416</i>&nbsp;                        }
+<i>417</i>&nbsp;                    }
+<i>418</i>&nbsp;                }
+<i>419</i>&nbsp;            }
+<i>420</i>&nbsp;        }
+<i>421</i>&nbsp;
+<i>422</i>&nbsp;        // now adding the empty buckets within the actual data,
+<i>423</i>&nbsp;        // e.g. if the data series is [1,2,3,7] there&#39;re 3 empty buckets that will be created for 4,5,6
+<b class="nc"><i>424</i>&nbsp;        while (iter.hasNext()) {</b>
+<b class="nc"><i>425</i>&nbsp;            Bucket nextBucket = list.get(iter.nextIndex());</b>
+<b class="nc"><i>426</i>&nbsp;            if (lastBucket != null) {</b>
+<b class="nc"><i>427</i>&nbsp;                long key = nextKey(lastBucket.key).longValue();</b>
+<b class="nc"><i>428</i>&nbsp;                while (key &lt; nextBucket.key) {</b>
+<b class="nc"><i>429</i>&nbsp;                    reduceContext.consumeBucketsAndMaybeBreak(1);</b>
+<b class="nc"><i>430</i>&nbsp;                    iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));</b>
+<b class="nc"><i>431</i>&nbsp;                    key = nextKey(key).longValue();</b>
+<i>432</i>&nbsp;                }
+<b class="nc"><i>433</i>&nbsp;                assert key == nextBucket.key : &quot;key: &quot; + key + &quot;, nextBucket.key: &quot; + nextBucket.key;</b>
+<i>434</i>&nbsp;            }
+<b class="nc"><i>435</i>&nbsp;            lastBucket = iter.next();</b>
+<b class="nc"><i>436</i>&nbsp;        }</b>
+<i>437</i>&nbsp;
+<i>438</i>&nbsp;        // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
+<b class="nc"><i>439</i>&nbsp;        if (bounds != null &amp;&amp; lastBucket != null &amp;&amp; bounds.getMax() != null &amp;&amp; bounds.getMax() + offset &gt; lastBucket.key) {</b>
+<b class="nc"><i>440</i>&nbsp;            long key = nextKey(lastBucket.key).longValue();</b>
+<b class="nc"><i>441</i>&nbsp;            long max = bounds.getMax() + offset;</b>
+<b class="nc"><i>442</i>&nbsp;            while (key &lt;= max) {</b>
+<b class="nc"><i>443</i>&nbsp;                reduceContext.consumeBucketsAndMaybeBreak(1);</b>
+<b class="nc"><i>444</i>&nbsp;                iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));</b>
+<b class="nc"><i>445</i>&nbsp;                key = nextKey(key).longValue();</b>
+<i>446</i>&nbsp;            }
+<i>447</i>&nbsp;        }
+<b class="nc"><i>448</i>&nbsp;    }</b>
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;    @Override
+<i>451</i>&nbsp;    public InternalAggregation doReduce(List&lt;InternalAggregation&gt; aggregations, ReduceContext reduceContext) {
+<b class="nc"><i>452</i>&nbsp;        List&lt;Bucket&gt; reducedBuckets = reduceBuckets(aggregations, reduceContext);</b>
+<b class="nc"><i>453</i>&nbsp;        if (reduceContext.isFinalReduce()) {</b>
+<b class="nc"><i>454</i>&nbsp;            if (minDocCount == 0) {</b>
+<b class="nc"><i>455</i>&nbsp;                addEmptyBuckets(reducedBuckets, reduceContext);</b>
+<i>456</i>&nbsp;            }
+<b class="nc"><i>457</i>&nbsp;            if (InternalOrder.isKeyDesc(order)) {</b>
+<i>458</i>&nbsp;                // we just need to reverse here...
+<b class="nc"><i>459</i>&nbsp;                List&lt;Bucket&gt; reverse = new ArrayList&lt;&gt;(reducedBuckets);</b>
+<b class="nc"><i>460</i>&nbsp;                Collections.reverse(reverse);</b>
+<b class="nc"><i>461</i>&nbsp;                reducedBuckets = reverse;</b>
+<b class="nc"><i>462</i>&nbsp;            } else if (InternalOrder.isKeyAsc(order) == false){</b>
+<i>463</i>&nbsp;                // nothing to do when sorting by key ascending, as data is already sorted since shards return
+<i>464</i>&nbsp;                // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
+<i>465</i>&nbsp;                // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
+<b class="nc"><i>466</i>&nbsp;                CollectionUtil.introSort(reducedBuckets, order.comparator(null));</b>
+<i>467</i>&nbsp;            }
+<i>468</i>&nbsp;        }
+<b class="nc"><i>469</i>&nbsp;        return new InternalDateHistogram(getName(), reducedBuckets, order, minDocCount, offset, emptyBucketInfo,</b>
+<b class="nc"><i>470</i>&nbsp;                format, keyed, pipelineAggregators(), getMetaData());</b>
+<i>471</i>&nbsp;    }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;    @Override
+<i>474</i>&nbsp;    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>475</i>&nbsp;        if (keyed) {</b>
+<b class="nc"><i>476</i>&nbsp;            builder.startObject(CommonFields.BUCKETS.getPreferredName());</b>
+<i>477</i>&nbsp;        } else {
+<b class="nc"><i>478</i>&nbsp;            builder.startArray(CommonFields.BUCKETS.getPreferredName());</b>
+<i>479</i>&nbsp;        }
+<b class="nc"><i>480</i>&nbsp;        for (Bucket bucket : buckets) {</b>
+<b class="nc"><i>481</i>&nbsp;            bucket.toXContent(builder, params);</b>
+<b class="nc"><i>482</i>&nbsp;        }</b>
+<b class="nc"><i>483</i>&nbsp;        if (keyed) {</b>
+<b class="nc"><i>484</i>&nbsp;            builder.endObject();</b>
+<i>485</i>&nbsp;        } else {
+<b class="nc"><i>486</i>&nbsp;            builder.endArray();</b>
+<i>487</i>&nbsp;        }
+<b class="nc"><i>488</i>&nbsp;        return builder;</b>
+<i>489</i>&nbsp;    }
+<i>490</i>&nbsp;
+<i>491</i>&nbsp;    // HistogramFactory method impls
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;    @Override
+<i>494</i>&nbsp;    public Number getKey(MultiBucketsAggregation.Bucket bucket) {
+<b class="nc"><i>495</i>&nbsp;        return ((Bucket) bucket).key;</b>
+<i>496</i>&nbsp;    }
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;    @Override
+<i>499</i>&nbsp;    public Number nextKey(Number key) {
+<b class="nc"><i>500</i>&nbsp;        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue() - offset) + offset;</b>
+<i>501</i>&nbsp;    }
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;    @Override
+<i>504</i>&nbsp;    public InternalAggregation createAggregation(List&lt;MultiBucketsAggregation.Bucket&gt; buckets) {
+<i>505</i>&nbsp;        // convert buckets to the right type
+<b class="nc"><i>506</i>&nbsp;        List&lt;Bucket&gt; buckets2 = new ArrayList&lt;&gt;(buckets.size());</b>
+<b class="nc"><i>507</i>&nbsp;        for (Object b : buckets) {</b>
+<b class="nc"><i>508</i>&nbsp;            buckets2.add((Bucket) b);</b>
+<b class="nc"><i>509</i>&nbsp;        }</b>
+<b class="nc"><i>510</i>&nbsp;        buckets2 = Collections.unmodifiableList(buckets2);</b>
+<b class="nc"><i>511</i>&nbsp;        return new InternalDateHistogram(name, buckets2, order, minDocCount, offset, emptyBucketInfo, format,</b>
+<b class="nc"><i>512</i>&nbsp;                keyed, pipelineAggregators(), getMetaData());</b>
+<i>513</i>&nbsp;    }
+<i>514</i>&nbsp;
+<i>515</i>&nbsp;    @Override
+<i>516</i>&nbsp;    public Bucket createBucket(Number key, long docCount, InternalAggregations aggregations) {
+<b class="nc"><i>517</i>&nbsp;        return new Bucket(key.longValue(), docCount, keyed, format, aggregations);</b>
+<i>518</i>&nbsp;    }
+<i>519</i>&nbsp;
+<i>520</i>&nbsp;    @Override
+<i>521</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>522</i>&nbsp;        if (this == obj) return true;</b>
+<b class="nc"><i>523</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) return false;</b>
+<b class="nc"><i>524</i>&nbsp;        if (super.equals(obj) == false) return false;</b>
+<i>525</i>&nbsp;
+<b class="nc"><i>526</i>&nbsp;        InternalDateHistogram that = (InternalDateHistogram) obj;</b>
+<b class="nc"><i>527</i>&nbsp;        return Objects.equals(buckets, that.buckets)</b>
+<b class="nc"><i>528</i>&nbsp;                &amp;&amp; Objects.equals(order, that.order)</b>
+<b class="nc"><i>529</i>&nbsp;                &amp;&amp; Objects.equals(format, that.format)</b>
+<b class="nc"><i>530</i>&nbsp;                &amp;&amp; Objects.equals(keyed, that.keyed)</b>
+<b class="nc"><i>531</i>&nbsp;                &amp;&amp; Objects.equals(minDocCount, that.minDocCount)</b>
+<b class="nc"><i>532</i>&nbsp;                &amp;&amp; Objects.equals(offset, that.offset)</b>
+<b class="nc"><i>533</i>&nbsp;                &amp;&amp; Objects.equals(emptyBucketInfo, that.emptyBucketInfo);</b>
+<i>534</i>&nbsp;    }
+<i>535</i>&nbsp;
+<i>536</i>&nbsp;    @Override
+<i>537</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>538</i>&nbsp;        return Objects.hash(super.hashCode(), buckets, order, format, keyed, minDocCount, offset, emptyBucketInfo);</b>
+<i>539</i>&nbsp;    }
+<i>540</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

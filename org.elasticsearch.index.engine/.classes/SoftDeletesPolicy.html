@@ -1,0 +1,243 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SoftDeletesPolicy</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.engine</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SoftDeletesPolicy (org.elasticsearch.index.engine)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SoftDeletesPolicy</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    44.4%
+  </span>
+  <span class="absValue">
+    (4/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    35.9%
+  </span>
+  <span class="absValue">
+    (14/ 39)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.engine;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.document.LongPoint;
+<i>23</i>&nbsp;import org.apache.lucene.search.Query;
+<i>24</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>25</i>&nbsp;import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+<i>26</i>&nbsp;import org.elasticsearch.index.seqno.RetentionLease;
+<i>27</i>&nbsp;import org.elasticsearch.index.seqno.RetentionLeases;
+<i>28</i>&nbsp;import org.elasticsearch.index.seqno.SequenceNumbers;
+<i>29</i>&nbsp;import org.elasticsearch.index.translog.Translog;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.util.Objects;
+<i>32</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>33</i>&nbsp;import java.util.function.LongSupplier;
+<i>34</i>&nbsp;import java.util.function.Supplier;
+<i>35</i>&nbsp;
+<i>36</i>&nbsp;/**
+<i>37</i>&nbsp; * A policy that controls how many soft-deleted documents should be retained for peer-recovery and querying history changes purpose.
+<i>38</i>&nbsp; */
+<b class="fc"><i>39</i>&nbsp;final class SoftDeletesPolicy {</b>
+<i>40</i>&nbsp;    private final LongSupplier globalCheckpointSupplier;
+<i>41</i>&nbsp;    private long localCheckpointOfSafeCommit;
+<i>42</i>&nbsp;    // This lock count is used to prevent `minRetainedSeqNo` from advancing.
+<i>43</i>&nbsp;    private int retentionLockCount;
+<i>44</i>&nbsp;    // The extra number of operations before the global checkpoint are retained
+<i>45</i>&nbsp;    private long retentionOperations;
+<i>46</i>&nbsp;    // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
+<i>47</i>&nbsp;    private long minRetainedSeqNo;
+<i>48</i>&nbsp;    // provides the retention leases used to calculate the minimum sequence number to retain
+<i>49</i>&nbsp;    private final Supplier&lt;RetentionLeases&gt; retentionLeasesSupplier;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;    SoftDeletesPolicy(
+<i>52</i>&nbsp;            final LongSupplier globalCheckpointSupplier,
+<i>53</i>&nbsp;            final long minRetainedSeqNo,
+<i>54</i>&nbsp;            final long retentionOperations,
+<b class="fc"><i>55</i>&nbsp;            final Supplier&lt;RetentionLeases&gt; retentionLeasesSupplier) {</b>
+<b class="fc"><i>56</i>&nbsp;        this.globalCheckpointSupplier = globalCheckpointSupplier;</b>
+<b class="fc"><i>57</i>&nbsp;        this.retentionOperations = retentionOperations;</b>
+<b class="fc"><i>58</i>&nbsp;        this.minRetainedSeqNo = minRetainedSeqNo;</b>
+<b class="fc"><i>59</i>&nbsp;        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);</b>
+<b class="fc"><i>60</i>&nbsp;        this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;</b>
+<b class="fc"><i>61</i>&nbsp;        this.retentionLockCount = 0;</b>
+<b class="fc"><i>62</i>&nbsp;    }</b>
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    /**
+<i>65</i>&nbsp;     * Updates the number of soft-deleted documents prior to the global checkpoint to be retained
+<i>66</i>&nbsp;     * See {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
+<i>67</i>&nbsp;     */
+<i>68</i>&nbsp;    synchronized void setRetentionOperations(long retentionOperations) {
+<b class="fc"><i>69</i>&nbsp;        this.retentionOperations = retentionOperations;</b>
+<b class="fc"><i>70</i>&nbsp;    }</b>
+<i>71</i>&nbsp;
+<i>72</i>&nbsp;    /**
+<i>73</i>&nbsp;     * Sets the local checkpoint of the current safe commit
+<i>74</i>&nbsp;     */
+<i>75</i>&nbsp;    synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+<b class="fc"><i>76</i>&nbsp;        if (newCheckpoint &lt; this.localCheckpointOfSafeCommit) {</b>
+<b class="nc"><i>77</i>&nbsp;            throw new IllegalArgumentException(&quot;Local checkpoint can&#39;t go backwards; &quot; +</b>
+<i>78</i>&nbsp;                &quot;new checkpoint [&quot; + newCheckpoint + &quot;],&quot; + &quot;current checkpoint [&quot; + localCheckpointOfSafeCommit + &quot;]&quot;);
+<i>79</i>&nbsp;        }
+<b class="fc"><i>80</i>&nbsp;        this.localCheckpointOfSafeCommit = newCheckpoint;</b>
+<b class="fc"><i>81</i>&nbsp;    }</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    /**
+<i>84</i>&nbsp;     * Acquires a lock on soft-deleted documents to prevent them from cleaning up in merge processes. This is necessary to
+<i>85</i>&nbsp;     * make sure that all operations that are being retained will be retained until the lock is released.
+<i>86</i>&nbsp;     * This is a analogy to the translog&#39;s retention lock; see {@link Translog#acquireRetentionLock()}
+<i>87</i>&nbsp;     */
+<i>88</i>&nbsp;    synchronized Releasable acquireRetentionLock() {
+<b class="nc"><i>89</i>&nbsp;        assert retentionLockCount &gt;= 0 : &quot;Invalid number of retention locks [&quot; + retentionLockCount + &quot;]&quot;;</b>
+<b class="nc"><i>90</i>&nbsp;        retentionLockCount++;</b>
+<b class="nc"><i>91</i>&nbsp;        final AtomicBoolean released = new AtomicBoolean();</b>
+<b class="nc"><i>92</i>&nbsp;        return () -&gt; {</b>
+<b class="nc"><i>93</i>&nbsp;            if (released.compareAndSet(false, true)) {</b>
+<b class="nc"><i>94</i>&nbsp;                releaseRetentionLock();</b>
+<i>95</i>&nbsp;            }
+<b class="nc"><i>96</i>&nbsp;        };</b>
+<i>97</i>&nbsp;    }
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    private synchronized void releaseRetentionLock() {
+<b class="nc"><i>100</i>&nbsp;        assert retentionLockCount &gt; 0 : &quot;Invalid number of retention locks [&quot; + retentionLockCount + &quot;]&quot;;</b>
+<b class="nc"><i>101</i>&nbsp;        retentionLockCount--;</b>
+<b class="nc"><i>102</i>&nbsp;    }</b>
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    /**
+<i>105</i>&nbsp;     * Returns the min seqno that is retained in the Lucene index.
+<i>106</i>&nbsp;     * Operations whose seq# is least this value should exist in the Lucene index.
+<i>107</i>&nbsp;     */
+<i>108</i>&nbsp;    synchronized long getMinRetainedSeqNo() {
+<i>109</i>&nbsp;        /*
+<i>110</i>&nbsp;         * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
+<i>111</i>&nbsp;         * locked for peer recovery.
+<i>112</i>&nbsp;         */
+<b class="nc"><i>113</i>&nbsp;        final RetentionLeases retentionLeases = retentionLeasesSupplier.get();</b>
+<i>114</i>&nbsp;        // do not advance if the retention lock is held
+<b class="nc"><i>115</i>&nbsp;        if (retentionLockCount == 0) {</b>
+<i>116</i>&nbsp;            /*
+<i>117</i>&nbsp;             * This policy retains operations for two purposes: peer-recovery and querying changes history.
+<i>118</i>&nbsp;             *  - Peer-recovery is driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe commit,
+<i>119</i>&nbsp;             *    then sends operations after the local checkpoint of that commit. This requires keeping all ops after
+<i>120</i>&nbsp;             *    localCheckpointOfSafeCommit.
+<i>121</i>&nbsp;             *  - Changes APIs are driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
+<i>122</i>&nbsp;             *    prefer using the global checkpoint instead of the maximum sequence number because only operations up to the global
+<i>123</i>&nbsp;             *    checkpoint are exposed in the changes APIs.
+<i>124</i>&nbsp;             */
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;            // calculate the minimum sequence number to retain based on retention leases
+<b class="nc"><i>127</i>&nbsp;            final long minimumRetainingSequenceNumber = retentionLeases</b>
+<b class="nc"><i>128</i>&nbsp;                    .leases()</b>
+<b class="nc"><i>129</i>&nbsp;                    .stream()</b>
+<b class="nc"><i>130</i>&nbsp;                    .mapToLong(RetentionLease::retainingSequenceNumber)</b>
+<b class="nc"><i>131</i>&nbsp;                    .min()</b>
+<b class="nc"><i>132</i>&nbsp;                    .orElse(Long.MAX_VALUE);</b>
+<i>133</i>&nbsp;            /*
+<i>134</i>&nbsp;             * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of operations
+<i>135</i>&nbsp;             * below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments on the global
+<i>136</i>&nbsp;             * checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all operations above
+<i>137</i>&nbsp;             * those checkpoints.
+<i>138</i>&nbsp;             */
+<b class="nc"><i>139</i>&nbsp;            final long minSeqNoForQueryingChanges =</b>
+<b class="nc"><i>140</i>&nbsp;                    Math.min(1 + globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);</b>
+<b class="nc"><i>141</i>&nbsp;            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);</b>
+<i>142</i>&nbsp;
+<i>143</i>&nbsp;            /*
+<i>144</i>&nbsp;             * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
+<i>145</i>&nbsp;             * the addition of leases with a retaining sequence number lower than previous retaining sequence numbers.
+<i>146</i>&nbsp;             */
+<b class="nc"><i>147</i>&nbsp;            minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);</b>
+<i>148</i>&nbsp;        }
+<b class="nc"><i>149</i>&nbsp;        return minRetainedSeqNo;</b>
+<i>150</i>&nbsp;    }
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /**
+<i>153</i>&nbsp;     * Returns a soft-deletes retention query that will be used in {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy}
+<i>154</i>&nbsp;     * Documents including tombstones are soft-deleted and matched this query will be retained and won&#39;t cleaned up by merges.
+<i>155</i>&nbsp;     */
+<i>156</i>&nbsp;    Query getRetentionQuery() {
+<b class="nc"><i>157</i>&nbsp;        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE);</b>
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

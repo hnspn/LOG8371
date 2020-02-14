@@ -1,0 +1,497 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Security</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.bootstrap</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Security (org.elasticsearch.bootstrap)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">Security</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    35.7%
+  </span>
+  <span class="absValue">
+    (5/ 14)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    31.6%
+  </span>
+  <span class="absValue">
+    (43/ 136)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.bootstrap;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cli.Command;
+<i>23</i>&nbsp;import org.elasticsearch.common.SuppressForbidden;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.PathUtils;
+<i>25</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>26</i>&nbsp;import org.elasticsearch.env.Environment;
+<i>27</i>&nbsp;import org.elasticsearch.http.HttpTransportSettings;
+<i>28</i>&nbsp;import org.elasticsearch.plugins.PluginInfo;
+<i>29</i>&nbsp;import org.elasticsearch.plugins.PluginsService;
+<i>30</i>&nbsp;import org.elasticsearch.secure_sm.SecureSM;
+<i>31</i>&nbsp;import org.elasticsearch.transport.TcpTransport;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;import java.io.IOException;
+<i>34</i>&nbsp;import java.net.SocketPermission;
+<i>35</i>&nbsp;import java.net.URISyntaxException;
+<i>36</i>&nbsp;import java.net.URL;
+<i>37</i>&nbsp;import java.nio.file.AccessMode;
+<i>38</i>&nbsp;import java.nio.file.DirectoryStream;
+<i>39</i>&nbsp;import java.nio.file.FileAlreadyExistsException;
+<i>40</i>&nbsp;import java.nio.file.Files;
+<i>41</i>&nbsp;import java.nio.file.NotDirectoryException;
+<i>42</i>&nbsp;import java.nio.file.Path;
+<i>43</i>&nbsp;import java.security.NoSuchAlgorithmException;
+<i>44</i>&nbsp;import java.security.Permissions;
+<i>45</i>&nbsp;import java.security.Policy;
+<i>46</i>&nbsp;import java.security.URIParameter;
+<i>47</i>&nbsp;import java.util.ArrayList;
+<i>48</i>&nbsp;import java.util.Collections;
+<i>49</i>&nbsp;import java.util.HashMap;
+<i>50</i>&nbsp;import java.util.HashSet;
+<i>51</i>&nbsp;import java.util.LinkedHashMap;
+<i>52</i>&nbsp;import java.util.LinkedHashSet;
+<i>53</i>&nbsp;import java.util.List;
+<i>54</i>&nbsp;import java.util.Map;
+<i>55</i>&nbsp;import java.util.Set;
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
+<i>58</i>&nbsp;import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+<i>59</i>&nbsp;
+<i>60</i>&nbsp;/**
+<i>61</i>&nbsp; * Initializes SecurityManager with necessary permissions.
+<i>62</i>&nbsp; * &lt;br&gt;
+<i>63</i>&nbsp; * &lt;h2&gt;Initialization&lt;/h2&gt;
+<i>64</i>&nbsp; * The JVM is not initially started with security manager enabled,
+<i>65</i>&nbsp; * instead we turn it on early in the startup process. This is a tradeoff
+<i>66</i>&nbsp; * between security and ease of use:
+<i>67</i>&nbsp; * &lt;ul&gt;
+<i>68</i>&nbsp; *   &lt;li&gt;Assigns file permissions to user-configurable paths that can
+<i>69</i>&nbsp; *       be specified from the command-line or {@code elasticsearch.yml}.&lt;/li&gt;
+<i>70</i>&nbsp; *   &lt;li&gt;Allows for some contained usage of native code that would not
+<i>71</i>&nbsp; *       otherwise be permitted.&lt;/li&gt;
+<i>72</i>&nbsp; * &lt;/ul&gt;
+<i>73</i>&nbsp; * &lt;br&gt;
+<i>74</i>&nbsp; * &lt;h2&gt;Permissions&lt;/h2&gt;
+<i>75</i>&nbsp; * Permissions use a policy file packaged as a resource, this file is
+<i>76</i>&nbsp; * also used in tests. File permissions are generated dynamically and
+<i>77</i>&nbsp; * combined with this policy file.
+<i>78</i>&nbsp; * &lt;p&gt;
+<i>79</i>&nbsp; * For each configured path, we ensure it exists and is accessible before
+<i>80</i>&nbsp; * granting permissions, otherwise directory creation would require
+<i>81</i>&nbsp; * permissions to parent directories.
+<i>82</i>&nbsp; * &lt;p&gt;
+<i>83</i>&nbsp; * In some exceptional cases, permissions are assigned to specific jars only,
+<i>84</i>&nbsp; * when they are so dangerous that general code should not be granted the
+<i>85</i>&nbsp; * permission, but there are extenuating circumstances.
+<i>86</i>&nbsp; * &lt;p&gt;
+<i>87</i>&nbsp; * Scripts (groovy) are assigned minimal permissions. This does not provide adequate
+<i>88</i>&nbsp; * sandboxing, as these scripts still have access to ES classes, and could
+<i>89</i>&nbsp; * modify members, etc that would cause bad things to happen later on their
+<i>90</i>&nbsp; * behalf (no package protections are yet in place, this would need some
+<i>91</i>&nbsp; * cleanups to the scripting apis). But still it can provide some defense for users
+<i>92</i>&nbsp; * that enable dynamic scripting without being fully aware of the consequences.
+<i>93</i>&nbsp; * &lt;br&gt;
+<i>94</i>&nbsp; * &lt;h2&gt;Debugging Security&lt;/h2&gt;
+<i>95</i>&nbsp; * A good place to start when there is a problem is to turn on security debugging:
+<i>96</i>&nbsp; * &lt;pre&gt;
+<i>97</i>&nbsp; * ES_JAVA_OPTS=&quot;-Djava.security.debug=access,failure&quot; bin/elasticsearch
+<i>98</i>&nbsp; * &lt;/pre&gt;
+<i>99</i>&nbsp; * &lt;p&gt;
+<i>100</i>&nbsp; * When running tests you have to pass it to the test runner like this:
+<i>101</i>&nbsp; * &lt;pre&gt;
+<i>102</i>&nbsp; * gradle test -Dtests.jvm.argline=&quot;-Djava.security.debug=access,failure&quot; ...
+<i>103</i>&nbsp; * &lt;/pre&gt;
+<i>104</i>&nbsp; * See &lt;a href=&quot;https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html&quot;&gt;
+<i>105</i>&nbsp; * Troubleshooting Security&lt;/a&gt; for information.
+<i>106</i>&nbsp; */
+<i>107</i>&nbsp;final class Security {
+<i>108</i>&nbsp;    /** no instantiation */
+<b class="nc"><i>109</i>&nbsp;    private Security() {}</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    /**
+<i>112</i>&nbsp;     * Initializes SecurityManager for the environment
+<i>113</i>&nbsp;     * Can only happen once!
+<i>114</i>&nbsp;     * @param environment configuration for generating dynamic permissions
+<i>115</i>&nbsp;     * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
+<i>116</i>&nbsp;     */
+<i>117</i>&nbsp;    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;        // enable security policy: union of template and environment-based paths, and possibly plugin permissions
+<b class="nc"><i>120</i>&nbsp;        Map&lt;String, URL&gt; codebases = getCodebaseJarMap(JarHell.parseClassPath());</b>
+<b class="nc"><i>121</i>&nbsp;        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));</b>
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;        // enable security manager
+<b class="nc"><i>124</i>&nbsp;        final String[] classesThatCanExit =</b>
+<i>125</i>&nbsp;                new String[]{
+<i>126</i>&nbsp;                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+<b class="nc"><i>127</i>&nbsp;                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace(&quot;$&quot;, &quot;\\$&quot;),</b>
+<b class="nc"><i>128</i>&nbsp;                        Command.class.getName()};</b>
+<b class="nc"><i>129</i>&nbsp;        System.setSecurityManager(new SecureSM(classesThatCanExit));</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;        // do some basic tests
+<b class="nc"><i>132</i>&nbsp;        selfTest();</b>
+<b class="nc"><i>133</i>&nbsp;    }</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    /**
+<i>136</i>&nbsp;     * Return a map from codebase name to codebase url of jar codebases used by ES core.
+<i>137</i>&nbsp;     */
+<i>138</i>&nbsp;    @SuppressForbidden(reason = &quot;find URL path&quot;)
+<i>139</i>&nbsp;    static Map&lt;String, URL&gt; getCodebaseJarMap(Set&lt;URL&gt; urls) {
+<b class="fc"><i>140</i>&nbsp;        Map&lt;String, URL&gt; codebases = new LinkedHashMap&lt;&gt;(); // maintain order</b>
+<b class="fc"><i>141</i>&nbsp;        for (URL url : urls) {</b>
+<i>142</i>&nbsp;            try {
+<b class="fc"><i>143</i>&nbsp;                String fileName = PathUtils.get(url.toURI()).getFileName().toString();</b>
+<b class="fc"><i>144</i>&nbsp;                if (fileName.endsWith(&quot;.jar&quot;) == false) {</b>
+<i>145</i>&nbsp;                    // tests :(
+<b class="fc"><i>146</i>&nbsp;                    continue;</b>
+<i>147</i>&nbsp;                }
+<b class="fc"><i>148</i>&nbsp;                codebases.put(fileName, url);</b>
+<b class="nc"><i>149</i>&nbsp;            } catch (URISyntaxException e) {</b>
+<b class="nc"><i>150</i>&nbsp;                throw new RuntimeException(e);</b>
+<b class="fc"><i>151</i>&nbsp;            }</b>
+<b class="fc"><i>152</i>&nbsp;        }</b>
+<b class="fc"><i>153</i>&nbsp;        return codebases;</b>
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    /**
+<i>157</i>&nbsp;     * Sets properties (codebase URLs) for policy files.
+<i>158</i>&nbsp;     * we look for matching plugins and set URLs to fit
+<i>159</i>&nbsp;     */
+<i>160</i>&nbsp;    @SuppressForbidden(reason = &quot;proper use of URL&quot;)
+<i>161</i>&nbsp;    static Map&lt;String,Policy&gt; getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
+<b class="nc"><i>162</i>&nbsp;        Map&lt;String,Policy&gt; map = new HashMap&lt;&gt;();</b>
+<i>163</i>&nbsp;        // collect up set of plugins and modules by listing directories.
+<b class="nc"><i>164</i>&nbsp;        Set&lt;Path&gt; pluginsAndModules = new LinkedHashSet&lt;&gt;(PluginsService.findPluginDirs(environment.pluginsFile()));</b>
+<b class="nc"><i>165</i>&nbsp;        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesFile()));</b>
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;        // now process each one
+<b class="nc"><i>168</i>&nbsp;        for (Path plugin : pluginsAndModules) {</b>
+<b class="nc"><i>169</i>&nbsp;            Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);</b>
+<b class="nc"><i>170</i>&nbsp;            if (Files.exists(policyFile)) {</b>
+<i>171</i>&nbsp;                // first get a list of URLs for the plugins&#39; jars:
+<i>172</i>&nbsp;                // we resolve symlinks so map is keyed on the normalize codebase name
+<b class="nc"><i>173</i>&nbsp;                Set&lt;URL&gt; codebases = new LinkedHashSet&lt;&gt;(); // order is already lost, but some filesystems have it</b>
+<b class="nc"><i>174</i>&nbsp;                try (DirectoryStream&lt;Path&gt; jarStream = Files.newDirectoryStream(plugin, &quot;*.jar&quot;)) {</b>
+<b class="nc"><i>175</i>&nbsp;                    for (Path jar : jarStream) {</b>
+<b class="nc"><i>176</i>&nbsp;                        URL url = jar.toRealPath().toUri().toURL();</b>
+<b class="nc"><i>177</i>&nbsp;                        if (codebases.add(url) == false) {</b>
+<b class="nc"><i>178</i>&nbsp;                            throw new IllegalStateException(&quot;duplicate module/plugin: &quot; + url);</b>
+<i>179</i>&nbsp;                        }
+<b class="nc"><i>180</i>&nbsp;                    }</b>
+<b class="nc"><i>181</i>&nbsp;                }</b>
+<i>182</i>&nbsp;
+<i>183</i>&nbsp;                // parse the plugin&#39;s policy file into a set of permissions
+<b class="nc"><i>184</i>&nbsp;                Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(codebases));</b>
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;                // consult this policy for each of the plugin&#39;s jars:
+<b class="nc"><i>187</i>&nbsp;                for (URL url : codebases) {</b>
+<b class="nc"><i>188</i>&nbsp;                    if (map.put(url.getFile(), policy) != null) {</b>
+<i>189</i>&nbsp;                        // just be paranoid ok?
+<b class="nc"><i>190</i>&nbsp;                        throw new IllegalStateException(&quot;per-plugin permissions already granted for jar file: &quot; + url);</b>
+<i>191</i>&nbsp;                    }
+<b class="nc"><i>192</i>&nbsp;                }</b>
+<i>193</i>&nbsp;            }
+<b class="nc"><i>194</i>&nbsp;        }</b>
+<i>195</i>&nbsp;
+<b class="nc"><i>196</i>&nbsp;        return Collections.unmodifiableMap(map);</b>
+<i>197</i>&nbsp;    }
+<i>198</i>&nbsp;
+<i>199</i>&nbsp;    /**
+<i>200</i>&nbsp;     * Reads and returns the specified {@code policyFile}.
+<i>201</i>&nbsp;     * &lt;p&gt;
+<i>202</i>&nbsp;     * Jar files listed in {@code codebases} location will be provided to the policy file via
+<i>203</i>&nbsp;     * a system property of the short name: e.g. &lt;code&gt;${codebase.joda-convert-1.2.jar}&lt;/code&gt;
+<i>204</i>&nbsp;     * would map to full URL.
+<i>205</i>&nbsp;     */
+<i>206</i>&nbsp;    @SuppressForbidden(reason = &quot;accesses fully qualified URLs to configure security&quot;)
+<i>207</i>&nbsp;    static Policy readPolicy(URL policyFile, Map&lt;String, URL&gt; codebases) {
+<i>208</i>&nbsp;        try {
+<b class="fc"><i>209</i>&nbsp;            List&lt;String&gt; propertiesSet = new ArrayList&lt;&gt;();</b>
+<i>210</i>&nbsp;            try {
+<i>211</i>&nbsp;                // set codebase properties
+<b class="fc"><i>212</i>&nbsp;                for (Map.Entry&lt;String,URL&gt; codebase : codebases.entrySet()) {</b>
+<b class="fc"><i>213</i>&nbsp;                    String name = codebase.getKey();</b>
+<b class="fc"><i>214</i>&nbsp;                    URL url = codebase.getValue();</b>
+<i>215</i>&nbsp;
+<i>216</i>&nbsp;                    // We attempt to use a versionless identifier for each codebase. This assumes a specific version
+<i>217</i>&nbsp;                    // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
+<i>218</i>&nbsp;                    // only means policy grants would need to include the entire jar filename as they always have before.
+<b class="fc"><i>219</i>&nbsp;                    String property = &quot;codebase.&quot; + name;</b>
+<b class="fc"><i>220</i>&nbsp;                    String aliasProperty = &quot;codebase.&quot; + name.replaceFirst(&quot;-\\d+\\.\\d+.*\\.jar&quot;, &quot;&quot;);</b>
+<b class="fc"><i>221</i>&nbsp;                    if (aliasProperty.equals(property) == false) {</b>
+<b class="fc"><i>222</i>&nbsp;                        propertiesSet.add(aliasProperty);</b>
+<b class="fc"><i>223</i>&nbsp;                        String previous = System.setProperty(aliasProperty, url.toString());</b>
+<b class="fc"><i>224</i>&nbsp;                        if (previous != null) {</b>
+<b class="nc"><i>225</i>&nbsp;                            throw new IllegalStateException(&quot;codebase property already set: &quot; + aliasProperty + &quot; -&gt; &quot; + previous +</b>
+<b class="nc"><i>226</i>&nbsp;                                                            &quot;, cannot set to &quot; + url.toString());</b>
+<i>227</i>&nbsp;                        }
+<i>228</i>&nbsp;                    }
+<b class="fc"><i>229</i>&nbsp;                    propertiesSet.add(property);</b>
+<b class="fc"><i>230</i>&nbsp;                    String previous = System.setProperty(property, url.toString());</b>
+<b class="fc"><i>231</i>&nbsp;                    if (previous != null) {</b>
+<b class="nc"><i>232</i>&nbsp;                        throw new IllegalStateException(&quot;codebase property already set: &quot; + property + &quot; -&gt; &quot; + previous +</b>
+<b class="nc"><i>233</i>&nbsp;                                                        &quot;, cannot set to &quot; + url.toString());</b>
+<i>234</i>&nbsp;                    }
+<b class="fc"><i>235</i>&nbsp;                }</b>
+<b class="fc"><i>236</i>&nbsp;                return Policy.getInstance(&quot;JavaPolicy&quot;, new URIParameter(policyFile.toURI()));</b>
+<i>237</i>&nbsp;            } finally {
+<i>238</i>&nbsp;                // clear codebase properties
+<b class="fc"><i>239</i>&nbsp;                for (String property : propertiesSet) {</b>
+<b class="fc"><i>240</i>&nbsp;                    System.clearProperty(property);</b>
+<b class="fc"><i>241</i>&nbsp;                }</b>
+<b class="nc"><i>242</i>&nbsp;            }</b>
+<b class="nc"><i>243</i>&nbsp;        } catch (NoSuchAlgorithmException | URISyntaxException e) {</b>
+<b class="nc"><i>244</i>&nbsp;            throw new IllegalArgumentException(&quot;unable to parse policy file `&quot; + policyFile + &quot;`&quot;, e);</b>
+<i>245</i>&nbsp;        }
+<i>246</i>&nbsp;    }
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    /** returns dynamic Permissions to configured paths and bind ports */
+<i>249</i>&nbsp;    static Permissions createPermissions(Environment environment) throws IOException {
+<b class="nc"><i>250</i>&nbsp;        Permissions policy = new Permissions();</b>
+<b class="nc"><i>251</i>&nbsp;        addClasspathPermissions(policy);</b>
+<b class="nc"><i>252</i>&nbsp;        addFilePermissions(policy, environment);</b>
+<b class="nc"><i>253</i>&nbsp;        addBindPermissions(policy, environment.settings());</b>
+<b class="nc"><i>254</i>&nbsp;        return policy;</b>
+<i>255</i>&nbsp;    }
+<i>256</i>&nbsp;
+<i>257</i>&nbsp;    /** Adds access to classpath jars/classes for jar hell scan, etc */
+<i>258</i>&nbsp;    @SuppressForbidden(reason = &quot;accesses fully qualified URLs to configure security&quot;)
+<i>259</i>&nbsp;    static void addClasspathPermissions(Permissions policy) throws IOException {
+<i>260</i>&nbsp;        // add permissions to everything in classpath
+<i>261</i>&nbsp;        // really it should be covered by lib/, but there could be e.g. agents or similar configured)
+<b class="fc"><i>262</i>&nbsp;        for (URL url : JarHell.parseClassPath()) {</b>
+<i>263</i>&nbsp;            Path path;
+<i>264</i>&nbsp;            try {
+<b class="fc"><i>265</i>&nbsp;                path = PathUtils.get(url.toURI());</b>
+<b class="nc"><i>266</i>&nbsp;            } catch (URISyntaxException e) {</b>
+<b class="nc"><i>267</i>&nbsp;                throw new RuntimeException(e);</b>
+<b class="fc"><i>268</i>&nbsp;            }</b>
+<i>269</i>&nbsp;            // resource itself
+<b class="fc"><i>270</i>&nbsp;            if (Files.isDirectory(path)) {</b>
+<b class="fc"><i>271</i>&nbsp;                addDirectoryPath(policy, &quot;class.path&quot;, path, &quot;read,readlink&quot;);</b>
+<i>272</i>&nbsp;            } else {
+<b class="fc"><i>273</i>&nbsp;                addSingleFilePath(policy, path, &quot;read,readlink&quot;);</b>
+<i>274</i>&nbsp;            }
+<b class="fc"><i>275</i>&nbsp;        }</b>
+<b class="fc"><i>276</i>&nbsp;    }</b>
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;    /**
+<i>279</i>&nbsp;     * Adds access to all configurable paths.
+<i>280</i>&nbsp;     */
+<i>281</i>&nbsp;    static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
+<i>282</i>&nbsp;        // read-only dirs
+<b class="nc"><i>283</i>&nbsp;        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), &quot;read,readlink&quot;);</b>
+<b class="nc"><i>284</i>&nbsp;        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), &quot;read,readlink&quot;);</b>
+<b class="nc"><i>285</i>&nbsp;        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), &quot;read,readlink&quot;);</b>
+<b class="nc"><i>286</i>&nbsp;        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), &quot;read,readlink&quot;);</b>
+<b class="nc"><i>287</i>&nbsp;        addDirectoryPath(policy, &quot;path.conf&#39;&quot;, environment.configFile(), &quot;read,readlink&quot;);</b>
+<i>288</i>&nbsp;        // read-write dirs
+<b class="nc"><i>289</i>&nbsp;        addDirectoryPath(policy, &quot;java.io.tmpdir&quot;, environment.tmpFile(), &quot;read,readlink,write,delete&quot;);</b>
+<b class="nc"><i>290</i>&nbsp;        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), &quot;read,readlink,write,delete&quot;);</b>
+<b class="nc"><i>291</i>&nbsp;        if (environment.sharedDataFile() != null) {</b>
+<b class="nc"><i>292</i>&nbsp;            addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),</b>
+<i>293</i>&nbsp;                &quot;read,readlink,write,delete&quot;);
+<i>294</i>&nbsp;        }
+<b class="nc"><i>295</i>&nbsp;        final Set&lt;Path&gt; dataFilesPaths = new HashSet&lt;&gt;();</b>
+<b class="nc"><i>296</i>&nbsp;        for (Path path : environment.dataFiles()) {</b>
+<b class="nc"><i>297</i>&nbsp;            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, &quot;read,readlink,write,delete&quot;);</b>
+<i>298</i>&nbsp;            /*
+<i>299</i>&nbsp;             * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
+<i>300</i>&nbsp;             * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
+<i>301</i>&nbsp;             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
+<i>302</i>&nbsp;             */
+<i>303</i>&nbsp;            try {
+<b class="nc"><i>304</i>&nbsp;                final Path realPath = path.toRealPath();</b>
+<b class="nc"><i>305</i>&nbsp;                if (!dataFilesPaths.add(realPath)) {</b>
+<b class="nc"><i>306</i>&nbsp;                    throw new IllegalStateException(&quot;path [&quot; + realPath + &quot;] is duplicated by [&quot; + path + &quot;]&quot;);</b>
+<i>307</i>&nbsp;                }
+<b class="nc"><i>308</i>&nbsp;            } catch (final IOException e) {</b>
+<b class="nc"><i>309</i>&nbsp;                throw new IllegalStateException(&quot;unable to access [&quot; + path + &quot;]&quot;, e);</b>
+<b class="nc"><i>310</i>&nbsp;            }</b>
+<i>311</i>&nbsp;        }
+<b class="nc"><i>312</i>&nbsp;        for (Path path : environment.repoFiles()) {</b>
+<b class="nc"><i>313</i>&nbsp;            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, &quot;read,readlink,write,delete&quot;);</b>
+<i>314</i>&nbsp;        }
+<b class="nc"><i>315</i>&nbsp;        if (environment.pidFile() != null) {</b>
+<i>316</i>&nbsp;            // we just need permission to remove the file if its elsewhere.
+<b class="nc"><i>317</i>&nbsp;            addSingleFilePath(policy, environment.pidFile(), &quot;delete&quot;);</b>
+<i>318</i>&nbsp;        }
+<b class="nc"><i>319</i>&nbsp;    }</b>
+<i>320</i>&nbsp;
+<i>321</i>&nbsp;    /**
+<i>322</i>&nbsp;     * Add dynamic {@link SocketPermission}s based on HTTP and transport settings.
+<i>323</i>&nbsp;     *
+<i>324</i>&nbsp;     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
+<i>325</i>&nbsp;     * @param settings the {@link Settings} instance to read the HTTP and transport settings from
+<i>326</i>&nbsp;     */
+<i>327</i>&nbsp;    private static void addBindPermissions(Permissions policy, Settings settings) {
+<b class="nc"><i>328</i>&nbsp;        addSocketPermissionForHttp(policy, settings);</b>
+<b class="nc"><i>329</i>&nbsp;        addSocketPermissionForTransportProfiles(policy, settings);</b>
+<b class="nc"><i>330</i>&nbsp;    }</b>
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    /**
+<i>333</i>&nbsp;     * Add dynamic {@link SocketPermission} based on HTTP settings.
+<i>334</i>&nbsp;     *
+<i>335</i>&nbsp;     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
+<i>336</i>&nbsp;     * @param settings the {@link Settings} instance to read the HTTP settings from
+<i>337</i>&nbsp;     */
+<i>338</i>&nbsp;    private static void addSocketPermissionForHttp(final Permissions policy, final Settings settings) {
+<i>339</i>&nbsp;        // http is simple
+<b class="nc"><i>340</i>&nbsp;        final String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();</b>
+<b class="nc"><i>341</i>&nbsp;        addSocketPermissionForPortRange(policy, httpRange);</b>
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    /**
+<i>345</i>&nbsp;     * Add dynamic {@link SocketPermission} based on transport settings. This method will first check if there is a port range specified in
+<i>346</i>&nbsp;     * the transport profile specified by {@code profileSettings} and will fall back to {@code settings}.
+<i>347</i>&nbsp;     *
+<i>348</i>&nbsp;     * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
+<i>349</i>&nbsp;     * @param settings        the {@link Settings} instance to read the transport settings from
+<i>350</i>&nbsp;     */
+<i>351</i>&nbsp;    private static void addSocketPermissionForTransportProfiles(final Permissions policy, final Settings settings) {
+<i>352</i>&nbsp;        // transport is way over-engineered
+<b class="nc"><i>353</i>&nbsp;        Set&lt;TcpTransport.ProfileSettings&gt; profiles = TcpTransport.getProfileSettings(settings);</b>
+<b class="nc"><i>354</i>&nbsp;        Set&lt;String&gt; uniquePortRanges = new HashSet&lt;&gt;();</b>
+<i>355</i>&nbsp;        // loop through all profiles and add permissions for each one
+<b class="nc"><i>356</i>&nbsp;        for (final TcpTransport.ProfileSettings profile : profiles) {</b>
+<b class="nc"><i>357</i>&nbsp;            if (uniquePortRanges.add(profile.portOrRange)) {</b>
+<i>358</i>&nbsp;                // profiles fall back to the transport.port if it&#39;s not explicit but we want to only add one permission per range
+<b class="nc"><i>359</i>&nbsp;                addSocketPermissionForPortRange(policy, profile.portOrRange);</b>
+<i>360</i>&nbsp;            }
+<b class="nc"><i>361</i>&nbsp;        }</b>
+<b class="nc"><i>362</i>&nbsp;    }</b>
+<i>363</i>&nbsp;
+<i>364</i>&nbsp;    /**
+<i>365</i>&nbsp;     * Add dynamic {@link SocketPermission} for the specified port range.
+<i>366</i>&nbsp;     *
+<i>367</i>&nbsp;     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission} to.
+<i>368</i>&nbsp;     * @param portRange the port range
+<i>369</i>&nbsp;     */
+<i>370</i>&nbsp;    private static void addSocketPermissionForPortRange(final Permissions policy, final String portRange) {
+<i>371</i>&nbsp;        // listen is always called with &#39;localhost&#39; but use wildcard to be sure, no name service is consulted.
+<i>372</i>&nbsp;        // see SocketPermission implies() code
+<b class="nc"><i>373</i>&nbsp;        policy.add(new SocketPermission(&quot;*:&quot; + portRange, &quot;listen,resolve&quot;));</b>
+<b class="nc"><i>374</i>&nbsp;    }</b>
+<i>375</i>&nbsp;
+<i>376</i>&nbsp;    /**
+<i>377</i>&nbsp;     * Ensures configured directory {@code path} exists.
+<i>378</i>&nbsp;     * @throws IOException if {@code path} exists, but is not a directory, not accessible, or broken symbolic link.
+<i>379</i>&nbsp;     */
+<i>380</i>&nbsp;    static void ensureDirectoryExists(Path path) throws IOException {
+<i>381</i>&nbsp;        // this isn&#39;t atomic, but neither is createDirectories.
+<b class="fc"><i>382</i>&nbsp;        if (Files.isDirectory(path)) {</b>
+<i>383</i>&nbsp;            // verify access, following links (throws exception if something is wrong)
+<i>384</i>&nbsp;            // we only check READ as a sanity test
+<b class="fc"><i>385</i>&nbsp;            path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);</b>
+<i>386</i>&nbsp;        } else {
+<i>387</i>&nbsp;            // doesn&#39;t exist, or not a directory
+<i>388</i>&nbsp;            try {
+<b class="nc"><i>389</i>&nbsp;                Files.createDirectories(path);</b>
+<b class="nc"><i>390</i>&nbsp;            } catch (FileAlreadyExistsException e) {</b>
+<i>391</i>&nbsp;                // convert optional specific exception so the context is clear
+<b class="nc"><i>392</i>&nbsp;                IOException e2 = new NotDirectoryException(path.toString());</b>
+<b class="nc"><i>393</i>&nbsp;                e2.addSuppressed(e);</b>
+<b class="nc"><i>394</i>&nbsp;                throw e2;</b>
+<b class="nc"><i>395</i>&nbsp;            }</b>
+<i>396</i>&nbsp;        }
+<b class="fc"><i>397</i>&nbsp;    }</b>
+<i>398</i>&nbsp;
+<i>399</i>&nbsp;    /** Simple checks that everything is ok */
+<i>400</i>&nbsp;    @SuppressForbidden(reason = &quot;accesses jvm default tempdir as a self-test&quot;)
+<i>401</i>&nbsp;    static void selfTest() throws IOException {
+<i>402</i>&nbsp;        // check we can manipulate temporary files
+<i>403</i>&nbsp;        try {
+<b class="fc"><i>404</i>&nbsp;            Path p = Files.createTempFile(null, null);</b>
+<i>405</i>&nbsp;            try {
+<b class="fc"><i>406</i>&nbsp;                Files.delete(p);</b>
+<b class="nc"><i>407</i>&nbsp;            } catch (IOException ignored) {</b>
+<i>408</i>&nbsp;                // potentially virus scanner
+<b class="fc"><i>409</i>&nbsp;            }</b>
+<b class="nc"><i>410</i>&nbsp;        } catch (SecurityException problem) {</b>
+<b class="nc"><i>411</i>&nbsp;            throw new SecurityException(&quot;Security misconfiguration: cannot access java.io.tmpdir&quot;, problem);</b>
+<b class="fc"><i>412</i>&nbsp;        }</b>
+<b class="fc"><i>413</i>&nbsp;    }</b>
+<i>414</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

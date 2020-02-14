@@ -1,0 +1,192 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RandomScoreFunction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.lucene.search.function</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RandomScoreFunction (org.elasticsearch.common.lucene.search.function)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RandomScoreFunction</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 17)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.common.lucene.search.function;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import com.carrotsearch.hppc.BitMixer;
+<i>22</i>&nbsp;
+<i>23</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>24</i>&nbsp;import org.apache.lucene.search.Explanation;
+<i>25</i>&nbsp;import org.apache.lucene.util.StringHelper;
+<i>26</i>&nbsp;import org.elasticsearch.index.fielddata.AtomicFieldData;
+<i>27</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>28</i>&nbsp;import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.io.IOException;
+<i>31</i>&nbsp;import java.util.Objects;
+<i>32</i>&nbsp;
+<i>33</i>&nbsp;/**
+<i>34</i>&nbsp; * Pseudo randomly generate a score for each {@link LeafScoreFunction#score}.
+<i>35</i>&nbsp; */
+<b class="nc"><i>36</i>&nbsp;public class RandomScoreFunction extends ScoreFunction {</b>
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;    private final int originalSeed;
+<i>39</i>&nbsp;    private final int saltedSeed;
+<i>40</i>&nbsp;    private final IndexFieldData&lt;?&gt; fieldData;
+<i>41</i>&nbsp;
+<i>42</i>&nbsp;    /**
+<i>43</i>&nbsp;     * Creates a RandomScoreFunction.
+<i>44</i>&nbsp;     *
+<i>45</i>&nbsp;     * @param seed A seed for randomness
+<i>46</i>&nbsp;     * @param salt A value to salt the seed with, ideally unique to the running node/index
+<i>47</i>&nbsp;     * @param uidFieldData The field data for _uid to use for generating consistent random values for the same id
+<i>48</i>&nbsp;     */
+<i>49</i>&nbsp;    public RandomScoreFunction(int seed, int salt, IndexFieldData&lt;?&gt; uidFieldData) {
+<b class="nc"><i>50</i>&nbsp;        super(CombineFunction.MULTIPLY);</b>
+<b class="nc"><i>51</i>&nbsp;        this.originalSeed = seed;</b>
+<b class="nc"><i>52</i>&nbsp;        this.saltedSeed = BitMixer.mix(seed, salt);</b>
+<b class="nc"><i>53</i>&nbsp;        this.fieldData = uidFieldData;</b>
+<b class="nc"><i>54</i>&nbsp;    }</b>
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    @Override
+<i>57</i>&nbsp;    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+<i>58</i>&nbsp;        final SortedBinaryDocValues values;
+<b class="nc"><i>59</i>&nbsp;        if (fieldData != null) {</b>
+<b class="nc"><i>60</i>&nbsp;            AtomicFieldData leafData = fieldData.load(ctx);</b>
+<b class="nc"><i>61</i>&nbsp;            values = leafData.getBytesValues();</b>
+<b class="nc"><i>62</i>&nbsp;            if (values == null) throw new NullPointerException(&quot;failed to get fielddata&quot;);</b>
+<b class="nc"><i>63</i>&nbsp;        } else {</b>
+<b class="nc"><i>64</i>&nbsp;            values = null;</b>
+<i>65</i>&nbsp;        }
+<i>66</i>&nbsp;
+<b class="nc"><i>67</i>&nbsp;        return new LeafScoreFunction() {</b>
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;            @Override
+<i>70</i>&nbsp;            public double score(int docId, float subQueryScore) throws IOException {
+<i>71</i>&nbsp;                int hash;
+<i>72</i>&nbsp;                if (values == null) {
+<i>73</i>&nbsp;                    hash = BitMixer.mix(ctx.docBase + docId, saltedSeed);
+<i>74</i>&nbsp;                } else if (values.advanceExact(docId)) {
+<i>75</i>&nbsp;                    hash = StringHelper.murmurhash3_x86_32(values.nextValue(), saltedSeed);
+<i>76</i>&nbsp;                } else {
+<i>77</i>&nbsp;                    // field has no value
+<i>78</i>&nbsp;                    hash = saltedSeed;
+<i>79</i>&nbsp;                }
+<i>80</i>&nbsp;                return (hash &amp; 0x00FFFFFF) / (float)(1 &lt;&lt; 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+<i>81</i>&nbsp;            }
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;            @Override
+<i>84</i>&nbsp;            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+<i>85</i>&nbsp;                String field = fieldData == null ? null : fieldData.getFieldName();
+<i>86</i>&nbsp;                return Explanation.match(
+<i>87</i>&nbsp;                        (float) score(docId, subQueryScore.getValue().floatValue()),
+<i>88</i>&nbsp;                        &quot;random score function (seed: &quot; + originalSeed + &quot;, field: &quot; + field + &quot;)&quot;);
+<i>89</i>&nbsp;            }
+<i>90</i>&nbsp;        };
+<i>91</i>&nbsp;    }
+<i>92</i>&nbsp;
+<i>93</i>&nbsp;    @Override
+<i>94</i>&nbsp;    public boolean needsScores() {
+<b class="nc"><i>95</i>&nbsp;        return false;</b>
+<i>96</i>&nbsp;    }
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    @Override
+<i>99</i>&nbsp;    protected boolean doEquals(ScoreFunction other) {
+<b class="nc"><i>100</i>&nbsp;        RandomScoreFunction randomScoreFunction = (RandomScoreFunction) other;</b>
+<b class="nc"><i>101</i>&nbsp;        return this.originalSeed == randomScoreFunction.originalSeed</b>
+<i>102</i>&nbsp;                &amp;&amp; this.saltedSeed == randomScoreFunction.saltedSeed;
+<i>103</i>&nbsp;    }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;    @Override
+<i>106</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>107</i>&nbsp;        return Objects.hash(originalSeed, saltedSeed);</b>
+<i>108</i>&nbsp;    }
+<i>109</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

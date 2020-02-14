@@ -1,0 +1,437 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FiltersAggregationBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.aggregations.bucket.filter</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FiltersAggregationBuilder (org.elasticsearch.search.aggregations.bucket.filter)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FiltersAggregationBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 21)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 153)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.aggregations.bucket.filter;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>23</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>24</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>26</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>27</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>28</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>29</i>&nbsp;import org.elasticsearch.index.query.QueryRewriteContext;
+<i>30</i>&nbsp;import org.elasticsearch.index.query.QueryShardContext;
+<i>31</i>&nbsp;import org.elasticsearch.index.query.Rewriteable;
+<i>32</i>&nbsp;import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+<i>33</i>&nbsp;import org.elasticsearch.search.aggregations.AggregationBuilder;
+<i>34</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+<i>35</i>&nbsp;import org.elasticsearch.search.aggregations.AggregatorFactory;
+<i>36</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+<i>37</i>&nbsp;import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.util.ArrayList;
+<i>41</i>&nbsp;import java.util.Arrays;
+<i>42</i>&nbsp;import java.util.Collections;
+<i>43</i>&nbsp;import java.util.Comparator;
+<i>44</i>&nbsp;import java.util.List;
+<i>45</i>&nbsp;import java.util.Map;
+<i>46</i>&nbsp;import java.util.Objects;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;public class FiltersAggregationBuilder extends AbstractAggregationBuilder&lt;FiltersAggregationBuilder&gt;
+<i>51</i>&nbsp;    implements MultiBucketAggregationBuilder {
+<i>52</i>&nbsp;    public static final String NAME = &quot;filters&quot;;
+<i>53</i>&nbsp;
+<b class="nc"><i>54</i>&nbsp;    private static final ParseField FILTERS_FIELD = new ParseField(&quot;filters&quot;);</b>
+<b class="nc"><i>55</i>&nbsp;    private static final ParseField OTHER_BUCKET_FIELD = new ParseField(&quot;other_bucket&quot;);</b>
+<b class="nc"><i>56</i>&nbsp;    private static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField(&quot;other_bucket_key&quot;);</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final List&lt;KeyedFilter&gt; filters;
+<i>59</i>&nbsp;    private final boolean keyed;
+<b class="nc"><i>60</i>&nbsp;    private boolean otherBucket = false;</b>
+<b class="nc"><i>61</i>&nbsp;    private String otherBucketKey = &quot;_other_&quot;;</b>
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    /**
+<i>64</i>&nbsp;     * @param name
+<i>65</i>&nbsp;     *            the name of this aggregation
+<i>66</i>&nbsp;     * @param filters
+<i>67</i>&nbsp;     *            the KeyedFilters to use with this aggregation.
+<i>68</i>&nbsp;     */
+<i>69</i>&nbsp;    public FiltersAggregationBuilder(String name, KeyedFilter... filters) {
+<b class="nc"><i>70</i>&nbsp;        this(name, Arrays.asList(filters), true);</b>
+<b class="nc"><i>71</i>&nbsp;    }</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    private FiltersAggregationBuilder(String name, List&lt;KeyedFilter&gt; filters, boolean keyed) {
+<b class="nc"><i>74</i>&nbsp;        super(name);</b>
+<b class="nc"><i>75</i>&nbsp;        this.filters = new ArrayList&lt;&gt;(filters);</b>
+<b class="nc"><i>76</i>&nbsp;        if (keyed) {</b>
+<i>77</i>&nbsp;            // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
+<b class="nc"><i>78</i>&nbsp;            this.filters.sort(Comparator.comparing(KeyedFilter::key));</b>
+<b class="nc"><i>79</i>&nbsp;            this.keyed = true;</b>
+<i>80</i>&nbsp;        } else {
+<b class="nc"><i>81</i>&nbsp;            this.keyed = false;</b>
+<i>82</i>&nbsp;        }
+<b class="nc"><i>83</i>&nbsp;    }</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;    /**
+<i>86</i>&nbsp;     * @param name
+<i>87</i>&nbsp;     *            the name of this aggregation
+<i>88</i>&nbsp;     * @param filters
+<i>89</i>&nbsp;     *            the filters to use with this aggregation
+<i>90</i>&nbsp;     */
+<i>91</i>&nbsp;    public FiltersAggregationBuilder(String name, QueryBuilder... filters) {
+<b class="nc"><i>92</i>&nbsp;        super(name);</b>
+<b class="nc"><i>93</i>&nbsp;        List&lt;KeyedFilter&gt; keyedFilters = new ArrayList&lt;&gt;(filters.length);</b>
+<b class="nc"><i>94</i>&nbsp;        for (int i = 0; i &lt; filters.length; i++) {</b>
+<b class="nc"><i>95</i>&nbsp;            keyedFilters.add(new KeyedFilter(String.valueOf(i), filters[i]));</b>
+<i>96</i>&nbsp;        }
+<b class="nc"><i>97</i>&nbsp;        this.filters = keyedFilters;</b>
+<b class="nc"><i>98</i>&nbsp;        this.keyed = false;</b>
+<b class="nc"><i>99</i>&nbsp;    }</b>
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map&lt;String, Object&gt; metaData) {
+<b class="nc"><i>102</i>&nbsp;        super(clone, factoriesBuilder, metaData);</b>
+<b class="nc"><i>103</i>&nbsp;        this.filters = new ArrayList&lt;&gt;(clone.filters);</b>
+<b class="nc"><i>104</i>&nbsp;        this.keyed = clone.keyed;</b>
+<b class="nc"><i>105</i>&nbsp;        this.otherBucket = clone.otherBucket;</b>
+<b class="nc"><i>106</i>&nbsp;        this.otherBucketKey = clone.otherBucketKey;</b>
+<b class="nc"><i>107</i>&nbsp;    }</b>
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    @Override
+<i>110</i>&nbsp;    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map&lt;String, Object&gt; metaData) {
+<b class="nc"><i>111</i>&nbsp;        return new FiltersAggregationBuilder(this, factoriesBuilder, metaData);</b>
+<i>112</i>&nbsp;    }
+<i>113</i>&nbsp;
+<i>114</i>&nbsp;    /**
+<i>115</i>&nbsp;     * Read from a stream.
+<i>116</i>&nbsp;     */
+<i>117</i>&nbsp;    public FiltersAggregationBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>118</i>&nbsp;        super(in);</b>
+<b class="nc"><i>119</i>&nbsp;        keyed = in.readBoolean();</b>
+<b class="nc"><i>120</i>&nbsp;        int filtersSize = in.readVInt();</b>
+<b class="nc"><i>121</i>&nbsp;        filters = new ArrayList&lt;&gt;(filtersSize);</b>
+<b class="nc"><i>122</i>&nbsp;        if (keyed) {</b>
+<b class="nc"><i>123</i>&nbsp;            for (int i = 0; i &lt; filtersSize; i++) {</b>
+<b class="nc"><i>124</i>&nbsp;                filters.add(new KeyedFilter(in));</b>
+<i>125</i>&nbsp;            }
+<i>126</i>&nbsp;        } else {
+<b class="nc"><i>127</i>&nbsp;            for (int i = 0; i &lt; filtersSize; i++) {</b>
+<b class="nc"><i>128</i>&nbsp;                filters.add(new KeyedFilter(String.valueOf(i), in.readNamedWriteable(QueryBuilder.class)));</b>
+<i>129</i>&nbsp;            }
+<i>130</i>&nbsp;        }
+<b class="nc"><i>131</i>&nbsp;        otherBucket = in.readBoolean();</b>
+<b class="nc"><i>132</i>&nbsp;        otherBucketKey = in.readString();</b>
+<b class="nc"><i>133</i>&nbsp;    }</b>
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;    @Override
+<i>136</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>137</i>&nbsp;        out.writeBoolean(keyed);</b>
+<b class="nc"><i>138</i>&nbsp;        out.writeVInt(filters.size());</b>
+<b class="nc"><i>139</i>&nbsp;        if (keyed) {</b>
+<b class="nc"><i>140</i>&nbsp;            for (KeyedFilter keyedFilter : filters) {</b>
+<b class="nc"><i>141</i>&nbsp;                keyedFilter.writeTo(out);</b>
+<b class="nc"><i>142</i>&nbsp;            }</b>
+<i>143</i>&nbsp;        } else {
+<b class="nc"><i>144</i>&nbsp;            for (KeyedFilter keyedFilter : filters) {</b>
+<b class="nc"><i>145</i>&nbsp;                out.writeNamedWriteable(keyedFilter.filter());</b>
+<b class="nc"><i>146</i>&nbsp;            }</b>
+<i>147</i>&nbsp;        }
+<b class="nc"><i>148</i>&nbsp;        out.writeBoolean(otherBucket);</b>
+<b class="nc"><i>149</i>&nbsp;        out.writeString(otherBucketKey);</b>
+<b class="nc"><i>150</i>&nbsp;    }</b>
+<i>151</i>&nbsp;
+<i>152</i>&nbsp;    /**
+<i>153</i>&nbsp;     * Set whether to include a bucket for documents not matching any filter
+<i>154</i>&nbsp;     */
+<i>155</i>&nbsp;    public FiltersAggregationBuilder otherBucket(boolean otherBucket) {
+<b class="nc"><i>156</i>&nbsp;        this.otherBucket = otherBucket;</b>
+<b class="nc"><i>157</i>&nbsp;        return this;</b>
+<i>158</i>&nbsp;    }
+<i>159</i>&nbsp;
+<i>160</i>&nbsp;    /**
+<i>161</i>&nbsp;     * Get whether to include a bucket for documents not matching any filter
+<i>162</i>&nbsp;     */
+<i>163</i>&nbsp;    public boolean otherBucket() {
+<b class="nc"><i>164</i>&nbsp;        return otherBucket;</b>
+<i>165</i>&nbsp;    }
+<i>166</i>&nbsp;
+<i>167</i>&nbsp;    /**
+<i>168</i>&nbsp;     * Get the filters. This will be an unmodifiable list
+<i>169</i>&nbsp;     */
+<i>170</i>&nbsp;    public List&lt;KeyedFilter&gt; filters() {
+<b class="nc"><i>171</i>&nbsp;        return Collections.unmodifiableList(this.filters);</b>
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * @return true if this builders filters have a key
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    public boolean isKeyed() {
+<b class="nc"><i>178</i>&nbsp;        return this.keyed;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Set the key to use for the bucket for documents not matching any
+<i>183</i>&nbsp;     * filter.
+<i>184</i>&nbsp;     */
+<i>185</i>&nbsp;    public FiltersAggregationBuilder otherBucketKey(String otherBucketKey) {
+<b class="nc"><i>186</i>&nbsp;        if (otherBucketKey == null) {</b>
+<b class="nc"><i>187</i>&nbsp;            throw new IllegalArgumentException(&quot;[otherBucketKey] must not be null: [&quot; + name + &quot;]&quot;);</b>
+<i>188</i>&nbsp;        }
+<b class="nc"><i>189</i>&nbsp;        this.otherBucketKey = otherBucketKey;</b>
+<b class="nc"><i>190</i>&nbsp;        return this;</b>
+<i>191</i>&nbsp;    }
+<i>192</i>&nbsp;
+<i>193</i>&nbsp;    /**
+<i>194</i>&nbsp;     * Get the key to use for the bucket for documents not matching any
+<i>195</i>&nbsp;     * filter.
+<i>196</i>&nbsp;     */
+<i>197</i>&nbsp;    public String otherBucketKey() {
+<b class="nc"><i>198</i>&nbsp;        return otherBucketKey;</b>
+<i>199</i>&nbsp;    }
+<i>200</i>&nbsp;
+<i>201</i>&nbsp;    @Override
+<i>202</i>&nbsp;    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+<b class="nc"><i>203</i>&nbsp;        List&lt;KeyedFilter&gt; rewrittenFilters = new ArrayList&lt;&gt;(filters.size());</b>
+<b class="nc"><i>204</i>&nbsp;        boolean changed = false;</b>
+<b class="nc"><i>205</i>&nbsp;        for (KeyedFilter kf : filters) {</b>
+<b class="nc"><i>206</i>&nbsp;            QueryBuilder result = Rewriteable.rewrite(kf.filter(), queryShardContext);</b>
+<b class="nc"><i>207</i>&nbsp;            rewrittenFilters.add(new KeyedFilter(kf.key(), result));</b>
+<b class="nc"><i>208</i>&nbsp;            if (result != kf.filter()) {</b>
+<b class="nc"><i>209</i>&nbsp;                changed = true;</b>
+<i>210</i>&nbsp;            }
+<b class="nc"><i>211</i>&nbsp;        }</b>
+<b class="nc"><i>212</i>&nbsp;        if (changed) {</b>
+<b class="nc"><i>213</i>&nbsp;            FiltersAggregationBuilder rewritten = new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);</b>
+<b class="nc"><i>214</i>&nbsp;            rewritten.otherBucket(otherBucket);</b>
+<b class="nc"><i>215</i>&nbsp;            rewritten.otherBucketKey(otherBucketKey);</b>
+<b class="nc"><i>216</i>&nbsp;            return rewritten;</b>
+<i>217</i>&nbsp;        } else {
+<b class="nc"><i>218</i>&nbsp;            return this;</b>
+<i>219</i>&nbsp;        }
+<i>220</i>&nbsp;    }
+<i>221</i>&nbsp;
+<i>222</i>&nbsp;    @Override
+<i>223</i>&nbsp;    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
+<i>224</i>&nbsp;        throws IOException {
+<b class="nc"><i>225</i>&nbsp;        return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, queryShardContext, parent,</b>
+<i>226</i>&nbsp;            subFactoriesBuilder, metaData);
+<i>227</i>&nbsp;    }
+<i>228</i>&nbsp;
+<i>229</i>&nbsp;    @Override
+<i>230</i>&nbsp;    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>231</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>232</i>&nbsp;        if (keyed) {</b>
+<b class="nc"><i>233</i>&nbsp;            builder.startObject(FiltersAggregator.FILTERS_FIELD.getPreferredName());</b>
+<b class="nc"><i>234</i>&nbsp;            for (KeyedFilter keyedFilter : filters) {</b>
+<b class="nc"><i>235</i>&nbsp;                builder.field(keyedFilter.key(), keyedFilter.filter());</b>
+<b class="nc"><i>236</i>&nbsp;            }</b>
+<b class="nc"><i>237</i>&nbsp;            builder.endObject();</b>
+<i>238</i>&nbsp;        } else {
+<b class="nc"><i>239</i>&nbsp;            builder.startArray(FiltersAggregator.FILTERS_FIELD.getPreferredName());</b>
+<b class="nc"><i>240</i>&nbsp;            for (KeyedFilter keyedFilter : filters) {</b>
+<b class="nc"><i>241</i>&nbsp;                builder.value(keyedFilter.filter());</b>
+<b class="nc"><i>242</i>&nbsp;            }</b>
+<b class="nc"><i>243</i>&nbsp;            builder.endArray();</b>
+<i>244</i>&nbsp;        }
+<b class="nc"><i>245</i>&nbsp;        builder.field(FiltersAggregator.OTHER_BUCKET_FIELD.getPreferredName(), otherBucket);</b>
+<b class="nc"><i>246</i>&nbsp;        builder.field(FiltersAggregator.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);</b>
+<b class="nc"><i>247</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>248</i>&nbsp;        return builder;</b>
+<i>249</i>&nbsp;    }
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    public static FiltersAggregationBuilder parse(String aggregationName, XContentParser parser)
+<i>252</i>&nbsp;        throws IOException {
+<i>253</i>&nbsp;
+<b class="nc"><i>254</i>&nbsp;        List&lt;FiltersAggregator.KeyedFilter&gt; filters = new ArrayList&lt;&gt;();</b>
+<i>255</i>&nbsp;
+<i>256</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>257</i>&nbsp;        String currentFieldName = null;</b>
+<b class="nc"><i>258</i>&nbsp;        String otherBucketKey = null;</b>
+<b class="nc"><i>259</i>&nbsp;        Boolean otherBucket = null;</b>
+<b class="nc"><i>260</i>&nbsp;        boolean keyed = false;</b>
+<b class="nc"><i>261</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>262</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>263</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>264</i>&nbsp;            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {</b>
+<b class="nc"><i>265</i>&nbsp;                if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>266</i>&nbsp;                    otherBucket = parser.booleanValue();</b>
+<i>267</i>&nbsp;                } else {
+<b class="nc"><i>268</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(),</b>
+<i>269</i>&nbsp;                        &quot;Unknown key for a &quot; + token + &quot; in [&quot; + aggregationName + &quot;]: [&quot; + currentFieldName + &quot;].&quot;);
+<i>270</i>&nbsp;                }
+<b class="nc"><i>271</i>&nbsp;            } else if (token == XContentParser.Token.VALUE_STRING) {</b>
+<b class="nc"><i>272</i>&nbsp;                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>273</i>&nbsp;                    otherBucketKey = parser.text();</b>
+<i>274</i>&nbsp;                } else {
+<b class="nc"><i>275</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(),</b>
+<i>276</i>&nbsp;                        &quot;Unknown key for a &quot; + token + &quot; in [&quot; + aggregationName + &quot;]: [&quot; + currentFieldName + &quot;].&quot;);
+<i>277</i>&nbsp;                }
+<b class="nc"><i>278</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>279</i>&nbsp;                if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>280</i>&nbsp;                    String key = null;</b>
+<b class="nc"><i>281</i>&nbsp;                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>282</i>&nbsp;                        if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>283</i>&nbsp;                            key = parser.currentName();</b>
+<i>284</i>&nbsp;                        } else {
+<b class="nc"><i>285</i>&nbsp;                            QueryBuilder filter = parseInnerQueryBuilder(parser);</b>
+<b class="nc"><i>286</i>&nbsp;                            filters.add(new FiltersAggregator.KeyedFilter(key, filter));</b>
+<b class="nc"><i>287</i>&nbsp;                        }</b>
+<i>288</i>&nbsp;                    }
+<b class="nc"><i>289</i>&nbsp;                    keyed = true;</b>
+<b class="nc"><i>290</i>&nbsp;                } else {</b>
+<b class="nc"><i>291</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(),</b>
+<i>292</i>&nbsp;                        &quot;Unknown key for a &quot; + token + &quot; in [&quot; + aggregationName + &quot;]: [&quot; + currentFieldName + &quot;].&quot;);
+<i>293</i>&nbsp;                }
+<b class="nc"><i>294</i>&nbsp;            } else if (token == XContentParser.Token.START_ARRAY) {</b>
+<b class="nc"><i>295</i>&nbsp;                if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>296</i>&nbsp;                    List&lt;QueryBuilder&gt; builders = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>297</i>&nbsp;                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {</b>
+<b class="nc"><i>298</i>&nbsp;                        QueryBuilder filter = parseInnerQueryBuilder(parser);</b>
+<b class="nc"><i>299</i>&nbsp;                        builders.add(filter);</b>
+<b class="nc"><i>300</i>&nbsp;                    }</b>
+<b class="nc"><i>301</i>&nbsp;                    for (int i = 0; i &lt; builders.size(); i++) {</b>
+<b class="nc"><i>302</i>&nbsp;                        filters.add(new KeyedFilter(String.valueOf(i), builders.get(i)));</b>
+<i>303</i>&nbsp;                    }
+<b class="nc"><i>304</i>&nbsp;                } else {</b>
+<b class="nc"><i>305</i>&nbsp;                    throw new ParsingException(parser.getTokenLocation(),</b>
+<i>306</i>&nbsp;                        &quot;Unknown key for a &quot; + token + &quot; in [&quot; + aggregationName + &quot;]: [&quot; + currentFieldName + &quot;].&quot;);
+<i>307</i>&nbsp;                }
+<i>308</i>&nbsp;            } else {
+<b class="nc"><i>309</i>&nbsp;                throw new ParsingException(parser.getTokenLocation(),</b>
+<i>310</i>&nbsp;                    &quot;Unknown key for a &quot; + token + &quot; in [&quot; + aggregationName + &quot;]: [&quot; + currentFieldName + &quot;].&quot;);
+<i>311</i>&nbsp;            }
+<i>312</i>&nbsp;        }
+<i>313</i>&nbsp;
+<b class="nc"><i>314</i>&nbsp;        if (filters.isEmpty()) {</b>
+<b class="nc"><i>315</i>&nbsp;            throw new IllegalArgumentException(&quot;[&quot; + FILTERS_FIELD + &quot;] cannot be empty.&quot;);</b>
+<i>316</i>&nbsp;        }
+<i>317</i>&nbsp;
+<b class="nc"><i>318</i>&nbsp;        FiltersAggregationBuilder factory = new FiltersAggregationBuilder(aggregationName, filters, keyed);</b>
+<i>319</i>&nbsp;
+<b class="nc"><i>320</i>&nbsp;        if (otherBucket == null &amp;&amp; otherBucketKey != null) {</b>
+<i>321</i>&nbsp;            // automatically enable the other bucket if a key is set, as per the doc
+<b class="nc"><i>322</i>&nbsp;            otherBucket = true;</b>
+<i>323</i>&nbsp;        }
+<b class="nc"><i>324</i>&nbsp;        if (otherBucket != null) {</b>
+<b class="nc"><i>325</i>&nbsp;            factory.otherBucket(otherBucket);</b>
+<i>326</i>&nbsp;        }
+<b class="nc"><i>327</i>&nbsp;        if (otherBucketKey != null) {</b>
+<b class="nc"><i>328</i>&nbsp;            factory.otherBucketKey(otherBucketKey);</b>
+<i>329</i>&nbsp;        }
+<b class="nc"><i>330</i>&nbsp;        return factory;</b>
+<i>331</i>&nbsp;    }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;    @Override
+<i>334</i>&nbsp;    public int hashCode() {
+<b class="nc"><i>335</i>&nbsp;        return Objects.hash(super.hashCode(), filters, keyed, otherBucket, otherBucketKey);</b>
+<i>336</i>&nbsp;    }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;    @Override
+<i>339</i>&nbsp;    public boolean equals(Object obj) {
+<b class="nc"><i>340</i>&nbsp;        if (this == obj) return true;</b>
+<b class="nc"><i>341</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) return false;</b>
+<b class="nc"><i>342</i>&nbsp;        if (super.equals(obj) == false) return false;</b>
+<b class="nc"><i>343</i>&nbsp;        FiltersAggregationBuilder other = (FiltersAggregationBuilder) obj;</b>
+<b class="nc"><i>344</i>&nbsp;        return Objects.equals(filters, other.filters)</b>
+<b class="nc"><i>345</i>&nbsp;            &amp;&amp; Objects.equals(keyed, other.keyed)</b>
+<b class="nc"><i>346</i>&nbsp;            &amp;&amp; Objects.equals(otherBucket, other.otherBucket)</b>
+<b class="nc"><i>347</i>&nbsp;            &amp;&amp; Objects.equals(otherBucketKey, other.otherBucketKey);</b>
+<i>348</i>&nbsp;    }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    @Override
+<i>351</i>&nbsp;    public String getType() {
+<b class="nc"><i>352</i>&nbsp;        return NAME;</b>
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

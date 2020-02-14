@@ -1,0 +1,793 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: AbstractHighlighterBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.search.fetch.subphase.highlight</a> ]
+</div>
+
+<h1>Coverage Summary for Class: AbstractHighlighterBuilder (org.elasticsearch.search.fetch.subphase.highlight)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">AbstractHighlighterBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 52)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 259)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.search.fetch.subphase.highlight;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.search.highlight.SimpleFragmenter;
+<i>23</i>&nbsp;import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+<i>24</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>25</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>26</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>28</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>29</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>30</i>&nbsp;import org.elasticsearch.common.xcontent.ObjectParser;
+<i>31</i>&nbsp;import org.elasticsearch.common.xcontent.ToXContentObject;
+<i>32</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>33</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>34</i>&nbsp;import org.elasticsearch.index.query.QueryBuilder;
+<i>35</i>&nbsp;import org.elasticsearch.index.query.Rewriteable;
+<i>36</i>&nbsp;import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
+<i>37</i>&nbsp;import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.io.IOException;
+<i>40</i>&nbsp;import java.util.Arrays;
+<i>41</i>&nbsp;import java.util.Locale;
+<i>42</i>&nbsp;import java.util.Map;
+<i>43</i>&nbsp;import java.util.Objects;
+<i>44</i>&nbsp;import java.util.function.BiFunction;
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
+<i>47</i>&nbsp;import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;/**
+<i>50</i>&nbsp; * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
+<i>51</i>&nbsp; * and provides the common setters, equality, hashCode calculation and common serialization
+<i>52</i>&nbsp; */
+<i>53</i>&nbsp;public abstract class AbstractHighlighterBuilder&lt;HB extends AbstractHighlighterBuilder&lt;?&gt;&gt;
+<i>54</i>&nbsp;        implements Writeable, Rewriteable&lt;HB&gt;, ToXContentObject {
+<b class="nc"><i>55</i>&nbsp;    public static final ParseField PRE_TAGS_FIELD = new ParseField(&quot;pre_tags&quot;);</b>
+<b class="nc"><i>56</i>&nbsp;    public static final ParseField POST_TAGS_FIELD = new ParseField(&quot;post_tags&quot;);</b>
+<b class="nc"><i>57</i>&nbsp;    public static final ParseField FIELDS_FIELD = new ParseField(&quot;fields&quot;);</b>
+<b class="nc"><i>58</i>&nbsp;    public static final ParseField ORDER_FIELD = new ParseField(&quot;order&quot;);</b>
+<b class="nc"><i>59</i>&nbsp;    public static final ParseField HIGHLIGHT_FILTER_FIELD = new ParseField(&quot;highlight_filter&quot;);</b>
+<b class="nc"><i>60</i>&nbsp;    public static final ParseField FRAGMENT_SIZE_FIELD = new ParseField(&quot;fragment_size&quot;);</b>
+<b class="nc"><i>61</i>&nbsp;    public static final ParseField FRAGMENT_OFFSET_FIELD = new ParseField(&quot;fragment_offset&quot;);</b>
+<b class="nc"><i>62</i>&nbsp;    public static final ParseField NUMBER_OF_FRAGMENTS_FIELD = new ParseField(&quot;number_of_fragments&quot;);</b>
+<b class="nc"><i>63</i>&nbsp;    public static final ParseField ENCODER_FIELD = new ParseField(&quot;encoder&quot;);</b>
+<b class="nc"><i>64</i>&nbsp;    public static final ParseField REQUIRE_FIELD_MATCH_FIELD = new ParseField(&quot;require_field_match&quot;);</b>
+<b class="nc"><i>65</i>&nbsp;    public static final ParseField BOUNDARY_SCANNER_FIELD = new ParseField(&quot;boundary_scanner&quot;);</b>
+<b class="nc"><i>66</i>&nbsp;    public static final ParseField BOUNDARY_MAX_SCAN_FIELD = new ParseField(&quot;boundary_max_scan&quot;);</b>
+<b class="nc"><i>67</i>&nbsp;    public static final ParseField BOUNDARY_CHARS_FIELD = new ParseField(&quot;boundary_chars&quot;);</b>
+<b class="nc"><i>68</i>&nbsp;    public static final ParseField BOUNDARY_SCANNER_LOCALE_FIELD = new ParseField(&quot;boundary_scanner_locale&quot;);</b>
+<b class="nc"><i>69</i>&nbsp;    public static final ParseField TYPE_FIELD = new ParseField(&quot;type&quot;);</b>
+<b class="nc"><i>70</i>&nbsp;    public static final ParseField FRAGMENTER_FIELD = new ParseField(&quot;fragmenter&quot;);</b>
+<b class="nc"><i>71</i>&nbsp;    public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField(&quot;no_match_size&quot;);</b>
+<b class="nc"><i>72</i>&nbsp;    public static final ParseField FORCE_SOURCE_FIELD = new ParseField(&quot;force_source&quot;);</b>
+<b class="nc"><i>73</i>&nbsp;    public static final ParseField PHRASE_LIMIT_FIELD = new ParseField(&quot;phrase_limit&quot;);</b>
+<b class="nc"><i>74</i>&nbsp;    public static final ParseField OPTIONS_FIELD = new ParseField(&quot;options&quot;);</b>
+<b class="nc"><i>75</i>&nbsp;    public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField(&quot;highlight_query&quot;);</b>
+<b class="nc"><i>76</i>&nbsp;    public static final ParseField MATCHED_FIELDS_FIELD = new ParseField(&quot;matched_fields&quot;);</b>
+<i>77</i>&nbsp;
+<i>78</i>&nbsp;    protected String[] preTags;
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    protected String[] postTags;
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    protected Integer fragmentSize;
+<i>83</i>&nbsp;
+<i>84</i>&nbsp;    protected Integer numOfFragments;
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    protected String highlighterType;
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    protected String fragmenter;
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;    protected QueryBuilder highlightQuery;
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    protected Order order;
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    protected Boolean highlightFilter;
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    protected Boolean forceSource;
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    protected BoundaryScannerType boundaryScannerType;
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    protected Integer boundaryMaxScan;
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    protected char[] boundaryChars;
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    protected Locale boundaryScannerLocale;
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    protected Integer noMatchSize;
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;    protected Integer phraseLimit;
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;    protected Map&lt;String, Object&gt; options;
+<i>111</i>&nbsp;
+<i>112</i>&nbsp;    protected Boolean requireFieldMatch;
+<i>113</i>&nbsp;
+<b class="nc"><i>114</i>&nbsp;    public AbstractHighlighterBuilder() {</b>
+<b class="nc"><i>115</i>&nbsp;    }</b>
+<i>116</i>&nbsp;
+<b class="nc"><i>117</i>&nbsp;    protected AbstractHighlighterBuilder(AbstractHighlighterBuilder&lt;?&gt; template, QueryBuilder queryBuilder) {</b>
+<b class="nc"><i>118</i>&nbsp;        preTags = template.preTags;</b>
+<b class="nc"><i>119</i>&nbsp;        postTags = template.postTags;</b>
+<b class="nc"><i>120</i>&nbsp;        fragmentSize = template.fragmentSize;</b>
+<b class="nc"><i>121</i>&nbsp;        numOfFragments = template.numOfFragments;</b>
+<b class="nc"><i>122</i>&nbsp;        highlighterType = template.highlighterType;</b>
+<b class="nc"><i>123</i>&nbsp;        fragmenter = template.fragmenter;</b>
+<b class="nc"><i>124</i>&nbsp;        highlightQuery = queryBuilder;</b>
+<b class="nc"><i>125</i>&nbsp;        order = template.order;</b>
+<b class="nc"><i>126</i>&nbsp;        highlightFilter = template.highlightFilter;</b>
+<b class="nc"><i>127</i>&nbsp;        forceSource = template.forceSource;</b>
+<b class="nc"><i>128</i>&nbsp;        boundaryScannerType = template.boundaryScannerType;</b>
+<b class="nc"><i>129</i>&nbsp;        boundaryMaxScan = template.boundaryMaxScan;</b>
+<b class="nc"><i>130</i>&nbsp;        boundaryChars = template.boundaryChars;</b>
+<b class="nc"><i>131</i>&nbsp;        boundaryScannerLocale = template.boundaryScannerLocale;</b>
+<b class="nc"><i>132</i>&nbsp;        noMatchSize = template.noMatchSize;</b>
+<b class="nc"><i>133</i>&nbsp;        phraseLimit = template.phraseLimit;</b>
+<b class="nc"><i>134</i>&nbsp;        options = template.options;</b>
+<b class="nc"><i>135</i>&nbsp;        requireFieldMatch = template.requireFieldMatch;</b>
+<b class="nc"><i>136</i>&nbsp;    }</b>
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * Read from a stream.
+<i>140</i>&nbsp;     */
+<b class="nc"><i>141</i>&nbsp;    protected AbstractHighlighterBuilder(StreamInput in) throws IOException {</b>
+<b class="nc"><i>142</i>&nbsp;        preTags(in.readOptionalStringArray());</b>
+<b class="nc"><i>143</i>&nbsp;        postTags(in.readOptionalStringArray());</b>
+<b class="nc"><i>144</i>&nbsp;        fragmentSize(in.readOptionalVInt());</b>
+<b class="nc"><i>145</i>&nbsp;        numOfFragments(in.readOptionalVInt());</b>
+<b class="nc"><i>146</i>&nbsp;        highlighterType(in.readOptionalString());</b>
+<b class="nc"><i>147</i>&nbsp;        fragmenter(in.readOptionalString());</b>
+<b class="nc"><i>148</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>149</i>&nbsp;            highlightQuery(in.readNamedWriteable(QueryBuilder.class));</b>
+<i>150</i>&nbsp;        }
+<b class="nc"><i>151</i>&nbsp;        order(in.readOptionalWriteable(Order::readFromStream));</b>
+<b class="nc"><i>152</i>&nbsp;        highlightFilter(in.readOptionalBoolean());</b>
+<b class="nc"><i>153</i>&nbsp;        forceSource(in.readOptionalBoolean());</b>
+<b class="nc"><i>154</i>&nbsp;        boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));</b>
+<b class="nc"><i>155</i>&nbsp;        boundaryMaxScan(in.readOptionalVInt());</b>
+<b class="nc"><i>156</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>157</i>&nbsp;            boundaryChars(in.readString().toCharArray());</b>
+<i>158</i>&nbsp;        }
+<b class="nc"><i>159</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>160</i>&nbsp;            boundaryScannerLocale(in.readString());</b>
+<i>161</i>&nbsp;        }
+<b class="nc"><i>162</i>&nbsp;        noMatchSize(in.readOptionalVInt());</b>
+<b class="nc"><i>163</i>&nbsp;        phraseLimit(in.readOptionalVInt());</b>
+<b class="nc"><i>164</i>&nbsp;        if (in.readBoolean()) {</b>
+<b class="nc"><i>165</i>&nbsp;            options(in.readMap());</b>
+<i>166</i>&nbsp;        }
+<b class="nc"><i>167</i>&nbsp;        requireFieldMatch(in.readOptionalBoolean());</b>
+<b class="nc"><i>168</i>&nbsp;    }</b>
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    /**
+<i>171</i>&nbsp;     * write common parameters to {@link StreamOutput}
+<i>172</i>&nbsp;     */
+<i>173</i>&nbsp;    @Override
+<i>174</i>&nbsp;    public final void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>175</i>&nbsp;        out.writeOptionalStringArray(preTags);</b>
+<b class="nc"><i>176</i>&nbsp;        out.writeOptionalStringArray(postTags);</b>
+<b class="nc"><i>177</i>&nbsp;        out.writeOptionalVInt(fragmentSize);</b>
+<b class="nc"><i>178</i>&nbsp;        out.writeOptionalVInt(numOfFragments);</b>
+<b class="nc"><i>179</i>&nbsp;        out.writeOptionalString(highlighterType);</b>
+<b class="nc"><i>180</i>&nbsp;        out.writeOptionalString(fragmenter);</b>
+<b class="nc"><i>181</i>&nbsp;        boolean hasQuery = highlightQuery != null;</b>
+<b class="nc"><i>182</i>&nbsp;        out.writeBoolean(hasQuery);</b>
+<b class="nc"><i>183</i>&nbsp;        if (hasQuery) {</b>
+<b class="nc"><i>184</i>&nbsp;            out.writeNamedWriteable(highlightQuery);</b>
+<i>185</i>&nbsp;        }
+<b class="nc"><i>186</i>&nbsp;        out.writeOptionalWriteable(order);</b>
+<b class="nc"><i>187</i>&nbsp;        out.writeOptionalBoolean(highlightFilter);</b>
+<b class="nc"><i>188</i>&nbsp;        out.writeOptionalBoolean(forceSource);</b>
+<b class="nc"><i>189</i>&nbsp;        out.writeOptionalWriteable(boundaryScannerType);</b>
+<b class="nc"><i>190</i>&nbsp;        out.writeOptionalVInt(boundaryMaxScan);</b>
+<b class="nc"><i>191</i>&nbsp;        boolean hasBounaryChars = boundaryChars != null;</b>
+<b class="nc"><i>192</i>&nbsp;        out.writeBoolean(hasBounaryChars);</b>
+<b class="nc"><i>193</i>&nbsp;        if (hasBounaryChars) {</b>
+<b class="nc"><i>194</i>&nbsp;            out.writeString(String.valueOf(boundaryChars));</b>
+<i>195</i>&nbsp;        }
+<b class="nc"><i>196</i>&nbsp;        boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;</b>
+<b class="nc"><i>197</i>&nbsp;        out.writeBoolean(hasBoundaryScannerLocale);</b>
+<b class="nc"><i>198</i>&nbsp;        if (hasBoundaryScannerLocale) {</b>
+<b class="nc"><i>199</i>&nbsp;            out.writeString(boundaryScannerLocale.toLanguageTag());</b>
+<i>200</i>&nbsp;        }
+<b class="nc"><i>201</i>&nbsp;        out.writeOptionalVInt(noMatchSize);</b>
+<b class="nc"><i>202</i>&nbsp;        out.writeOptionalVInt(phraseLimit);</b>
+<b class="nc"><i>203</i>&nbsp;        boolean hasOptions = options != null;</b>
+<b class="nc"><i>204</i>&nbsp;        out.writeBoolean(hasOptions);</b>
+<b class="nc"><i>205</i>&nbsp;        if (hasOptions) {</b>
+<b class="nc"><i>206</i>&nbsp;            out.writeMap(options);</b>
+<i>207</i>&nbsp;        }
+<b class="nc"><i>208</i>&nbsp;        out.writeOptionalBoolean(requireFieldMatch);</b>
+<b class="nc"><i>209</i>&nbsp;        doWriteTo(out);</b>
+<b class="nc"><i>210</i>&nbsp;    }</b>
+<i>211</i>&nbsp;
+<i>212</i>&nbsp;    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;    /**
+<i>215</i>&nbsp;     * Set the pre tags that will be used for highlighting.
+<i>216</i>&nbsp;     */
+<i>217</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>218</i>&nbsp;    public HB preTags(String... preTags) {
+<b class="nc"><i>219</i>&nbsp;        this.preTags = preTags;</b>
+<b class="nc"><i>220</i>&nbsp;        return (HB) this;</b>
+<i>221</i>&nbsp;    }
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;    /**
+<i>224</i>&nbsp;     * @return the value set by {@link #preTags(String...)}
+<i>225</i>&nbsp;     */
+<i>226</i>&nbsp;    public String[] preTags() {
+<b class="nc"><i>227</i>&nbsp;        return this.preTags;</b>
+<i>228</i>&nbsp;    }
+<i>229</i>&nbsp;
+<i>230</i>&nbsp;    /**
+<i>231</i>&nbsp;     * Set the post tags that will be used for highlighting.
+<i>232</i>&nbsp;     */
+<i>233</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>234</i>&nbsp;    public HB postTags(String... postTags) {
+<b class="nc"><i>235</i>&nbsp;        this.postTags = postTags;</b>
+<b class="nc"><i>236</i>&nbsp;        return (HB) this;</b>
+<i>237</i>&nbsp;    }
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;    /**
+<i>240</i>&nbsp;     * @return the value set by {@link #postTags(String...)}
+<i>241</i>&nbsp;     */
+<i>242</i>&nbsp;    public String[] postTags() {
+<b class="nc"><i>243</i>&nbsp;        return this.postTags;</b>
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    /**
+<i>247</i>&nbsp;     * Set the fragment size in characters, defaults to {@link HighlightBuilder#DEFAULT_FRAGMENT_CHAR_SIZE}
+<i>248</i>&nbsp;     */
+<i>249</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>250</i>&nbsp;    public HB fragmentSize(Integer fragmentSize) {
+<b class="nc"><i>251</i>&nbsp;        this.fragmentSize = fragmentSize;</b>
+<b class="nc"><i>252</i>&nbsp;        return (HB) this;</b>
+<i>253</i>&nbsp;    }
+<i>254</i>&nbsp;
+<i>255</i>&nbsp;    /**
+<i>256</i>&nbsp;     * @return the value set by {@link #fragmentSize(Integer)}
+<i>257</i>&nbsp;     */
+<i>258</i>&nbsp;    public Integer fragmentSize() {
+<b class="nc"><i>259</i>&nbsp;        return this.fragmentSize;</b>
+<i>260</i>&nbsp;    }
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;    /**
+<i>263</i>&nbsp;     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
+<i>264</i>&nbsp;     */
+<i>265</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>266</i>&nbsp;    public HB numOfFragments(Integer numOfFragments) {
+<b class="nc"><i>267</i>&nbsp;        this.numOfFragments = numOfFragments;</b>
+<b class="nc"><i>268</i>&nbsp;        return (HB) this;</b>
+<i>269</i>&nbsp;    }
+<i>270</i>&nbsp;
+<i>271</i>&nbsp;    /**
+<i>272</i>&nbsp;     * @return the value set by {@link #numOfFragments(Integer)}
+<i>273</i>&nbsp;     */
+<i>274</i>&nbsp;    public Integer numOfFragments() {
+<b class="nc"><i>275</i>&nbsp;        return this.numOfFragments;</b>
+<i>276</i>&nbsp;    }
+<i>277</i>&nbsp;
+<i>278</i>&nbsp;    /**
+<i>279</i>&nbsp;     * Set type of highlighter to use. Out of the box supported types
+<i>280</i>&nbsp;     * are {@code unified}, {@code plain} and {@code fvj}.
+<i>281</i>&nbsp;     * Defaults to {@code unified}.
+<i>282</i>&nbsp;     * Details of the different highlighter types are covered in the reference guide.
+<i>283</i>&nbsp;     */
+<i>284</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>285</i>&nbsp;    public HB highlighterType(String highlighterType) {
+<b class="nc"><i>286</i>&nbsp;        this.highlighterType = highlighterType;</b>
+<b class="nc"><i>287</i>&nbsp;        return (HB) this;</b>
+<i>288</i>&nbsp;    }
+<i>289</i>&nbsp;
+<i>290</i>&nbsp;    /**
+<i>291</i>&nbsp;     * @return the value set by {@link #highlighterType(String)}
+<i>292</i>&nbsp;     */
+<i>293</i>&nbsp;    public String highlighterType() {
+<b class="nc"><i>294</i>&nbsp;        return this.highlighterType;</b>
+<i>295</i>&nbsp;    }
+<i>296</i>&nbsp;
+<i>297</i>&nbsp;    /**
+<i>298</i>&nbsp;     * Sets what fragmenter to use to break up text that is eligible for highlighting.
+<i>299</i>&nbsp;     * This option is only applicable when using the plain highlighterType {@code highlighter}.
+<i>300</i>&nbsp;     * Permitted values are &quot;simple&quot; or &quot;span&quot; relating to {@link SimpleFragmenter} and
+<i>301</i>&nbsp;     * {@link SimpleSpanFragmenter} implementations respectively with the default being &quot;span&quot;
+<i>302</i>&nbsp;     */
+<i>303</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>304</i>&nbsp;    public HB fragmenter(String fragmenter) {
+<b class="nc"><i>305</i>&nbsp;        this.fragmenter = fragmenter;</b>
+<b class="nc"><i>306</i>&nbsp;        return (HB) this;</b>
+<i>307</i>&nbsp;    }
+<i>308</i>&nbsp;
+<i>309</i>&nbsp;    /**
+<i>310</i>&nbsp;     * @return the value set by {@link #fragmenter(String)}
+<i>311</i>&nbsp;     */
+<i>312</i>&nbsp;    public String fragmenter() {
+<b class="nc"><i>313</i>&nbsp;        return this.fragmenter;</b>
+<i>314</i>&nbsp;    }
+<i>315</i>&nbsp;
+<i>316</i>&nbsp;    /**
+<i>317</i>&nbsp;     * Sets a query to be used for highlighting instead of the search query.
+<i>318</i>&nbsp;     */
+<i>319</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>320</i>&nbsp;    public HB highlightQuery(QueryBuilder highlightQuery) {
+<b class="nc"><i>321</i>&nbsp;        this.highlightQuery = highlightQuery;</b>
+<b class="nc"><i>322</i>&nbsp;        return (HB) this;</b>
+<i>323</i>&nbsp;    }
+<i>324</i>&nbsp;
+<i>325</i>&nbsp;    /**
+<i>326</i>&nbsp;     * @return the value set by {@link #highlightQuery(QueryBuilder)}
+<i>327</i>&nbsp;     */
+<i>328</i>&nbsp;    public QueryBuilder highlightQuery() {
+<b class="nc"><i>329</i>&nbsp;        return this.highlightQuery;</b>
+<i>330</i>&nbsp;    }
+<i>331</i>&nbsp;
+<i>332</i>&nbsp;    /**
+<i>333</i>&nbsp;     * The order of fragments per field. By default, ordered by the order in the
+<i>334</i>&nbsp;     * highlighted text. Can be {@code score}, which then it will be ordered
+<i>335</i>&nbsp;     * by score of the fragments, or {@code none}.
+<i>336</i>&nbsp;     */
+<i>337</i>&nbsp;    public HB order(String order) {
+<b class="nc"><i>338</i>&nbsp;        return order(Order.fromString(order));</b>
+<i>339</i>&nbsp;    }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;    /**
+<i>342</i>&nbsp;     * By default, fragments of a field are ordered by the order in the highlighted text.
+<i>343</i>&nbsp;     * If set to {@link Order#SCORE}, this changes order to score of the fragments.
+<i>344</i>&nbsp;     */
+<i>345</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>346</i>&nbsp;    public HB order(Order scoreOrdered) {
+<b class="nc"><i>347</i>&nbsp;        this.order = scoreOrdered;</b>
+<b class="nc"><i>348</i>&nbsp;        return (HB) this;</b>
+<i>349</i>&nbsp;    }
+<i>350</i>&nbsp;
+<i>351</i>&nbsp;    /**
+<i>352</i>&nbsp;     * @return the value set by {@link #order(Order)}
+<i>353</i>&nbsp;     */
+<i>354</i>&nbsp;    public Order order() {
+<b class="nc"><i>355</i>&nbsp;        return this.order;</b>
+<i>356</i>&nbsp;    }
+<i>357</i>&nbsp;
+<i>358</i>&nbsp;    /**
+<i>359</i>&nbsp;     * Set this to true when using the highlighterType {@code fvh}
+<i>360</i>&nbsp;     * and you want to provide highlighting on filter clauses in your
+<i>361</i>&nbsp;     * query. Default is {@code false}.
+<i>362</i>&nbsp;     */
+<i>363</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>364</i>&nbsp;    public HB highlightFilter(Boolean highlightFilter) {
+<b class="nc"><i>365</i>&nbsp;        this.highlightFilter = highlightFilter;</b>
+<b class="nc"><i>366</i>&nbsp;        return (HB) this;</b>
+<i>367</i>&nbsp;    }
+<i>368</i>&nbsp;
+<i>369</i>&nbsp;    /**
+<i>370</i>&nbsp;     * @return the value set by {@link #highlightFilter(Boolean)}
+<i>371</i>&nbsp;     */
+<i>372</i>&nbsp;    public Boolean highlightFilter() {
+<b class="nc"><i>373</i>&nbsp;        return this.highlightFilter;</b>
+<i>374</i>&nbsp;    }
+<i>375</i>&nbsp;
+<i>376</i>&nbsp;    /**
+<i>377</i>&nbsp;     * When using the highlighterType {@code fvh} this setting
+<i>378</i>&nbsp;     * controls which scanner to use for fragment boundaries, and defaults to &quot;simple&quot;.
+<i>379</i>&nbsp;     */
+<i>380</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>381</i>&nbsp;    public HB boundaryScannerType(String boundaryScannerType) {
+<b class="nc"><i>382</i>&nbsp;        this.boundaryScannerType = BoundaryScannerType.fromString(boundaryScannerType);</b>
+<b class="nc"><i>383</i>&nbsp;        return (HB) this;</b>
+<i>384</i>&nbsp;    }
+<i>385</i>&nbsp;
+<i>386</i>&nbsp;    /**
+<i>387</i>&nbsp;     * When using the highlighterType {@code fvh} this setting
+<i>388</i>&nbsp;     * controls which scanner to use for fragment boundaries, and defaults to &quot;simple&quot;.
+<i>389</i>&nbsp;     */
+<i>390</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>391</i>&nbsp;    public HB boundaryScannerType(BoundaryScannerType boundaryScannerType) {
+<b class="nc"><i>392</i>&nbsp;        this.boundaryScannerType = boundaryScannerType;</b>
+<b class="nc"><i>393</i>&nbsp;        return (HB) this;</b>
+<i>394</i>&nbsp;    }
+<i>395</i>&nbsp;
+<i>396</i>&nbsp;    /**
+<i>397</i>&nbsp;     * @return the value set by {@link #boundaryScannerType(String)}
+<i>398</i>&nbsp;     */
+<i>399</i>&nbsp;    public BoundaryScannerType boundaryScannerType() {
+<b class="nc"><i>400</i>&nbsp;        return this.boundaryScannerType;</b>
+<i>401</i>&nbsp;    }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;    /**
+<i>404</i>&nbsp;     * When using the highlighterType {@code fvh} this setting
+<i>405</i>&nbsp;     * controls how far to look for boundary characters, and defaults to 20.
+<i>406</i>&nbsp;     */
+<i>407</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>408</i>&nbsp;    public HB boundaryMaxScan(Integer boundaryMaxScan) {
+<b class="nc"><i>409</i>&nbsp;        this.boundaryMaxScan = boundaryMaxScan;</b>
+<b class="nc"><i>410</i>&nbsp;        return (HB) this;</b>
+<i>411</i>&nbsp;    }
+<i>412</i>&nbsp;
+<i>413</i>&nbsp;    /**
+<i>414</i>&nbsp;     * @return the value set by {@link #boundaryMaxScan(Integer)}
+<i>415</i>&nbsp;     */
+<i>416</i>&nbsp;    public Integer boundaryMaxScan() {
+<b class="nc"><i>417</i>&nbsp;        return this.boundaryMaxScan;</b>
+<i>418</i>&nbsp;    }
+<i>419</i>&nbsp;
+<i>420</i>&nbsp;    /**
+<i>421</i>&nbsp;     * When using the highlighterType {@code fvh} this setting
+<i>422</i>&nbsp;     * defines what constitutes a boundary for highlighting. It’s a single string with
+<i>423</i>&nbsp;     * each boundary character defined in it. It defaults to .,!? \t\n
+<i>424</i>&nbsp;     */
+<i>425</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>426</i>&nbsp;    public HB boundaryChars(char[] boundaryChars) {
+<b class="nc"><i>427</i>&nbsp;        this.boundaryChars = boundaryChars;</b>
+<b class="nc"><i>428</i>&nbsp;        return (HB) this;</b>
+<i>429</i>&nbsp;    }
+<i>430</i>&nbsp;
+<i>431</i>&nbsp;    /**
+<i>432</i>&nbsp;     * @return the value set by {@link #boundaryChars(char[])}
+<i>433</i>&nbsp;     */
+<i>434</i>&nbsp;    public char[] boundaryChars() {
+<b class="nc"><i>435</i>&nbsp;        return this.boundaryChars;</b>
+<i>436</i>&nbsp;    }
+<i>437</i>&nbsp;
+<i>438</i>&nbsp;    /**
+<i>439</i>&nbsp;     * When using the highlighterType {@code fvh} and boundaryScannerType {@code break_iterator}, this setting
+<i>440</i>&nbsp;     * controls the locale to use by the BreakIterator, defaults to &quot;root&quot;.
+<i>441</i>&nbsp;     */
+<i>442</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>443</i>&nbsp;    public HB boundaryScannerLocale(String boundaryScannerLocale) {
+<b class="nc"><i>444</i>&nbsp;        if (boundaryScannerLocale != null) {</b>
+<b class="nc"><i>445</i>&nbsp;            this.boundaryScannerLocale = Locale.forLanguageTag(boundaryScannerLocale);</b>
+<i>446</i>&nbsp;        }
+<b class="nc"><i>447</i>&nbsp;        return (HB) this;</b>
+<i>448</i>&nbsp;    }
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;    /**
+<i>451</i>&nbsp;     * @return the value set by {@link #boundaryScannerLocale(String)}
+<i>452</i>&nbsp;     */
+<i>453</i>&nbsp;    public Locale boundaryScannerLocale() {
+<b class="nc"><i>454</i>&nbsp;        return this.boundaryScannerLocale;</b>
+<i>455</i>&nbsp;    }
+<i>456</i>&nbsp;
+<i>457</i>&nbsp;    /**
+<i>458</i>&nbsp;     * Allows to set custom options for custom highlighters.
+<i>459</i>&nbsp;     */
+<i>460</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>461</i>&nbsp;    public HB options(Map&lt;String, Object&gt; options) {
+<b class="nc"><i>462</i>&nbsp;        this.options = options;</b>
+<b class="nc"><i>463</i>&nbsp;        return (HB) this;</b>
+<i>464</i>&nbsp;    }
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;    /**
+<i>467</i>&nbsp;     * @return the value set by {@link #options(Map)}
+<i>468</i>&nbsp;     */
+<i>469</i>&nbsp;    public Map&lt;String, Object&gt; options() {
+<b class="nc"><i>470</i>&nbsp;        return this.options;</b>
+<i>471</i>&nbsp;    }
+<i>472</i>&nbsp;
+<i>473</i>&nbsp;    /**
+<i>474</i>&nbsp;     * Set to true to cause a field to be highlighted only if a query matches that field.
+<i>475</i>&nbsp;     * Default is false meaning that terms are highlighted on all requested fields regardless
+<i>476</i>&nbsp;     * if the query matches specifically on them.
+<i>477</i>&nbsp;     */
+<i>478</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>479</i>&nbsp;    public HB requireFieldMatch(Boolean requireFieldMatch) {
+<b class="nc"><i>480</i>&nbsp;        this.requireFieldMatch = requireFieldMatch;</b>
+<b class="nc"><i>481</i>&nbsp;        return (HB) this;</b>
+<i>482</i>&nbsp;    }
+<i>483</i>&nbsp;
+<i>484</i>&nbsp;    /**
+<i>485</i>&nbsp;     * @return the value set by {@link #requireFieldMatch(Boolean)}
+<i>486</i>&nbsp;     */
+<i>487</i>&nbsp;    public Boolean requireFieldMatch() {
+<b class="nc"><i>488</i>&nbsp;        return this.requireFieldMatch;</b>
+<i>489</i>&nbsp;    }
+<i>490</i>&nbsp;
+<i>491</i>&nbsp;    /**
+<i>492</i>&nbsp;     * Sets the size of the fragment to return from the beginning of the field if there are no matches to
+<i>493</i>&nbsp;     * highlight and the field doesn&#39;t also define noMatchSize.
+<i>494</i>&nbsp;     * @param noMatchSize integer to set or null to leave out of request.  default is null.
+<i>495</i>&nbsp;     * @return this for chaining
+<i>496</i>&nbsp;     */
+<i>497</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>498</i>&nbsp;    public HB noMatchSize(Integer noMatchSize) {
+<b class="nc"><i>499</i>&nbsp;        this.noMatchSize = noMatchSize;</b>
+<b class="nc"><i>500</i>&nbsp;        return (HB) this;</b>
+<i>501</i>&nbsp;    }
+<i>502</i>&nbsp;
+<i>503</i>&nbsp;    /**
+<i>504</i>&nbsp;     * @return the value set by {@link #noMatchSize(Integer)}
+<i>505</i>&nbsp;     */
+<i>506</i>&nbsp;    public Integer noMatchSize() {
+<b class="nc"><i>507</i>&nbsp;        return this.noMatchSize;</b>
+<i>508</i>&nbsp;    }
+<i>509</i>&nbsp;
+<i>510</i>&nbsp;    /**
+<i>511</i>&nbsp;     * Sets the maximum number of phrases the fvh will consider if the field doesn&#39;t also define phraseLimit.
+<i>512</i>&nbsp;     * @param phraseLimit maximum number of phrases the fvh will consider
+<i>513</i>&nbsp;     * @return this for chaining
+<i>514</i>&nbsp;     */
+<i>515</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>516</i>&nbsp;    public HB phraseLimit(Integer phraseLimit) {
+<b class="nc"><i>517</i>&nbsp;        this.phraseLimit = phraseLimit;</b>
+<b class="nc"><i>518</i>&nbsp;        return (HB) this;</b>
+<i>519</i>&nbsp;    }
+<i>520</i>&nbsp;
+<i>521</i>&nbsp;    /**
+<i>522</i>&nbsp;     * @return the value set by {@link #phraseLimit(Integer)}
+<i>523</i>&nbsp;     */
+<i>524</i>&nbsp;    public Integer phraseLimit() {
+<b class="nc"><i>525</i>&nbsp;        return this.phraseLimit;</b>
+<i>526</i>&nbsp;    }
+<i>527</i>&nbsp;
+<i>528</i>&nbsp;    /**
+<i>529</i>&nbsp;     * Forces the highlighting to highlight fields based on the source even if fields are stored separately.
+<i>530</i>&nbsp;     */
+<i>531</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>532</i>&nbsp;    public HB forceSource(Boolean forceSource) {
+<b class="nc"><i>533</i>&nbsp;        this.forceSource = forceSource;</b>
+<b class="nc"><i>534</i>&nbsp;        return (HB) this;</b>
+<i>535</i>&nbsp;    }
+<i>536</i>&nbsp;
+<i>537</i>&nbsp;    /**
+<i>538</i>&nbsp;     * @return the value set by {@link #forceSource(Boolean)}
+<i>539</i>&nbsp;     */
+<i>540</i>&nbsp;    public Boolean forceSource() {
+<b class="nc"><i>541</i>&nbsp;        return this.forceSource;</b>
+<i>542</i>&nbsp;    }
+<i>543</i>&nbsp;
+<i>544</i>&nbsp;    @Override
+<i>545</i>&nbsp;    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>546</i>&nbsp;        builder.startObject();</b>
+<b class="nc"><i>547</i>&nbsp;        innerXContent(builder);</b>
+<b class="nc"><i>548</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>549</i>&nbsp;        return builder;</b>
+<i>550</i>&nbsp;    }
+<i>551</i>&nbsp;
+<i>552</i>&nbsp;    protected abstract void innerXContent(XContentBuilder builder) throws IOException;
+<i>553</i>&nbsp;
+<i>554</i>&nbsp;    void commonOptionsToXContent(XContentBuilder builder) throws IOException {
+<b class="nc"><i>555</i>&nbsp;        if (preTags != null) {</b>
+<b class="nc"><i>556</i>&nbsp;            builder.array(PRE_TAGS_FIELD.getPreferredName(), preTags);</b>
+<i>557</i>&nbsp;        }
+<b class="nc"><i>558</i>&nbsp;        if (postTags != null) {</b>
+<b class="nc"><i>559</i>&nbsp;            builder.array(POST_TAGS_FIELD.getPreferredName(), postTags);</b>
+<i>560</i>&nbsp;        }
+<b class="nc"><i>561</i>&nbsp;        if (fragmentSize != null) {</b>
+<b class="nc"><i>562</i>&nbsp;            builder.field(FRAGMENT_SIZE_FIELD.getPreferredName(), fragmentSize);</b>
+<i>563</i>&nbsp;        }
+<b class="nc"><i>564</i>&nbsp;        if (numOfFragments != null) {</b>
+<b class="nc"><i>565</i>&nbsp;            builder.field(NUMBER_OF_FRAGMENTS_FIELD.getPreferredName(), numOfFragments);</b>
+<i>566</i>&nbsp;        }
+<b class="nc"><i>567</i>&nbsp;        if (highlighterType != null) {</b>
+<b class="nc"><i>568</i>&nbsp;            builder.field(TYPE_FIELD.getPreferredName(), highlighterType);</b>
+<i>569</i>&nbsp;        }
+<b class="nc"><i>570</i>&nbsp;        if (fragmenter != null) {</b>
+<b class="nc"><i>571</i>&nbsp;            builder.field(FRAGMENTER_FIELD.getPreferredName(), fragmenter);</b>
+<i>572</i>&nbsp;        }
+<b class="nc"><i>573</i>&nbsp;        if (highlightQuery != null) {</b>
+<b class="nc"><i>574</i>&nbsp;            builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery);</b>
+<i>575</i>&nbsp;        }
+<b class="nc"><i>576</i>&nbsp;        if (order != null) {</b>
+<b class="nc"><i>577</i>&nbsp;            builder.field(ORDER_FIELD.getPreferredName(), order.toString());</b>
+<i>578</i>&nbsp;        }
+<b class="nc"><i>579</i>&nbsp;        if (highlightFilter != null) {</b>
+<b class="nc"><i>580</i>&nbsp;            builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);</b>
+<i>581</i>&nbsp;        }
+<b class="nc"><i>582</i>&nbsp;        if (boundaryScannerType != null) {</b>
+<b class="nc"><i>583</i>&nbsp;            builder.field(BOUNDARY_SCANNER_FIELD.getPreferredName(), boundaryScannerType.name());</b>
+<i>584</i>&nbsp;        }
+<b class="nc"><i>585</i>&nbsp;        if (boundaryMaxScan != null) {</b>
+<b class="nc"><i>586</i>&nbsp;            builder.field(BOUNDARY_MAX_SCAN_FIELD.getPreferredName(), boundaryMaxScan);</b>
+<i>587</i>&nbsp;        }
+<b class="nc"><i>588</i>&nbsp;        if (boundaryChars != null) {</b>
+<b class="nc"><i>589</i>&nbsp;            builder.field(BOUNDARY_CHARS_FIELD.getPreferredName(), new String(boundaryChars));</b>
+<i>590</i>&nbsp;        }
+<b class="nc"><i>591</i>&nbsp;        if (boundaryScannerLocale != null) {</b>
+<b class="nc"><i>592</i>&nbsp;            builder.field(BOUNDARY_SCANNER_LOCALE_FIELD.getPreferredName(), boundaryScannerLocale.toLanguageTag());</b>
+<i>593</i>&nbsp;        }
+<b class="nc"><i>594</i>&nbsp;        if (options != null &amp;&amp; options.size() &gt; 0) {</b>
+<b class="nc"><i>595</i>&nbsp;            builder.field(OPTIONS_FIELD.getPreferredName(), options);</b>
+<i>596</i>&nbsp;        }
+<b class="nc"><i>597</i>&nbsp;        if (forceSource != null) {</b>
+<b class="nc"><i>598</i>&nbsp;            builder.field(FORCE_SOURCE_FIELD.getPreferredName(), forceSource);</b>
+<i>599</i>&nbsp;        }
+<b class="nc"><i>600</i>&nbsp;        if (requireFieldMatch != null) {</b>
+<b class="nc"><i>601</i>&nbsp;            builder.field(REQUIRE_FIELD_MATCH_FIELD.getPreferredName(), requireFieldMatch);</b>
+<i>602</i>&nbsp;        }
+<b class="nc"><i>603</i>&nbsp;        if (noMatchSize != null) {</b>
+<b class="nc"><i>604</i>&nbsp;            builder.field(NO_MATCH_SIZE_FIELD.getPreferredName(), noMatchSize);</b>
+<i>605</i>&nbsp;        }
+<b class="nc"><i>606</i>&nbsp;        if (phraseLimit != null) {</b>
+<b class="nc"><i>607</i>&nbsp;            builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);</b>
+<i>608</i>&nbsp;        }
+<b class="nc"><i>609</i>&nbsp;    }</b>
+<i>610</i>&nbsp;
+<i>611</i>&nbsp;    static &lt;HB extends AbstractHighlighterBuilder&lt;HB&gt;&gt; BiFunction&lt;XContentParser, HB, HB&gt; setupParser(
+<i>612</i>&nbsp;            ObjectParser&lt;HB, Void&gt; parser) {
+<b class="nc"><i>613</i>&nbsp;        parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);</b>
+<b class="nc"><i>614</i>&nbsp;        parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);</b>
+<b class="nc"><i>615</i>&nbsp;        parser.declareString(HB::order, ORDER_FIELD);</b>
+<b class="nc"><i>616</i>&nbsp;        parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);</b>
+<b class="nc"><i>617</i>&nbsp;        parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);</b>
+<b class="nc"><i>618</i>&nbsp;        parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);</b>
+<b class="nc"><i>619</i>&nbsp;        parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);</b>
+<b class="nc"><i>620</i>&nbsp;        parser.declareString(HB::boundaryScannerType, BOUNDARY_SCANNER_FIELD);</b>
+<b class="nc"><i>621</i>&nbsp;        parser.declareInt(HB::boundaryMaxScan, BOUNDARY_MAX_SCAN_FIELD);</b>
+<b class="nc"><i>622</i>&nbsp;        parser.declareString((HB hb, String bc) -&gt; hb.boundaryChars(bc.toCharArray()) , BOUNDARY_CHARS_FIELD);</b>
+<b class="nc"><i>623</i>&nbsp;        parser.declareString(HB::boundaryScannerLocale, BOUNDARY_SCANNER_LOCALE_FIELD);</b>
+<b class="nc"><i>624</i>&nbsp;        parser.declareString(HB::highlighterType, TYPE_FIELD);</b>
+<b class="nc"><i>625</i>&nbsp;        parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);</b>
+<b class="nc"><i>626</i>&nbsp;        parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);</b>
+<b class="nc"><i>627</i>&nbsp;        parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);</b>
+<b class="nc"><i>628</i>&nbsp;        parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);</b>
+<b class="nc"><i>629</i>&nbsp;        parser.declareObject(HB::options, (XContentParser p, Void c) -&gt; {</b>
+<i>630</i>&nbsp;            try {
+<b class="nc"><i>631</i>&nbsp;                return p.map();</b>
+<b class="nc"><i>632</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>633</i>&nbsp;                throw new RuntimeException(&quot;Error parsing options&quot;, e);</b>
+<i>634</i>&nbsp;            }
+<i>635</i>&nbsp;        }, OPTIONS_FIELD);
+<b class="nc"><i>636</i>&nbsp;        parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -&gt; {</b>
+<i>637</i>&nbsp;            try {
+<b class="nc"><i>638</i>&nbsp;                return parseInnerQueryBuilder(p);</b>
+<b class="nc"><i>639</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>640</i>&nbsp;                throw new RuntimeException(&quot;Error parsing query&quot;, e);</b>
+<i>641</i>&nbsp;            }
+<i>642</i>&nbsp;        }, HIGHLIGHT_QUERY_FIELD);
+<b class="nc"><i>643</i>&nbsp;        return (XContentParser p, HB hb) -&gt; {</b>
+<i>644</i>&nbsp;            try {
+<b class="nc"><i>645</i>&nbsp;                parser.parse(p, hb, null);</b>
+<b class="nc"><i>646</i>&nbsp;                if (hb.preTags() != null &amp;&amp; hb.postTags() == null) {</b>
+<b class="nc"><i>647</i>&nbsp;                    throw new ParsingException(p.getTokenLocation(),</b>
+<i>648</i>&nbsp;                            &quot;pre_tags are set but post_tags are not set&quot;);
+<i>649</i>&nbsp;                }
+<b class="nc"><i>650</i>&nbsp;            } catch (IOException e) {</b>
+<b class="nc"><i>651</i>&nbsp;                throw new RuntimeException(e);</b>
+<b class="nc"><i>652</i>&nbsp;            }</b>
+<b class="nc"><i>653</i>&nbsp;            return hb;</b>
+<i>654</i>&nbsp;        };
+<i>655</i>&nbsp;    }
+<i>656</i>&nbsp;
+<i>657</i>&nbsp;    @Override
+<i>658</i>&nbsp;    public final int hashCode() {
+<b class="nc"><i>659</i>&nbsp;        return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,</b>
+<i>660</i>&nbsp;                numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
+<b class="nc"><i>661</i>&nbsp;                forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), boundaryScannerLocale,</b>
+<b class="nc"><i>662</i>&nbsp;                noMatchSize, phraseLimit, options, requireFieldMatch, doHashCode());</b>
+<i>663</i>&nbsp;    }
+<i>664</i>&nbsp;
+<i>665</i>&nbsp;    /**
+<i>666</i>&nbsp;     * fields only present in subclass should contribute to hashCode in the implementation
+<i>667</i>&nbsp;     */
+<i>668</i>&nbsp;    protected abstract int doHashCode();
+<i>669</i>&nbsp;
+<i>670</i>&nbsp;    @Override
+<i>671</i>&nbsp;    public final boolean equals(Object obj) {
+<b class="nc"><i>672</i>&nbsp;        if (this == obj) {</b>
+<b class="nc"><i>673</i>&nbsp;            return true;</b>
+<i>674</i>&nbsp;        }
+<b class="nc"><i>675</i>&nbsp;        if (obj == null || getClass() != obj.getClass()) {</b>
+<b class="nc"><i>676</i>&nbsp;            return false;</b>
+<i>677</i>&nbsp;        }
+<i>678</i>&nbsp;        @SuppressWarnings(&quot;unchecked&quot;)
+<b class="nc"><i>679</i>&nbsp;        HB other = (HB) obj;</b>
+<b class="nc"><i>680</i>&nbsp;        return Arrays.equals(preTags, other.preTags) &amp;&amp;</b>
+<b class="nc"><i>681</i>&nbsp;               Arrays.equals(postTags, other.postTags) &amp;&amp;</b>
+<b class="nc"><i>682</i>&nbsp;               Objects.equals(fragmentSize, other.fragmentSize) &amp;&amp;</b>
+<b class="nc"><i>683</i>&nbsp;               Objects.equals(numOfFragments, other.numOfFragments) &amp;&amp;</b>
+<b class="nc"><i>684</i>&nbsp;               Objects.equals(highlighterType, other.highlighterType) &amp;&amp;</b>
+<b class="nc"><i>685</i>&nbsp;               Objects.equals(fragmenter, other.fragmenter) &amp;&amp;</b>
+<b class="nc"><i>686</i>&nbsp;               Objects.equals(highlightQuery, other.highlightQuery) &amp;&amp;</b>
+<b class="nc"><i>687</i>&nbsp;               Objects.equals(order, other.order) &amp;&amp;</b>
+<b class="nc"><i>688</i>&nbsp;               Objects.equals(highlightFilter, other.highlightFilter) &amp;&amp;</b>
+<b class="nc"><i>689</i>&nbsp;               Objects.equals(forceSource, other.forceSource) &amp;&amp;</b>
+<b class="nc"><i>690</i>&nbsp;               Objects.equals(boundaryScannerType, other.boundaryScannerType) &amp;&amp;</b>
+<b class="nc"><i>691</i>&nbsp;               Objects.equals(boundaryMaxScan, other.boundaryMaxScan) &amp;&amp;</b>
+<b class="nc"><i>692</i>&nbsp;               Arrays.equals(boundaryChars, other.boundaryChars) &amp;&amp;</b>
+<b class="nc"><i>693</i>&nbsp;               Objects.equals(boundaryScannerLocale, other.boundaryScannerLocale) &amp;&amp;</b>
+<b class="nc"><i>694</i>&nbsp;               Objects.equals(noMatchSize, other.noMatchSize) &amp;&amp;</b>
+<b class="nc"><i>695</i>&nbsp;               Objects.equals(phraseLimit, other.phraseLimit) &amp;&amp;</b>
+<b class="nc"><i>696</i>&nbsp;               Objects.equals(options, other.options) &amp;&amp;</b>
+<b class="nc"><i>697</i>&nbsp;               Objects.equals(requireFieldMatch, other.requireFieldMatch) &amp;&amp;</b>
+<b class="nc"><i>698</i>&nbsp;               doEquals(other);</b>
+<i>699</i>&nbsp;    }
+<i>700</i>&nbsp;
+<i>701</i>&nbsp;    /**
+<i>702</i>&nbsp;     * fields only present in subclass should be checked for equality in the implementation
+<i>703</i>&nbsp;     */
+<i>704</i>&nbsp;    protected abstract boolean doEquals(HB other);
+<i>705</i>&nbsp;
+<i>706</i>&nbsp;    @Override
+<i>707</i>&nbsp;    public String toString() {
+<b class="nc"><i>708</i>&nbsp;        return Strings.toString(this, true, true);</b>
+<i>709</i>&nbsp;    }
+<i>710</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

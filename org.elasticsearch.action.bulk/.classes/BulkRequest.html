@@ -1,0 +1,515 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BulkRequest</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.bulk</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BulkRequest (org.elasticsearch.action.bulk)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BulkRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 41)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 125)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.action.bulk;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionRequest;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionRequestValidationException;
+<i>24</i>&nbsp;import org.elasticsearch.action.CompositeIndicesRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.DocWriteRequest;
+<i>26</i>&nbsp;import org.elasticsearch.action.delete.DeleteRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.index.IndexRequest;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.ActiveShardCount;
+<i>29</i>&nbsp;import org.elasticsearch.action.support.WriteRequest;
+<i>30</i>&nbsp;import org.elasticsearch.action.support.replication.ReplicationRequest;
+<i>31</i>&nbsp;import org.elasticsearch.action.update.UpdateRequest;
+<i>32</i>&nbsp;import org.elasticsearch.common.Nullable;
+<i>33</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>34</i>&nbsp;import org.elasticsearch.common.bytes.BytesArray;
+<i>35</i>&nbsp;import org.elasticsearch.common.bytes.BytesReference;
+<i>36</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>38</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>39</i>&nbsp;import org.elasticsearch.common.xcontent.XContentType;
+<i>40</i>&nbsp;import org.elasticsearch.index.mapper.MapperService;
+<i>41</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.io.IOException;
+<i>44</i>&nbsp;import java.util.ArrayList;
+<i>45</i>&nbsp;import java.util.HashSet;
+<i>46</i>&nbsp;import java.util.List;
+<i>47</i>&nbsp;import java.util.Objects;
+<i>48</i>&nbsp;import java.util.Set;
+<i>49</i>&nbsp;
+<i>50</i>&nbsp;import static org.elasticsearch.action.ValidateActions.addValidationError;
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;/**
+<i>53</i>&nbsp; * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
+<i>54</i>&nbsp; * and allows to executes it in a single batch.
+<i>55</i>&nbsp; *
+<i>56</i>&nbsp; * Note that we only support refresh on the bulk request not per item.
+<i>57</i>&nbsp; * @see org.elasticsearch.client.Client#bulk(BulkRequest)
+<i>58</i>&nbsp; */
+<i>59</i>&nbsp;public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest&lt;BulkRequest&gt; {
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    private static final int REQUEST_OVERHEAD = 50;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    /**
+<i>64</i>&nbsp;     * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
+<i>65</i>&nbsp;     * {@link WriteRequest}s to this but java doesn&#39;t support syntax to declare that everything in the array has both types so we declare
+<i>66</i>&nbsp;     * the one with the least casts.
+<i>67</i>&nbsp;     */
+<b class="nc"><i>68</i>&nbsp;    final List&lt;DocWriteRequest&lt;?&gt;&gt; requests = new ArrayList&lt;&gt;();</b>
+<b class="nc"><i>69</i>&nbsp;    private final Set&lt;String&gt; indices = new HashSet&lt;&gt;();</b>
+<i>70</i>&nbsp;
+<b class="nc"><i>71</i>&nbsp;    protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;</b>
+<b class="nc"><i>72</i>&nbsp;    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;</b>
+<b class="nc"><i>73</i>&nbsp;    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;</b>
+<i>74</i>&nbsp;    private String globalPipeline;
+<i>75</i>&nbsp;    private String globalRouting;
+<i>76</i>&nbsp;    private String globalIndex;
+<i>77</i>&nbsp;    private String globalType;
+<i>78</i>&nbsp;
+<b class="nc"><i>79</i>&nbsp;    private long sizeInBytes = 0;</b>
+<i>80</i>&nbsp;
+<b class="nc"><i>81</i>&nbsp;    public BulkRequest() {}</b>
+<i>82</i>&nbsp;
+<i>83</i>&nbsp;    public BulkRequest(StreamInput in) throws IOException {
+<b class="nc"><i>84</i>&nbsp;        super(in);</b>
+<b class="nc"><i>85</i>&nbsp;        waitForActiveShards = ActiveShardCount.readFrom(in);</b>
+<b class="nc"><i>86</i>&nbsp;        int size = in.readVInt();</b>
+<b class="nc"><i>87</i>&nbsp;        for (int i = 0; i &lt; size; i++) {</b>
+<b class="nc"><i>88</i>&nbsp;            requests.add(DocWriteRequest.readDocumentRequest(in));</b>
+<i>89</i>&nbsp;        }
+<b class="nc"><i>90</i>&nbsp;        refreshPolicy = RefreshPolicy.readFrom(in);</b>
+<b class="nc"><i>91</i>&nbsp;        timeout = in.readTimeValue();</b>
+<b class="nc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<b class="nc"><i>94</i>&nbsp;    public BulkRequest(@Nullable String globalIndex) {</b>
+<b class="nc"><i>95</i>&nbsp;        this.globalIndex = globalIndex;</b>
+<b class="nc"><i>96</i>&nbsp;    }    </b>
+<i>97</i>&nbsp;
+<i>98</i>&nbsp;    /**
+<i>99</i>&nbsp;     * @deprecated Types are in the process of being removed. Use {@link #BulkRequest(String)} instead
+<i>100</i>&nbsp;     */
+<i>101</i>&nbsp;    @Deprecated
+<b class="nc"><i>102</i>&nbsp;    public BulkRequest(@Nullable String globalIndex, @Nullable String globalType) {</b>
+<b class="nc"><i>103</i>&nbsp;        this.globalIndex = globalIndex;</b>
+<b class="nc"><i>104</i>&nbsp;        this.globalType = globalType;</b>
+<b class="nc"><i>105</i>&nbsp;    }</b>
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;    /**
+<i>108</i>&nbsp;     * Adds a list of requests to be executed. Either index or delete requests.
+<i>109</i>&nbsp;     */
+<i>110</i>&nbsp;    public BulkRequest add(DocWriteRequest&lt;?&gt;... requests) {
+<b class="nc"><i>111</i>&nbsp;        for (DocWriteRequest&lt;?&gt; request : requests) {</b>
+<b class="nc"><i>112</i>&nbsp;            add(request);</b>
+<i>113</i>&nbsp;        }
+<b class="nc"><i>114</i>&nbsp;        return this;</b>
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    /**
+<i>118</i>&nbsp;     * Add a request to the current BulkRequest.
+<i>119</i>&nbsp;     * @param request Request to add
+<i>120</i>&nbsp;     * @return the current bulk request
+<i>121</i>&nbsp;     */
+<i>122</i>&nbsp;    public BulkRequest add(DocWriteRequest&lt;?&gt; request) {
+<b class="nc"><i>123</i>&nbsp;        if (request instanceof IndexRequest) {</b>
+<b class="nc"><i>124</i>&nbsp;            add((IndexRequest) request);</b>
+<b class="nc"><i>125</i>&nbsp;        } else if (request instanceof DeleteRequest) {</b>
+<b class="nc"><i>126</i>&nbsp;            add((DeleteRequest) request);</b>
+<b class="nc"><i>127</i>&nbsp;        } else if (request instanceof UpdateRequest) {</b>
+<b class="nc"><i>128</i>&nbsp;            add((UpdateRequest) request);</b>
+<i>129</i>&nbsp;        } else {
+<b class="nc"><i>130</i>&nbsp;            throw new IllegalArgumentException(&quot;No support for request [&quot; + request + &quot;]&quot;);</b>
+<i>131</i>&nbsp;        }
+<b class="nc"><i>132</i>&nbsp;        indices.add(request.index());</b>
+<b class="nc"><i>133</i>&nbsp;        return this;</b>
+<i>134</i>&nbsp;    }
+<i>135</i>&nbsp;
+<i>136</i>&nbsp;    /**
+<i>137</i>&nbsp;     * Adds a list of requests to be executed. Either index or delete requests.
+<i>138</i>&nbsp;     */
+<i>139</i>&nbsp;    public BulkRequest add(Iterable&lt;DocWriteRequest&lt;?&gt;&gt; requests) {
+<b class="nc"><i>140</i>&nbsp;        for (DocWriteRequest&lt;?&gt; request : requests) {</b>
+<b class="nc"><i>141</i>&nbsp;            add(request);</b>
+<b class="nc"><i>142</i>&nbsp;        }</b>
+<b class="nc"><i>143</i>&nbsp;        return this;</b>
+<i>144</i>&nbsp;    }
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    /**
+<i>147</i>&nbsp;     * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
+<i>148</i>&nbsp;     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+<i>149</i>&nbsp;     */
+<i>150</i>&nbsp;    public BulkRequest add(IndexRequest request) {
+<b class="nc"><i>151</i>&nbsp;        return internalAdd(request);</b>
+<i>152</i>&nbsp;    }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    BulkRequest internalAdd(IndexRequest request) {
+<b class="nc"><i>155</i>&nbsp;        Objects.requireNonNull(request, &quot;&#39;request&#39; must not be null&quot;);</b>
+<b class="nc"><i>156</i>&nbsp;        applyGlobalMandatoryParameters(request);</b>
+<i>157</i>&nbsp;
+<b class="nc"><i>158</i>&nbsp;        requests.add(request);</b>
+<i>159</i>&nbsp;        // lack of source is validated in validate() method
+<b class="nc"><i>160</i>&nbsp;        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;</b>
+<b class="nc"><i>161</i>&nbsp;        indices.add(request.index());</b>
+<b class="nc"><i>162</i>&nbsp;        return this;</b>
+<i>163</i>&nbsp;    }
+<i>164</i>&nbsp;
+<i>165</i>&nbsp;    /**
+<i>166</i>&nbsp;     * Adds an {@link UpdateRequest} to the list of actions to execute.
+<i>167</i>&nbsp;     */
+<i>168</i>&nbsp;    public BulkRequest add(UpdateRequest request) {
+<b class="nc"><i>169</i>&nbsp;        return internalAdd(request);</b>
+<i>170</i>&nbsp;    }
+<i>171</i>&nbsp;
+<i>172</i>&nbsp;    BulkRequest internalAdd(UpdateRequest request) {
+<b class="nc"><i>173</i>&nbsp;        Objects.requireNonNull(request, &quot;&#39;request&#39; must not be null&quot;);</b>
+<b class="nc"><i>174</i>&nbsp;        applyGlobalMandatoryParameters(request);</b>
+<i>175</i>&nbsp;
+<b class="nc"><i>176</i>&nbsp;        requests.add(request);</b>
+<b class="nc"><i>177</i>&nbsp;        if (request.doc() != null) {</b>
+<b class="nc"><i>178</i>&nbsp;            sizeInBytes += request.doc().source().length();</b>
+<i>179</i>&nbsp;        }
+<b class="nc"><i>180</i>&nbsp;        if (request.upsertRequest() != null) {</b>
+<b class="nc"><i>181</i>&nbsp;            sizeInBytes += request.upsertRequest().source().length();</b>
+<i>182</i>&nbsp;        }
+<b class="nc"><i>183</i>&nbsp;        if (request.script() != null) {</b>
+<b class="nc"><i>184</i>&nbsp;            sizeInBytes += request.script().getIdOrCode().length() * 2;</b>
+<i>185</i>&nbsp;        }
+<b class="nc"><i>186</i>&nbsp;        indices.add(request.index());</b>
+<b class="nc"><i>187</i>&nbsp;        return this;</b>
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    /**
+<i>191</i>&nbsp;     * Adds an {@link DeleteRequest} to the list of actions to execute.
+<i>192</i>&nbsp;     */
+<i>193</i>&nbsp;    public BulkRequest add(DeleteRequest request) {
+<b class="nc"><i>194</i>&nbsp;        Objects.requireNonNull(request, &quot;&#39;request&#39; must not be null&quot;);</b>
+<b class="nc"><i>195</i>&nbsp;        applyGlobalMandatoryParameters(request);</b>
+<i>196</i>&nbsp;
+<b class="nc"><i>197</i>&nbsp;        requests.add(request);</b>
+<b class="nc"><i>198</i>&nbsp;        sizeInBytes += REQUEST_OVERHEAD;</b>
+<b class="nc"><i>199</i>&nbsp;        indices.add(request.index());</b>
+<b class="nc"><i>200</i>&nbsp;        return this;</b>
+<i>201</i>&nbsp;    }
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    /**
+<i>204</i>&nbsp;     * The list of requests in this bulk request.
+<i>205</i>&nbsp;     */
+<i>206</i>&nbsp;    public List&lt;DocWriteRequest&lt;?&gt;&gt; requests() {
+<b class="nc"><i>207</i>&nbsp;        return this.requests;</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /**
+<i>211</i>&nbsp;     * The number of actions in the bulk request.
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    public int numberOfActions() {
+<b class="nc"><i>214</i>&nbsp;        return requests.size();</b>
+<i>215</i>&nbsp;    }
+<i>216</i>&nbsp;
+<i>217</i>&nbsp;    /**
+<i>218</i>&nbsp;     * The estimated size in bytes of the bulk request.
+<i>219</i>&nbsp;     */
+<i>220</i>&nbsp;    public long estimatedSizeInBytes() {
+<b class="nc"><i>221</i>&nbsp;        return sizeInBytes;</b>
+<i>222</i>&nbsp;    }
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;    /**
+<i>225</i>&nbsp;     * Adds a framed data in binary format
+<i>226</i>&nbsp;     */
+<i>227</i>&nbsp;    public BulkRequest add(byte[] data, int from, int length, XContentType xContentType) throws IOException {
+<b class="nc"><i>228</i>&nbsp;        return add(data, from, length, null, null, xContentType);</b>
+<i>229</i>&nbsp;    }
+<i>230</i>&nbsp;
+<i>231</i>&nbsp;    /**
+<i>232</i>&nbsp;     * Adds a framed data in binary format
+<i>233</i>&nbsp;     * @deprecated use {@link #add(byte[], int, int, String, XContentType)} instead
+<i>234</i>&nbsp;     */
+<i>235</i>&nbsp;    @Deprecated
+<i>236</i>&nbsp;    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType,
+<i>237</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>238</i>&nbsp;        return add(new BytesArray(data, from, length), defaultIndex, defaultType, xContentType);</b>
+<i>239</i>&nbsp;    }
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    /**
+<i>243</i>&nbsp;     * Adds a framed data in binary format
+<i>244</i>&nbsp;     */
+<i>245</i>&nbsp;    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, 
+<i>246</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>247</i>&nbsp;        return add(new BytesArray(data, from, length), defaultIndex, MapperService.SINGLE_MAPPING_NAME, xContentType);</b>
+<i>248</i>&nbsp;    }
+<i>249</i>&nbsp;    
+<i>250</i>&nbsp;    /**
+<i>251</i>&nbsp;     * Adds a framed data in binary format
+<i>252</i>&nbsp;     * @deprecated use {@link #add(BytesReference, String, XContentType)} instead
+<i>253</i>&nbsp;     */
+<i>254</i>&nbsp;    @Deprecated
+<i>255</i>&nbsp;    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+<i>256</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>257</i>&nbsp;        return add(data, defaultIndex, defaultType, null, null, null, true, xContentType);</b>
+<i>258</i>&nbsp;    }
+<i>259</i>&nbsp;    
+<i>260</i>&nbsp;    /**
+<i>261</i>&nbsp;     * Adds a framed data in binary format
+<i>262</i>&nbsp;     */
+<i>263</i>&nbsp;    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, 
+<i>264</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>265</i>&nbsp;        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, true, xContentType);</b>
+<i>266</i>&nbsp;    }    
+<i>267</i>&nbsp;
+<i>268</i>&nbsp;    /**
+<i>269</i>&nbsp;     * Adds a framed data in binary format
+<i>270</i>&nbsp;     * @deprecated use {@link #add(BytesReference, String, boolean, XContentType)} instead
+<i>271</i>&nbsp;     */
+<i>272</i>&nbsp;    @Deprecated
+<i>273</i>&nbsp;    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
+<i>274</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>275</i>&nbsp;        return add(data, defaultIndex, defaultType, null, null, null, allowExplicitIndex, xContentType);</b>
+<i>276</i>&nbsp;    }
+<i>277</i>&nbsp;    
+<i>278</i>&nbsp;    /**
+<i>279</i>&nbsp;     * Adds a framed data in binary format
+<i>280</i>&nbsp;     */
+<i>281</i>&nbsp;    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex,
+<i>282</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>283</i>&nbsp;        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, allowExplicitIndex, xContentType);</b>
+<i>284</i>&nbsp;    }    
+<i>285</i>&nbsp;    
+<i>286</i>&nbsp;    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, 
+<i>287</i>&nbsp;            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
+<i>288</i>&nbsp;            @Nullable String defaultPipeline, boolean allowExplicitIndex,
+<i>289</i>&nbsp;            XContentType xContentType) throws IOException {    
+<b class="nc"><i>290</i>&nbsp;        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, defaultRouting, defaultFetchSourceContext,</b>
+<i>291</i>&nbsp;                defaultPipeline, allowExplicitIndex, xContentType);
+<i>292</i>&nbsp;    }
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;    /**
+<i>295</i>&nbsp;     * @deprecated use {@link #add(BytesReference, String, String, FetchSourceContext, String, boolean, XContentType)} instead
+<i>296</i>&nbsp;     */
+<i>297</i>&nbsp;    @Deprecated
+<i>298</i>&nbsp;    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+<i>299</i>&nbsp;                           @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
+<i>300</i>&nbsp;                           @Nullable String defaultPipeline, boolean allowExplicitIndex,
+<i>301</i>&nbsp;                           XContentType xContentType) throws IOException {
+<b class="nc"><i>302</i>&nbsp;        String routing = valueOrDefault(defaultRouting, globalRouting);</b>
+<b class="nc"><i>303</i>&nbsp;        String pipeline = valueOrDefault(defaultPipeline, globalPipeline);</b>
+<b class="nc"><i>304</i>&nbsp;        new BulkRequestParser(true).parse(data, defaultIndex, defaultType, routing, defaultFetchSourceContext, pipeline,</b>
+<i>305</i>&nbsp;                allowExplicitIndex, xContentType, this::internalAdd, this::internalAdd, this::add);
+<b class="nc"><i>306</i>&nbsp;        return this;</b>
+<i>307</i>&nbsp;    }
+<i>308</i>&nbsp;
+<i>309</i>&nbsp;    /**
+<i>310</i>&nbsp;     * Sets the number of shard copies that must be active before proceeding with the write.
+<i>311</i>&nbsp;     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
+<i>312</i>&nbsp;     */
+<i>313</i>&nbsp;    public BulkRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+<b class="nc"><i>314</i>&nbsp;        this.waitForActiveShards = waitForActiveShards;</b>
+<b class="nc"><i>315</i>&nbsp;        return this;</b>
+<i>316</i>&nbsp;    }
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;    /**
+<i>319</i>&nbsp;     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+<i>320</i>&nbsp;     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+<i>321</i>&nbsp;     * to get the ActiveShardCount.
+<i>322</i>&nbsp;     */
+<i>323</i>&nbsp;    public BulkRequest waitForActiveShards(final int waitForActiveShards) {
+<b class="nc"><i>324</i>&nbsp;        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));</b>
+<i>325</i>&nbsp;    }
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;    public ActiveShardCount waitForActiveShards() {
+<b class="nc"><i>328</i>&nbsp;        return this.waitForActiveShards;</b>
+<i>329</i>&nbsp;    }
+<i>330</i>&nbsp;
+<i>331</i>&nbsp;    @Override
+<i>332</i>&nbsp;    public BulkRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+<b class="nc"><i>333</i>&nbsp;        this.refreshPolicy = refreshPolicy;</b>
+<b class="nc"><i>334</i>&nbsp;        return this;</b>
+<i>335</i>&nbsp;    }
+<i>336</i>&nbsp;
+<i>337</i>&nbsp;    @Override
+<i>338</i>&nbsp;    public RefreshPolicy getRefreshPolicy() {
+<b class="nc"><i>339</i>&nbsp;        return refreshPolicy;</b>
+<i>340</i>&nbsp;    }
+<i>341</i>&nbsp;
+<i>342</i>&nbsp;    /**
+<i>343</i>&nbsp;     * A timeout to wait if the index operation can&#39;t be performed immediately. Defaults to {@code 1m}.
+<i>344</i>&nbsp;     */
+<i>345</i>&nbsp;    public final BulkRequest timeout(TimeValue timeout) {
+<b class="nc"><i>346</i>&nbsp;        this.timeout = timeout;</b>
+<b class="nc"><i>347</i>&nbsp;        return this;</b>
+<i>348</i>&nbsp;    }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    public final BulkRequest pipeline(String globalPipeline) {
+<b class="nc"><i>351</i>&nbsp;        this.globalPipeline = globalPipeline;</b>
+<b class="nc"><i>352</i>&nbsp;        return this;</b>
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    public final BulkRequest routing(String globalRouting){
+<b class="nc"><i>356</i>&nbsp;        this.globalRouting = globalRouting;</b>
+<b class="nc"><i>357</i>&nbsp;        return this;</b>
+<i>358</i>&nbsp;    }
+<i>359</i>&nbsp;    /**
+<i>360</i>&nbsp;     * A timeout to wait if the index operation can&#39;t be performed immediately. Defaults to {@code 1m}.
+<i>361</i>&nbsp;     */
+<i>362</i>&nbsp;    public final BulkRequest timeout(String timeout) {
+<b class="nc"><i>363</i>&nbsp;        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + &quot;.timeout&quot;));</b>
+<i>364</i>&nbsp;    }
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;    public TimeValue timeout() {
+<b class="nc"><i>367</i>&nbsp;        return timeout;</b>
+<i>368</i>&nbsp;    }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;    public String pipeline() {
+<b class="nc"><i>371</i>&nbsp;        return globalPipeline;</b>
+<i>372</i>&nbsp;    }
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;    public String routing() {
+<b class="nc"><i>375</i>&nbsp;        return globalRouting;</b>
+<i>376</i>&nbsp;    }
+<i>377</i>&nbsp;
+<i>378</i>&nbsp;    @Override
+<i>379</i>&nbsp;    public ActionRequestValidationException validate() {
+<b class="nc"><i>380</i>&nbsp;        ActionRequestValidationException validationException = null;</b>
+<b class="nc"><i>381</i>&nbsp;        if (requests.isEmpty()) {</b>
+<b class="nc"><i>382</i>&nbsp;            validationException = addValidationError(&quot;no requests added&quot;, validationException);</b>
+<i>383</i>&nbsp;        }
+<b class="nc"><i>384</i>&nbsp;        for (DocWriteRequest&lt;?&gt; request : requests) {</b>
+<i>385</i>&nbsp;            // We first check if refresh has been set
+<b class="nc"><i>386</i>&nbsp;            if (((WriteRequest&lt;?&gt;) request).getRefreshPolicy() != RefreshPolicy.NONE) {</b>
+<b class="nc"><i>387</i>&nbsp;                validationException = addValidationError(</b>
+<i>388</i>&nbsp;                        &quot;RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.&quot;, validationException);
+<i>389</i>&nbsp;            }
+<b class="nc"><i>390</i>&nbsp;            ActionRequestValidationException ex = ((WriteRequest&lt;?&gt;) request).validate();</b>
+<b class="nc"><i>391</i>&nbsp;            if (ex != null) {</b>
+<b class="nc"><i>392</i>&nbsp;                if (validationException == null) {</b>
+<b class="nc"><i>393</i>&nbsp;                    validationException = new ActionRequestValidationException();</b>
+<i>394</i>&nbsp;                }
+<b class="nc"><i>395</i>&nbsp;                validationException.addValidationErrors(ex.validationErrors());</b>
+<i>396</i>&nbsp;            }
+<b class="nc"><i>397</i>&nbsp;        }</b>
+<i>398</i>&nbsp;
+<b class="nc"><i>399</i>&nbsp;        return validationException;</b>
+<i>400</i>&nbsp;    }
+<i>401</i>&nbsp;
+<i>402</i>&nbsp;    @Override
+<i>403</i>&nbsp;    public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>404</i>&nbsp;        super.writeTo(out);</b>
+<b class="nc"><i>405</i>&nbsp;        waitForActiveShards.writeTo(out);</b>
+<b class="nc"><i>406</i>&nbsp;        out.writeVInt(requests.size());</b>
+<b class="nc"><i>407</i>&nbsp;        for (DocWriteRequest&lt;?&gt; request : requests) {</b>
+<b class="nc"><i>408</i>&nbsp;            DocWriteRequest.writeDocumentRequest(out, request);</b>
+<b class="nc"><i>409</i>&nbsp;        }</b>
+<b class="nc"><i>410</i>&nbsp;        refreshPolicy.writeTo(out);</b>
+<b class="nc"><i>411</i>&nbsp;        out.writeTimeValue(timeout);</b>
+<b class="nc"><i>412</i>&nbsp;    }</b>
+<i>413</i>&nbsp;
+<i>414</i>&nbsp;    @Override
+<i>415</i>&nbsp;    public String getDescription() {
+<b class="nc"><i>416</i>&nbsp;        return &quot;requests[&quot; + requests.size() + &quot;], indices[&quot; + Strings.collectionToDelimitedString(indices, &quot;, &quot;) + &quot;]&quot;;</b>
+<i>417</i>&nbsp;    }
+<i>418</i>&nbsp;
+<i>419</i>&nbsp;    private void applyGlobalMandatoryParameters(DocWriteRequest&lt;?&gt; request) {
+<b class="nc"><i>420</i>&nbsp;        request.index(valueOrDefault(request.index(), globalIndex));</b>
+<b class="nc"><i>421</i>&nbsp;        if (Strings.isNullOrEmpty(globalType) == false &amp;&amp; MapperService.SINGLE_MAPPING_NAME.equals(globalType) == false) {</b>
+<b class="nc"><i>422</i>&nbsp;            request.defaultTypeIfNull(globalType);</b>
+<i>423</i>&nbsp;        }
+<b class="nc"><i>424</i>&nbsp;    }</b>
+<i>425</i>&nbsp;
+<i>426</i>&nbsp;    private static String valueOrDefault(String value, String globalDefault) {
+<b class="nc"><i>427</i>&nbsp;        if (Strings.isNullOrEmpty(value) &amp;&amp; !Strings.isNullOrEmpty(globalDefault)) {</b>
+<b class="nc"><i>428</i>&nbsp;            return globalDefault;</b>
+<i>429</i>&nbsp;        }
+<b class="nc"><i>430</i>&nbsp;        return value;</b>
+<i>431</i>&nbsp;    }
+<i>432</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,692 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: UnicastZenPing</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery.zen</a> ]
+</div>
+
+<h1>Coverage Summary for Class: UnicastZenPing (org.elasticsearch.discovery.zen)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+  <tr>
+    <td class="name">UnicastZenPing$UnicastPingRequest</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 15)
+  </span>
+</td>
+  </tr>
+  <tr>
+    <td class="name">UnicastZenPing$UnicastPingResponse</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 15)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 30)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery.zen;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import com.carrotsearch.hppc.cursors.ObjectCursor;
+<i>23</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>24</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>25</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>26</i>&nbsp;import org.apache.lucene.store.AlreadyClosedException;
+<i>27</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.PlainActionFuture;
+<i>29</i>&nbsp;import org.elasticsearch.common.util.CancellableThreads;
+<i>30</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>31</i>&nbsp;import org.elasticsearch.Version;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>35</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>36</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>37</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>38</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>39</i>&nbsp;import org.elasticsearch.common.lease.Releasables;
+<i>40</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>41</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>42</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>43</i>&nbsp;import org.elasticsearch.common.util.CollectionUtils;
+<i>44</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>45</i>&nbsp;import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+<i>46</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>47</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+<i>48</i>&nbsp;import org.elasticsearch.common.util.concurrent.KeyedLock;
+<i>49</i>&nbsp;import org.elasticsearch.discovery.SeedHostsProvider;
+<i>50</i>&nbsp;import org.elasticsearch.discovery.SeedHostsResolver;
+<i>51</i>&nbsp;import org.elasticsearch.node.Node;
+<i>52</i>&nbsp;import org.elasticsearch.tasks.Task;
+<i>53</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>54</i>&nbsp;import org.elasticsearch.transport.ConnectTransportException;
+<i>55</i>&nbsp;import org.elasticsearch.transport.ConnectionProfile;
+<i>56</i>&nbsp;import org.elasticsearch.transport.NodeNotConnectedException;
+<i>57</i>&nbsp;import org.elasticsearch.transport.RemoteTransportException;
+<i>58</i>&nbsp;import org.elasticsearch.transport.Transport.Connection;
+<i>59</i>&nbsp;import org.elasticsearch.transport.TransportChannel;
+<i>60</i>&nbsp;import org.elasticsearch.transport.TransportException;
+<i>61</i>&nbsp;import org.elasticsearch.transport.TransportRequest;
+<i>62</i>&nbsp;import org.elasticsearch.transport.TransportRequestHandler;
+<i>63</i>&nbsp;import org.elasticsearch.transport.TransportRequestOptions;
+<i>64</i>&nbsp;import org.elasticsearch.transport.TransportResponse;
+<i>65</i>&nbsp;import org.elasticsearch.transport.TransportResponseHandler;
+<i>66</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;import java.io.IOException;
+<i>69</i>&nbsp;import java.util.ArrayList;
+<i>70</i>&nbsp;import java.util.Arrays;
+<i>71</i>&nbsp;import java.util.Collections;
+<i>72</i>&nbsp;import java.util.HashMap;
+<i>73</i>&nbsp;import java.util.List;
+<i>74</i>&nbsp;import java.util.Locale;
+<i>75</i>&nbsp;import java.util.Map;
+<i>76</i>&nbsp;import java.util.Queue;
+<i>77</i>&nbsp;import java.util.Set;
+<i>78</i>&nbsp;import java.util.concurrent.ThreadFactory;
+<i>79</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>80</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>81</i>&nbsp;import java.util.concurrent.atomic.AtomicInteger;
+<i>82</i>&nbsp;import java.util.function.Consumer;
+<i>83</i>&nbsp;import java.util.stream.Collectors;
+<i>84</i>&nbsp;import java.util.stream.Stream;
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;import static java.util.Collections.emptyMap;
+<i>87</i>&nbsp;import static java.util.Collections.emptySet;
+<i>88</i>&nbsp;import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+<i>89</i>&nbsp;
+<i>90</i>&nbsp;public class UnicastZenPing implements ZenPing {
+<i>91</i>&nbsp;
+<i>92</i>&nbsp;    private static final Logger logger = LogManager.getLogger(UnicastZenPing.class);
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    public static final String ACTION_NAME = &quot;internal:discovery/zen/unicast&quot;;
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    private final ThreadPool threadPool;
+<i>97</i>&nbsp;    private final TransportService transportService;
+<i>98</i>&nbsp;    private final ClusterName clusterName;
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    private final PingContextProvider contextProvider;
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;    private final AtomicInteger pingingRoundIdGenerator = new AtomicInteger();
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;    private final Map&lt;Integer, PingingRound&gt; activePingingRounds = newConcurrentMap();
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;    // a list of temporal responses a node will return for a request (holds responses from other nodes)
+<i>107</i>&nbsp;    private final Queue&lt;PingResponse&gt; temporalResponses = ConcurrentCollections.newQueue();
+<i>108</i>&nbsp;
+<i>109</i>&nbsp;    private final SeedHostsProvider hostsProvider;
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    protected final EsThreadPoolExecutor unicastZenPingExecutorService;
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    private final TimeValue resolveTimeout;
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;    private final String nodeName;
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;    private volatile boolean closed = false;
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+<i>120</i>&nbsp;                          SeedHostsProvider seedHostsProvider, PingContextProvider contextProvider) {
+<i>121</i>&nbsp;        this.threadPool = threadPool;
+<i>122</i>&nbsp;        this.transportService = transportService;
+<i>123</i>&nbsp;        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
+<i>124</i>&nbsp;        this.hostsProvider = seedHostsProvider;
+<i>125</i>&nbsp;        this.contextProvider = contextProvider;
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;        final int concurrentConnects = SeedHostsResolver.getMaxConcurrentResolvers(settings);
+<i>128</i>&nbsp;        resolveTimeout = SeedHostsResolver.getResolveTimeout(settings);
+<i>129</i>&nbsp;        nodeName = Node.NODE_NAME_SETTING.get(settings);
+<i>130</i>&nbsp;        logger.debug(
+<i>131</i>&nbsp;            &quot;using max_concurrent_resolvers [{}], resolver timeout [{}]&quot;,
+<i>132</i>&nbsp;            concurrentConnects,
+<i>133</i>&nbsp;            resolveTimeout);
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, UnicastPingRequest::new,
+<i>136</i>&nbsp;            new UnicastPingRequestHandler());
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, &quot;[unicast_connect]&quot;);
+<i>139</i>&nbsp;        unicastZenPingExecutorService = EsExecutors.newScaling(
+<i>140</i>&nbsp;                nodeName + &quot;/&quot; + &quot;unicast_connect&quot;,
+<i>141</i>&nbsp;                0,
+<i>142</i>&nbsp;                concurrentConnects,
+<i>143</i>&nbsp;                60,
+<i>144</i>&nbsp;                TimeUnit.SECONDS,
+<i>145</i>&nbsp;                threadFactory,
+<i>146</i>&nbsp;                threadPool.getThreadContext());
+<i>147</i>&nbsp;    }
+<i>148</i>&nbsp;
+<i>149</i>&nbsp;    private SeedHostsProvider.HostsResolver createHostsResolver() {
+<i>150</i>&nbsp;        return hosts -&gt; SeedHostsResolver.resolveHostsLists(
+<i>151</i>&nbsp;            new CancellableThreads() {
+<i>152</i>&nbsp;                public void execute(Interruptible interruptible) {
+<i>153</i>&nbsp;                    try {
+<i>154</i>&nbsp;                        interruptible.run();
+<i>155</i>&nbsp;                    } catch (InterruptedException e) {
+<i>156</i>&nbsp;                        throw new CancellableThreads.ExecutionCancelledException(&quot;interrupted by &quot; + e);
+<i>157</i>&nbsp;                    }
+<i>158</i>&nbsp;                }
+<i>159</i>&nbsp;            },
+<i>160</i>&nbsp;            unicastZenPingExecutorService, logger, hosts, transportService, resolveTimeout);
+<i>161</i>&nbsp;    }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;    @Override
+<i>164</i>&nbsp;    public void close() {
+<i>165</i>&nbsp;        ThreadPool.terminate(unicastZenPingExecutorService, 10, TimeUnit.SECONDS);
+<i>166</i>&nbsp;        Releasables.close(activePingingRounds.values());
+<i>167</i>&nbsp;        closed = true;
+<i>168</i>&nbsp;    }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;    @Override
+<i>171</i>&nbsp;    public void start() {
+<i>172</i>&nbsp;    }
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    /**
+<i>175</i>&nbsp;     * Clears the list of cached ping responses.
+<i>176</i>&nbsp;     */
+<i>177</i>&nbsp;    public void clearTemporalResponses() {
+<i>178</i>&nbsp;        temporalResponses.clear();
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Sends three rounds of pings notifying the specified {@link Consumer} when pinging is complete. Pings are sent after resolving
+<i>183</i>&nbsp;     * configured unicast hosts to their IP address (subject to DNS caching within the JVM). A batch of pings is sent, then another batch
+<i>184</i>&nbsp;     * of pings is sent at half the specified {@link TimeValue}, and then another batch of pings is sent at the specified {@link TimeValue}.
+<i>185</i>&nbsp;     * The pings that are sent carry a timeout of 1.25 times the specified {@link TimeValue}. When pinging each node, a connection and
+<i>186</i>&nbsp;     * handshake is performed, with a connection timeout of the specified {@link TimeValue}.
+<i>187</i>&nbsp;     *
+<i>188</i>&nbsp;     * @param resultsConsumer the callback when pinging is complete
+<i>189</i>&nbsp;     * @param duration        the timeout for various components of the pings
+<i>190</i>&nbsp;     */
+<i>191</i>&nbsp;    @Override
+<i>192</i>&nbsp;    public void ping(final Consumer&lt;PingCollection&gt; resultsConsumer, final TimeValue duration) {
+<i>193</i>&nbsp;        ping(resultsConsumer, duration, duration);
+<i>194</i>&nbsp;    }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;    /**
+<i>197</i>&nbsp;     * a variant of {@link #ping(Consumer, TimeValue)}, but allows separating the scheduling duration
+<i>198</i>&nbsp;     * from the duration used for request level time outs. This is useful for testing
+<i>199</i>&nbsp;     */
+<i>200</i>&nbsp;    protected void ping(final Consumer&lt;PingCollection&gt; resultsConsumer,
+<i>201</i>&nbsp;                        final TimeValue scheduleDuration,
+<i>202</i>&nbsp;                        final TimeValue requestDuration) {
+<i>203</i>&nbsp;        final List&lt;TransportAddress&gt; seedAddresses = new ArrayList&lt;&gt;();
+<i>204</i>&nbsp;        seedAddresses.addAll(hostsProvider.getSeedAddresses(createHostsResolver()));
+<i>205</i>&nbsp;        final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
+<i>206</i>&nbsp;        // add all possible master nodes that were active in the last known cluster configuration
+<i>207</i>&nbsp;        for (ObjectCursor&lt;DiscoveryNode&gt; masterNode : nodes.getMasterNodes().values()) {
+<i>208</i>&nbsp;            seedAddresses.add(masterNode.value.getAddress());
+<i>209</i>&nbsp;        }
+<i>210</i>&nbsp;
+<i>211</i>&nbsp;        final ConnectionProfile connectionProfile =
+<i>212</i>&nbsp;            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, requestDuration, requestDuration,
+<i>213</i>&nbsp;                TimeValue.MINUS_ONE, null);
+<i>214</i>&nbsp;        final PingingRound pingingRound = new PingingRound(pingingRoundIdGenerator.incrementAndGet(), seedAddresses, resultsConsumer,
+<i>215</i>&nbsp;            nodes.getLocalNode(), connectionProfile);
+<i>216</i>&nbsp;        activePingingRounds.put(pingingRound.id(), pingingRound);
+<i>217</i>&nbsp;        final AbstractRunnable pingSender = new AbstractRunnable() {
+<i>218</i>&nbsp;            @Override
+<i>219</i>&nbsp;            public void onFailure(Exception e) {
+<i>220</i>&nbsp;                if (e instanceof AlreadyClosedException == false) {
+<i>221</i>&nbsp;                    logger.warn(&quot;unexpected error while pinging&quot;, e);
+<i>222</i>&nbsp;                }
+<i>223</i>&nbsp;            }
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;            @Override
+<i>226</i>&nbsp;            protected void doRun() throws Exception {
+<i>227</i>&nbsp;                sendPings(requestDuration, pingingRound);
+<i>228</i>&nbsp;            }
+<i>229</i>&nbsp;        };
+<i>230</i>&nbsp;        threadPool.generic().execute(pingSender);
+<i>231</i>&nbsp;        threadPool.schedule(pingSender, TimeValue.timeValueMillis(scheduleDuration.millis() / 3), ThreadPool.Names.GENERIC);
+<i>232</i>&nbsp;        threadPool.schedule(pingSender, TimeValue.timeValueMillis(scheduleDuration.millis() / 3 * 2), ThreadPool.Names.GENERIC);
+<i>233</i>&nbsp;        threadPool.schedule(new AbstractRunnable() {
+<i>234</i>&nbsp;            @Override
+<i>235</i>&nbsp;            protected void doRun() throws Exception {
+<i>236</i>&nbsp;                finishPingingRound(pingingRound);
+<i>237</i>&nbsp;            }
+<i>238</i>&nbsp;
+<i>239</i>&nbsp;            @Override
+<i>240</i>&nbsp;            public void onFailure(Exception e) {
+<i>241</i>&nbsp;                logger.warn(&quot;unexpected error while finishing pinging round&quot;, e);
+<i>242</i>&nbsp;            }
+<i>243</i>&nbsp;        }, scheduleDuration, ThreadPool.Names.GENERIC);
+<i>244</i>&nbsp;    }
+<i>245</i>&nbsp;
+<i>246</i>&nbsp;    // for testing
+<i>247</i>&nbsp;    protected void finishPingingRound(PingingRound pingingRound) {
+<i>248</i>&nbsp;        pingingRound.close();
+<i>249</i>&nbsp;    }
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;    protected class PingingRound implements Releasable {
+<i>252</i>&nbsp;        private final int id;
+<i>253</i>&nbsp;        private final Map&lt;TransportAddress, Connection&gt; tempConnections = new HashMap&lt;&gt;();
+<i>254</i>&nbsp;        private final KeyedLock&lt;TransportAddress&gt; connectionLock = new KeyedLock&lt;&gt;(true);
+<i>255</i>&nbsp;        private final PingCollection pingCollection;
+<i>256</i>&nbsp;        private final List&lt;TransportAddress&gt; seedAddresses;
+<i>257</i>&nbsp;        private final Consumer&lt;PingCollection&gt; pingListener;
+<i>258</i>&nbsp;        private final DiscoveryNode localNode;
+<i>259</i>&nbsp;        private final ConnectionProfile connectionProfile;
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;        private AtomicBoolean closed = new AtomicBoolean(false);
+<i>262</i>&nbsp;
+<i>263</i>&nbsp;        PingingRound(int id, List&lt;TransportAddress&gt; seedAddresses, Consumer&lt;PingCollection&gt; resultsConsumer, DiscoveryNode localNode,
+<i>264</i>&nbsp;                     ConnectionProfile connectionProfile) {
+<i>265</i>&nbsp;            this.id = id;
+<i>266</i>&nbsp;            this.seedAddresses = Collections.unmodifiableList(seedAddresses.stream().distinct().collect(Collectors.toList()));
+<i>267</i>&nbsp;            this.pingListener = resultsConsumer;
+<i>268</i>&nbsp;            this.localNode = localNode;
+<i>269</i>&nbsp;            this.connectionProfile = connectionProfile;
+<i>270</i>&nbsp;            this.pingCollection = new PingCollection();
+<i>271</i>&nbsp;        }
+<i>272</i>&nbsp;
+<i>273</i>&nbsp;        public int id() {
+<i>274</i>&nbsp;            return this.id;
+<i>275</i>&nbsp;        }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;        public boolean isClosed() {
+<i>278</i>&nbsp;            return this.closed.get();
+<i>279</i>&nbsp;        }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;        public List&lt;TransportAddress&gt; getSeedAddresses() {
+<i>282</i>&nbsp;            ensureOpen();
+<i>283</i>&nbsp;            return seedAddresses;
+<i>284</i>&nbsp;        }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;        public Connection getOrConnect(DiscoveryNode node) throws IOException {
+<i>287</i>&nbsp;            Connection result;
+<i>288</i>&nbsp;            try (Releasable ignore = connectionLock.acquire(node.getAddress())) {
+<i>289</i>&nbsp;                result = tempConnections.get(node.getAddress());
+<i>290</i>&nbsp;                if (result == null) {
+<i>291</i>&nbsp;                    ensureOpen();
+<i>292</i>&nbsp;                    boolean success = false;
+<i>293</i>&nbsp;                    logger.trace(&quot;[{}] opening connection to [{}]&quot;, id(), node);
+<i>294</i>&nbsp;                    result = transportService.openConnection(node, connectionProfile);
+<i>295</i>&nbsp;                    try {
+<i>296</i>&nbsp;                        Connection finalResult = result;
+<i>297</i>&nbsp;                        PlainActionFuture.get(fut -&gt;
+<i>298</i>&nbsp;                            transportService.handshake(finalResult, connectionProfile.getHandshakeTimeout().millis(),
+<i>299</i>&nbsp;                                ActionListener.map(fut, x -&gt; null)));
+<i>300</i>&nbsp;                        synchronized (this) {
+<i>301</i>&nbsp;                            // acquire lock and check if closed, to prevent leaving an open connection after closing
+<i>302</i>&nbsp;                            ensureOpen();
+<i>303</i>&nbsp;                            Connection existing = tempConnections.put(node.getAddress(), result);
+<i>304</i>&nbsp;                            assert existing == null;
+<i>305</i>&nbsp;                            success = true;
+<i>306</i>&nbsp;                        }
+<i>307</i>&nbsp;                    } finally {
+<i>308</i>&nbsp;                        if (success == false) {
+<i>309</i>&nbsp;                            logger.trace(&quot;[{}] closing connection to [{}] due to failure&quot;, id(), node);
+<i>310</i>&nbsp;                            IOUtils.closeWhileHandlingException(result);
+<i>311</i>&nbsp;                        }
+<i>312</i>&nbsp;                    }
+<i>313</i>&nbsp;                }
+<i>314</i>&nbsp;            }
+<i>315</i>&nbsp;            return result;
+<i>316</i>&nbsp;        }
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;        private void ensureOpen() {
+<i>319</i>&nbsp;            if (isClosed()) {
+<i>320</i>&nbsp;                throw new AlreadyClosedException(&quot;pinging round [&quot; + id + &quot;] is finished&quot;);
+<i>321</i>&nbsp;            }
+<i>322</i>&nbsp;        }
+<i>323</i>&nbsp;
+<i>324</i>&nbsp;        public void addPingResponseToCollection(PingResponse pingResponse) {
+<i>325</i>&nbsp;            if (localNode.equals(pingResponse.node()) == false) {
+<i>326</i>&nbsp;                pingCollection.addPing(pingResponse);
+<i>327</i>&nbsp;            }
+<i>328</i>&nbsp;        }
+<i>329</i>&nbsp;
+<i>330</i>&nbsp;        @Override
+<i>331</i>&nbsp;        public void close() {
+<i>332</i>&nbsp;            List&lt;Connection&gt; toClose = null;
+<i>333</i>&nbsp;            synchronized (this) {
+<i>334</i>&nbsp;                if (closed.compareAndSet(false, true)) {
+<i>335</i>&nbsp;                    activePingingRounds.remove(id);
+<i>336</i>&nbsp;                    toClose = new ArrayList&lt;&gt;(tempConnections.values());
+<i>337</i>&nbsp;                    tempConnections.clear();
+<i>338</i>&nbsp;                }
+<i>339</i>&nbsp;            }
+<i>340</i>&nbsp;            if (toClose != null) {
+<i>341</i>&nbsp;                // we actually closed
+<i>342</i>&nbsp;                try {
+<i>343</i>&nbsp;                    pingListener.accept(pingCollection);
+<i>344</i>&nbsp;                } finally {
+<i>345</i>&nbsp;                    IOUtils.closeWhileHandlingException(toClose);
+<i>346</i>&nbsp;                }
+<i>347</i>&nbsp;            }
+<i>348</i>&nbsp;        }
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;        public ConnectionProfile getConnectionProfile() {
+<i>351</i>&nbsp;            return connectionProfile;
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;
+<i>356</i>&nbsp;    protected void sendPings(final TimeValue timeout, final PingingRound pingingRound) {
+<i>357</i>&nbsp;        final ClusterState lastState = contextProvider.clusterState();
+<i>358</i>&nbsp;        final UnicastPingRequest pingRequest = new UnicastPingRequest(pingingRound.id(), timeout, createPingResponse(lastState));
+<i>359</i>&nbsp;
+<i>360</i>&nbsp;        List&lt;TransportAddress&gt; temporalAddresses = temporalResponses.stream().map(pingResponse -&gt; {
+<i>361</i>&nbsp;            assert clusterName.equals(pingResponse.clusterName()) :
+<i>362</i>&nbsp;                &quot;got a ping request from a different cluster. expected &quot; + clusterName + &quot; got &quot; + pingResponse.clusterName();
+<i>363</i>&nbsp;            return pingResponse.node().getAddress();
+<i>364</i>&nbsp;        }).collect(Collectors.toList());
+<i>365</i>&nbsp;
+<i>366</i>&nbsp;        final Stream&lt;TransportAddress&gt; uniqueAddresses = Stream.concat(pingingRound.getSeedAddresses().stream(),
+<i>367</i>&nbsp;            temporalAddresses.stream()).distinct();
+<i>368</i>&nbsp;
+<i>369</i>&nbsp;        // resolve what we can via the latest cluster state
+<i>370</i>&nbsp;        final Set&lt;DiscoveryNode&gt; nodesToPing = uniqueAddresses
+<i>371</i>&nbsp;            .map(address -&gt; {
+<i>372</i>&nbsp;                DiscoveryNode foundNode = lastState.nodes().findByAddress(address);
+<i>373</i>&nbsp;                if (foundNode != null &amp;&amp; transportService.nodeConnected(foundNode)) {
+<i>374</i>&nbsp;                    return foundNode;
+<i>375</i>&nbsp;                } else {
+<i>376</i>&nbsp;                    return new DiscoveryNode(
+<i>377</i>&nbsp;                        address.toString(),
+<i>378</i>&nbsp;                        address,
+<i>379</i>&nbsp;                        emptyMap(),
+<i>380</i>&nbsp;                        emptySet(),
+<i>381</i>&nbsp;                        Version.CURRENT.minimumCompatibilityVersion());
+<i>382</i>&nbsp;                }
+<i>383</i>&nbsp;            }).collect(Collectors.toSet());
+<i>384</i>&nbsp;
+<i>385</i>&nbsp;        nodesToPing.forEach(node -&gt; sendPingRequestToNode(node, timeout, pingingRound, pingRequest));
+<i>386</i>&nbsp;    }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;    private void sendPingRequestToNode(final DiscoveryNode node, TimeValue timeout, final PingingRound pingingRound,
+<i>389</i>&nbsp;                                       final UnicastPingRequest pingRequest) {
+<i>390</i>&nbsp;        submitToExecutor(new AbstractRunnable() {
+<i>391</i>&nbsp;            @Override
+<i>392</i>&nbsp;            protected void doRun() throws Exception {
+<i>393</i>&nbsp;                Connection connection = null;
+<i>394</i>&nbsp;                if (transportService.nodeConnected(node)) {
+<i>395</i>&nbsp;                    try {
+<i>396</i>&nbsp;                        // concurrency can still cause disconnects
+<i>397</i>&nbsp;                        connection = transportService.getConnection(node);
+<i>398</i>&nbsp;                    } catch (NodeNotConnectedException e) {
+<i>399</i>&nbsp;                        logger.trace(&quot;[{}] node [{}] just disconnected, will create a temp connection&quot;, pingingRound.id(), node);
+<i>400</i>&nbsp;                    }
+<i>401</i>&nbsp;                }
+<i>402</i>&nbsp;
+<i>403</i>&nbsp;                if (connection == null) {
+<i>404</i>&nbsp;                    connection = pingingRound.getOrConnect(node);
+<i>405</i>&nbsp;                }
+<i>406</i>&nbsp;
+<i>407</i>&nbsp;                logger.trace(&quot;[{}] sending to {}&quot;, pingingRound.id(), node);
+<i>408</i>&nbsp;                transportService.sendRequest(connection, ACTION_NAME, pingRequest,
+<i>409</i>&nbsp;                    TransportRequestOptions.builder().withTimeout((long) (timeout.millis() * 1.25)).build(),
+<i>410</i>&nbsp;                    getPingResponseHandler(pingingRound, node));
+<i>411</i>&nbsp;            }
+<i>412</i>&nbsp;
+<i>413</i>&nbsp;            @Override
+<i>414</i>&nbsp;            public void onFailure(Exception e) {
+<i>415</i>&nbsp;                if (e instanceof ConnectTransportException || e instanceof AlreadyClosedException) {
+<i>416</i>&nbsp;                    // can&#39;t connect to the node - this is more common path!
+<i>417</i>&nbsp;                    logger.trace(() -&gt; new ParameterizedMessage(&quot;[{}] failed to ping {}&quot;, pingingRound.id(), node), e);
+<i>418</i>&nbsp;                } else if (e instanceof RemoteTransportException) {
+<i>419</i>&nbsp;                    // something went wrong on the other side
+<i>420</i>&nbsp;                    logger.debug(() -&gt; new ParameterizedMessage(
+<i>421</i>&nbsp;                            &quot;[{}] received a remote error as a response to ping {}&quot;, pingingRound.id(), node), e);
+<i>422</i>&nbsp;                } else {
+<i>423</i>&nbsp;                    logger.warn(() -&gt; new ParameterizedMessage(&quot;[{}] failed send ping to {}&quot;, pingingRound.id(), node), e);
+<i>424</i>&nbsp;                }
+<i>425</i>&nbsp;            }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;            @Override
+<i>428</i>&nbsp;            public void onRejection(Exception e) {
+<i>429</i>&nbsp;                // The RejectedExecutionException can come from the fact unicastZenPingExecutorService is at its max down in sendPings
+<i>430</i>&nbsp;                // But don&#39;t bail here, we can retry later on after the send ping has been scheduled.
+<i>431</i>&nbsp;                logger.debug(&quot;Ping execution rejected&quot;, e);
+<i>432</i>&nbsp;            }
+<i>433</i>&nbsp;        });
+<i>434</i>&nbsp;    }
+<i>435</i>&nbsp;
+<i>436</i>&nbsp;    // for testing
+<i>437</i>&nbsp;    protected void submitToExecutor(AbstractRunnable abstractRunnable) {
+<i>438</i>&nbsp;        unicastZenPingExecutorService.execute(abstractRunnable);
+<i>439</i>&nbsp;    }
+<i>440</i>&nbsp;
+<i>441</i>&nbsp;    // for testing
+<i>442</i>&nbsp;    protected TransportResponseHandler&lt;UnicastPingResponse&gt; getPingResponseHandler(final PingingRound pingingRound,
+<i>443</i>&nbsp;                                                                                   final DiscoveryNode node) {
+<i>444</i>&nbsp;        return new TransportResponseHandler&lt;UnicastPingResponse&gt;() {
+<i>445</i>&nbsp;
+<i>446</i>&nbsp;            @Override
+<i>447</i>&nbsp;            public UnicastPingResponse read(StreamInput in) throws IOException {
+<i>448</i>&nbsp;                return new UnicastPingResponse(in);
+<i>449</i>&nbsp;            }
+<i>450</i>&nbsp;
+<i>451</i>&nbsp;            @Override
+<i>452</i>&nbsp;            public String executor() {
+<i>453</i>&nbsp;                return ThreadPool.Names.SAME;
+<i>454</i>&nbsp;            }
+<i>455</i>&nbsp;
+<i>456</i>&nbsp;            @Override
+<i>457</i>&nbsp;            public void handleResponse(UnicastPingResponse response) {
+<i>458</i>&nbsp;                logger.trace(&quot;[{}] received response from {}: {}&quot;, pingingRound.id(), node, Arrays.toString(response.pingResponses));
+<i>459</i>&nbsp;                if (pingingRound.isClosed()) {
+<i>460</i>&nbsp;                    if (logger.isTraceEnabled()) {
+<i>461</i>&nbsp;                        logger.trace(&quot;[{}] skipping received response from {}. already closed&quot;, pingingRound.id(), node);
+<i>462</i>&nbsp;                    }
+<i>463</i>&nbsp;                } else {
+<i>464</i>&nbsp;                    Stream.of(response.pingResponses).forEach(pingingRound::addPingResponseToCollection);
+<i>465</i>&nbsp;                }
+<i>466</i>&nbsp;            }
+<i>467</i>&nbsp;
+<i>468</i>&nbsp;            @Override
+<i>469</i>&nbsp;            public void handleException(TransportException exp) {
+<i>470</i>&nbsp;                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException ||
+<i>471</i>&nbsp;                    exp.getCause() instanceof AlreadyClosedException) {
+<i>472</i>&nbsp;                    // ok, not connected...
+<i>473</i>&nbsp;                    logger.trace(() -&gt; new ParameterizedMessage(&quot;failed to connect to {}&quot;, node), exp);
+<i>474</i>&nbsp;                } else if (closed == false) {
+<i>475</i>&nbsp;                    logger.warn(() -&gt; new ParameterizedMessage(&quot;failed to send ping to [{}]&quot;, node), exp);
+<i>476</i>&nbsp;                }
+<i>477</i>&nbsp;            }
+<i>478</i>&nbsp;        };
+<i>479</i>&nbsp;    }
+<i>480</i>&nbsp;
+<i>481</i>&nbsp;    private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
+<i>482</i>&nbsp;        assert clusterName.equals(request.pingResponse.clusterName()) :
+<i>483</i>&nbsp;            &quot;got a ping request from a different cluster. expected &quot; + clusterName + &quot; got &quot; + request.pingResponse.clusterName();
+<i>484</i>&nbsp;        temporalResponses.add(request.pingResponse);
+<i>485</i>&nbsp;        // add to any ongoing pinging
+<i>486</i>&nbsp;        activePingingRounds.values().forEach(p -&gt; p.addPingResponseToCollection(request.pingResponse));
+<i>487</i>&nbsp;        threadPool.schedule(() -&gt; temporalResponses.remove(request.pingResponse),
+<i>488</i>&nbsp;            TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME);
+<i>489</i>&nbsp;
+<i>490</i>&nbsp;        List&lt;PingResponse&gt; pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
+<i>491</i>&nbsp;        pingResponses.add(createPingResponse(contextProvider.clusterState()));
+<i>492</i>&nbsp;
+<i>493</i>&nbsp;        return new UnicastPingResponse(request.id, pingResponses.toArray(new PingResponse[pingResponses.size()]));
+<i>494</i>&nbsp;    }
+<i>495</i>&nbsp;
+<i>496</i>&nbsp;    class UnicastPingRequestHandler implements TransportRequestHandler&lt;UnicastPingRequest&gt; {
+<i>497</i>&nbsp;
+<i>498</i>&nbsp;        @Override
+<i>499</i>&nbsp;        public void messageReceived(UnicastPingRequest request, TransportChannel channel, Task task) throws Exception {
+<i>500</i>&nbsp;            if (closed) {
+<i>501</i>&nbsp;                throw new AlreadyClosedException(&quot;node is shutting down&quot;);
+<i>502</i>&nbsp;            }
+<i>503</i>&nbsp;            if (request.pingResponse.clusterName().equals(clusterName)) {
+<i>504</i>&nbsp;                channel.sendResponse(handlePingRequest(request));
+<i>505</i>&nbsp;            } else {
+<i>506</i>&nbsp;                throw new IllegalStateException(
+<i>507</i>&nbsp;                    String.format(
+<i>508</i>&nbsp;                        Locale.ROOT,
+<i>509</i>&nbsp;                        &quot;mismatched cluster names; request: [%s], local: [%s]&quot;,
+<i>510</i>&nbsp;                        request.pingResponse.clusterName().value(),
+<i>511</i>&nbsp;                        clusterName.value()));
+<i>512</i>&nbsp;            }
+<i>513</i>&nbsp;        }
+<i>514</i>&nbsp;
+<i>515</i>&nbsp;    }
+<i>516</i>&nbsp;
+<i>517</i>&nbsp;    public static class UnicastPingRequest extends TransportRequest {
+<i>518</i>&nbsp;
+<i>519</i>&nbsp;        public final int id;
+<i>520</i>&nbsp;        public final TimeValue timeout;
+<i>521</i>&nbsp;        public final PingResponse pingResponse;
+<i>522</i>&nbsp;
+<b class="nc"><i>523</i>&nbsp;        public UnicastPingRequest(int id, TimeValue timeout, PingResponse pingResponse) {</b>
+<b class="nc"><i>524</i>&nbsp;            this.id = id;</b>
+<b class="nc"><i>525</i>&nbsp;            this.timeout = timeout;</b>
+<b class="nc"><i>526</i>&nbsp;            this.pingResponse = pingResponse;</b>
+<b class="nc"><i>527</i>&nbsp;        }</b>
+<i>528</i>&nbsp;
+<i>529</i>&nbsp;        public UnicastPingRequest(StreamInput in) throws IOException {
+<b class="nc"><i>530</i>&nbsp;            super(in);</b>
+<b class="nc"><i>531</i>&nbsp;            id = in.readInt();</b>
+<b class="nc"><i>532</i>&nbsp;            timeout = in.readTimeValue();</b>
+<b class="nc"><i>533</i>&nbsp;            pingResponse = new PingResponse(in);</b>
+<b class="nc"><i>534</i>&nbsp;        }</b>
+<i>535</i>&nbsp;
+<i>536</i>&nbsp;        @Override
+<i>537</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>538</i>&nbsp;            super.writeTo(out);</b>
+<b class="nc"><i>539</i>&nbsp;            out.writeInt(id);</b>
+<b class="nc"><i>540</i>&nbsp;            out.writeTimeValue(timeout);</b>
+<b class="nc"><i>541</i>&nbsp;            pingResponse.writeTo(out);</b>
+<b class="nc"><i>542</i>&nbsp;        }</b>
+<i>543</i>&nbsp;    }
+<i>544</i>&nbsp;
+<i>545</i>&nbsp;    private PingResponse createPingResponse(ClusterState clusterState) {
+<i>546</i>&nbsp;        DiscoveryNodes discoNodes = clusterState.nodes();
+<i>547</i>&nbsp;        return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterState);
+<i>548</i>&nbsp;    }
+<i>549</i>&nbsp;
+<i>550</i>&nbsp;    public static class UnicastPingResponse extends TransportResponse {
+<i>551</i>&nbsp;
+<i>552</i>&nbsp;        final int id;
+<i>553</i>&nbsp;
+<i>554</i>&nbsp;        public final PingResponse[] pingResponses;
+<i>555</i>&nbsp;
+<b class="nc"><i>556</i>&nbsp;        public UnicastPingResponse(int id, PingResponse[] pingResponses) {</b>
+<b class="nc"><i>557</i>&nbsp;            this.id = id;</b>
+<b class="nc"><i>558</i>&nbsp;            this.pingResponses = pingResponses;</b>
+<b class="nc"><i>559</i>&nbsp;        }</b>
+<i>560</i>&nbsp;
+<b class="nc"><i>561</i>&nbsp;        public UnicastPingResponse(StreamInput in) throws IOException {</b>
+<b class="nc"><i>562</i>&nbsp;            id = in.readInt();</b>
+<b class="nc"><i>563</i>&nbsp;            pingResponses = new PingResponse[in.readVInt()];</b>
+<b class="nc"><i>564</i>&nbsp;            for (int i = 0; i &lt; pingResponses.length; i++) {</b>
+<b class="nc"><i>565</i>&nbsp;                pingResponses[i] = new PingResponse(in);</b>
+<i>566</i>&nbsp;            }
+<b class="nc"><i>567</i>&nbsp;        }</b>
+<i>568</i>&nbsp;
+<i>569</i>&nbsp;        @Override
+<i>570</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<b class="nc"><i>571</i>&nbsp;            out.writeInt(id);</b>
+<b class="nc"><i>572</i>&nbsp;            out.writeVInt(pingResponses.length);</b>
+<b class="nc"><i>573</i>&nbsp;            for (PingResponse pingResponse : pingResponses) {</b>
+<b class="nc"><i>574</i>&nbsp;                pingResponse.writeTo(out);</b>
+<i>575</i>&nbsp;            }
+<b class="nc"><i>576</i>&nbsp;        }</b>
+<i>577</i>&nbsp;    }
+<i>578</i>&nbsp;
+<i>579</i>&nbsp;    protected Version getVersion() {
+<i>580</i>&nbsp;        return Version.CURRENT; // for tests
+<i>581</i>&nbsp;    }
+<i>582</i>&nbsp;
+<i>583</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

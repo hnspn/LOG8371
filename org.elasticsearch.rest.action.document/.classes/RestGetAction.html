@@ -1,0 +1,186 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestGetAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.document</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestGetAction (org.elasticsearch.rest.action.document)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestGetAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    50%
+  </span>
+  <span class="absValue">
+    (2/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    28.6%
+  </span>
+  <span class="absValue">
+    (8/ 28)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.document;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.elasticsearch.action.get.GetRequest;
+<i>24</i>&nbsp;import org.elasticsearch.action.get.GetResponse;
+<i>25</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>26</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>27</i>&nbsp;import org.elasticsearch.common.logging.DeprecationLogger;
+<i>28</i>&nbsp;import org.elasticsearch.index.VersionType;
+<i>29</i>&nbsp;import org.elasticsearch.rest.BaseRestHandler;
+<i>30</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>31</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>32</i>&nbsp;import org.elasticsearch.rest.RestStatus;
+<i>33</i>&nbsp;import org.elasticsearch.rest.action.RestActions;
+<i>34</i>&nbsp;import org.elasticsearch.rest.action.RestToXContentListener;
+<i>35</i>&nbsp;import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.io.IOException;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>40</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+<i>41</i>&nbsp;import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+<i>42</i>&nbsp;import static org.elasticsearch.rest.RestStatus.OK;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;public class RestGetAction extends BaseRestHandler {
+<b class="fc"><i>45</i>&nbsp;    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(</b>
+<b class="fc"><i>46</i>&nbsp;        LogManager.getLogger(RestGetAction.class));</b>
+<i>47</i>&nbsp;    public static final String TYPES_DEPRECATION_MESSAGE = &quot;[types removal] Specifying types in &quot; +
+<i>48</i>&nbsp;        &quot;document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.&quot;;
+<i>49</i>&nbsp;
+<b class="fc"><i>50</i>&nbsp;    public RestGetAction(final RestController controller) {</b>
+<b class="fc"><i>51</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/_doc/{id}&quot;, this);</b>
+<b class="fc"><i>52</i>&nbsp;        controller.registerHandler(HEAD, &quot;/{index}/_doc/{id}&quot;, this);</b>
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;        // Deprecated typed endpoints.
+<b class="fc"><i>55</i>&nbsp;        controller.registerHandler(GET, &quot;/{index}/{type}/{id}&quot;, this);</b>
+<b class="fc"><i>56</i>&nbsp;        controller.registerHandler(HEAD, &quot;/{index}/{type}/{id}&quot;, this);</b>
+<b class="fc"><i>57</i>&nbsp;    }</b>
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    @Override
+<i>60</i>&nbsp;    public String getName() {
+<b class="nc"><i>61</i>&nbsp;        return &quot;document_get_action&quot;;</b>
+<i>62</i>&nbsp;    }
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    @Override
+<i>65</i>&nbsp;    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+<i>66</i>&nbsp;        GetRequest getRequest;
+<b class="nc"><i>67</i>&nbsp;        if (request.hasParam(&quot;type&quot;)) {</b>
+<b class="nc"><i>68</i>&nbsp;            deprecationLogger.deprecatedAndMaybeLog(&quot;get_with_types&quot;, TYPES_DEPRECATION_MESSAGE);</b>
+<b class="nc"><i>69</i>&nbsp;            getRequest = new GetRequest(request.param(&quot;index&quot;), request.param(&quot;type&quot;), request.param(&quot;id&quot;));</b>
+<i>70</i>&nbsp;        } else {
+<b class="nc"><i>71</i>&nbsp;            getRequest = new GetRequest(request.param(&quot;index&quot;), request.param(&quot;id&quot;));</b>
+<i>72</i>&nbsp;        }
+<i>73</i>&nbsp;
+<b class="nc"><i>74</i>&nbsp;        getRequest.refresh(request.paramAsBoolean(&quot;refresh&quot;, getRequest.refresh()));</b>
+<b class="nc"><i>75</i>&nbsp;        getRequest.routing(request.param(&quot;routing&quot;));</b>
+<b class="nc"><i>76</i>&nbsp;        getRequest.preference(request.param(&quot;preference&quot;));</b>
+<b class="nc"><i>77</i>&nbsp;        getRequest.realtime(request.paramAsBoolean(&quot;realtime&quot;, getRequest.realtime()));</b>
+<b class="nc"><i>78</i>&nbsp;        if (request.param(&quot;fields&quot;) != null) {</b>
+<b class="nc"><i>79</i>&nbsp;            throw new IllegalArgumentException(&quot;the parameter [fields] is no longer supported, &quot; +</b>
+<i>80</i>&nbsp;                &quot;please use [stored_fields] to retrieve stored fields or [_source] to load the field from _source&quot;);
+<i>81</i>&nbsp;        }
+<b class="nc"><i>82</i>&nbsp;        final String fieldsParam = request.param(&quot;stored_fields&quot;);</b>
+<b class="nc"><i>83</i>&nbsp;        if (fieldsParam != null) {</b>
+<b class="nc"><i>84</i>&nbsp;            final String[] fields = Strings.splitStringByCommaToArray(fieldsParam);</b>
+<b class="nc"><i>85</i>&nbsp;            if (fields != null) {</b>
+<b class="nc"><i>86</i>&nbsp;                getRequest.storedFields(fields);</b>
+<i>87</i>&nbsp;            }
+<i>88</i>&nbsp;        }
+<i>89</i>&nbsp;
+<b class="nc"><i>90</i>&nbsp;        getRequest.version(RestActions.parseVersion(request));</b>
+<b class="nc"><i>91</i>&nbsp;        getRequest.versionType(VersionType.fromString(request.param(&quot;version_type&quot;), getRequest.versionType()));</b>
+<i>92</i>&nbsp;
+<b class="nc"><i>93</i>&nbsp;        getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));</b>
+<i>94</i>&nbsp;
+<b class="nc"><i>95</i>&nbsp;        return channel -&gt; client.get(getRequest, new RestToXContentListener&lt;GetResponse&gt;(channel) {</b>
+<i>96</i>&nbsp;            @Override
+<i>97</i>&nbsp;            protected RestStatus getStatus(final GetResponse response) {
+<i>98</i>&nbsp;                return response.isExists() ? OK : NOT_FOUND;
+<i>99</i>&nbsp;            }
+<i>100</i>&nbsp;        });
+<i>101</i>&nbsp;    }
+<i>102</i>&nbsp;
+<i>103</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

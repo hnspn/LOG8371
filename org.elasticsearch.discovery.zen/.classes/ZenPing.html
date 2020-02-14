@@ -1,0 +1,243 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: ZenPing</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery.zen</a> ]
+</div>
+
+<h1>Coverage Summary for Class: ZenPing (org.elasticsearch.discovery.zen)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+</tr>
+<tr>
+  <td class="name">ZenPing</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery.zen;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>23</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>25</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>26</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>27</i>&nbsp;import org.elasticsearch.common.io.stream.Writeable;
+<i>28</i>&nbsp;import org.elasticsearch.common.lease.Releasable;
+<i>29</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>30</i>&nbsp;
+<i>31</i>&nbsp;import java.io.IOException;
+<i>32</i>&nbsp;import java.util.ArrayList;
+<i>33</i>&nbsp;import java.util.HashMap;
+<i>34</i>&nbsp;import java.util.List;
+<i>35</i>&nbsp;import java.util.Map;
+<i>36</i>&nbsp;import java.util.concurrent.atomic.AtomicLong;
+<i>37</i>&nbsp;import java.util.function.Consumer;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+<i>40</i>&nbsp;
+<i>41</i>&nbsp;public interface ZenPing extends Releasable {
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;    void start();
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;    void ping(Consumer&lt;PingCollection&gt; resultsConsumer, TimeValue timeout);
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    class PingResponse implements Writeable {
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;        /**
+<i>50</i>&nbsp;         * An ID of a ping response that was generated on behalf of another node. Needs to be less than all other ping IDs so that fake ping
+<i>51</i>&nbsp;         * responses don&#39;t override real ones.
+<i>52</i>&nbsp;         */
+<i>53</i>&nbsp;        public static long FAKE_PING_ID = -1;
+<i>54</i>&nbsp;
+<i>55</i>&nbsp;        private static final AtomicLong idGenerator = new AtomicLong();
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;        // an always increasing unique identifier for this ping response.
+<i>58</i>&nbsp;        // lower values means older pings.
+<i>59</i>&nbsp;        private final long id;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;        private final ClusterName clusterName;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;        private final DiscoveryNode node;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;        private final DiscoveryNode master;
+<i>66</i>&nbsp;
+<i>67</i>&nbsp;        private final long clusterStateVersion;
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;        /**
+<i>70</i>&nbsp;         * @param node                the node which this ping describes
+<i>71</i>&nbsp;         * @param master              the current master of the node
+<i>72</i>&nbsp;         * @param clusterName         the cluster name of the node
+<i>73</i>&nbsp;         * @param clusterStateVersion the current cluster state version of that node
+<i>74</i>&nbsp;         *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
+<i>75</i>&nbsp;         */
+<i>76</i>&nbsp;        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+<i>77</i>&nbsp;            this(idGenerator.incrementAndGet(), node, master, clusterName, clusterStateVersion);
+<i>78</i>&nbsp;        }
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;        /**
+<i>81</i>&nbsp;         * @param id                  the ping&#39;s ID
+<i>82</i>&nbsp;         * @param node                the node which this ping describes
+<i>83</i>&nbsp;         * @param master              the current master of the node
+<i>84</i>&nbsp;         * @param clusterName         the cluster name of the node
+<i>85</i>&nbsp;         * @param clusterStateVersion the current cluster state version of that node
+<i>86</i>&nbsp;*                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
+<i>87</i>&nbsp;         */
+<i>88</i>&nbsp;        public PingResponse(long id, DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
+<i>89</i>&nbsp;            this.id = id;
+<i>90</i>&nbsp;            this.node = node;
+<i>91</i>&nbsp;            this.master = master;
+<i>92</i>&nbsp;            this.clusterName = clusterName;
+<i>93</i>&nbsp;            this.clusterStateVersion = clusterStateVersion;
+<i>94</i>&nbsp;        }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterState state) {
+<i>97</i>&nbsp;            this(node, master, state.getClusterName(),
+<i>98</i>&nbsp;                state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ?
+<i>99</i>&nbsp;                    ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION : state.version());
+<i>100</i>&nbsp;        }
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;        PingResponse(StreamInput in) throws IOException {
+<i>103</i>&nbsp;            this.clusterName = new ClusterName(in);
+<i>104</i>&nbsp;            this.node = new DiscoveryNode(in);
+<i>105</i>&nbsp;            this.master = in.readOptionalWriteable(DiscoveryNode::new);
+<i>106</i>&nbsp;            this.clusterStateVersion = in.readLong();
+<i>107</i>&nbsp;            this.id = in.readLong();
+<i>108</i>&nbsp;        }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;        @Override
+<i>111</i>&nbsp;        public void writeTo(StreamOutput out) throws IOException {
+<i>112</i>&nbsp;            clusterName.writeTo(out);
+<i>113</i>&nbsp;            node.writeTo(out);
+<i>114</i>&nbsp;            out.writeOptionalWriteable(master);
+<i>115</i>&nbsp;            out.writeLong(clusterStateVersion);
+<i>116</i>&nbsp;            out.writeLong(id);
+<i>117</i>&nbsp;        }
+<i>118</i>&nbsp;
+<i>119</i>&nbsp;        /**
+<i>120</i>&nbsp;         * an always increasing unique identifier for this ping response.
+<i>121</i>&nbsp;         * lower values means older pings.
+<i>122</i>&nbsp;         */
+<i>123</i>&nbsp;        public long id() {
+<i>124</i>&nbsp;            return this.id;
+<i>125</i>&nbsp;        }
+<i>126</i>&nbsp;
+<i>127</i>&nbsp;        /**
+<i>128</i>&nbsp;         * the name of the cluster this node belongs to
+<i>129</i>&nbsp;         */
+<i>130</i>&nbsp;        public ClusterName clusterName() {
+<i>131</i>&nbsp;            return this.clusterName;
+<i>132</i>&nbsp;        }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;        /** the node which this ping describes */
+<i>135</i>&nbsp;        public DiscoveryNode node() {
+<i>136</i>&nbsp;            return node;
+<i>137</i>&nbsp;        }
+<i>138</i>&nbsp;
+<i>139</i>&nbsp;        /** the current master of the node */
+<i>140</i>&nbsp;        public DiscoveryNode master() {
+<i>141</i>&nbsp;            return master;
+<i>142</i>&nbsp;        }
+<i>143</i>&nbsp;
+<i>144</i>&nbsp;        /**
+<i>145</i>&nbsp;         * the current cluster state version of that node ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION}
+<i>146</i>&nbsp;         * for not recovered) */
+<i>147</i>&nbsp;        public long getClusterStateVersion() {
+<i>148</i>&nbsp;            return clusterStateVersion;
+<i>149</i>&nbsp;        }
+<i>150</i>&nbsp;
+<i>151</i>&nbsp;        @Override
+<i>152</i>&nbsp;        public String toString() {
+<i>153</i>&nbsp;            return &quot;ping_response{node [&quot; + node + &quot;], id[&quot; + id + &quot;], master [&quot; + master + &quot;],&quot; +
+<i>154</i>&nbsp;                   &quot;cluster_state_version [&quot; + clusterStateVersion + &quot;], cluster_name[&quot; + clusterName.value() + &quot;]}&quot;;
+<i>155</i>&nbsp;        }
+<i>156</i>&nbsp;    }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;
+<i>159</i>&nbsp;    /**
+<i>160</i>&nbsp;     * a utility collection of pings where only the most recent ping is stored per node
+<i>161</i>&nbsp;     */
+<i>162</i>&nbsp;    class PingCollection {
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;        Map&lt;DiscoveryNode, PingResponse&gt; pings;
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;        public PingCollection() {
+<i>167</i>&nbsp;            pings = new HashMap&lt;&gt;();
+<i>168</i>&nbsp;        }
+<i>169</i>&nbsp;
+<i>170</i>&nbsp;        /**
+<i>171</i>&nbsp;         * adds a ping if newer than previous pings from the same node
+<i>172</i>&nbsp;         *
+<i>173</i>&nbsp;         * @return true if added, false o.w.
+<i>174</i>&nbsp;         */
+<i>175</i>&nbsp;        public synchronized boolean addPing(PingResponse ping) {
+<i>176</i>&nbsp;            PingResponse existingResponse = pings.get(ping.node());
+<i>177</i>&nbsp;            // in case both existing and new ping have the same id (probably because they come
+<i>178</i>&nbsp;            // from nodes from version &lt;1.4.0) we prefer to use the last added one.
+<i>179</i>&nbsp;            if (existingResponse == null || existingResponse.id() &lt;= ping.id()) {
+<i>180</i>&nbsp;                pings.put(ping.node(), ping);
+<i>181</i>&nbsp;                return true;
+<i>182</i>&nbsp;            }
+<i>183</i>&nbsp;            return false;
+<i>184</i>&nbsp;        }
+<i>185</i>&nbsp;
+<i>186</i>&nbsp;        /** serialize current pings to a list. It is guaranteed that the list contains one ping response per node */
+<i>187</i>&nbsp;        public synchronized List&lt;PingResponse&gt; toList() {
+<i>188</i>&nbsp;            return new ArrayList&lt;&gt;(pings.values());
+<i>189</i>&nbsp;        }
+<i>190</i>&nbsp;
+<i>191</i>&nbsp;        /** the number of nodes for which there are known pings */
+<i>192</i>&nbsp;        public synchronized int size() {
+<i>193</i>&nbsp;            return pings.size();
+<i>194</i>&nbsp;        }
+<i>195</i>&nbsp;    }
+<i>196</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,201 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BigIntArray</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.util</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BigIntArray (org.elasticsearch.common.util)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BigIntArray</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 9)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 42)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.common.util;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.util.ArrayUtil;
+<i>23</i>&nbsp;import org.apache.lucene.util.RamUsageEstimator;
+<i>24</i>&nbsp;
+<i>25</i>&nbsp;import java.util.Arrays;
+<i>26</i>&nbsp;
+<i>27</i>&nbsp;import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;/**
+<i>30</i>&nbsp; * Int array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
+<i>31</i>&nbsp; * configurable length.
+<i>32</i>&nbsp; */
+<i>33</i>&nbsp;final class BigIntArray extends AbstractBigArray implements IntArray {
+<i>34</i>&nbsp;
+<b class="nc"><i>35</i>&nbsp;    private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);</b>
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;    private int[][] pages;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;    /** Constructor. */
+<i>40</i>&nbsp;    BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+<b class="nc"><i>41</i>&nbsp;        super(INT_PAGE_SIZE, bigArrays, clearOnResize);</b>
+<b class="nc"><i>42</i>&nbsp;        this.size = size;</b>
+<b class="nc"><i>43</i>&nbsp;        pages = new int[numPages(size)][];</b>
+<b class="nc"><i>44</i>&nbsp;        for (int i = 0; i &lt; pages.length; ++i) {</b>
+<b class="nc"><i>45</i>&nbsp;            pages[i] = newIntPage(i);</b>
+<i>46</i>&nbsp;        }
+<b class="nc"><i>47</i>&nbsp;    }</b>
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    @Override
+<i>50</i>&nbsp;    public int get(long index) {
+<b class="nc"><i>51</i>&nbsp;        final int pageIndex = pageIndex(index);</b>
+<b class="nc"><i>52</i>&nbsp;        final int indexInPage = indexInPage(index);</b>
+<b class="nc"><i>53</i>&nbsp;        return pages[pageIndex][indexInPage];</b>
+<i>54</i>&nbsp;    }
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    @Override
+<i>57</i>&nbsp;    public int set(long index, int value) {
+<b class="nc"><i>58</i>&nbsp;        final int pageIndex = pageIndex(index);</b>
+<b class="nc"><i>59</i>&nbsp;        final int indexInPage = indexInPage(index);</b>
+<b class="nc"><i>60</i>&nbsp;        final int[] page = pages[pageIndex];</b>
+<b class="nc"><i>61</i>&nbsp;        final int ret = page[indexInPage];</b>
+<b class="nc"><i>62</i>&nbsp;        page[indexInPage] = value;</b>
+<b class="nc"><i>63</i>&nbsp;        return ret;</b>
+<i>64</i>&nbsp;    }
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    @Override
+<i>67</i>&nbsp;    public int increment(long index, int inc) {
+<b class="nc"><i>68</i>&nbsp;        final int pageIndex = pageIndex(index);</b>
+<b class="nc"><i>69</i>&nbsp;        final int indexInPage = indexInPage(index);</b>
+<b class="nc"><i>70</i>&nbsp;        return pages[pageIndex][indexInPage] += inc;</b>
+<i>71</i>&nbsp;    }
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    @Override
+<i>74</i>&nbsp;    public void fill(long fromIndex, long toIndex, int value) {
+<b class="nc"><i>75</i>&nbsp;        if (fromIndex &gt; toIndex) {</b>
+<b class="nc"><i>76</i>&nbsp;            throw new IllegalArgumentException();</b>
+<i>77</i>&nbsp;        }
+<b class="nc"><i>78</i>&nbsp;        final int fromPage = pageIndex(fromIndex);</b>
+<b class="nc"><i>79</i>&nbsp;        final int toPage = pageIndex(toIndex - 1);</b>
+<b class="nc"><i>80</i>&nbsp;        if (fromPage == toPage) {</b>
+<b class="nc"><i>81</i>&nbsp;            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);</b>
+<i>82</i>&nbsp;        } else {
+<b class="nc"><i>83</i>&nbsp;            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);</b>
+<b class="nc"><i>84</i>&nbsp;            for (int i = fromPage + 1; i &lt; toPage; ++i) {</b>
+<b class="nc"><i>85</i>&nbsp;                Arrays.fill(pages[i], value);</b>
+<i>86</i>&nbsp;            }
+<b class="nc"><i>87</i>&nbsp;            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);</b>
+<i>88</i>&nbsp;        }
+<b class="nc"><i>89</i>&nbsp;    }</b>
+<i>90</i>&nbsp;
+<i>91</i>&nbsp;    @Override
+<i>92</i>&nbsp;    protected int numBytesPerElement() {
+<b class="nc"><i>93</i>&nbsp;        return Integer.BYTES;</b>
+<i>94</i>&nbsp;    }
+<i>95</i>&nbsp;
+<i>96</i>&nbsp;    /** Change the size of this array. Content between indexes &lt;code&gt;0&lt;/code&gt; and &lt;code&gt;min(size(), newSize)&lt;/code&gt; will be preserved. */
+<i>97</i>&nbsp;    @Override
+<i>98</i>&nbsp;    public void resize(long newSize) {
+<b class="nc"><i>99</i>&nbsp;        final int numPages = numPages(newSize);</b>
+<b class="nc"><i>100</i>&nbsp;        if (numPages &gt; pages.length) {</b>
+<b class="nc"><i>101</i>&nbsp;            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));</b>
+<i>102</i>&nbsp;        }
+<b class="nc"><i>103</i>&nbsp;        for (int i = numPages - 1; i &gt;= 0 &amp;&amp; pages[i] == null; --i) {</b>
+<b class="nc"><i>104</i>&nbsp;            pages[i] = newIntPage(i);</b>
+<i>105</i>&nbsp;        }
+<b class="nc"><i>106</i>&nbsp;        for (int i = numPages; i &lt; pages.length &amp;&amp; pages[i] != null; ++i) {</b>
+<b class="nc"><i>107</i>&nbsp;            pages[i] = null;</b>
+<b class="nc"><i>108</i>&nbsp;            releasePage(i);</b>
+<i>109</i>&nbsp;        }
+<b class="nc"><i>110</i>&nbsp;        this.size = newSize;</b>
+<b class="nc"><i>111</i>&nbsp;    }</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    /** Estimates the number of bytes that would be consumed by an array of the given size. */
+<i>114</i>&nbsp;    public static long estimateRamBytes(final long size) {
+<b class="nc"><i>115</i>&nbsp;        return ESTIMATOR.ramBytesEstimated(size);</b>
+<i>116</i>&nbsp;    }
+<i>117</i>&nbsp;
+<i>118</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

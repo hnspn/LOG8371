@@ -1,0 +1,508 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: CommonTermsQueryBuilder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.query</a> ]
+</div>
+
+<h1>Coverage Summary for Class: CommonTermsQueryBuilder (org.elasticsearch.index.query)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">CommonTermsQueryBuilder</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 25)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 191)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.query;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.analysis.Analyzer;
+<i>23</i>&nbsp;import org.apache.lucene.analysis.TokenStream;
+<i>24</i>&nbsp;import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+<i>25</i>&nbsp;import org.apache.lucene.index.Term;
+<i>26</i>&nbsp;import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+<i>27</i>&nbsp;import org.apache.lucene.search.BooleanClause.Occur;
+<i>28</i>&nbsp;import org.apache.lucene.search.Query;
+<i>29</i>&nbsp;import org.apache.lucene.util.BytesRefBuilder;
+<i>30</i>&nbsp;import org.elasticsearch.Version;
+<i>31</i>&nbsp;import org.elasticsearch.common.ParseField;
+<i>32</i>&nbsp;import org.elasticsearch.common.ParsingException;
+<i>33</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>34</i>&nbsp;import org.elasticsearch.common.io.stream.StreamInput;
+<i>35</i>&nbsp;import org.elasticsearch.common.io.stream.StreamOutput;
+<i>36</i>&nbsp;import org.elasticsearch.common.xcontent.XContentBuilder;
+<i>37</i>&nbsp;import org.elasticsearch.common.xcontent.XContentParser;
+<i>38</i>&nbsp;import org.elasticsearch.index.mapper.MappedFieldType;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;import java.io.IOException;
+<i>41</i>&nbsp;import java.util.Objects;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;/**
+<i>44</i>&nbsp; * CommonTermsQuery query is a query that executes high-frequency terms in a
+<i>45</i>&nbsp; * optional sub-query to prevent slow queries due to &quot;common&quot; terms like
+<i>46</i>&nbsp; * stopwords. This query basically builds 2 queries off the {@code #add(Term)
+<i>47</i>&nbsp; * added} terms where low-frequency terms are added to a required boolean clause
+<i>48</i>&nbsp; * and high-frequency terms are added to an optional boolean clause. The
+<i>49</i>&nbsp; * optional clause is only executed if the required &quot;low-frequency&#39; clause
+<i>50</i>&nbsp; * matches.
+<i>51</i>&nbsp; *
+<i>52</i>&nbsp; * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
+<i>53</i>&nbsp; *             will achieve the same result without any configuration.
+<i>54</i>&nbsp; */
+<i>55</i>&nbsp;@Deprecated
+<i>56</i>&nbsp;public class CommonTermsQueryBuilder extends AbstractQueryBuilder&lt;CommonTermsQueryBuilder&gt; {
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = &quot;[match] query which can efficiently &quot; +
+<i>59</i>&nbsp;        &quot;skip blocks of documents if the total number of hits is not tracked&quot;;
+<i>60</i>&nbsp;
+<i>61</i>&nbsp;    public static final String NAME = &quot;common&quot;;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    public static final float DEFAULT_CUTOFF_FREQ = 0.01f;
+<b class="nc"><i>64</i>&nbsp;    public static final Operator DEFAULT_HIGH_FREQ_OCCUR = Operator.OR;</b>
+<b class="nc"><i>65</i>&nbsp;    public static final Operator DEFAULT_LOW_FREQ_OCCUR = Operator.OR;</b>
+<i>66</i>&nbsp;    public static final boolean DEFAULT_DISABLE_COORD = true;
+<i>67</i>&nbsp;
+<b class="nc"><i>68</i>&nbsp;    private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField(&quot;cutoff_frequency&quot;);</b>
+<b class="nc"><i>69</i>&nbsp;    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField(&quot;minimum_should_match&quot;);</b>
+<b class="nc"><i>70</i>&nbsp;    private static final ParseField LOW_FREQ_OPERATOR_FIELD = new ParseField(&quot;low_freq_operator&quot;);</b>
+<b class="nc"><i>71</i>&nbsp;    private static final ParseField HIGH_FREQ_OPERATOR_FIELD = new ParseField(&quot;high_freq_operator&quot;);</b>
+<b class="nc"><i>72</i>&nbsp;    private static final ParseField DISABLE_COORD_FIELD = new ParseField(&quot;disable_coord&quot;)</b>
+<b class="nc"><i>73</i>&nbsp;            .withAllDeprecated(&quot;disable_coord has been removed&quot;);</b>
+<b class="nc"><i>74</i>&nbsp;    private static final ParseField ANALYZER_FIELD = new ParseField(&quot;analyzer&quot;);</b>
+<b class="nc"><i>75</i>&nbsp;    private static final ParseField QUERY_FIELD = new ParseField(&quot;query&quot;);</b>
+<b class="nc"><i>76</i>&nbsp;    private static final ParseField HIGH_FREQ_FIELD = new ParseField(&quot;high_freq&quot;);</b>
+<b class="nc"><i>77</i>&nbsp;    private static final ParseField LOW_FREQ_FIELD = new ParseField(&quot;low_freq&quot;);</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    private final String fieldName;
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    private final Object text;
+<i>82</i>&nbsp;
+<b class="nc"><i>83</i>&nbsp;    private Operator highFreqOperator = DEFAULT_HIGH_FREQ_OCCUR;</b>
+<i>84</i>&nbsp;
+<b class="nc"><i>85</i>&nbsp;    private Operator lowFreqOperator = DEFAULT_LOW_FREQ_OCCUR;</b>
+<i>86</i>&nbsp;
+<b class="nc"><i>87</i>&nbsp;    private String analyzer = null;</b>
+<i>88</i>&nbsp;
+<b class="nc"><i>89</i>&nbsp;    private String lowFreqMinimumShouldMatch = null;</b>
+<i>90</i>&nbsp;
+<b class="nc"><i>91</i>&nbsp;    private String highFreqMinimumShouldMatch = null;</b>
+<i>92</i>&nbsp;
+<b class="nc"><i>93</i>&nbsp;    private float cutoffFrequency = DEFAULT_CUTOFF_FREQ;</b>
+<i>94</i>&nbsp;
+<i>95</i>&nbsp;    /**
+<i>96</i>&nbsp;     * Constructs a new common terms query.
+<i>97</i>&nbsp;     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
+<i>98</i>&nbsp;     */
+<i>99</i>&nbsp;    @Deprecated
+<b class="nc"><i>100</i>&nbsp;    public CommonTermsQueryBuilder(String fieldName, Object text) {</b>
+<b class="nc"><i>101</i>&nbsp;        if (Strings.isEmpty(fieldName)) {</b>
+<b class="nc"><i>102</i>&nbsp;            throw new IllegalArgumentException(&quot;field name is null or empty&quot;);</b>
+<i>103</i>&nbsp;        }
+<b class="nc"><i>104</i>&nbsp;        if (text == null) {</b>
+<b class="nc"><i>105</i>&nbsp;            throw new IllegalArgumentException(&quot;text cannot be null&quot;);</b>
+<i>106</i>&nbsp;        }
+<b class="nc"><i>107</i>&nbsp;        this.fieldName = fieldName;</b>
+<b class="nc"><i>108</i>&nbsp;        this.text = text;</b>
+<b class="nc"><i>109</i>&nbsp;    }</b>
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;    /**
+<i>112</i>&nbsp;     * Read from a stream.
+<i>113</i>&nbsp;     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
+<i>114</i>&nbsp;     */
+<i>115</i>&nbsp;    @Deprecated
+<i>116</i>&nbsp;    public CommonTermsQueryBuilder(StreamInput in) throws IOException {
+<b class="nc"><i>117</i>&nbsp;        super(in);</b>
+<b class="nc"><i>118</i>&nbsp;        fieldName = in.readString();</b>
+<b class="nc"><i>119</i>&nbsp;        text = in.readGenericValue();</b>
+<b class="nc"><i>120</i>&nbsp;        highFreqOperator = Operator.readFromStream(in);</b>
+<b class="nc"><i>121</i>&nbsp;        lowFreqOperator = Operator.readFromStream(in);</b>
+<b class="nc"><i>122</i>&nbsp;        analyzer = in.readOptionalString();</b>
+<b class="nc"><i>123</i>&nbsp;        lowFreqMinimumShouldMatch = in.readOptionalString();</b>
+<b class="nc"><i>124</i>&nbsp;        highFreqMinimumShouldMatch = in.readOptionalString();</b>
+<b class="nc"><i>125</i>&nbsp;        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {</b>
+<b class="nc"><i>126</i>&nbsp;            in.readBoolean(); // disable_coord</b>
+<i>127</i>&nbsp;        }
+<b class="nc"><i>128</i>&nbsp;        cutoffFrequency = in.readFloat();</b>
+<b class="nc"><i>129</i>&nbsp;    }</b>
+<i>130</i>&nbsp;
+<i>131</i>&nbsp;    @Override
+<i>132</i>&nbsp;    protected void doWriteTo(StreamOutput out) throws IOException {
+<b class="nc"><i>133</i>&nbsp;        out.writeString(this.fieldName);</b>
+<b class="nc"><i>134</i>&nbsp;        out.writeGenericValue(this.text);</b>
+<b class="nc"><i>135</i>&nbsp;        highFreqOperator.writeTo(out);</b>
+<b class="nc"><i>136</i>&nbsp;        lowFreqOperator.writeTo(out);</b>
+<b class="nc"><i>137</i>&nbsp;        out.writeOptionalString(analyzer);</b>
+<b class="nc"><i>138</i>&nbsp;        out.writeOptionalString(lowFreqMinimumShouldMatch);</b>
+<b class="nc"><i>139</i>&nbsp;        out.writeOptionalString(highFreqMinimumShouldMatch);</b>
+<b class="nc"><i>140</i>&nbsp;        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {</b>
+<b class="nc"><i>141</i>&nbsp;            out.writeBoolean(true); // disable_coord</b>
+<i>142</i>&nbsp;        }
+<b class="nc"><i>143</i>&nbsp;        out.writeFloat(cutoffFrequency);</b>
+<b class="nc"><i>144</i>&nbsp;    }</b>
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    public String fieldName() {
+<b class="nc"><i>147</i>&nbsp;        return this.fieldName;</b>
+<i>148</i>&nbsp;    }
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;    public Object value() {
+<b class="nc"><i>151</i>&nbsp;        return this.text;</b>
+<i>152</i>&nbsp;    }
+<i>153</i>&nbsp;
+<i>154</i>&nbsp;    /**
+<i>155</i>&nbsp;     * Sets the operator to use for terms with a high document frequency
+<i>156</i>&nbsp;     * (greater than or equal to {@link #cutoffFrequency(float)}. Defaults to
+<i>157</i>&nbsp;     * {@code AND}.
+<i>158</i>&nbsp;     */
+<i>159</i>&nbsp;    public CommonTermsQueryBuilder highFreqOperator(Operator operator) {
+<b class="nc"><i>160</i>&nbsp;        this.highFreqOperator = (operator == null) ? DEFAULT_HIGH_FREQ_OCCUR : operator;</b>
+<b class="nc"><i>161</i>&nbsp;        return this;</b>
+<i>162</i>&nbsp;    }
+<i>163</i>&nbsp;
+<i>164</i>&nbsp;    public Operator highFreqOperator() {
+<b class="nc"><i>165</i>&nbsp;        return highFreqOperator;</b>
+<i>166</i>&nbsp;    }
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;    /**
+<i>169</i>&nbsp;     * Sets the operator to use for terms with a low document frequency (less
+<i>170</i>&nbsp;     * than {@link #cutoffFrequency(float)}. Defaults to {@code AND}.
+<i>171</i>&nbsp;     */
+<i>172</i>&nbsp;    public CommonTermsQueryBuilder lowFreqOperator(Operator operator) {
+<b class="nc"><i>173</i>&nbsp;        this.lowFreqOperator = (operator == null) ? DEFAULT_LOW_FREQ_OCCUR : operator;</b>
+<b class="nc"><i>174</i>&nbsp;        return this;</b>
+<i>175</i>&nbsp;    }
+<i>176</i>&nbsp;
+<i>177</i>&nbsp;    public Operator lowFreqOperator() {
+<b class="nc"><i>178</i>&nbsp;        return lowFreqOperator;</b>
+<i>179</i>&nbsp;    }
+<i>180</i>&nbsp;
+<i>181</i>&nbsp;    /**
+<i>182</i>&nbsp;     * Explicitly set the analyzer to use. Defaults to use explicit mapping
+<i>183</i>&nbsp;     * config for the field, or, if not set, the default search analyzer.
+<i>184</i>&nbsp;     */
+<i>185</i>&nbsp;    public CommonTermsQueryBuilder analyzer(String analyzer) {
+<b class="nc"><i>186</i>&nbsp;        this.analyzer = analyzer;</b>
+<b class="nc"><i>187</i>&nbsp;        return this;</b>
+<i>188</i>&nbsp;    }
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    public String analyzer() {
+<b class="nc"><i>191</i>&nbsp;        return this.analyzer;</b>
+<i>192</i>&nbsp;    }
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    /**
+<i>195</i>&nbsp;     * Sets the cutoff document frequency for high / low frequent terms. A value
+<i>196</i>&nbsp;     * in [0..1] (or absolute number &amp;gt;=1) representing the maximum threshold of
+<i>197</i>&nbsp;     * a terms document frequency to be considered a low frequency term.
+<i>198</i>&nbsp;     * Defaults to
+<i>199</i>&nbsp;     * {@code {@value #DEFAULT_CUTOFF_FREQ}}
+<i>200</i>&nbsp;     */
+<i>201</i>&nbsp;    public CommonTermsQueryBuilder cutoffFrequency(float cutoffFrequency) {
+<b class="nc"><i>202</i>&nbsp;        this.cutoffFrequency = cutoffFrequency;</b>
+<b class="nc"><i>203</i>&nbsp;        return this;</b>
+<i>204</i>&nbsp;    }
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    public float cutoffFrequency() {
+<b class="nc"><i>207</i>&nbsp;        return this.cutoffFrequency;</b>
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /**
+<i>211</i>&nbsp;     * Sets the minimum number of high frequent query terms that need to match in order to
+<i>212</i>&nbsp;     * produce a hit when there are no low frequent terms.
+<i>213</i>&nbsp;     */
+<i>214</i>&nbsp;    public CommonTermsQueryBuilder highFreqMinimumShouldMatch(String highFreqMinimumShouldMatch) {
+<b class="nc"><i>215</i>&nbsp;        this.highFreqMinimumShouldMatch = highFreqMinimumShouldMatch;</b>
+<b class="nc"><i>216</i>&nbsp;        return this;</b>
+<i>217</i>&nbsp;    }
+<i>218</i>&nbsp;
+<i>219</i>&nbsp;    public String highFreqMinimumShouldMatch() {
+<b class="nc"><i>220</i>&nbsp;        return this.highFreqMinimumShouldMatch;</b>
+<i>221</i>&nbsp;    }
+<i>222</i>&nbsp;
+<i>223</i>&nbsp;    /**
+<i>224</i>&nbsp;     * Sets the minimum number of low frequent query terms that need to match in order to
+<i>225</i>&nbsp;     * produce a hit.
+<i>226</i>&nbsp;     */
+<i>227</i>&nbsp;    public CommonTermsQueryBuilder lowFreqMinimumShouldMatch(String lowFreqMinimumShouldMatch) {
+<b class="nc"><i>228</i>&nbsp;        this.lowFreqMinimumShouldMatch = lowFreqMinimumShouldMatch;</b>
+<b class="nc"><i>229</i>&nbsp;        return this;</b>
+<i>230</i>&nbsp;    }
+<i>231</i>&nbsp;
+<i>232</i>&nbsp;    public String lowFreqMinimumShouldMatch() {
+<b class="nc"><i>233</i>&nbsp;        return this.lowFreqMinimumShouldMatch;</b>
+<i>234</i>&nbsp;    }
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    @Override
+<i>237</i>&nbsp;    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+<b class="nc"><i>238</i>&nbsp;        builder.startObject(NAME);</b>
+<b class="nc"><i>239</i>&nbsp;        builder.startObject(fieldName);</b>
+<b class="nc"><i>240</i>&nbsp;        builder.field(QUERY_FIELD.getPreferredName(), text);</b>
+<b class="nc"><i>241</i>&nbsp;        builder.field(HIGH_FREQ_OPERATOR_FIELD.getPreferredName(), highFreqOperator.toString());</b>
+<b class="nc"><i>242</i>&nbsp;        builder.field(LOW_FREQ_OPERATOR_FIELD.getPreferredName(), lowFreqOperator.toString());</b>
+<b class="nc"><i>243</i>&nbsp;        if (analyzer != null) {</b>
+<b class="nc"><i>244</i>&nbsp;            builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);</b>
+<i>245</i>&nbsp;        }
+<b class="nc"><i>246</i>&nbsp;        builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);</b>
+<b class="nc"><i>247</i>&nbsp;        if (lowFreqMinimumShouldMatch != null || highFreqMinimumShouldMatch != null) {</b>
+<b class="nc"><i>248</i>&nbsp;            builder.startObject(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName());</b>
+<b class="nc"><i>249</i>&nbsp;            if (lowFreqMinimumShouldMatch != null) {</b>
+<b class="nc"><i>250</i>&nbsp;                builder.field(LOW_FREQ_FIELD.getPreferredName(), lowFreqMinimumShouldMatch);</b>
+<i>251</i>&nbsp;            }
+<b class="nc"><i>252</i>&nbsp;            if (highFreqMinimumShouldMatch != null) {</b>
+<b class="nc"><i>253</i>&nbsp;                builder.field(HIGH_FREQ_FIELD.getPreferredName(), highFreqMinimumShouldMatch);</b>
+<i>254</i>&nbsp;            }
+<b class="nc"><i>255</i>&nbsp;            builder.endObject();</b>
+<i>256</i>&nbsp;        }
+<b class="nc"><i>257</i>&nbsp;        printBoostAndQueryName(builder);</b>
+<b class="nc"><i>258</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>259</i>&nbsp;        builder.endObject();</b>
+<b class="nc"><i>260</i>&nbsp;    }</b>
+<i>261</i>&nbsp;
+<i>262</i>&nbsp;    public static CommonTermsQueryBuilder fromXContent(XContentParser parser) throws IOException {
+<b class="nc"><i>263</i>&nbsp;        String fieldName = null;</b>
+<b class="nc"><i>264</i>&nbsp;        Object text = null;</b>
+<b class="nc"><i>265</i>&nbsp;        float boost = AbstractQueryBuilder.DEFAULT_BOOST;</b>
+<b class="nc"><i>266</i>&nbsp;        String analyzer = null;</b>
+<b class="nc"><i>267</i>&nbsp;        String lowFreqMinimumShouldMatch = null;</b>
+<b class="nc"><i>268</i>&nbsp;        String highFreqMinimumShouldMatch = null;</b>
+<b class="nc"><i>269</i>&nbsp;        Operator highFreqOperator = CommonTermsQueryBuilder.DEFAULT_HIGH_FREQ_OCCUR;</b>
+<b class="nc"><i>270</i>&nbsp;        Operator lowFreqOperator = CommonTermsQueryBuilder.DEFAULT_LOW_FREQ_OCCUR;</b>
+<b class="nc"><i>271</i>&nbsp;        float cutoffFrequency = CommonTermsQueryBuilder.DEFAULT_CUTOFF_FREQ;</b>
+<b class="nc"><i>272</i>&nbsp;        String queryName = null;</b>
+<i>273</i>&nbsp;        XContentParser.Token token;
+<b class="nc"><i>274</i>&nbsp;        String currentFieldName = null;</b>
+<b class="nc"><i>275</i>&nbsp;        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>276</i>&nbsp;            if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>277</i>&nbsp;                currentFieldName = parser.currentName();</b>
+<b class="nc"><i>278</i>&nbsp;            } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>279</i>&nbsp;                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);</b>
+<b class="nc"><i>280</i>&nbsp;                fieldName = currentFieldName;</b>
+<b class="nc"><i>281</i>&nbsp;                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>282</i>&nbsp;                    if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>283</i>&nbsp;                        currentFieldName = parser.currentName();</b>
+<b class="nc"><i>284</i>&nbsp;                    } else if (token == XContentParser.Token.START_OBJECT) {</b>
+<b class="nc"><i>285</i>&nbsp;                        if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>286</i>&nbsp;                            String innerFieldName = null;</b>
+<b class="nc"><i>287</i>&nbsp;                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {</b>
+<b class="nc"><i>288</i>&nbsp;                                if (token == XContentParser.Token.FIELD_NAME) {</b>
+<b class="nc"><i>289</i>&nbsp;                                    innerFieldName = parser.currentName();</b>
+<b class="nc"><i>290</i>&nbsp;                                } else if (token.isValue()) {</b>
+<b class="nc"><i>291</i>&nbsp;                                    if (LOW_FREQ_FIELD.match(innerFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>292</i>&nbsp;                                        lowFreqMinimumShouldMatch = parser.text();</b>
+<b class="nc"><i>293</i>&nbsp;                                    } else if (HIGH_FREQ_FIELD.match(innerFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>294</i>&nbsp;                                        highFreqMinimumShouldMatch = parser.text();</b>
+<i>295</i>&nbsp;                                    } else {
+<b class="nc"><i>296</i>&nbsp;                                        throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + CommonTermsQueryBuilder.NAME +</b>
+<i>297</i>&nbsp;                                                &quot;] query does not support [&quot; + innerFieldName
+<i>298</i>&nbsp;                                                + &quot;] for [&quot; + currentFieldName + &quot;]&quot;);
+<i>299</i>&nbsp;                                    }
+<i>300</i>&nbsp;                                } else {
+<b class="nc"><i>301</i>&nbsp;                                    throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + CommonTermsQueryBuilder.NAME +</b>
+<i>302</i>&nbsp;                                            &quot;] unexpected token type [&quot; + token
+<i>303</i>&nbsp;                                            + &quot;] after [&quot; + innerFieldName + &quot;]&quot;);
+<i>304</i>&nbsp;                                }
+<i>305</i>&nbsp;                            }
+<b class="nc"><i>306</i>&nbsp;                        } else {</b>
+<b class="nc"><i>307</i>&nbsp;                            throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + CommonTermsQueryBuilder.NAME +</b>
+<i>308</i>&nbsp;                                    &quot;] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>309</i>&nbsp;                        }
+<b class="nc"><i>310</i>&nbsp;                    } else if (token.isValue()) {</b>
+<b class="nc"><i>311</i>&nbsp;                        if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>312</i>&nbsp;                            text = parser.objectText();</b>
+<b class="nc"><i>313</i>&nbsp;                        } else if (ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>314</i>&nbsp;                            analyzer = parser.text();</b>
+<b class="nc"><i>315</i>&nbsp;                        } else if (DISABLE_COORD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<i>316</i>&nbsp;                            // ignore
+<b class="nc"><i>317</i>&nbsp;                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>318</i>&nbsp;                            boost = parser.floatValue();</b>
+<b class="nc"><i>319</i>&nbsp;                        } else if (HIGH_FREQ_OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>320</i>&nbsp;                            highFreqOperator = Operator.fromString(parser.text());</b>
+<b class="nc"><i>321</i>&nbsp;                        } else if (LOW_FREQ_OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>322</i>&nbsp;                            lowFreqOperator = Operator.fromString(parser.text());</b>
+<b class="nc"><i>323</i>&nbsp;                        } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>324</i>&nbsp;                            lowFreqMinimumShouldMatch = parser.text();</b>
+<b class="nc"><i>325</i>&nbsp;                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>326</i>&nbsp;                            cutoffFrequency = parser.floatValue();</b>
+<b class="nc"><i>327</i>&nbsp;                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {</b>
+<b class="nc"><i>328</i>&nbsp;                            queryName = parser.text();</b>
+<i>329</i>&nbsp;                        } else {
+<b class="nc"><i>330</i>&nbsp;                            throw new ParsingException(parser.getTokenLocation(), &quot;[&quot; + CommonTermsQueryBuilder.NAME +</b>
+<i>331</i>&nbsp;                                    &quot;] query does not support [&quot; + currentFieldName + &quot;]&quot;);
+<i>332</i>&nbsp;                        }
+<i>333</i>&nbsp;                    }
+<i>334</i>&nbsp;                }
+<i>335</i>&nbsp;            } else {
+<b class="nc"><i>336</i>&nbsp;                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());</b>
+<b class="nc"><i>337</i>&nbsp;                fieldName = parser.currentName();</b>
+<b class="nc"><i>338</i>&nbsp;                text = parser.objectText();</b>
+<i>339</i>&nbsp;            }
+<i>340</i>&nbsp;        }
+<i>341</i>&nbsp;
+<b class="nc"><i>342</i>&nbsp;        return new CommonTermsQueryBuilder(fieldName, text)</b>
+<b class="nc"><i>343</i>&nbsp;                .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)</b>
+<b class="nc"><i>344</i>&nbsp;                .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)</b>
+<b class="nc"><i>345</i>&nbsp;                .analyzer(analyzer)</b>
+<b class="nc"><i>346</i>&nbsp;                .highFreqOperator(highFreqOperator)</b>
+<b class="nc"><i>347</i>&nbsp;                .lowFreqOperator(lowFreqOperator)</b>
+<b class="nc"><i>348</i>&nbsp;                .cutoffFrequency(cutoffFrequency)</b>
+<b class="nc"><i>349</i>&nbsp;                .boost(boost)</b>
+<b class="nc"><i>350</i>&nbsp;                .queryName(queryName);</b>
+<i>351</i>&nbsp;    }
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    @Override
+<i>354</i>&nbsp;    public String getWriteableName() {
+<b class="nc"><i>355</i>&nbsp;        return NAME;</b>
+<i>356</i>&nbsp;    }
+<i>357</i>&nbsp;
+<i>358</i>&nbsp;    @Override
+<i>359</i>&nbsp;    protected Query doToQuery(QueryShardContext context) throws IOException {
+<i>360</i>&nbsp;        String field;
+<b class="nc"><i>361</i>&nbsp;        MappedFieldType fieldType = context.fieldMapper(fieldName);</b>
+<b class="nc"><i>362</i>&nbsp;        if (fieldType != null) {</b>
+<b class="nc"><i>363</i>&nbsp;            field = fieldType.name();</b>
+<i>364</i>&nbsp;        } else {
+<b class="nc"><i>365</i>&nbsp;            field = fieldName;</b>
+<i>366</i>&nbsp;        }
+<i>367</i>&nbsp;
+<i>368</i>&nbsp;        Analyzer analyzerObj;
+<b class="nc"><i>369</i>&nbsp;        if (analyzer == null) {</b>
+<b class="nc"><i>370</i>&nbsp;            if (fieldType != null) {</b>
+<b class="nc"><i>371</i>&nbsp;                analyzerObj = context.getSearchAnalyzer(fieldType);</b>
+<i>372</i>&nbsp;            } else {
+<b class="nc"><i>373</i>&nbsp;                analyzerObj = context.getMapperService().searchAnalyzer();</b>
+<i>374</i>&nbsp;            }
+<i>375</i>&nbsp;        } else {
+<b class="nc"><i>376</i>&nbsp;            analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);</b>
+<b class="nc"><i>377</i>&nbsp;            if (analyzerObj == null) {</b>
+<b class="nc"><i>378</i>&nbsp;                throw new QueryShardException(context, &quot;[common] analyzer [&quot; + analyzer + &quot;] not found&quot;);</b>
+<i>379</i>&nbsp;            }
+<i>380</i>&nbsp;        }
+<i>381</i>&nbsp;
+<b class="nc"><i>382</i>&nbsp;        Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();</b>
+<b class="nc"><i>383</i>&nbsp;        Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();</b>
+<i>384</i>&nbsp;
+<b class="nc"><i>385</i>&nbsp;        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency);</b>
+<b class="nc"><i>386</i>&nbsp;        return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);</b>
+<i>387</i>&nbsp;    }
+<i>388</i>&nbsp;
+<i>389</i>&nbsp;    private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
+<i>390</i>&nbsp;                                         String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
+<i>391</i>&nbsp;        // Logic similar to QueryParser#getFieldQuery
+<b class="nc"><i>392</i>&nbsp;        try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {</b>
+<b class="nc"><i>393</i>&nbsp;            source.reset();</b>
+<b class="nc"><i>394</i>&nbsp;            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);</b>
+<b class="nc"><i>395</i>&nbsp;            BytesRefBuilder builder = new BytesRefBuilder();</b>
+<b class="nc"><i>396</i>&nbsp;            while (source.incrementToken()) {</b>
+<i>397</i>&nbsp;                // UTF-8
+<b class="nc"><i>398</i>&nbsp;                builder.copyChars(termAtt);</b>
+<b class="nc"><i>399</i>&nbsp;                query.add(new Term(field, builder.toBytesRef()));</b>
+<i>400</i>&nbsp;            }
+<b class="nc"><i>401</i>&nbsp;        }</b>
+<i>402</i>&nbsp;
+<b class="nc"><i>403</i>&nbsp;        query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);</b>
+<b class="nc"><i>404</i>&nbsp;        query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);</b>
+<b class="nc"><i>405</i>&nbsp;        return query;</b>
+<i>406</i>&nbsp;    }
+<i>407</i>&nbsp;
+<i>408</i>&nbsp;    @Override
+<i>409</i>&nbsp;    protected int doHashCode() {
+<b class="nc"><i>410</i>&nbsp;        return Objects.hash(fieldName, text, highFreqOperator, lowFreqOperator, analyzer,</b>
+<b class="nc"><i>411</i>&nbsp;                lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, cutoffFrequency);</b>
+<i>412</i>&nbsp;    }
+<i>413</i>&nbsp;
+<i>414</i>&nbsp;    @Override
+<i>415</i>&nbsp;    protected boolean doEquals(CommonTermsQueryBuilder other) {
+<b class="nc"><i>416</i>&nbsp;        return Objects.equals(fieldName, other.fieldName) &amp;&amp;</b>
+<b class="nc"><i>417</i>&nbsp;                Objects.equals(text, other.text) &amp;&amp;</b>
+<b class="nc"><i>418</i>&nbsp;                Objects.equals(highFreqOperator, other.highFreqOperator) &amp;&amp;</b>
+<b class="nc"><i>419</i>&nbsp;                Objects.equals(lowFreqOperator, other.lowFreqOperator) &amp;&amp;</b>
+<b class="nc"><i>420</i>&nbsp;                Objects.equals(analyzer, other.analyzer) &amp;&amp;</b>
+<b class="nc"><i>421</i>&nbsp;                Objects.equals(lowFreqMinimumShouldMatch, other.lowFreqMinimumShouldMatch) &amp;&amp;</b>
+<b class="nc"><i>422</i>&nbsp;                Objects.equals(highFreqMinimumShouldMatch, other.highFreqMinimumShouldMatch) &amp;&amp;</b>
+<b class="nc"><i>423</i>&nbsp;                Objects.equals(cutoffFrequency, other.cutoffFrequency);</b>
+<i>424</i>&nbsp;    }
+<i>425</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

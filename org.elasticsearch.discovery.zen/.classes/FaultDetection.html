@@ -1,0 +1,200 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: FaultDetection</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery.zen</a> ]
+</div>
+
+<h1>Coverage Summary for Class: FaultDetection (org.elasticsearch.discovery.zen)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">FaultDetection</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (1/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    40.7%
+  </span>
+  <span class="absValue">
+    (11/ 27)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery.zen;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import java.io.Closeable;
+<i>23</i>&nbsp;
+<i>24</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>25</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterName;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>28</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>29</i>&nbsp;import org.elasticsearch.common.settings.Setting.Property;
+<i>30</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>31</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>32</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>33</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>34</i>&nbsp;import org.elasticsearch.transport.Transport;
+<i>35</i>&nbsp;import org.elasticsearch.transport.TransportConnectionListener;
+<i>36</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;/**
+<i>41</i>&nbsp; * A base class for {@link MasterFaultDetection} &amp;amp; {@link NodesFaultDetection},
+<i>42</i>&nbsp; * making sure both use the same setting.
+<i>43</i>&nbsp; */
+<b class="nc"><i>44</i>&nbsp;public abstract class FaultDetection implements Closeable {</b>
+<i>45</i>&nbsp;
+<b class="fc"><i>46</i>&nbsp;    private static final Logger logger = LogManager.getLogger(FaultDetection.class);</b>
+<i>47</i>&nbsp;
+<b class="fc"><i>48</i>&nbsp;    public static final Setting&lt;Boolean&gt; CONNECT_ON_NETWORK_DISCONNECT_SETTING =</b>
+<b class="fc"><i>49</i>&nbsp;        Setting.boolSetting(&quot;discovery.zen.fd.connect_on_network_disconnect&quot;, false, Property.NodeScope, Property.Deprecated);</b>
+<b class="fc"><i>50</i>&nbsp;    public static final Setting&lt;TimeValue&gt; PING_INTERVAL_SETTING =</b>
+<b class="fc"><i>51</i>&nbsp;        Setting.positiveTimeSetting(&quot;discovery.zen.fd.ping_interval&quot;, timeValueSeconds(1), Property.NodeScope, Property.Deprecated);</b>
+<b class="fc"><i>52</i>&nbsp;    public static final Setting&lt;TimeValue&gt; PING_TIMEOUT_SETTING =</b>
+<b class="fc"><i>53</i>&nbsp;        Setting.timeSetting(&quot;discovery.zen.fd.ping_timeout&quot;, timeValueSeconds(30), Property.NodeScope, Property.Deprecated);</b>
+<b class="fc"><i>54</i>&nbsp;    public static final Setting&lt;Integer&gt; PING_RETRIES_SETTING =</b>
+<b class="fc"><i>55</i>&nbsp;        Setting.intSetting(&quot;discovery.zen.fd.ping_retries&quot;, 3, Property.NodeScope, Property.Deprecated);</b>
+<b class="fc"><i>56</i>&nbsp;    public static final Setting&lt;Boolean&gt; REGISTER_CONNECTION_LISTENER_SETTING =</b>
+<b class="fc"><i>57</i>&nbsp;        Setting.boolSetting(&quot;discovery.zen.fd.register_connection_listener&quot;, true, Property.NodeScope, Property.Deprecated);</b>
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    protected final ThreadPool threadPool;
+<i>60</i>&nbsp;    protected final ClusterName clusterName;
+<i>61</i>&nbsp;    protected final TransportService transportService;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;    // used mainly for testing, should always be true
+<i>64</i>&nbsp;    protected final boolean registerConnectionListener;
+<i>65</i>&nbsp;    protected final FDConnectionListener connectionListener;
+<i>66</i>&nbsp;    protected final boolean connectOnNetworkDisconnect;
+<i>67</i>&nbsp;
+<i>68</i>&nbsp;    protected final TimeValue pingInterval;
+<i>69</i>&nbsp;    protected final TimeValue pingRetryTimeout;
+<i>70</i>&nbsp;    protected final int pingRetryCount;
+<i>71</i>&nbsp;
+<b class="nc"><i>72</i>&nbsp;    public FaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {</b>
+<b class="nc"><i>73</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="nc"><i>74</i>&nbsp;        this.transportService = transportService;</b>
+<b class="nc"><i>75</i>&nbsp;        this.clusterName = clusterName;</b>
+<i>76</i>&nbsp;
+<b class="nc"><i>77</i>&nbsp;        this.connectOnNetworkDisconnect = CONNECT_ON_NETWORK_DISCONNECT_SETTING.get(settings);</b>
+<b class="nc"><i>78</i>&nbsp;        this.pingInterval = PING_INTERVAL_SETTING.get(settings);</b>
+<b class="nc"><i>79</i>&nbsp;        this.pingRetryTimeout = PING_TIMEOUT_SETTING.get(settings);</b>
+<b class="nc"><i>80</i>&nbsp;        this.pingRetryCount = PING_RETRIES_SETTING.get(settings);</b>
+<b class="nc"><i>81</i>&nbsp;        this.registerConnectionListener = REGISTER_CONNECTION_LISTENER_SETTING.get(settings);</b>
+<i>82</i>&nbsp;
+<b class="nc"><i>83</i>&nbsp;        this.connectionListener = new FDConnectionListener();</b>
+<b class="nc"><i>84</i>&nbsp;        if (registerConnectionListener) {</b>
+<b class="nc"><i>85</i>&nbsp;            transportService.addConnectionListener(connectionListener);</b>
+<i>86</i>&nbsp;        }
+<b class="nc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    @Override
+<i>90</i>&nbsp;    public void close() {
+<b class="nc"><i>91</i>&nbsp;        transportService.removeConnectionListener(connectionListener);</b>
+<b class="nc"><i>92</i>&nbsp;    }</b>
+<i>93</i>&nbsp;
+<i>94</i>&nbsp;    /**
+<i>95</i>&nbsp;     * This method will be called when the {@link org.elasticsearch.transport.TransportService} raised a node disconnected event
+<i>96</i>&nbsp;     */
+<i>97</i>&nbsp;    abstract void handleTransportDisconnect(DiscoveryNode node);
+<i>98</i>&nbsp;
+<i>99</i>&nbsp;    private class FDConnectionListener implements TransportConnectionListener {
+<i>100</i>&nbsp;        @Override
+<i>101</i>&nbsp;        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+<i>102</i>&nbsp;            AbstractRunnable runnable = new AbstractRunnable() {
+<i>103</i>&nbsp;                @Override
+<i>104</i>&nbsp;                public void onFailure(Exception e) {
+<i>105</i>&nbsp;                    logger.warn(&quot;failed to handle transport disconnect for node: {}&quot;, node);
+<i>106</i>&nbsp;                }
+<i>107</i>&nbsp;
+<i>108</i>&nbsp;                @Override
+<i>109</i>&nbsp;                protected void doRun() {
+<i>110</i>&nbsp;                    handleTransportDisconnect(node);
+<i>111</i>&nbsp;                }
+<i>112</i>&nbsp;            };
+<i>113</i>&nbsp;            threadPool.generic().execute(runnable);
+<i>114</i>&nbsp;        }
+<i>115</i>&nbsp;    }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

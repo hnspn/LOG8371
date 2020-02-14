@@ -1,0 +1,226 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: CanMatchPreFilterSearchPhase</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.action.search</a> ]
+</div>
+
+<h1>Coverage Summary for Class: CanMatchPreFilterSearchPhase (org.elasticsearch.action.search)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">CanMatchPreFilterSearchPhase</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 20)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.action.search;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>22</i>&nbsp;import org.apache.lucene.util.FixedBitSet;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>24</i>&nbsp;import org.elasticsearch.cluster.routing.GroupShardsIterator;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.routing.ShardRouting;
+<i>26</i>&nbsp;import org.elasticsearch.search.SearchService;
+<i>27</i>&nbsp;import org.elasticsearch.search.internal.AliasFilter;
+<i>28</i>&nbsp;import org.elasticsearch.transport.Transport;
+<i>29</i>&nbsp;
+<i>30</i>&nbsp;import java.util.Map;
+<i>31</i>&nbsp;import java.util.Set;
+<i>32</i>&nbsp;import java.util.concurrent.Executor;
+<i>33</i>&nbsp;import java.util.function.BiFunction;
+<i>34</i>&nbsp;import java.util.function.Function;
+<i>35</i>&nbsp;import java.util.stream.Stream;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;/**
+<i>38</i>&nbsp; * This search phase can be used as an initial search phase to pre-filter search shards based on query rewriting.
+<i>39</i>&nbsp; * The queries are rewritten against the shards and based on the rewrite result shards might be able to be excluded
+<i>40</i>&nbsp; * from the search. The extra round trip to the search shards is very cheap and is not subject to rejections
+<i>41</i>&nbsp; * which allows to fan out to more shards at the same time without running into rejections even if we are hitting a
+<i>42</i>&nbsp; * large portion of the clusters indices.
+<i>43</i>&nbsp; */
+<i>44</i>&nbsp;final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction&lt;SearchService.CanMatchResponse&gt; {
+<i>45</i>&nbsp;
+<i>46</i>&nbsp;    private final Function&lt;GroupShardsIterator&lt;SearchShardIterator&gt;, SearchPhase&gt; phaseFactory;
+<i>47</i>&nbsp;    private final GroupShardsIterator&lt;SearchShardIterator&gt; shardsIts;
+<i>48</i>&nbsp;
+<i>49</i>&nbsp;    CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
+<i>50</i>&nbsp;                                        BiFunction&lt;String, String, Transport.Connection&gt; nodeIdToConnection,
+<i>51</i>&nbsp;                                        Map&lt;String, AliasFilter&gt; aliasFilter, Map&lt;String, Float&gt; concreteIndexBoosts,
+<i>52</i>&nbsp;                                        Map&lt;String, Set&lt;String&gt;&gt; indexRoutings,
+<i>53</i>&nbsp;                                        Executor executor, SearchRequest request,
+<i>54</i>&nbsp;                                        ActionListener&lt;SearchResponse&gt; listener, GroupShardsIterator&lt;SearchShardIterator&gt; shardsIts,
+<i>55</i>&nbsp;                                        TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
+<i>56</i>&nbsp;                                        SearchTask task, Function&lt;GroupShardsIterator&lt;SearchShardIterator&gt;, SearchPhase&gt; phaseFactory,
+<i>57</i>&nbsp;                                        SearchResponse.Clusters clusters) {
+<i>58</i>&nbsp;        //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
+<b class="nc"><i>59</i>&nbsp;        super(&quot;can_match&quot;, logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,</b>
+<i>60</i>&nbsp;                executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
+<b class="nc"><i>61</i>&nbsp;                new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);</b>
+<b class="nc"><i>62</i>&nbsp;        this.phaseFactory = phaseFactory;</b>
+<b class="nc"><i>63</i>&nbsp;        this.shardsIts = shardsIts;</b>
+<b class="nc"><i>64</i>&nbsp;    }</b>
+<i>65</i>&nbsp;
+<i>66</i>&nbsp;    @Override
+<i>67</i>&nbsp;    protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
+<i>68</i>&nbsp;                                       SearchActionListener&lt;SearchService.CanMatchResponse&gt; listener) {
+<b class="nc"><i>69</i>&nbsp;        getSearchTransport().sendCanMatch(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),</b>
+<b class="nc"><i>70</i>&nbsp;            buildShardSearchRequest(shardIt), getTask(), listener);</b>
+<b class="nc"><i>71</i>&nbsp;    }</b>
+<i>72</i>&nbsp;
+<i>73</i>&nbsp;    @Override
+<i>74</i>&nbsp;    protected SearchPhase getNextPhase(SearchPhaseResults&lt;SearchService.CanMatchResponse&gt; results,
+<i>75</i>&nbsp;                                       SearchPhaseContext context) {
+<i>76</i>&nbsp;
+<b class="nc"><i>77</i>&nbsp;        return phaseFactory.apply(getIterator((BitSetSearchPhaseResults) results, shardsIts));</b>
+<i>78</i>&nbsp;    }
+<i>79</i>&nbsp;
+<i>80</i>&nbsp;    private GroupShardsIterator&lt;SearchShardIterator&gt; getIterator(BitSetSearchPhaseResults results,
+<i>81</i>&nbsp;                                                                 GroupShardsIterator&lt;SearchShardIterator&gt; shardsIts) {
+<b class="nc"><i>82</i>&nbsp;        int cardinality = results.getNumPossibleMatches();</b>
+<b class="nc"><i>83</i>&nbsp;        FixedBitSet possibleMatches = results.getPossibleMatches();</b>
+<b class="nc"><i>84</i>&nbsp;        if (cardinality == 0) {</b>
+<i>85</i>&nbsp;            // this is a special case where we have no hit but we need to get at least one search response in order
+<i>86</i>&nbsp;            // to produce a valid search result with all the aggs etc.
+<b class="nc"><i>87</i>&nbsp;            possibleMatches.set(0);</b>
+<i>88</i>&nbsp;        }
+<b class="nc"><i>89</i>&nbsp;        int i = 0;</b>
+<b class="nc"><i>90</i>&nbsp;        for (SearchShardIterator iter : shardsIts) {</b>
+<b class="nc"><i>91</i>&nbsp;            if (possibleMatches.get(i++)) {</b>
+<b class="nc"><i>92</i>&nbsp;                iter.reset();</b>
+<i>93</i>&nbsp;            } else {
+<b class="nc"><i>94</i>&nbsp;                iter.resetAndSkip();</b>
+<i>95</i>&nbsp;            }
+<b class="nc"><i>96</i>&nbsp;        }</b>
+<b class="nc"><i>97</i>&nbsp;        return shardsIts;</b>
+<i>98</i>&nbsp;    }
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    private static final class BitSetSearchPhaseResults extends SearchPhaseResults&lt;SearchService.CanMatchResponse&gt; {
+<i>101</i>&nbsp;
+<i>102</i>&nbsp;        private final FixedBitSet possibleMatches;
+<i>103</i>&nbsp;        private int numPossibleMatches;
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;        BitSetSearchPhaseResults(int size) {
+<i>106</i>&nbsp;            super(size);
+<i>107</i>&nbsp;            possibleMatches = new FixedBitSet(size);
+<i>108</i>&nbsp;        }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;        @Override
+<i>111</i>&nbsp;        void consumeResult(SearchService.CanMatchResponse result) {
+<i>112</i>&nbsp;            if (result.canMatch()) {
+<i>113</i>&nbsp;                consumeShardFailure(result.getShardIndex());
+<i>114</i>&nbsp;            }
+<i>115</i>&nbsp;        }
+<i>116</i>&nbsp;
+<i>117</i>&nbsp;        @Override
+<i>118</i>&nbsp;        boolean hasResult(int shardIndex) {
+<i>119</i>&nbsp;            return false; // unneeded
+<i>120</i>&nbsp;        }
+<i>121</i>&nbsp;
+<i>122</i>&nbsp;        @Override
+<i>123</i>&nbsp;        synchronized void consumeShardFailure(int shardIndex) {
+<i>124</i>&nbsp;            // we have to carry over shard failures in order to account for them in the response.
+<i>125</i>&nbsp;            possibleMatches.set(shardIndex);
+<i>126</i>&nbsp;            numPossibleMatches++;
+<i>127</i>&nbsp;        }
+<i>128</i>&nbsp;
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;        synchronized int getNumPossibleMatches() {
+<i>131</i>&nbsp;            return numPossibleMatches;
+<i>132</i>&nbsp;        }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;        synchronized FixedBitSet getPossibleMatches() {
+<i>135</i>&nbsp;            return possibleMatches;
+<i>136</i>&nbsp;        }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;        @Override
+<i>139</i>&nbsp;        Stream&lt;SearchService.CanMatchResponse&gt; getSuccessfulResults() {
+<i>140</i>&nbsp;            return Stream.empty();
+<i>141</i>&nbsp;        }
+<i>142</i>&nbsp;    }
+<i>143</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

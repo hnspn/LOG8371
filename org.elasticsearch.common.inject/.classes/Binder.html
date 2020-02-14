@@ -1,0 +1,422 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: Binder</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.common.inject</a> ]
+</div>
+
+<h1>Coverage Summary for Class: Binder (org.elasticsearch.common.inject)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+</tr>
+<tr>
+  <td class="name">Binder</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Copyright (C) 2007 Google Inc.
+<i>3</i>&nbsp; *
+<i>4</i>&nbsp; * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<i>5</i>&nbsp; * you may not use this file except in compliance with the License.
+<i>6</i>&nbsp; * You may obtain a copy of the License at
+<i>7</i>&nbsp; *
+<i>8</i>&nbsp; * http://www.apache.org/licenses/LICENSE-2.0
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; * Unless required by applicable law or agreed to in writing, software
+<i>11</i>&nbsp; * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<i>12</i>&nbsp; * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<i>13</i>&nbsp; * See the License for the specific language governing permissions and
+<i>14</i>&nbsp; * limitations under the License.
+<i>15</i>&nbsp; */
+<i>16</i>&nbsp;
+<i>17</i>&nbsp;package org.elasticsearch.common.inject;
+<i>18</i>&nbsp;
+<i>19</i>&nbsp;import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
+<i>20</i>&nbsp;import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
+<i>21</i>&nbsp;import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
+<i>22</i>&nbsp;import org.elasticsearch.common.inject.matcher.Matcher;
+<i>23</i>&nbsp;import org.elasticsearch.common.inject.spi.Message;
+<i>24</i>&nbsp;import org.elasticsearch.common.inject.spi.TypeConverter;
+<i>25</i>&nbsp;import org.elasticsearch.common.inject.spi.TypeListener;
+<i>26</i>&nbsp;
+<i>27</i>&nbsp;import java.lang.annotation.Annotation;
+<i>28</i>&nbsp;
+<i>29</i>&nbsp;/**
+<i>30</i>&nbsp; * Collects configuration information (primarily &lt;i&gt;bindings&lt;/i&gt;) which will be
+<i>31</i>&nbsp; * used to create an {@link Injector}. Guice provides this object to your
+<i>32</i>&nbsp; * application&#39;s {@link Module} implementors so they may each contribute
+<i>33</i>&nbsp; * their own bindings and other registrations.
+<i>34</i>&nbsp; * &lt;h2&gt;The Guice Binding EDSL&lt;/h2&gt;
+<i>35</i>&nbsp; * &lt;p&gt;
+<i>36</i>&nbsp; * Guice uses an &lt;i&gt;embedded domain-specific language&lt;/i&gt;, or EDSL, to help you
+<i>37</i>&nbsp; * create bindings simply and readably.  This approach is great for overall
+<i>38</i>&nbsp; * usability, but it does come with a small cost: &lt;b&gt;it is difficult to
+<i>39</i>&nbsp; * learn how to use the Binding EDSL by reading
+<i>40</i>&nbsp; * method-level javadocs&lt;/b&gt;.  Instead, you should consult the series of
+<i>41</i>&nbsp; * examples below.  To save space, these examples omit the opening
+<i>42</i>&nbsp; * {@code binder}, just as you will if your module extends
+<i>43</i>&nbsp; * {@link AbstractModule}.
+<i>44</i>&nbsp; * &lt;pre&gt;
+<i>45</i>&nbsp; *     bind(ServiceImpl.class);&lt;/pre&gt;
+<i>46</i>&nbsp; *
+<i>47</i>&nbsp; * This statement does essentially nothing; it &quot;binds the {@code ServiceImpl}
+<i>48</i>&nbsp; * class to itself&quot; and does not change Guice&#39;s default behavior.  You may still
+<i>49</i>&nbsp; * want to use this if you prefer your {@link Module} class to serve as an
+<i>50</i>&nbsp; * explicit &lt;i&gt;manifest&lt;/i&gt; for the services it provides.  Also, in rare cases,
+<i>51</i>&nbsp; * Guice may be unable to validate a binding at injector creation time unless it
+<i>52</i>&nbsp; * is given explicitly.
+<i>53</i>&nbsp; *
+<i>54</i>&nbsp; * &lt;pre&gt;
+<i>55</i>&nbsp; *     bind(Service.class).to(ServiceImpl.class);&lt;/pre&gt;
+<i>56</i>&nbsp; *
+<i>57</i>&nbsp; * Specifies that a request for a {@code Service} instance with no binding
+<i>58</i>&nbsp; * annotations should be treated as if it were a request for a
+<i>59</i>&nbsp; * {@code ServiceImpl} instance. This &lt;i&gt;overrides&lt;/i&gt; the function of any
+<i>60</i>&nbsp; * {@link ImplementedBy @ImplementedBy} or {@link ProvidedBy @ProvidedBy}
+<i>61</i>&nbsp; * annotations found on {@code Service}, since Guice will have already
+<i>62</i>&nbsp; * &quot;moved on&quot; to {@code ServiceImpl} before it reaches the point when it starts
+<i>63</i>&nbsp; * looking for these annotations.
+<i>64</i>&nbsp; *
+<i>65</i>&nbsp; * &lt;pre&gt;
+<i>66</i>&nbsp; *     bind(Service.class).toProvider(ServiceProvider.class);&lt;/pre&gt;
+<i>67</i>&nbsp; *
+<i>68</i>&nbsp; * In this example, {@code ServiceProvider} must extend or implement
+<i>69</i>&nbsp; * {@code Provider&lt;Service&gt;}. This binding specifies that Guice should resolve
+<i>70</i>&nbsp; * an unannotated injection request for {@code Service} by first resolving an
+<i>71</i>&nbsp; * instance of {@code ServiceProvider} in the regular way, then calling
+<i>72</i>&nbsp; * {@link Provider#get get()} on the resulting Provider instance to obtain the
+<i>73</i>&nbsp; * {@code Service} instance.
+<i>74</i>&nbsp; *
+<i>75</i>&nbsp; * &lt;p&gt;The {@link Provider} you use here does not have to be a &quot;factory&quot;; that
+<i>76</i>&nbsp; * is, a provider which always &lt;i&gt;creates&lt;/i&gt; each instance it provides.
+<i>77</i>&nbsp; * However, this is generally a good practice to follow.  You can then use
+<i>78</i>&nbsp; * Guice&#39;s concept of {@link Scope scopes} to guide when creation should happen
+<i>79</i>&nbsp; * -- &quot;letting Guice work for you&quot;.
+<i>80</i>&nbsp; *
+<i>81</i>&nbsp; * &lt;pre&gt;
+<i>82</i>&nbsp; *     bind(Service.class).annotatedWith(Red.class).to(ServiceImpl.class);&lt;/pre&gt;
+<i>83</i>&nbsp; *
+<i>84</i>&nbsp; * Like the previous example, but only applies to injection requests that use
+<i>85</i>&nbsp; * the binding annotation {@code @Red}.  If your module also includes bindings
+<i>86</i>&nbsp; * for particular &lt;i&gt;values&lt;/i&gt; of the {@code @Red} annotation (see below),
+<i>87</i>&nbsp; * then this binding will serve as a &quot;catch-all&quot; for any values of {@code @Red}
+<i>88</i>&nbsp; * that have no exact match in the bindings.
+<i>89</i>&nbsp; *
+<i>90</i>&nbsp; * &lt;pre&gt;
+<i>91</i>&nbsp; *     bind(ServiceImpl.class).in(Singleton.class);
+<i>92</i>&nbsp; *     // or, alternatively
+<i>93</i>&nbsp; *     bind(ServiceImpl.class).in(Scopes.SINGLETON);&lt;/pre&gt;
+<i>94</i>&nbsp; *
+<i>95</i>&nbsp; * Either of these statements places the {@code ServiceImpl} class into
+<i>96</i>&nbsp; * singleton scope.  Guice will create only one instance of {@code ServiceImpl}
+<i>97</i>&nbsp; * and will reuse it for all injection requests of this type.  Note that it is
+<i>98</i>&nbsp; * still possible to bind another instance of {@code ServiceImpl} if the second
+<i>99</i>&nbsp; * binding is qualified by an annotation as in the previous example.  Guice is
+<i>100</i>&nbsp; * not overly concerned with &lt;i&gt;preventing&lt;/i&gt; you from creating multiple
+<i>101</i>&nbsp; * instances of your &quot;singletons&quot;, only with &lt;i&gt;enabling&lt;/i&gt; your application to
+<i>102</i>&nbsp; * share only one instance if that&#39;s all you tell Guice you need.
+<i>103</i>&nbsp; *
+<i>104</i>&nbsp; * &lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; a scope specified in this way &lt;i&gt;overrides&lt;/i&gt; any scope that
+<i>105</i>&nbsp; * was specified with an annotation on the {@code ServiceImpl} class.
+<i>106</i>&nbsp; *
+<i>107</i>&nbsp; * &lt;p&gt;Besides {@link Singleton}/{@link Scopes#SINGLETON}, there are
+<i>108</i>&nbsp; * servlet-specific scopes available in
+<i>109</i>&nbsp; * {@code com.google.inject.servlet.ServletScopes}, and your Modules can
+<i>110</i>&nbsp; * contribute their own custom scopes for use here as well.
+<i>111</i>&nbsp; *
+<i>112</i>&nbsp; * &lt;pre&gt;
+<i>113</i>&nbsp; *     bind(new TypeLiteral&amp;lt;PaymentService&amp;lt;CreditCard&amp;gt;&amp;gt;() {})
+<i>114</i>&nbsp; *         .to(CreditCardPaymentService.class);&lt;/pre&gt;
+<i>115</i>&nbsp; *
+<i>116</i>&nbsp; * This admittedly odd construct is the way to bind a parameterized type. It
+<i>117</i>&nbsp; * tells Guice how to honor an injection request for an element of type
+<i>118</i>&nbsp; * {@code PaymentService&lt;CreditCard&gt;}. The class
+<i>119</i>&nbsp; * {@code CreditCardPaymentService} must implement the
+<i>120</i>&nbsp; * {@code PaymentService&lt;CreditCard&gt;} interface.  Guice cannot currently bind or
+<i>121</i>&nbsp; * inject a generic type, such as {@code Set&lt;E&gt;}; all type parameters must be
+<i>122</i>&nbsp; * fully specified.
+<i>123</i>&nbsp; *
+<i>124</i>&nbsp; * &lt;pre&gt;
+<i>125</i>&nbsp; *     bind(Service.class).toInstance(new ServiceImpl());
+<i>126</i>&nbsp; *     // or, alternatively
+<i>127</i>&nbsp; *     bind(Service.class).toInstance(SomeLegacyRegistry.getService());&lt;/pre&gt;
+<i>128</i>&nbsp; *
+<i>129</i>&nbsp; * In this example, your module itself, &lt;i&gt;not Guice&lt;/i&gt;, takes responsibility
+<i>130</i>&nbsp; * for obtaining a {@code ServiceImpl} instance, then asks Guice to always use
+<i>131</i>&nbsp; * this single instance to fulfill all {@code Service} injection requests.  When
+<i>132</i>&nbsp; * the {@link Injector} is created, it will automatically perform field
+<i>133</i>&nbsp; * and method injection for this instance, but any injectable constructor on
+<i>134</i>&nbsp; * {@code ServiceImpl} is simply ignored.  Note that using this approach results
+<i>135</i>&nbsp; * in &quot;eager loading&quot; behavior that you can&#39;t control.
+<i>136</i>&nbsp; *
+<i>137</i>&nbsp; * &lt;pre&gt;
+<i>138</i>&nbsp; *     bindConstant().annotatedWith(ServerHost.class).to(args[0]);&lt;/pre&gt;
+<i>139</i>&nbsp; *
+<i>140</i>&nbsp; * Sets up a constant binding. Constant injections must always be annotated.
+<i>141</i>&nbsp; * When a constant binding&#39;s value is a string, it is eligible for conversion to
+<i>142</i>&nbsp; * all primitive types, to {@link Enum#valueOf all enums}, and to
+<i>143</i>&nbsp; * {@link Class#forName class literals}. Conversions for other types can be
+<i>144</i>&nbsp; * configured using {@link #convertToTypes(Matcher, TypeConverter)
+<i>145</i>&nbsp; * convertToTypes()}.
+<i>146</i>&nbsp; *
+<i>147</i>&nbsp; * &lt;pre&gt;
+<i>148</i>&nbsp; *   {@literal @}Color(&quot;red&quot;) Color red; // A member variable (field)
+<i>149</i>&nbsp; *    . . .
+<i>150</i>&nbsp; *     red = MyModule.class.getDeclaredField(&quot;red&quot;).getAnnotation(Color.class);
+<i>151</i>&nbsp; *     bind(Service.class).annotatedWith(red).to(RedService.class);&lt;/pre&gt;
+<i>152</i>&nbsp; *
+<i>153</i>&nbsp; * If your binding annotation has parameters you can apply different bindings to
+<i>154</i>&nbsp; * different specific values of your annotation.  Getting your hands on the
+<i>155</i>&nbsp; * right instance of the annotation is a bit of a pain -- one approach, shown
+<i>156</i>&nbsp; * above, is to apply a prototype annotation to a field in your module class, so
+<i>157</i>&nbsp; * that you can read this annotation instance and give it to Guice.
+<i>158</i>&nbsp; *
+<i>159</i>&nbsp; * &lt;pre&gt;
+<i>160</i>&nbsp; *     bind(Service.class)
+<i>161</i>&nbsp; *         .annotatedWith(Names.named(&quot;blue&quot;))
+<i>162</i>&nbsp; *         .to(BlueService.class);&lt;/pre&gt;
+<i>163</i>&nbsp; *
+<i>164</i>&nbsp; * Differentiating by names is a common enough use case that we provided a
+<i>165</i>&nbsp; * standard annotation, {@link org.elasticsearch.common.inject.name.Named @Named}.  Because of
+<i>166</i>&nbsp; * Guice&#39;s library support, binding by name is quite easier than in the
+<i>167</i>&nbsp; * arbitrary binding annotation case we just saw.  However, remember that these
+<i>168</i>&nbsp; * names will live in a single flat namespace with all the other names used in
+<i>169</i>&nbsp; * your application.
+<i>170</i>&nbsp; *
+<i>171</i>&nbsp; * &lt;p&gt;The above list of examples is far from exhaustive.  If you can think of
+<i>172</i>&nbsp; * how the concepts of one example might coexist with the concepts from another,
+<i>173</i>&nbsp; * you can most likely weave the two together.  If the two concepts make no
+<i>174</i>&nbsp; * sense with each other, you most likely won&#39;t be able to do it.  In a few
+<i>175</i>&nbsp; * cases Guice will let something bogus slip by, and will then inform you of
+<i>176</i>&nbsp; * the problems at runtime, as soon as you try to create your Injector.
+<i>177</i>&nbsp; *
+<i>178</i>&nbsp; * &lt;p&gt;The other methods of Binder such as {@link #bindScope},
+<i>179</i>&nbsp; * {@link #install}, {@link #requestStaticInjection},
+<i>180</i>&nbsp; * {@link #addError} and {@link #currentStage} are not part of the Binding EDSL;
+<i>181</i>&nbsp; * you can learn how to use these in the usual way, from the method
+<i>182</i>&nbsp; * documentation.
+<i>183</i>&nbsp; *
+<i>184</i>&nbsp; * @author crazybob@google.com (Bob Lee)
+<i>185</i>&nbsp; * @author jessewilson@google.com (Jesse Wilson)
+<i>186</i>&nbsp; * @author kevinb@google.com (Kevin Bourrillion)
+<i>187</i>&nbsp; */
+<i>188</i>&nbsp;public interface Binder {
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    /**
+<i>191</i>&nbsp;     * Binds a scope to an annotation.
+<i>192</i>&nbsp;     */
+<i>193</i>&nbsp;    void bindScope(Class&lt;? extends Annotation&gt; annotationType, Scope scope);
+<i>194</i>&nbsp;
+<i>195</i>&nbsp;    /**
+<i>196</i>&nbsp;     * See the EDSL examples at {@link Binder}.
+<i>197</i>&nbsp;     */
+<i>198</i>&nbsp;    &lt;T&gt; LinkedBindingBuilder&lt;T&gt; bind(Key&lt;T&gt; key);
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    /**
+<i>201</i>&nbsp;     * See the EDSL examples at {@link Binder}.
+<i>202</i>&nbsp;     */
+<i>203</i>&nbsp;    &lt;T&gt; AnnotatedBindingBuilder&lt;T&gt; bind(TypeLiteral&lt;T&gt; typeLiteral);
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    /**
+<i>206</i>&nbsp;     * See the EDSL examples at {@link Binder}.
+<i>207</i>&nbsp;     */
+<i>208</i>&nbsp;    &lt;T&gt; AnnotatedBindingBuilder&lt;T&gt; bind(Class&lt;T&gt; type);
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /**
+<i>211</i>&nbsp;     * See the EDSL examples at {@link Binder}.
+<i>212</i>&nbsp;     */
+<i>213</i>&nbsp;    AnnotatedConstantBindingBuilder bindConstant();
+<i>214</i>&nbsp;
+<i>215</i>&nbsp;    /**
+<i>216</i>&nbsp;     * Upon successful creation, the {@link Injector} will inject instance fields
+<i>217</i>&nbsp;     * and methods of the given object.
+<i>218</i>&nbsp;     *
+<i>219</i>&nbsp;     * @param type     of instance
+<i>220</i>&nbsp;     * @param instance for which members will be injected
+<i>221</i>&nbsp;     * @since 2.0
+<i>222</i>&nbsp;     */
+<i>223</i>&nbsp;    &lt;T&gt; void requestInjection(TypeLiteral&lt;T&gt; type, T instance);
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;    /**
+<i>226</i>&nbsp;     * Upon successful creation, the {@link Injector} will inject instance fields
+<i>227</i>&nbsp;     * and methods of the given object.
+<i>228</i>&nbsp;     *
+<i>229</i>&nbsp;     * @param instance for which members will be injected
+<i>230</i>&nbsp;     * @since 2.0
+<i>231</i>&nbsp;     */
+<i>232</i>&nbsp;    void requestInjection(Object instance);
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    /**
+<i>235</i>&nbsp;     * Upon successful creation, the {@link Injector} will inject static fields
+<i>236</i>&nbsp;     * and methods in the given classes.
+<i>237</i>&nbsp;     *
+<i>238</i>&nbsp;     * @param types for which static members will be injected
+<i>239</i>&nbsp;     */
+<i>240</i>&nbsp;    void requestStaticInjection(Class&lt;?&gt;... types);
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    /**
+<i>243</i>&nbsp;     * Uses the given module to configure more bindings.
+<i>244</i>&nbsp;     */
+<i>245</i>&nbsp;    void install(Module module);
+<i>246</i>&nbsp;
+<i>247</i>&nbsp;    /**
+<i>248</i>&nbsp;     * Gets the current stage.
+<i>249</i>&nbsp;     */
+<i>250</i>&nbsp;    Stage currentStage();
+<i>251</i>&nbsp;
+<i>252</i>&nbsp;    /**
+<i>253</i>&nbsp;     * Records an error message which will be presented to the user at a later
+<i>254</i>&nbsp;     * time. Unlike throwing an exception, this enable us to continue
+<i>255</i>&nbsp;     * configuring the Injector and discover more errors. Uses {@link
+<i>256</i>&nbsp;     * String#format(String, Object[])} to insert the arguments into the
+<i>257</i>&nbsp;     * message.
+<i>258</i>&nbsp;     */
+<i>259</i>&nbsp;    void addError(String message, Object... arguments);
+<i>260</i>&nbsp;
+<i>261</i>&nbsp;    /**
+<i>262</i>&nbsp;     * Records an exception, the full details of which will be logged, and the
+<i>263</i>&nbsp;     * message of which will be presented to the user at a later
+<i>264</i>&nbsp;     * time. If your Module calls something that you worry may fail, you should
+<i>265</i>&nbsp;     * catch the exception and pass it into this.
+<i>266</i>&nbsp;     */
+<i>267</i>&nbsp;    void addError(Throwable t);
+<i>268</i>&nbsp;
+<i>269</i>&nbsp;    /**
+<i>270</i>&nbsp;     * Records an error message to be presented to the user at a later time.
+<i>271</i>&nbsp;     *
+<i>272</i>&nbsp;     * @since 2.0
+<i>273</i>&nbsp;     */
+<i>274</i>&nbsp;    void addError(Message message);
+<i>275</i>&nbsp;
+<i>276</i>&nbsp;    /**
+<i>277</i>&nbsp;     * Returns the provider used to obtain instances for the given injection key.
+<i>278</i>&nbsp;     * The returned will not be valid until the {@link Injector} has been
+<i>279</i>&nbsp;     * created. The provider will throw an {@code IllegalStateException} if you
+<i>280</i>&nbsp;     * try to use it beforehand.
+<i>281</i>&nbsp;     *
+<i>282</i>&nbsp;     * @since 2.0
+<i>283</i>&nbsp;     */
+<i>284</i>&nbsp;    &lt;T&gt; Provider&lt;T&gt; getProvider(Key&lt;T&gt; key);
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;    /**
+<i>287</i>&nbsp;     * Returns the provider used to obtain instances for the given injection type.
+<i>288</i>&nbsp;     * The returned provider will not be valid until the {@link Injector} has been
+<i>289</i>&nbsp;     * created. The provider will throw an {@code IllegalStateException} if you
+<i>290</i>&nbsp;     * try to use it beforehand.
+<i>291</i>&nbsp;     *
+<i>292</i>&nbsp;     * @since 2.0
+<i>293</i>&nbsp;     */
+<i>294</i>&nbsp;    &lt;T&gt; Provider&lt;T&gt; getProvider(Class&lt;T&gt; type);
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;    /**
+<i>297</i>&nbsp;     * Returns the members injector used to inject dependencies into methods and fields on instances
+<i>298</i>&nbsp;     * of the given type {@code T}. The returned members injector will not be valid until the main
+<i>299</i>&nbsp;     * {@link Injector} has been created. The members injector will throw an {@code
+<i>300</i>&nbsp;     * IllegalStateException} if you try to use it beforehand.
+<i>301</i>&nbsp;     *
+<i>302</i>&nbsp;     * @param typeLiteral type to get members injector for
+<i>303</i>&nbsp;     * @since 2.0
+<i>304</i>&nbsp;     */
+<i>305</i>&nbsp;    &lt;T&gt; MembersInjector&lt;T&gt; getMembersInjector(TypeLiteral&lt;T&gt; typeLiteral);
+<i>306</i>&nbsp;
+<i>307</i>&nbsp;    /**
+<i>308</i>&nbsp;     * Returns the members injector used to inject dependencies into methods and fields on instances
+<i>309</i>&nbsp;     * of the given type {@code T}. The returned members injector will not be valid until the main
+<i>310</i>&nbsp;     * {@link Injector} has been created. The members injector will throw an {@code
+<i>311</i>&nbsp;     * IllegalStateException} if you try to use it beforehand.
+<i>312</i>&nbsp;     *
+<i>313</i>&nbsp;     * @param type type to get members injector for
+<i>314</i>&nbsp;     * @since 2.0
+<i>315</i>&nbsp;     */
+<i>316</i>&nbsp;    &lt;T&gt; MembersInjector&lt;T&gt; getMembersInjector(Class&lt;T&gt; type);
+<i>317</i>&nbsp;
+<i>318</i>&nbsp;    /**
+<i>319</i>&nbsp;     * Binds a type converter. The injector will use the given converter to
+<i>320</i>&nbsp;     * convert string constants to matching types as needed.
+<i>321</i>&nbsp;     *
+<i>322</i>&nbsp;     * @param typeMatcher matches types the converter can handle
+<i>323</i>&nbsp;     * @param converter   converts values
+<i>324</i>&nbsp;     * @since 2.0
+<i>325</i>&nbsp;     */
+<i>326</i>&nbsp;    void convertToTypes(Matcher&lt;? super TypeLiteral&lt;?&gt;&gt; typeMatcher,
+<i>327</i>&nbsp;                        TypeConverter converter);
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;    /**
+<i>330</i>&nbsp;     * Registers a listener for injectable types. Guice will notify the listener when it encounters
+<i>331</i>&nbsp;     * injectable types matched by the given type matcher.
+<i>332</i>&nbsp;     *
+<i>333</i>&nbsp;     * @param typeMatcher that matches injectable types the listener should be notified of
+<i>334</i>&nbsp;     * @param listener    for injectable types matched by typeMatcher
+<i>335</i>&nbsp;     * @since 2.0
+<i>336</i>&nbsp;     */
+<i>337</i>&nbsp;    void bindListener(Matcher&lt;? super TypeLiteral&lt;?&gt;&gt; typeMatcher,
+<i>338</i>&nbsp;                      TypeListener listener);
+<i>339</i>&nbsp;
+<i>340</i>&nbsp;    /**
+<i>341</i>&nbsp;     * Returns a binder that uses {@code source} as the reference location for
+<i>342</i>&nbsp;     * configuration errors. This is typically a {@link StackTraceElement}
+<i>343</i>&nbsp;     * for {@code .java} source but it could any binding source, such as the
+<i>344</i>&nbsp;     * path to a {@code .properties} file.
+<i>345</i>&nbsp;     *
+<i>346</i>&nbsp;     * @param source any object representing the source location and has a
+<i>347</i>&nbsp;     *               concise {@link Object#toString() toString()} value
+<i>348</i>&nbsp;     * @return a binder that shares its configuration with this binder
+<i>349</i>&nbsp;     * @since 2.0
+<i>350</i>&nbsp;     */
+<i>351</i>&nbsp;    Binder withSource(Object source);
+<i>352</i>&nbsp;
+<i>353</i>&nbsp;    /**
+<i>354</i>&nbsp;     * Returns a binder that skips {@code classesToSkip} when identify the
+<i>355</i>&nbsp;     * calling code. The caller&#39;s {@link StackTraceElement} is used to locate
+<i>356</i>&nbsp;     * the source of configuration errors.
+<i>357</i>&nbsp;     *
+<i>358</i>&nbsp;     * @param classesToSkip library classes that create bindings on behalf of
+<i>359</i>&nbsp;     *                      their clients.
+<i>360</i>&nbsp;     * @return a binder that shares its configuration with this binder.
+<i>361</i>&nbsp;     * @since 2.0
+<i>362</i>&nbsp;     */
+<i>363</i>&nbsp;    Binder skipSources(Class&lt;?&gt;... classesToSkip);
+<i>364</i>&nbsp;
+<i>365</i>&nbsp;    /**
+<i>366</i>&nbsp;     * Creates a new private child environment for bindings and other configuration. The returned
+<i>367</i>&nbsp;     * binder can be used to add and configuration information in this environment. See {@link
+<i>368</i>&nbsp;     * PrivateModule} for details.
+<i>369</i>&nbsp;     *
+<i>370</i>&nbsp;     * @return a binder that inherits configuration from this binder. Only exposed configuration on
+<i>371</i>&nbsp;     *         the returned binder will be visible to this binder.
+<i>372</i>&nbsp;     * @since 2.0
+<i>373</i>&nbsp;     */
+<i>374</i>&nbsp;    PrivateBinder newPrivateBinder();
+<i>375</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

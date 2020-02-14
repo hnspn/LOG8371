@@ -1,0 +1,842 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RestIndicesAction</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.rest.action.cat</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RestIndicesAction (org.elasticsearch.rest.action.cat)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RestIndicesAction</td>
+<td class="coverageStat">
+  <span class="percent">
+    100%
+  </span>
+  <span class="absValue">
+    (1/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    17.6%
+  </span>
+  <span class="absValue">
+    (3/ 17)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    3.4%
+  </span>
+  <span class="absValue">
+    (12/ 353)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.rest.action.cat;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>23</i>&nbsp;import org.elasticsearch.action.ActionResponse;
+<i>24</i>&nbsp;import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+<i>25</i>&nbsp;import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+<i>26</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+<i>27</i>&nbsp;import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+<i>28</i>&nbsp;import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+<i>29</i>&nbsp;import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+<i>30</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.CommonStats;
+<i>31</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.IndexStats;
+<i>32</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+<i>33</i>&nbsp;import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+<i>34</i>&nbsp;import org.elasticsearch.action.support.GroupedActionListener;
+<i>35</i>&nbsp;import org.elasticsearch.action.support.IndicesOptions;
+<i>36</i>&nbsp;import org.elasticsearch.client.node.NodeClient;
+<i>37</i>&nbsp;import org.elasticsearch.cluster.health.ClusterHealthStatus;
+<i>38</i>&nbsp;import org.elasticsearch.cluster.health.ClusterIndexHealth;
+<i>39</i>&nbsp;import org.elasticsearch.cluster.metadata.IndexMetaData;
+<i>40</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>41</i>&nbsp;import org.elasticsearch.common.Table;
+<i>42</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>43</i>&nbsp;import org.elasticsearch.common.time.DateFormatter;
+<i>44</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>45</i>&nbsp;import org.elasticsearch.index.IndexSettings;
+<i>46</i>&nbsp;import org.elasticsearch.rest.RestController;
+<i>47</i>&nbsp;import org.elasticsearch.rest.RestRequest;
+<i>48</i>&nbsp;import org.elasticsearch.rest.RestResponse;
+<i>49</i>&nbsp;import org.elasticsearch.rest.action.RestResponseListener;
+<i>50</i>&nbsp;
+<i>51</i>&nbsp;import java.time.Instant;
+<i>52</i>&nbsp;import java.time.ZoneOffset;
+<i>53</i>&nbsp;import java.time.ZonedDateTime;
+<i>54</i>&nbsp;import java.util.Arrays;
+<i>55</i>&nbsp;import java.util.Collection;
+<i>56</i>&nbsp;import java.util.Collections;
+<i>57</i>&nbsp;import java.util.HashSet;
+<i>58</i>&nbsp;import java.util.Locale;
+<i>59</i>&nbsp;import java.util.Map;
+<i>60</i>&nbsp;import java.util.Set;
+<i>61</i>&nbsp;import java.util.function.Function;
+<i>62</i>&nbsp;import java.util.stream.Collectors;
+<i>63</i>&nbsp;import java.util.stream.StreamSupport;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+<i>66</i>&nbsp;import static org.elasticsearch.rest.RestRequest.Method.GET;
+<i>67</i>&nbsp;
+<b class="nc"><i>68</i>&nbsp;public class RestIndicesAction extends AbstractCatAction {</b>
+<i>69</i>&nbsp;
+<b class="fc"><i>70</i>&nbsp;    private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern(&quot;strict_date_time&quot;);</b>
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    public RestIndicesAction(RestController controller) {</b>
+<b class="fc"><i>73</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/indices&quot;, this);</b>
+<b class="fc"><i>74</i>&nbsp;        controller.registerHandler(GET, &quot;/_cat/indices/{index}&quot;, this);</b>
+<b class="fc"><i>75</i>&nbsp;    }</b>
+<i>76</i>&nbsp;
+<i>77</i>&nbsp;    @Override
+<i>78</i>&nbsp;    public String getName() {
+<b class="nc"><i>79</i>&nbsp;        return &quot;cat_indices_action&quot;;</b>
+<i>80</i>&nbsp;    }
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    @Override
+<i>83</i>&nbsp;    protected void documentation(StringBuilder sb) {
+<b class="fc"><i>84</i>&nbsp;        sb.append(&quot;/_cat/indices\n&quot;);</b>
+<b class="fc"><i>85</i>&nbsp;        sb.append(&quot;/_cat/indices/{index}\n&quot;);</b>
+<b class="fc"><i>86</i>&nbsp;    }</b>
+<i>87</i>&nbsp;
+<i>88</i>&nbsp;    @Override
+<i>89</i>&nbsp;    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+<b class="nc"><i>90</i>&nbsp;        final String[] indices = Strings.splitStringByCommaToArray(request.param(&quot;index&quot;));</b>
+<b class="nc"><i>91</i>&nbsp;        final IndicesOptions indicesOptions = IndicesOptions.strictExpand();</b>
+<b class="nc"><i>92</i>&nbsp;        final boolean local = request.paramAsBoolean(&quot;local&quot;, false);</b>
+<b class="nc"><i>93</i>&nbsp;        final TimeValue masterNodeTimeout = request.paramAsTime(&quot;master_timeout&quot;, DEFAULT_MASTER_NODE_TIMEOUT);</b>
+<b class="nc"><i>94</i>&nbsp;        final boolean includeUnloadedSegments = request.paramAsBoolean(&quot;include_unloaded_segments&quot;, false);</b>
+<i>95</i>&nbsp;
+<b class="nc"><i>96</i>&nbsp;        return channel -&gt; {</b>
+<b class="nc"><i>97</i>&nbsp;            final ActionListener&lt;Table&gt; listener = ActionListener.notifyOnce(new RestResponseListener&lt;Table&gt;(channel) {</b>
+<i>98</i>&nbsp;                @Override
+<i>99</i>&nbsp;                public RestResponse buildResponse(final Table table) throws Exception {
+<i>100</i>&nbsp;                    return RestTable.buildResponse(table, channel);
+<i>101</i>&nbsp;                }
+<i>102</i>&nbsp;            });
+<i>103</i>&nbsp;
+<b class="nc"><i>104</i>&nbsp;            sendGetSettingsRequest(indices, indicesOptions, local, masterNodeTimeout, client, new ActionListener&lt;GetSettingsResponse&gt;() {</b>
+<i>105</i>&nbsp;                @Override
+<i>106</i>&nbsp;                public void onResponse(final GetSettingsResponse getSettingsResponse) {
+<i>107</i>&nbsp;                    final GroupedActionListener&lt;ActionResponse&gt; groupedListener = createGroupedListener(request, 4, listener);
+<i>108</i>&nbsp;                    groupedListener.onResponse(getSettingsResponse);
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;                    // Indices that were successfully resolved during the get settings request might be deleted when the subsequent cluster
+<i>111</i>&nbsp;                    // state, cluster health and indices stats requests execute. We have to distinguish two cases:
+<i>112</i>&nbsp;                    // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
+<i>113</i>&nbsp;                    //    subsequent requests to fail.
+<i>114</i>&nbsp;                    // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests not to
+<i>115</i>&nbsp;                    //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+<i>116</i>&nbsp;                    // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve the
+<i>117</i>&nbsp;                    // index names with the same indices options that we used for the initial cluster state request (strictExpand).
+<i>118</i>&nbsp;                    sendIndicesStatsRequest(indices, indicesOptions, includeUnloadedSegments, client,
+<i>119</i>&nbsp;                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+<i>120</i>&nbsp;                    sendClusterStateRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+<i>121</i>&nbsp;                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+<i>122</i>&nbsp;                    sendClusterHealthRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+<i>123</i>&nbsp;                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+<i>124</i>&nbsp;                }
+<i>125</i>&nbsp;
+<i>126</i>&nbsp;                @Override
+<i>127</i>&nbsp;                public void onFailure(final Exception e) {
+<i>128</i>&nbsp;                    listener.onFailure(e);
+<i>129</i>&nbsp;                }
+<i>130</i>&nbsp;            });
+<b class="nc"><i>131</i>&nbsp;        };</b>
+<i>132</i>&nbsp;    }
+<i>133</i>&nbsp;
+<i>134</i>&nbsp;    /**
+<i>135</i>&nbsp;     * We&#39;re using the Get Settings API here to resolve the authorized indices for the user.
+<i>136</i>&nbsp;     * This is because the Cluster State and Cluster Health APIs do not filter output based
+<i>137</i>&nbsp;     * on index privileges, so they can&#39;t be used to determine which indices are authorized
+<i>138</i>&nbsp;     * or not. On top of this, the Indices Stats API cannot be used either to resolve indices
+<i>139</i>&nbsp;     * as it does not provide information for all existing indices (for example recovering
+<i>140</i>&nbsp;     * indices or non replicated closed indices are not reported in indices stats response).
+<i>141</i>&nbsp;     */
+<i>142</i>&nbsp;    private void sendGetSettingsRequest(final String[] indices,
+<i>143</i>&nbsp;                                        final IndicesOptions indicesOptions,
+<i>144</i>&nbsp;                                        final boolean local,
+<i>145</i>&nbsp;                                        final TimeValue masterNodeTimeout,
+<i>146</i>&nbsp;                                        final NodeClient client,
+<i>147</i>&nbsp;                                        final ActionListener&lt;GetSettingsResponse&gt; listener) {
+<b class="nc"><i>148</i>&nbsp;        final GetSettingsRequest request = new GetSettingsRequest();</b>
+<b class="nc"><i>149</i>&nbsp;        request.indices(indices);</b>
+<b class="nc"><i>150</i>&nbsp;        request.indicesOptions(indicesOptions);</b>
+<b class="nc"><i>151</i>&nbsp;        request.local(local);</b>
+<b class="nc"><i>152</i>&nbsp;        request.masterNodeTimeout(masterNodeTimeout);</b>
+<b class="nc"><i>153</i>&nbsp;        request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());</b>
+<i>154</i>&nbsp;
+<b class="nc"><i>155</i>&nbsp;        client.admin().indices().getSettings(request, listener);</b>
+<b class="nc"><i>156</i>&nbsp;    }</b>
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    private void sendClusterStateRequest(final String[] indices,
+<i>159</i>&nbsp;                                         final IndicesOptions indicesOptions,
+<i>160</i>&nbsp;                                         final boolean local,
+<i>161</i>&nbsp;                                         final TimeValue masterNodeTimeout,
+<i>162</i>&nbsp;                                         final NodeClient client,
+<i>163</i>&nbsp;                                         final ActionListener&lt;ClusterStateResponse&gt; listener) {
+<i>164</i>&nbsp;
+<b class="nc"><i>165</i>&nbsp;        final ClusterStateRequest request = new ClusterStateRequest();</b>
+<b class="nc"><i>166</i>&nbsp;        request.indices(indices);</b>
+<b class="nc"><i>167</i>&nbsp;        request.indicesOptions(indicesOptions);</b>
+<b class="nc"><i>168</i>&nbsp;        request.local(local);</b>
+<b class="nc"><i>169</i>&nbsp;        request.masterNodeTimeout(masterNodeTimeout);</b>
+<i>170</i>&nbsp;
+<b class="nc"><i>171</i>&nbsp;        client.admin().cluster().state(request, listener);</b>
+<b class="nc"><i>172</i>&nbsp;    }</b>
+<i>173</i>&nbsp;
+<i>174</i>&nbsp;    private void sendClusterHealthRequest(final String[] indices,
+<i>175</i>&nbsp;                                          final IndicesOptions indicesOptions,
+<i>176</i>&nbsp;                                          final boolean local,
+<i>177</i>&nbsp;                                          final TimeValue masterNodeTimeout,
+<i>178</i>&nbsp;                                          final NodeClient client,
+<i>179</i>&nbsp;                                          final ActionListener&lt;ClusterHealthResponse&gt; listener) {
+<i>180</i>&nbsp;
+<b class="nc"><i>181</i>&nbsp;        final ClusterHealthRequest request = new ClusterHealthRequest();</b>
+<b class="nc"><i>182</i>&nbsp;        request.indices(indices);</b>
+<b class="nc"><i>183</i>&nbsp;        request.indicesOptions(indicesOptions);</b>
+<b class="nc"><i>184</i>&nbsp;        request.local(local);</b>
+<b class="nc"><i>185</i>&nbsp;        request.masterNodeTimeout(masterNodeTimeout);</b>
+<i>186</i>&nbsp;
+<b class="nc"><i>187</i>&nbsp;        client.admin().cluster().health(request, listener);</b>
+<b class="nc"><i>188</i>&nbsp;    }</b>
+<i>189</i>&nbsp;
+<i>190</i>&nbsp;    private void sendIndicesStatsRequest(final String[] indices,
+<i>191</i>&nbsp;                                         final IndicesOptions indicesOptions,
+<i>192</i>&nbsp;                                         final boolean includeUnloadedSegments,
+<i>193</i>&nbsp;                                         final NodeClient client,
+<i>194</i>&nbsp;                                         final ActionListener&lt;IndicesStatsResponse&gt; listener) {
+<i>195</i>&nbsp;
+<b class="nc"><i>196</i>&nbsp;        final IndicesStatsRequest request = new IndicesStatsRequest();</b>
+<b class="nc"><i>197</i>&nbsp;        request.indices(indices);</b>
+<b class="nc"><i>198</i>&nbsp;        request.indicesOptions(indicesOptions);</b>
+<b class="nc"><i>199</i>&nbsp;        request.all();</b>
+<b class="nc"><i>200</i>&nbsp;        request.includeUnloadedSegments(includeUnloadedSegments);</b>
+<i>201</i>&nbsp;
+<b class="nc"><i>202</i>&nbsp;        client.admin().indices().stats(request, listener);</b>
+<b class="nc"><i>203</i>&nbsp;    }</b>
+<i>204</i>&nbsp;
+<i>205</i>&nbsp;    private GroupedActionListener&lt;ActionResponse&gt; createGroupedListener(final RestRequest request, final int size,
+<i>206</i>&nbsp;                                                                        final ActionListener&lt;Table&gt; listener) {
+<b class="nc"><i>207</i>&nbsp;        return new GroupedActionListener&lt;&gt;(new ActionListener&lt;Collection&lt;ActionResponse&gt;&gt;() {</b>
+<i>208</i>&nbsp;            @Override
+<i>209</i>&nbsp;            public void onResponse(final Collection&lt;ActionResponse&gt; responses) {
+<i>210</i>&nbsp;                GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
+<i>211</i>&nbsp;                Map&lt;String, Settings&gt; indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
+<i>212</i>&nbsp;                    .collect(Collectors.toMap(cursor -&gt; cursor.key, cursor -&gt; cursor.value));
+<i>213</i>&nbsp;
+<i>214</i>&nbsp;                ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
+<i>215</i>&nbsp;                Map&lt;String, IndexMetaData&gt; indicesStates = StreamSupport.stream(stateResponse.getState().getMetaData().spliterator(), false)
+<i>216</i>&nbsp;                    .collect(Collectors.toMap(indexMetaData -&gt; indexMetaData.getIndex().getName(), Function.identity()));
+<i>217</i>&nbsp;
+<i>218</i>&nbsp;                ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
+<i>219</i>&nbsp;                Map&lt;String, ClusterIndexHealth&gt; indicesHealths = healthResponse.getIndices();
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;                IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
+<i>222</i>&nbsp;                Map&lt;String, IndexStats&gt; indicesStats = statsResponse.getIndices();
+<i>223</i>&nbsp;
+<i>224</i>&nbsp;                listener.onResponse(buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates));
+<i>225</i>&nbsp;            }
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;            @Override
+<i>228</i>&nbsp;            public void onFailure(final Exception e) {
+<i>229</i>&nbsp;                listener.onFailure(e);
+<i>230</i>&nbsp;            }
+<i>231</i>&nbsp;        }, size);
+<i>232</i>&nbsp;    }
+<i>233</i>&nbsp;
+<i>234</i>&nbsp;    private static final Set&lt;String&gt; RESPONSE_PARAMS;
+<i>235</i>&nbsp;
+<i>236</i>&nbsp;    static {
+<b class="fc"><i>237</i>&nbsp;        final Set&lt;String&gt; responseParams = new HashSet&lt;&gt;(Arrays.asList(&quot;local&quot;, &quot;health&quot;));</b>
+<b class="fc"><i>238</i>&nbsp;        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);</b>
+<b class="fc"><i>239</i>&nbsp;        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);</b>
+<b class="fc"><i>240</i>&nbsp;    }</b>
+<i>241</i>&nbsp;
+<i>242</i>&nbsp;    @Override
+<i>243</i>&nbsp;    protected Set&lt;String&gt; responseParams() {
+<b class="nc"><i>244</i>&nbsp;        return RESPONSE_PARAMS;</b>
+<i>245</i>&nbsp;    }
+<i>246</i>&nbsp;
+<i>247</i>&nbsp;    @Override
+<i>248</i>&nbsp;    protected Table getTableWithHeader(final RestRequest request) {
+<b class="nc"><i>249</i>&nbsp;        Table table = new Table();</b>
+<b class="nc"><i>250</i>&nbsp;        table.startHeaders();</b>
+<b class="nc"><i>251</i>&nbsp;        table.addCell(&quot;health&quot;, &quot;alias:h;desc:current health status&quot;);</b>
+<b class="nc"><i>252</i>&nbsp;        table.addCell(&quot;status&quot;, &quot;alias:s;desc:open/close status&quot;);</b>
+<b class="nc"><i>253</i>&nbsp;        table.addCell(&quot;index&quot;, &quot;alias:i,idx;desc:index name&quot;);</b>
+<b class="nc"><i>254</i>&nbsp;        table.addCell(&quot;uuid&quot;, &quot;alias:id,uuid;desc:index uuid&quot;);</b>
+<b class="nc"><i>255</i>&nbsp;        table.addCell(&quot;pri&quot;, &quot;alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards&quot;);</b>
+<b class="nc"><i>256</i>&nbsp;        table.addCell(&quot;rep&quot;, &quot;alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards&quot;);</b>
+<b class="nc"><i>257</i>&nbsp;        table.addCell(&quot;docs.count&quot;, &quot;alias:dc,docsCount;text-align:right;desc:available docs&quot;);</b>
+<b class="nc"><i>258</i>&nbsp;        table.addCell(&quot;docs.deleted&quot;, &quot;alias:dd,docsDeleted;text-align:right;desc:deleted docs&quot;);</b>
+<i>259</i>&nbsp;
+<b class="nc"><i>260</i>&nbsp;        table.addCell(&quot;creation.date&quot;, &quot;alias:cd;default:false;desc:index creation date (millisecond value)&quot;);</b>
+<b class="nc"><i>261</i>&nbsp;        table.addCell(&quot;creation.date.string&quot;, &quot;alias:cds;default:false;desc:index creation date (as string)&quot;);</b>
+<i>262</i>&nbsp;
+<b class="nc"><i>263</i>&nbsp;        table.addCell(&quot;store.size&quot;, &quot;sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries &amp; replicas&quot;);</b>
+<b class="nc"><i>264</i>&nbsp;        table.addCell(&quot;pri.store.size&quot;, &quot;text-align:right;desc:store size of primaries&quot;);</b>
+<i>265</i>&nbsp;
+<b class="nc"><i>266</i>&nbsp;        table.addCell(&quot;completion.size&quot;, &quot;sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion&quot;);</b>
+<b class="nc"><i>267</i>&nbsp;        table.addCell(&quot;pri.completion.size&quot;, &quot;default:false;text-align:right;desc:size of completion&quot;);</b>
+<i>268</i>&nbsp;
+<b class="nc"><i>269</i>&nbsp;        table.addCell(&quot;fielddata.memory_size&quot;,</b>
+<i>270</i>&nbsp;            &quot;sibling:pri;alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache&quot;);
+<b class="nc"><i>271</i>&nbsp;        table.addCell(&quot;pri.fielddata.memory_size&quot;, &quot;default:false;text-align:right;desc:used fielddata cache&quot;);</b>
+<i>272</i>&nbsp;
+<b class="nc"><i>273</i>&nbsp;        table.addCell(&quot;fielddata.evictions&quot;,</b>
+<i>274</i>&nbsp;            &quot;sibling:pri;alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions&quot;);
+<b class="nc"><i>275</i>&nbsp;        table.addCell(&quot;pri.fielddata.evictions&quot;, &quot;default:false;text-align:right;desc:fielddata evictions&quot;);</b>
+<i>276</i>&nbsp;
+<b class="nc"><i>277</i>&nbsp;        table.addCell(&quot;query_cache.memory_size&quot;,</b>
+<i>278</i>&nbsp;            &quot;sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache&quot;);
+<b class="nc"><i>279</i>&nbsp;        table.addCell(&quot;pri.query_cache.memory_size&quot;, &quot;default:false;text-align:right;desc:used query cache&quot;);</b>
+<i>280</i>&nbsp;
+<b class="nc"><i>281</i>&nbsp;        table.addCell(&quot;query_cache.evictions&quot;,</b>
+<i>282</i>&nbsp;            &quot;sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions&quot;);
+<b class="nc"><i>283</i>&nbsp;        table.addCell(&quot;pri.query_cache.evictions&quot;, &quot;default:false;text-align:right;desc:query cache evictions&quot;);</b>
+<i>284</i>&nbsp;
+<b class="nc"><i>285</i>&nbsp;        table.addCell(&quot;request_cache.memory_size&quot;,</b>
+<i>286</i>&nbsp;            &quot;sibling:pri;alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache&quot;);
+<b class="nc"><i>287</i>&nbsp;        table.addCell(&quot;pri.request_cache.memory_size&quot;, &quot;default:false;text-align:right;desc:used request cache&quot;);</b>
+<i>288</i>&nbsp;
+<b class="nc"><i>289</i>&nbsp;        table.addCell(&quot;request_cache.evictions&quot;,</b>
+<i>290</i>&nbsp;            &quot;sibling:pri;alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions&quot;);
+<b class="nc"><i>291</i>&nbsp;        table.addCell(&quot;pri.request_cache.evictions&quot;, &quot;default:false;text-align:right;desc:request cache evictions&quot;);</b>
+<i>292</i>&nbsp;
+<b class="nc"><i>293</i>&nbsp;        table.addCell(&quot;request_cache.hit_count&quot;,</b>
+<i>294</i>&nbsp;            &quot;sibling:pri;alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit count&quot;);
+<b class="nc"><i>295</i>&nbsp;        table.addCell(&quot;pri.request_cache.hit_count&quot;, &quot;default:false;text-align:right;desc:request cache hit count&quot;);</b>
+<i>296</i>&nbsp;
+<b class="nc"><i>297</i>&nbsp;        table.addCell(&quot;request_cache.miss_count&quot;,</b>
+<i>298</i>&nbsp;            &quot;sibling:pri;alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss count&quot;);
+<b class="nc"><i>299</i>&nbsp;        table.addCell(&quot;pri.request_cache.miss_count&quot;, &quot;default:false;text-align:right;desc:request cache miss count&quot;);</b>
+<i>300</i>&nbsp;
+<b class="nc"><i>301</i>&nbsp;        table.addCell(&quot;flush.total&quot;, &quot;sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes&quot;);</b>
+<b class="nc"><i>302</i>&nbsp;        table.addCell(&quot;pri.flush.total&quot;, &quot;default:false;text-align:right;desc:number of flushes&quot;);</b>
+<i>303</i>&nbsp;
+<b class="nc"><i>304</i>&nbsp;        table.addCell(&quot;flush.total_time&quot;, &quot;sibling:pri;alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush&quot;);</b>
+<b class="nc"><i>305</i>&nbsp;        table.addCell(&quot;pri.flush.total_time&quot;, &quot;default:false;text-align:right;desc:time spent in flush&quot;);</b>
+<i>306</i>&nbsp;
+<b class="nc"><i>307</i>&nbsp;        table.addCell(&quot;get.current&quot;, &quot;sibling:pri;alias:gc,getCurrent;default:false;text-align:right;desc:number of current get ops&quot;);</b>
+<b class="nc"><i>308</i>&nbsp;        table.addCell(&quot;pri.get.current&quot;, &quot;default:false;text-align:right;desc:number of current get ops&quot;);</b>
+<i>309</i>&nbsp;
+<b class="nc"><i>310</i>&nbsp;        table.addCell(&quot;get.time&quot;, &quot;sibling:pri;alias:gti,getTime;default:false;text-align:right;desc:time spent in get&quot;);</b>
+<b class="nc"><i>311</i>&nbsp;        table.addCell(&quot;pri.get.time&quot;, &quot;default:false;text-align:right;desc:time spent in get&quot;);</b>
+<i>312</i>&nbsp;
+<b class="nc"><i>313</i>&nbsp;        table.addCell(&quot;get.total&quot;, &quot;sibling:pri;alias:gto,getTotal;default:false;text-align:right;desc:number of get ops&quot;);</b>
+<b class="nc"><i>314</i>&nbsp;        table.addCell(&quot;pri.get.total&quot;, &quot;default:false;text-align:right;desc:number of get ops&quot;);</b>
+<i>315</i>&nbsp;
+<b class="nc"><i>316</i>&nbsp;        table.addCell(&quot;get.exists_time&quot;,</b>
+<i>317</i>&nbsp;            &quot;sibling:pri;alias:geti,getExistsTime;default:false;text-align:right;desc:time spent in successful gets&quot;);
+<b class="nc"><i>318</i>&nbsp;        table.addCell(&quot;pri.get.exists_time&quot;, &quot;default:false;text-align:right;desc:time spent in successful gets&quot;);</b>
+<i>319</i>&nbsp;
+<b class="nc"><i>320</i>&nbsp;        table.addCell(&quot;get.exists_total&quot;,</b>
+<i>321</i>&nbsp;            &quot;sibling:pri;alias:geto,getExistsTotal;default:false;text-align:right;desc:number of successful gets&quot;);
+<b class="nc"><i>322</i>&nbsp;        table.addCell(&quot;pri.get.exists_total&quot;, &quot;default:false;text-align:right;desc:number of successful gets&quot;);</b>
+<i>323</i>&nbsp;
+<b class="nc"><i>324</i>&nbsp;        table.addCell(&quot;get.missing_time&quot;,</b>
+<i>325</i>&nbsp;            &quot;sibling:pri;alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets&quot;);
+<b class="nc"><i>326</i>&nbsp;        table.addCell(&quot;pri.get.missing_time&quot;, &quot;default:false;text-align:right;desc:time spent in failed gets&quot;);</b>
+<i>327</i>&nbsp;
+<b class="nc"><i>328</i>&nbsp;        table.addCell(&quot;get.missing_total&quot;,</b>
+<i>329</i>&nbsp;            &quot;sibling:pri;alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets&quot;);
+<b class="nc"><i>330</i>&nbsp;        table.addCell(&quot;pri.get.missing_total&quot;, &quot;default:false;text-align:right;desc:number of failed gets&quot;);</b>
+<i>331</i>&nbsp;
+<b class="nc"><i>332</i>&nbsp;        table.addCell(&quot;indexing.delete_current&quot;,</b>
+<i>333</i>&nbsp;            &quot;sibling:pri;alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions&quot;);
+<b class="nc"><i>334</i>&nbsp;        table.addCell(&quot;pri.indexing.delete_current&quot;, &quot;default:false;text-align:right;desc:number of current deletions&quot;);</b>
+<i>335</i>&nbsp;
+<b class="nc"><i>336</i>&nbsp;        table.addCell(&quot;indexing.delete_time&quot;,</b>
+<i>337</i>&nbsp;            &quot;sibling:pri;alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions&quot;);
+<b class="nc"><i>338</i>&nbsp;        table.addCell(&quot;pri.indexing.delete_time&quot;, &quot;default:false;text-align:right;desc:time spent in deletions&quot;);</b>
+<i>339</i>&nbsp;
+<b class="nc"><i>340</i>&nbsp;        table.addCell(&quot;indexing.delete_total&quot;,</b>
+<i>341</i>&nbsp;            &quot;sibling:pri;alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops&quot;);
+<b class="nc"><i>342</i>&nbsp;        table.addCell(&quot;pri.indexing.delete_total&quot;, &quot;default:false;text-align:right;desc:number of delete ops&quot;);</b>
+<i>343</i>&nbsp;
+<b class="nc"><i>344</i>&nbsp;        table.addCell(&quot;indexing.index_current&quot;,</b>
+<i>345</i>&nbsp;            &quot;sibling:pri;alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops&quot;);
+<b class="nc"><i>346</i>&nbsp;        table.addCell(&quot;pri.indexing.index_current&quot;, &quot;default:false;text-align:right;desc:number of current indexing ops&quot;);</b>
+<i>347</i>&nbsp;
+<b class="nc"><i>348</i>&nbsp;        table.addCell(&quot;indexing.index_time&quot;,</b>
+<i>349</i>&nbsp;            &quot;sibling:pri;alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing&quot;);
+<b class="nc"><i>350</i>&nbsp;        table.addCell(&quot;pri.indexing.index_time&quot;, &quot;default:false;text-align:right;desc:time spent in indexing&quot;);</b>
+<i>351</i>&nbsp;
+<b class="nc"><i>352</i>&nbsp;        table.addCell(&quot;indexing.index_total&quot;,</b>
+<i>353</i>&nbsp;            &quot;sibling:pri;alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops&quot;);
+<b class="nc"><i>354</i>&nbsp;        table.addCell(&quot;pri.indexing.index_total&quot;, &quot;default:false;text-align:right;desc:number of indexing ops&quot;);</b>
+<i>355</i>&nbsp;
+<b class="nc"><i>356</i>&nbsp;        table.addCell(&quot;indexing.index_failed&quot;,</b>
+<i>357</i>&nbsp;            &quot;sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops&quot;);
+<b class="nc"><i>358</i>&nbsp;        table.addCell(&quot;pri.indexing.index_failed&quot;, &quot;default:false;text-align:right;desc:number of failed indexing ops&quot;);</b>
+<i>359</i>&nbsp;
+<b class="nc"><i>360</i>&nbsp;        table.addCell(&quot;merges.current&quot;,</b>
+<i>361</i>&nbsp;            &quot;sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges&quot;);
+<b class="nc"><i>362</i>&nbsp;        table.addCell(&quot;pri.merges.current&quot;, &quot;default:false;text-align:right;desc:number of current merges&quot;);</b>
+<i>363</i>&nbsp;
+<b class="nc"><i>364</i>&nbsp;        table.addCell(&quot;merges.current_docs&quot;,</b>
+<i>365</i>&nbsp;            &quot;sibling:pri;alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs&quot;);
+<b class="nc"><i>366</i>&nbsp;        table.addCell(&quot;pri.merges.current_docs&quot;, &quot;default:false;text-align:right;desc:number of current merging docs&quot;);</b>
+<i>367</i>&nbsp;
+<b class="nc"><i>368</i>&nbsp;        table.addCell(&quot;merges.current_size&quot;,</b>
+<i>369</i>&nbsp;            &quot;sibling:pri;alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges&quot;);
+<b class="nc"><i>370</i>&nbsp;        table.addCell(&quot;pri.merges.current_size&quot;, &quot;default:false;text-align:right;desc:size of current merges&quot;);</b>
+<i>371</i>&nbsp;
+<b class="nc"><i>372</i>&nbsp;        table.addCell(&quot;merges.total&quot;,</b>
+<i>373</i>&nbsp;            &quot;sibling:pri;alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops&quot;);
+<b class="nc"><i>374</i>&nbsp;        table.addCell(&quot;pri.merges.total&quot;, &quot;default:false;text-align:right;desc:number of completed merge ops&quot;);</b>
+<i>375</i>&nbsp;
+<b class="nc"><i>376</i>&nbsp;        table.addCell(&quot;merges.total_docs&quot;, &quot;sibling:pri;alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged&quot;);</b>
+<b class="nc"><i>377</i>&nbsp;        table.addCell(&quot;pri.merges.total_docs&quot;, &quot;default:false;text-align:right;desc:docs merged&quot;);</b>
+<i>378</i>&nbsp;
+<b class="nc"><i>379</i>&nbsp;        table.addCell(&quot;merges.total_size&quot;, &quot;sibling:pri;alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged&quot;);</b>
+<b class="nc"><i>380</i>&nbsp;        table.addCell(&quot;pri.merges.total_size&quot;, &quot;default:false;text-align:right;desc:size merged&quot;);</b>
+<i>381</i>&nbsp;
+<b class="nc"><i>382</i>&nbsp;        table.addCell(&quot;merges.total_time&quot;,</b>
+<i>383</i>&nbsp;            &quot;sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges&quot;);
+<b class="nc"><i>384</i>&nbsp;        table.addCell(&quot;pri.merges.total_time&quot;, &quot;default:false;text-align:right;desc:time spent in merges&quot;);</b>
+<i>385</i>&nbsp;
+<b class="nc"><i>386</i>&nbsp;        table.addCell(&quot;refresh.total&quot;, &quot;sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes&quot;);</b>
+<b class="nc"><i>387</i>&nbsp;        table.addCell(&quot;pri.refresh.total&quot;, &quot;default:false;text-align:right;desc:total refreshes&quot;);</b>
+<i>388</i>&nbsp;
+<b class="nc"><i>389</i>&nbsp;        table.addCell(&quot;refresh.time&quot;, &quot;sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes&quot;);</b>
+<b class="nc"><i>390</i>&nbsp;        table.addCell(&quot;pri.refresh.time&quot;, &quot;default:false;text-align:right;desc:time spent in refreshes&quot;);</b>
+<i>391</i>&nbsp;
+<b class="nc"><i>392</i>&nbsp;        table.addCell(&quot;refresh.external_total&quot;,</b>
+<i>393</i>&nbsp;            &quot;sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes&quot;);
+<b class="nc"><i>394</i>&nbsp;        table.addCell(&quot;pri.refresh.external_total&quot;, &quot;default:false;text-align:right;desc:total external refreshes&quot;);</b>
+<i>395</i>&nbsp;
+<b class="nc"><i>396</i>&nbsp;        table.addCell(&quot;refresh.external_time&quot;,</b>
+<i>397</i>&nbsp;            &quot;sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes&quot;);
+<b class="nc"><i>398</i>&nbsp;        table.addCell(&quot;pri.refresh.external_time&quot;, &quot;default:false;text-align:right;desc:time spent in external refreshes&quot;);</b>
+<i>399</i>&nbsp;
+<b class="nc"><i>400</i>&nbsp;        table.addCell(&quot;refresh.listeners&quot;,</b>
+<i>401</i>&nbsp;            &quot;sibling:pri;alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners&quot;);
+<b class="nc"><i>402</i>&nbsp;        table.addCell(&quot;pri.refresh.listeners&quot;, &quot;default:false;text-align:right;desc:number of pending refresh listeners&quot;);</b>
+<i>403</i>&nbsp;
+<b class="nc"><i>404</i>&nbsp;        table.addCell(&quot;search.fetch_current&quot;,</b>
+<i>405</i>&nbsp;            &quot;sibling:pri;alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops&quot;);
+<b class="nc"><i>406</i>&nbsp;        table.addCell(&quot;pri.search.fetch_current&quot;, &quot;default:false;text-align:right;desc:current fetch phase ops&quot;);</b>
+<i>407</i>&nbsp;
+<b class="nc"><i>408</i>&nbsp;        table.addCell(&quot;search.fetch_time&quot;,</b>
+<i>409</i>&nbsp;            &quot;sibling:pri;alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase&quot;);
+<b class="nc"><i>410</i>&nbsp;        table.addCell(&quot;pri.search.fetch_time&quot;, &quot;default:false;text-align:right;desc:time spent in fetch phase&quot;);</b>
+<i>411</i>&nbsp;
+<b class="nc"><i>412</i>&nbsp;        table.addCell(&quot;search.fetch_total&quot;,</b>
+<i>413</i>&nbsp;            &quot;sibling:pri;alias:sfto,searchFetchTotal;default:false;text-align:right;desc:total fetch ops&quot;);
+<b class="nc"><i>414</i>&nbsp;        table.addCell(&quot;pri.search.fetch_total&quot;, &quot;default:false;text-align:right;desc:total fetch ops&quot;);</b>
+<i>415</i>&nbsp;
+<b class="nc"><i>416</i>&nbsp;        table.addCell(&quot;search.open_contexts&quot;,</b>
+<i>417</i>&nbsp;            &quot;sibling:pri;alias:so,searchOpenContexts;default:false;text-align:right;desc:open search contexts&quot;);
+<b class="nc"><i>418</i>&nbsp;        table.addCell(&quot;pri.search.open_contexts&quot;, &quot;default:false;text-align:right;desc:open search contexts&quot;);</b>
+<i>419</i>&nbsp;
+<b class="nc"><i>420</i>&nbsp;        table.addCell(&quot;search.query_current&quot;,</b>
+<i>421</i>&nbsp;            &quot;sibling:pri;alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops&quot;);
+<b class="nc"><i>422</i>&nbsp;        table.addCell(&quot;pri.search.query_current&quot;, &quot;default:false;text-align:right;desc:current query phase ops&quot;);</b>
+<i>423</i>&nbsp;
+<b class="nc"><i>424</i>&nbsp;        table.addCell(&quot;search.query_time&quot;,</b>
+<i>425</i>&nbsp;            &quot;sibling:pri;alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase&quot;);
+<b class="nc"><i>426</i>&nbsp;        table.addCell(&quot;pri.search.query_time&quot;, &quot;default:false;text-align:right;desc:time spent in query phase&quot;);</b>
+<i>427</i>&nbsp;
+<b class="nc"><i>428</i>&nbsp;        table.addCell(&quot;search.query_total&quot;,</b>
+<i>429</i>&nbsp;            &quot;sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops&quot;);
+<b class="nc"><i>430</i>&nbsp;        table.addCell(&quot;pri.search.query_total&quot;, &quot;default:false;text-align:right;desc:total query phase ops&quot;);</b>
+<i>431</i>&nbsp;
+<b class="nc"><i>432</i>&nbsp;        table.addCell(&quot;search.scroll_current&quot;,</b>
+<i>433</i>&nbsp;            &quot;sibling:pri;alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts&quot;);
+<b class="nc"><i>434</i>&nbsp;        table.addCell(&quot;pri.search.scroll_current&quot;, &quot;default:false;text-align:right;desc:open scroll contexts&quot;);</b>
+<i>435</i>&nbsp;
+<b class="nc"><i>436</i>&nbsp;        table.addCell(&quot;search.scroll_time&quot;,</b>
+<i>437</i>&nbsp;            &quot;sibling:pri;alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open&quot;);
+<b class="nc"><i>438</i>&nbsp;        table.addCell(&quot;pri.search.scroll_time&quot;, &quot;default:false;text-align:right;desc:time scroll contexts held open&quot;);</b>
+<i>439</i>&nbsp;
+<b class="nc"><i>440</i>&nbsp;        table.addCell(&quot;search.scroll_total&quot;,</b>
+<i>441</i>&nbsp;            &quot;sibling:pri;alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts&quot;);
+<b class="nc"><i>442</i>&nbsp;        table.addCell(&quot;pri.search.scroll_total&quot;, &quot;default:false;text-align:right;desc:completed scroll contexts&quot;);</b>
+<i>443</i>&nbsp;
+<b class="nc"><i>444</i>&nbsp;        table.addCell(&quot;segments.count&quot;, &quot;sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments&quot;);</b>
+<b class="nc"><i>445</i>&nbsp;        table.addCell(&quot;pri.segments.count&quot;, &quot;default:false;text-align:right;desc:number of segments&quot;);</b>
+<i>446</i>&nbsp;
+<b class="nc"><i>447</i>&nbsp;        table.addCell(&quot;segments.memory&quot;, &quot;sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments&quot;);</b>
+<b class="nc"><i>448</i>&nbsp;        table.addCell(&quot;pri.segments.memory&quot;, &quot;default:false;text-align:right;desc:memory used by segments&quot;);</b>
+<i>449</i>&nbsp;
+<b class="nc"><i>450</i>&nbsp;        table.addCell(&quot;segments.index_writer_memory&quot;,</b>
+<i>451</i>&nbsp;            &quot;sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer&quot;);
+<b class="nc"><i>452</i>&nbsp;        table.addCell(&quot;pri.segments.index_writer_memory&quot;, &quot;default:false;text-align:right;desc:memory used by index writer&quot;);</b>
+<i>453</i>&nbsp;
+<b class="nc"><i>454</i>&nbsp;        table.addCell(&quot;segments.version_map_memory&quot;,</b>
+<i>455</i>&nbsp;            &quot;sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map&quot;);
+<b class="nc"><i>456</i>&nbsp;        table.addCell(&quot;pri.segments.version_map_memory&quot;, &quot;default:false;text-align:right;desc:memory used by version map&quot;);</b>
+<i>457</i>&nbsp;
+<b class="nc"><i>458</i>&nbsp;        table.addCell(&quot;segments.fixed_bitset_memory&quot;,</b>
+<i>459</i>&nbsp;            &quot;sibling:pri;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for&quot; +
+<i>460</i>&nbsp;            &quot; nested object field types and type filters for types referred in _parent fields&quot;);
+<b class="nc"><i>461</i>&nbsp;        table.addCell(&quot;pri.segments.fixed_bitset_memory&quot;,</b>
+<i>462</i>&nbsp;            &quot;default:false;text-align:right;desc:memory used by fixed bit sets for nested object&quot; +
+<i>463</i>&nbsp;            &quot; field types and type filters for types referred in _parent fields&quot;);
+<i>464</i>&nbsp;
+<b class="nc"><i>465</i>&nbsp;        table.addCell(&quot;warmer.current&quot;, &quot;sibling:pri;alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops&quot;);</b>
+<b class="nc"><i>466</i>&nbsp;        table.addCell(&quot;pri.warmer.current&quot;, &quot;default:false;text-align:right;desc:current warmer ops&quot;);</b>
+<i>467</i>&nbsp;
+<b class="nc"><i>468</i>&nbsp;        table.addCell(&quot;warmer.total&quot;, &quot;sibling:pri;alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops&quot;);</b>
+<b class="nc"><i>469</i>&nbsp;        table.addCell(&quot;pri.warmer.total&quot;, &quot;default:false;text-align:right;desc:total warmer ops&quot;);</b>
+<i>470</i>&nbsp;
+<b class="nc"><i>471</i>&nbsp;        table.addCell(&quot;warmer.total_time&quot;,</b>
+<i>472</i>&nbsp;            &quot;sibling:pri;alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers&quot;);
+<b class="nc"><i>473</i>&nbsp;        table.addCell(&quot;pri.warmer.total_time&quot;, &quot;default:false;text-align:right;desc:time spent in warmers&quot;);</b>
+<i>474</i>&nbsp;
+<b class="nc"><i>475</i>&nbsp;        table.addCell(&quot;suggest.current&quot;,</b>
+<i>476</i>&nbsp;            &quot;sibling:pri;alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops&quot;);
+<b class="nc"><i>477</i>&nbsp;        table.addCell(&quot;pri.suggest.current&quot;, &quot;default:false;text-align:right;desc:number of current suggest ops&quot;);</b>
+<i>478</i>&nbsp;
+<b class="nc"><i>479</i>&nbsp;        table.addCell(&quot;suggest.time&quot;, &quot;sibling:pri;alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest&quot;);</b>
+<b class="nc"><i>480</i>&nbsp;        table.addCell(&quot;pri.suggest.time&quot;, &quot;default:false;text-align:right;desc:time spend in suggest&quot;);</b>
+<i>481</i>&nbsp;
+<b class="nc"><i>482</i>&nbsp;        table.addCell(&quot;suggest.total&quot;, &quot;sibling:pri;alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops&quot;);</b>
+<b class="nc"><i>483</i>&nbsp;        table.addCell(&quot;pri.suggest.total&quot;, &quot;default:false;text-align:right;desc:number of suggest ops&quot;);</b>
+<i>484</i>&nbsp;
+<b class="nc"><i>485</i>&nbsp;        table.addCell(&quot;memory.total&quot;, &quot;sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory&quot;);</b>
+<b class="nc"><i>486</i>&nbsp;        table.addCell(&quot;pri.memory.total&quot;, &quot;default:false;text-align:right;desc:total user memory&quot;);</b>
+<i>487</i>&nbsp;
+<b class="nc"><i>488</i>&nbsp;        table.addCell(&quot;search.throttled&quot;, &quot;alias:sth;default:false;desc:indicates if the index is search throttled&quot;);</b>
+<i>489</i>&nbsp;
+<b class="nc"><i>490</i>&nbsp;        table.endHeaders();</b>
+<b class="nc"><i>491</i>&nbsp;        return table;</b>
+<i>492</i>&nbsp;    }
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;    // package private for testing
+<i>495</i>&nbsp;    Table buildTable(final RestRequest request,
+<i>496</i>&nbsp;                     final Map&lt;String, Settings&gt; indicesSettings,
+<i>497</i>&nbsp;                     final Map&lt;String, ClusterIndexHealth&gt; indicesHealths,
+<i>498</i>&nbsp;                     final Map&lt;String, IndexStats&gt; indicesStats,
+<i>499</i>&nbsp;                     final Map&lt;String, IndexMetaData&gt; indicesMetaDatas) {
+<i>500</i>&nbsp;
+<b class="nc"><i>501</i>&nbsp;        final String healthParam = request.param(&quot;health&quot;);</b>
+<b class="nc"><i>502</i>&nbsp;        final Table table = getTableWithHeader(request);</b>
+<i>503</i>&nbsp;
+<b class="nc"><i>504</i>&nbsp;        indicesSettings.forEach((indexName, settings) -&gt; {</b>
+<b class="nc"><i>505</i>&nbsp;            if (indicesMetaDatas.containsKey(indexName) == false) {</b>
+<i>506</i>&nbsp;                // the index exists in the Get Indices response but is not present in the cluster state:
+<i>507</i>&nbsp;                // it is likely that the index was deleted in the meanwhile, so we ignore it.
+<b class="nc"><i>508</i>&nbsp;                return;</b>
+<i>509</i>&nbsp;            }
+<i>510</i>&nbsp;
+<b class="nc"><i>511</i>&nbsp;            final IndexMetaData indexMetaData = indicesMetaDatas.get(indexName);</b>
+<b class="nc"><i>512</i>&nbsp;            final IndexMetaData.State indexState = indexMetaData.getState();</b>
+<b class="nc"><i>513</i>&nbsp;            final IndexStats indexStats = indicesStats.get(indexName);</b>
+<b class="nc"><i>514</i>&nbsp;            final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);</b>
+<i>515</i>&nbsp;
+<i>516</i>&nbsp;            final String health;
+<b class="nc"><i>517</i>&nbsp;            final ClusterIndexHealth indexHealth = indicesHealths.get(indexName);</b>
+<b class="nc"><i>518</i>&nbsp;            if (indexHealth != null) {</b>
+<b class="nc"><i>519</i>&nbsp;                health = indexHealth.getStatus().toString().toLowerCase(Locale.ROOT);</b>
+<b class="nc"><i>520</i>&nbsp;            } else if (indexStats != null) {</b>
+<b class="nc"><i>521</i>&nbsp;                health = &quot;red*&quot;;</b>
+<i>522</i>&nbsp;            } else {
+<b class="nc"><i>523</i>&nbsp;                health = &quot;&quot;;</b>
+<i>524</i>&nbsp;            }
+<i>525</i>&nbsp;
+<b class="nc"><i>526</i>&nbsp;            if (healthParam != null) {</b>
+<b class="nc"><i>527</i>&nbsp;                final ClusterHealthStatus healthStatusFilter = ClusterHealthStatus.fromString(healthParam);</b>
+<i>528</i>&nbsp;                boolean skip;
+<b class="nc"><i>529</i>&nbsp;                if (indexHealth != null) {</b>
+<i>530</i>&nbsp;                    // index health is known but does not match the one requested
+<b class="nc"><i>531</i>&nbsp;                    skip = indexHealth.getStatus() != healthStatusFilter;</b>
+<i>532</i>&nbsp;                } else {
+<i>533</i>&nbsp;                    // index health is unknown, skip if we don&#39;t explicitly request RED health
+<b class="nc"><i>534</i>&nbsp;                    skip = ClusterHealthStatus.RED != healthStatusFilter;</b>
+<i>535</i>&nbsp;                }
+<b class="nc"><i>536</i>&nbsp;                if (skip) {</b>
+<b class="nc"><i>537</i>&nbsp;                    return;</b>
+<i>538</i>&nbsp;                }
+<i>539</i>&nbsp;            }
+<i>540</i>&nbsp;
+<i>541</i>&nbsp;            final CommonStats primaryStats;
+<i>542</i>&nbsp;            final CommonStats totalStats;
+<i>543</i>&nbsp;
+<b class="nc"><i>544</i>&nbsp;            if (indexStats == null || indexState == IndexMetaData.State.CLOSE) {</b>
+<i>545</i>&nbsp;                // TODO: expose docs stats for replicated closed indices
+<b class="nc"><i>546</i>&nbsp;                primaryStats = new CommonStats();</b>
+<b class="nc"><i>547</i>&nbsp;                totalStats = new CommonStats();</b>
+<i>548</i>&nbsp;            } else {
+<b class="nc"><i>549</i>&nbsp;                primaryStats = indexStats.getPrimaries();</b>
+<b class="nc"><i>550</i>&nbsp;                totalStats = indexStats.getTotal();</b>
+<i>551</i>&nbsp;            }
+<b class="nc"><i>552</i>&nbsp;            table.startRow();</b>
+<b class="nc"><i>553</i>&nbsp;            table.addCell(health);</b>
+<b class="nc"><i>554</i>&nbsp;            table.addCell(indexState.toString().toLowerCase(Locale.ROOT));</b>
+<b class="nc"><i>555</i>&nbsp;            table.addCell(indexName);</b>
+<b class="nc"><i>556</i>&nbsp;            table.addCell(indexMetaData.getIndexUUID());</b>
+<b class="nc"><i>557</i>&nbsp;            table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());</b>
+<b class="nc"><i>558</i>&nbsp;            table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());</b>
+<i>559</i>&nbsp;
+<b class="nc"><i>560</i>&nbsp;            table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getCount());</b>
+<b class="nc"><i>561</i>&nbsp;            table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());</b>
+<i>562</i>&nbsp;
+<b class="nc"><i>563</i>&nbsp;            table.addCell(indexMetaData.getCreationDate());</b>
+<b class="nc"><i>564</i>&nbsp;            ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC);</b>
+<b class="nc"><i>565</i>&nbsp;            table.addCell(STRICT_DATE_TIME_FORMATTER.format(creationTime));</b>
+<i>566</i>&nbsp;
+<b class="nc"><i>567</i>&nbsp;            table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());</b>
+<b class="nc"><i>568</i>&nbsp;            table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());</b>
+<i>569</i>&nbsp;
+<b class="nc"><i>570</i>&nbsp;            table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());</b>
+<b class="nc"><i>571</i>&nbsp;            table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());</b>
+<i>572</i>&nbsp;
+<b class="nc"><i>573</i>&nbsp;            table.addCell(totalStats.getFieldData() == null ? null : totalStats.getFieldData().getMemorySize());</b>
+<b class="nc"><i>574</i>&nbsp;            table.addCell(primaryStats.getFieldData() == null ? null : primaryStats.getFieldData().getMemorySize());</b>
+<i>575</i>&nbsp;
+<b class="nc"><i>576</i>&nbsp;            table.addCell(totalStats.getFieldData() == null ? null : totalStats.getFieldData().getEvictions());</b>
+<b class="nc"><i>577</i>&nbsp;            table.addCell(primaryStats.getFieldData() == null ? null : primaryStats.getFieldData().getEvictions());</b>
+<i>578</i>&nbsp;
+<b class="nc"><i>579</i>&nbsp;            table.addCell(totalStats.getQueryCache() == null ? null : totalStats.getQueryCache().getMemorySize());</b>
+<b class="nc"><i>580</i>&nbsp;            table.addCell(primaryStats.getQueryCache() == null ? null : primaryStats.getQueryCache().getMemorySize());</b>
+<i>581</i>&nbsp;
+<b class="nc"><i>582</i>&nbsp;            table.addCell(totalStats.getQueryCache() == null ? null : totalStats.getQueryCache().getEvictions());</b>
+<b class="nc"><i>583</i>&nbsp;            table.addCell(primaryStats.getQueryCache() == null ? null : primaryStats.getQueryCache().getEvictions());</b>
+<i>584</i>&nbsp;
+<b class="nc"><i>585</i>&nbsp;            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getMemorySize());</b>
+<b class="nc"><i>586</i>&nbsp;            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getMemorySize());</b>
+<i>587</i>&nbsp;
+<b class="nc"><i>588</i>&nbsp;            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getEvictions());</b>
+<b class="nc"><i>589</i>&nbsp;            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getEvictions());</b>
+<i>590</i>&nbsp;
+<b class="nc"><i>591</i>&nbsp;            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getHitCount());</b>
+<b class="nc"><i>592</i>&nbsp;            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getHitCount());</b>
+<i>593</i>&nbsp;
+<b class="nc"><i>594</i>&nbsp;            table.addCell(totalStats.getRequestCache() == null ? null : totalStats.getRequestCache().getMissCount());</b>
+<b class="nc"><i>595</i>&nbsp;            table.addCell(primaryStats.getRequestCache() == null ? null : primaryStats.getRequestCache().getMissCount());</b>
+<i>596</i>&nbsp;
+<b class="nc"><i>597</i>&nbsp;            table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotal());</b>
+<b class="nc"><i>598</i>&nbsp;            table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotal());</b>
+<i>599</i>&nbsp;
+<b class="nc"><i>600</i>&nbsp;            table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotalTime());</b>
+<b class="nc"><i>601</i>&nbsp;            table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotalTime());</b>
+<i>602</i>&nbsp;
+<b class="nc"><i>603</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().current());</b>
+<b class="nc"><i>604</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().current());</b>
+<i>605</i>&nbsp;
+<b class="nc"><i>606</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getTime());</b>
+<b class="nc"><i>607</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getTime());</b>
+<i>608</i>&nbsp;
+<b class="nc"><i>609</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getCount());</b>
+<b class="nc"><i>610</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getCount());</b>
+<i>611</i>&nbsp;
+<b class="nc"><i>612</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getExistsTime());</b>
+<b class="nc"><i>613</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getExistsTime());</b>
+<i>614</i>&nbsp;
+<b class="nc"><i>615</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getExistsCount());</b>
+<b class="nc"><i>616</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getExistsCount());</b>
+<i>617</i>&nbsp;
+<b class="nc"><i>618</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getMissingTime());</b>
+<b class="nc"><i>619</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getMissingTime());</b>
+<i>620</i>&nbsp;
+<b class="nc"><i>621</i>&nbsp;            table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().getMissingCount());</b>
+<b class="nc"><i>622</i>&nbsp;            table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().getMissingCount());</b>
+<i>623</i>&nbsp;
+<b class="nc"><i>624</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteCurrent());</b>
+<b class="nc"><i>625</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteCurrent());</b>
+<i>626</i>&nbsp;
+<b class="nc"><i>627</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteTime());</b>
+<b class="nc"><i>628</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteTime());</b>
+<i>629</i>&nbsp;
+<b class="nc"><i>630</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getDeleteCount());</b>
+<b class="nc"><i>631</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getDeleteCount());</b>
+<i>632</i>&nbsp;
+<b class="nc"><i>633</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCurrent());</b>
+<b class="nc"><i>634</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCurrent());</b>
+<i>635</i>&nbsp;
+<b class="nc"><i>636</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexTime());</b>
+<b class="nc"><i>637</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexTime());</b>
+<i>638</i>&nbsp;
+<b class="nc"><i>639</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCount());</b>
+<b class="nc"><i>640</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCount());</b>
+<i>641</i>&nbsp;
+<b class="nc"><i>642</i>&nbsp;            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedCount());</b>
+<b class="nc"><i>643</i>&nbsp;            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());</b>
+<i>644</i>&nbsp;
+<b class="nc"><i>645</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());</b>
+<b class="nc"><i>646</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrent());</b>
+<i>647</i>&nbsp;
+<b class="nc"><i>648</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrentNumDocs());</b>
+<b class="nc"><i>649</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrentNumDocs());</b>
+<i>650</i>&nbsp;
+<b class="nc"><i>651</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrentSize());</b>
+<b class="nc"><i>652</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrentSize());</b>
+<i>653</i>&nbsp;
+<b class="nc"><i>654</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotal());</b>
+<b class="nc"><i>655</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotal());</b>
+<i>656</i>&nbsp;
+<b class="nc"><i>657</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalNumDocs());</b>
+<b class="nc"><i>658</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalNumDocs());</b>
+<i>659</i>&nbsp;
+<b class="nc"><i>660</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalSize());</b>
+<b class="nc"><i>661</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalSize());</b>
+<i>662</i>&nbsp;
+<b class="nc"><i>663</i>&nbsp;            table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());</b>
+<b class="nc"><i>664</i>&nbsp;            table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());</b>
+<i>665</i>&nbsp;
+<b class="nc"><i>666</i>&nbsp;            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());</b>
+<b class="nc"><i>667</i>&nbsp;            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());</b>
+<i>668</i>&nbsp;
+<b class="nc"><i>669</i>&nbsp;            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotalTime());</b>
+<b class="nc"><i>670</i>&nbsp;            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotalTime());</b>
+<i>671</i>&nbsp;
+<b class="nc"><i>672</i>&nbsp;            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotal());</b>
+<b class="nc"><i>673</i>&nbsp;            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotal());</b>
+<i>674</i>&nbsp;
+<b class="nc"><i>675</i>&nbsp;            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotalTime());</b>
+<b class="nc"><i>676</i>&nbsp;            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotalTime());</b>
+<i>677</i>&nbsp;
+<b class="nc"><i>678</i>&nbsp;            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getListeners());</b>
+<b class="nc"><i>679</i>&nbsp;            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getListeners());</b>
+<i>680</i>&nbsp;
+<b class="nc"><i>681</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCurrent());</b>
+<b class="nc"><i>682</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCurrent());</b>
+<i>683</i>&nbsp;
+<b class="nc"><i>684</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchTime());</b>
+<b class="nc"><i>685</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchTime());</b>
+<i>686</i>&nbsp;
+<b class="nc"><i>687</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCount());</b>
+<b class="nc"><i>688</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCount());</b>
+<i>689</i>&nbsp;
+<b class="nc"><i>690</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getOpenContexts());</b>
+<b class="nc"><i>691</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getOpenContexts());</b>
+<i>692</i>&nbsp;
+<b class="nc"><i>693</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCurrent());</b>
+<b class="nc"><i>694</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCurrent());</b>
+<i>695</i>&nbsp;
+<b class="nc"><i>696</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryTime());</b>
+<b class="nc"><i>697</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryTime());</b>
+<i>698</i>&nbsp;
+<b class="nc"><i>699</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());</b>
+<b class="nc"><i>700</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());</b>
+<i>701</i>&nbsp;
+<b class="nc"><i>702</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());</b>
+<b class="nc"><i>703</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());</b>
+<i>704</i>&nbsp;
+<b class="nc"><i>705</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollTime());</b>
+<b class="nc"><i>706</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollTime());</b>
+<i>707</i>&nbsp;
+<b class="nc"><i>708</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCount());</b>
+<b class="nc"><i>709</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCount());</b>
+<i>710</i>&nbsp;
+<b class="nc"><i>711</i>&nbsp;            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());</b>
+<b class="nc"><i>712</i>&nbsp;            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());</b>
+<i>713</i>&nbsp;
+<b class="nc"><i>714</i>&nbsp;            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getMemory());</b>
+<b class="nc"><i>715</i>&nbsp;            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getMemory());</b>
+<i>716</i>&nbsp;
+<b class="nc"><i>717</i>&nbsp;            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());</b>
+<b class="nc"><i>718</i>&nbsp;            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());</b>
+<i>719</i>&nbsp;
+<b class="nc"><i>720</i>&nbsp;            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getVersionMapMemory());</b>
+<b class="nc"><i>721</i>&nbsp;            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getVersionMapMemory());</b>
+<i>722</i>&nbsp;
+<b class="nc"><i>723</i>&nbsp;            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getBitsetMemory());</b>
+<b class="nc"><i>724</i>&nbsp;            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getBitsetMemory());</b>
+<i>725</i>&nbsp;
+<b class="nc"><i>726</i>&nbsp;            table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().current());</b>
+<b class="nc"><i>727</i>&nbsp;            table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().current());</b>
+<i>728</i>&nbsp;
+<b class="nc"><i>729</i>&nbsp;            table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().total());</b>
+<b class="nc"><i>730</i>&nbsp;            table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().total());</b>
+<i>731</i>&nbsp;
+<b class="nc"><i>732</i>&nbsp;            table.addCell(totalStats.getWarmer() == null ? null : totalStats.getWarmer().totalTime());</b>
+<b class="nc"><i>733</i>&nbsp;            table.addCell(primaryStats.getWarmer() == null ? null : primaryStats.getWarmer().totalTime());</b>
+<i>734</i>&nbsp;
+<b class="nc"><i>735</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCurrent());</b>
+<b class="nc"><i>736</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCurrent());</b>
+<i>737</i>&nbsp;
+<b class="nc"><i>738</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestTime());</b>
+<b class="nc"><i>739</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestTime());</b>
+<i>740</i>&nbsp;
+<b class="nc"><i>741</i>&nbsp;            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCount());</b>
+<b class="nc"><i>742</i>&nbsp;            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCount());</b>
+<i>743</i>&nbsp;
+<b class="nc"><i>744</i>&nbsp;            table.addCell(totalStats.getTotalMemory());</b>
+<b class="nc"><i>745</i>&nbsp;            table.addCell(primaryStats.getTotalMemory());</b>
+<i>746</i>&nbsp;
+<b class="nc"><i>747</i>&nbsp;            table.addCell(searchThrottled);</b>
+<i>748</i>&nbsp;
+<b class="nc"><i>749</i>&nbsp;            table.endRow();</b>
+<b class="nc"><i>750</i>&nbsp;        });</b>
+<i>751</i>&nbsp;
+<b class="nc"><i>752</i>&nbsp;        return table;</b>
+<i>753</i>&nbsp;    }
+<i>754</i>&nbsp;
+<i>755</i>&nbsp;    @SuppressWarnings(&quot;unchecked&quot;)
+<i>756</i>&nbsp;    private static &lt;A extends ActionResponse&gt; A extractResponse(final Collection&lt;? extends ActionResponse&gt; responses, Class&lt;A&gt; c) {
+<b class="nc"><i>757</i>&nbsp;        return (A) responses.stream().filter(c::isInstance).findFirst().get();</b>
+<i>758</i>&nbsp;    }
+<i>759</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

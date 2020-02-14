@@ -1,0 +1,432 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: NodeJoinController</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery.zen</a> ]
+</div>
+
+<h1>Coverage Summary for Class: NodeJoinController (org.elasticsearch.discovery.zen)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+</tr>
+  <tr>
+    <td class="name">NodeJoinController$ElectionCallback</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;package org.elasticsearch.discovery.zen;
+<i>20</i>&nbsp;
+<i>21</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>22</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>23</i>&nbsp;import org.apache.logging.log4j.message.ParameterizedMessage;
+<i>24</i>&nbsp;import org.apache.lucene.store.AlreadyClosedException;
+<i>25</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>26</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterStateTaskConfig;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.ClusterStateTaskListener;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.NotMasterException;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.routing.RerouteService;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.routing.allocation.AllocationService;
+<i>34</i>&nbsp;import org.elasticsearch.cluster.service.MasterService;
+<i>35</i>&nbsp;import org.elasticsearch.common.Priority;
+<i>36</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>37</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>38</i>&nbsp;
+<i>39</i>&nbsp;import java.util.ArrayList;
+<i>40</i>&nbsp;import java.util.Collections;
+<i>41</i>&nbsp;import java.util.HashMap;
+<i>42</i>&nbsp;import java.util.List;
+<i>43</i>&nbsp;import java.util.Map;
+<i>44</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>45</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>46</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>47</i>&nbsp;
+<i>48</i>&nbsp;/**
+<i>49</i>&nbsp; * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
+<i>50</i>&nbsp; * are directly added to the cluster state or are accumulated during master election.
+<i>51</i>&nbsp; */
+<i>52</i>&nbsp;public class NodeJoinController {
+<i>53</i>&nbsp;
+<i>54</i>&nbsp;    private static final Logger logger = LogManager.getLogger(NodeJoinController.class);
+<i>55</i>&nbsp;
+<i>56</i>&nbsp;    private final MasterService masterService;
+<i>57</i>&nbsp;    private final JoinTaskExecutor joinTaskExecutor;
+<i>58</i>&nbsp;
+<i>59</i>&nbsp;    // this is set while trying to become a master
+<i>60</i>&nbsp;    // mutation should be done under lock
+<i>61</i>&nbsp;    private ElectionContext electionContext = null;
+<i>62</i>&nbsp;
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
+<i>65</i>&nbsp;                              ElectMasterService electMaster, RerouteService rerouteService) {
+<i>66</i>&nbsp;        this.masterService = masterService;
+<i>67</i>&nbsp;        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
+<i>68</i>&nbsp;            @Override
+<i>69</i>&nbsp;            public void clusterStatePublished(ClusterChangedEvent event) {
+<i>70</i>&nbsp;                electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
+<i>71</i>&nbsp;            }
+<i>72</i>&nbsp;        };
+<i>73</i>&nbsp;    }
+<i>74</i>&nbsp;
+<i>75</i>&nbsp;    /**
+<i>76</i>&nbsp;     * waits for enough incoming joins from master eligible nodes to complete the master election
+<i>77</i>&nbsp;     * &lt;p&gt;
+<i>78</i>&nbsp;     * You must start accumulating joins before calling this method. See {@link #startElectionContext()}
+<i>79</i>&nbsp;     * &lt;p&gt;
+<i>80</i>&nbsp;     * The method will return once the local node has been elected as master or some failure/timeout has happened.
+<i>81</i>&nbsp;     * The exact outcome is communicated via the callback parameter, which is guaranteed to be called.
+<i>82</i>&nbsp;     *
+<i>83</i>&nbsp;     * @param requiredMasterJoins the number of joins from master eligible needed to complete the election
+<i>84</i>&nbsp;     * @param timeValue           how long to wait before failing. a timeout is communicated via the callback&#39;s onFailure method.
+<i>85</i>&nbsp;     * @param callback            the result of the election (success or failure) will be communicated by calling methods on this
+<i>86</i>&nbsp;     *                            object
+<i>87</i>&nbsp;     **/
+<i>88</i>&nbsp;    public void waitToBeElectedAsMaster(int requiredMasterJoins, TimeValue timeValue, final ElectionCallback callback) {
+<i>89</i>&nbsp;        final CountDownLatch done = new CountDownLatch(1);
+<i>90</i>&nbsp;        final ElectionCallback wrapperCallback = new ElectionCallback() {
+<i>91</i>&nbsp;            @Override
+<i>92</i>&nbsp;            public void onElectedAsMaster(ClusterState state) {
+<i>93</i>&nbsp;                done.countDown();
+<i>94</i>&nbsp;                callback.onElectedAsMaster(state);
+<i>95</i>&nbsp;            }
+<i>96</i>&nbsp;
+<i>97</i>&nbsp;            @Override
+<i>98</i>&nbsp;            public void onFailure(Throwable t) {
+<i>99</i>&nbsp;                done.countDown();
+<i>100</i>&nbsp;                callback.onFailure(t);
+<i>101</i>&nbsp;            }
+<i>102</i>&nbsp;        };
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;        ElectionContext myElectionContext = null;
+<i>105</i>&nbsp;
+<i>106</i>&nbsp;        try {
+<i>107</i>&nbsp;            // check what we have so far..
+<i>108</i>&nbsp;            // capture the context we add the callback to make sure we fail our own
+<i>109</i>&nbsp;            synchronized (this) {
+<i>110</i>&nbsp;                assert electionContext != null : &quot;waitToBeElectedAsMaster is called we are not accumulating joins&quot;;
+<i>111</i>&nbsp;                myElectionContext = electionContext;
+<i>112</i>&nbsp;                electionContext.onAttemptToBeElected(requiredMasterJoins, wrapperCallback);
+<i>113</i>&nbsp;                checkPendingJoinsAndElectIfNeeded();
+<i>114</i>&nbsp;            }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;            try {
+<i>117</i>&nbsp;                if (done.await(timeValue.millis(), TimeUnit.MILLISECONDS)) {
+<i>118</i>&nbsp;                    // callback handles everything
+<i>119</i>&nbsp;                    return;
+<i>120</i>&nbsp;                }
+<i>121</i>&nbsp;            } catch (InterruptedException e) {
+<i>122</i>&nbsp;
+<i>123</i>&nbsp;            }
+<i>124</i>&nbsp;            if (logger.isTraceEnabled()) {
+<i>125</i>&nbsp;                final int pendingNodes = myElectionContext.getPendingMasterJoinsCount();
+<i>126</i>&nbsp;                logger.trace(&quot;timed out waiting to be elected. waited [{}]. pending master node joins [{}]&quot;, timeValue, pendingNodes);
+<i>127</i>&nbsp;            }
+<i>128</i>&nbsp;            failContextIfNeeded(myElectionContext, &quot;timed out waiting to be elected&quot;);
+<i>129</i>&nbsp;        } catch (Exception e) {
+<i>130</i>&nbsp;            logger.error(&quot;unexpected failure while waiting for incoming joins&quot;, e);
+<i>131</i>&nbsp;            if (myElectionContext != null) {
+<i>132</i>&nbsp;                failContextIfNeeded(myElectionContext, &quot;unexpected failure while waiting for pending joins [&quot; + e.getMessage() + &quot;]&quot;);
+<i>133</i>&nbsp;            }
+<i>134</i>&nbsp;        }
+<i>135</i>&nbsp;    }
+<i>136</i>&nbsp;
+<i>137</i>&nbsp;    /**
+<i>138</i>&nbsp;     * utility method to fail the given election context under the cluster state thread
+<i>139</i>&nbsp;     */
+<i>140</i>&nbsp;    private synchronized void failContextIfNeeded(final ElectionContext context, final String reason) {
+<i>141</i>&nbsp;        if (electionContext == context) {
+<i>142</i>&nbsp;            stopElectionContext(reason);
+<i>143</i>&nbsp;        }
+<i>144</i>&nbsp;    }
+<i>145</i>&nbsp;
+<i>146</i>&nbsp;    /**
+<i>147</i>&nbsp;     * Accumulates any future incoming join request. Pending join requests will be processed in the final steps of becoming a
+<i>148</i>&nbsp;     * master or when {@link #stopElectionContext(String)} is called.
+<i>149</i>&nbsp;     */
+<i>150</i>&nbsp;    public synchronized void startElectionContext() {
+<i>151</i>&nbsp;        logger.trace(&quot;starting an election context, will accumulate joins&quot;);
+<i>152</i>&nbsp;        assert electionContext == null : &quot;double startElectionContext() calls&quot;;
+<i>153</i>&nbsp;        electionContext = new ElectionContext();
+<i>154</i>&nbsp;    }
+<i>155</i>&nbsp;
+<i>156</i>&nbsp;    /**
+<i>157</i>&nbsp;     * Stopped accumulating joins. All pending joins will be processed. Future joins will be processed immediately
+<i>158</i>&nbsp;     */
+<i>159</i>&nbsp;    public void stopElectionContext(String reason) {
+<i>160</i>&nbsp;        logger.trace(&quot;stopping election ([{}])&quot;, reason);
+<i>161</i>&nbsp;        synchronized (this) {
+<i>162</i>&nbsp;            assert electionContext != null : &quot;stopElectionContext() called but not accumulating&quot;;
+<i>163</i>&nbsp;            electionContext.closeAndProcessPending(reason);
+<i>164</i>&nbsp;            electionContext = null;
+<i>165</i>&nbsp;        }
+<i>166</i>&nbsp;    }
+<i>167</i>&nbsp;
+<i>168</i>&nbsp;    /**
+<i>169</i>&nbsp;     * processes or queues an incoming join request.
+<i>170</i>&nbsp;     * &lt;p&gt;
+<i>171</i>&nbsp;     * Note: doesn&#39;t do any validation. This should have been done before.
+<i>172</i>&nbsp;     */
+<i>173</i>&nbsp;    public synchronized void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
+<i>174</i>&nbsp;        if (electionContext != null) {
+<i>175</i>&nbsp;            electionContext.addIncomingJoin(node, callback);
+<i>176</i>&nbsp;            checkPendingJoinsAndElectIfNeeded();
+<i>177</i>&nbsp;        } else {
+<i>178</i>&nbsp;            masterService.submitStateUpdateTask(&quot;zen-disco-node-join&quot;,
+<i>179</i>&nbsp;                new JoinTaskExecutor.Task(node, &quot;no election context&quot;), ClusterStateTaskConfig.build(Priority.URGENT),
+<i>180</i>&nbsp;                joinTaskExecutor, new JoinTaskListener(callback, logger));
+<i>181</i>&nbsp;        }
+<i>182</i>&nbsp;    }
+<i>183</i>&nbsp;
+<i>184</i>&nbsp;    /**
+<i>185</i>&nbsp;     * checks if there is an on going request to become master and if it has enough pending joins. If so, the node will
+<i>186</i>&nbsp;     * become master via a ClusterState update task.
+<i>187</i>&nbsp;     */
+<i>188</i>&nbsp;    private synchronized void checkPendingJoinsAndElectIfNeeded() {
+<i>189</i>&nbsp;        assert electionContext != null : &quot;election check requested but no active context&quot;;
+<i>190</i>&nbsp;        final int pendingMasterJoins = electionContext.getPendingMasterJoinsCount();
+<i>191</i>&nbsp;        if (electionContext.isEnoughPendingJoins(pendingMasterJoins) == false) {
+<i>192</i>&nbsp;            if (logger.isTraceEnabled()) {
+<i>193</i>&nbsp;                logger.trace(&quot;not enough joins for election. Got [{}], required [{}]&quot;, pendingMasterJoins,
+<i>194</i>&nbsp;                    electionContext.requiredMasterJoins);
+<i>195</i>&nbsp;            }
+<i>196</i>&nbsp;        } else {
+<i>197</i>&nbsp;            if (logger.isTraceEnabled()) {
+<i>198</i>&nbsp;                logger.trace(&quot;have enough joins for election. Got [{}], required [{}]&quot;, pendingMasterJoins,
+<i>199</i>&nbsp;                    electionContext.requiredMasterJoins);
+<i>200</i>&nbsp;            }
+<i>201</i>&nbsp;            electionContext.closeAndBecomeMaster();
+<i>202</i>&nbsp;            electionContext = null; // clear this out so future joins won&#39;t be accumulated
+<i>203</i>&nbsp;        }
+<i>204</i>&nbsp;    }
+<i>205</i>&nbsp;
+<i>206</i>&nbsp;    public interface ElectionCallback {
+<i>207</i>&nbsp;        /**
+<i>208</i>&nbsp;         * called when the local node is successfully elected as master
+<i>209</i>&nbsp;         * Guaranteed to be called on the cluster state update thread
+<i>210</i>&nbsp;         **/
+<i>211</i>&nbsp;        void onElectedAsMaster(ClusterState state);
+<i>212</i>&nbsp;
+<i>213</i>&nbsp;        /**
+<i>214</i>&nbsp;         * called when the local node failed to be elected as master
+<i>215</i>&nbsp;         * Guaranteed to be called on the cluster state update thread
+<i>216</i>&nbsp;         **/
+<i>217</i>&nbsp;        void onFailure(Throwable t);
+<i>218</i>&nbsp;    }
+<i>219</i>&nbsp;
+<i>220</i>&nbsp;    class ElectionContext {
+<i>221</i>&nbsp;        private ElectionCallback callback = null;
+<i>222</i>&nbsp;        private int requiredMasterJoins = -1;
+<i>223</i>&nbsp;        private final Map&lt;DiscoveryNode, List&lt;MembershipAction.JoinCallback&gt;&gt; joinRequestAccumulator = new HashMap&lt;&gt;();
+<i>224</i>&nbsp;
+<i>225</i>&nbsp;        final AtomicBoolean closed = new AtomicBoolean();
+<i>226</i>&nbsp;
+<i>227</i>&nbsp;        public synchronized void onAttemptToBeElected(int requiredMasterJoins, ElectionCallback callback) {
+<i>228</i>&nbsp;            ensureOpen();
+<i>229</i>&nbsp;            assert this.requiredMasterJoins &lt; 0;
+<i>230</i>&nbsp;            assert this.callback == null;
+<i>231</i>&nbsp;            this.requiredMasterJoins = requiredMasterJoins;
+<i>232</i>&nbsp;            this.callback = callback;
+<i>233</i>&nbsp;        }
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;        public synchronized void addIncomingJoin(DiscoveryNode node, MembershipAction.JoinCallback callback) {
+<i>236</i>&nbsp;            ensureOpen();
+<i>237</i>&nbsp;            joinRequestAccumulator.computeIfAbsent(node, n -&gt; new ArrayList&lt;&gt;()).add(callback);
+<i>238</i>&nbsp;        }
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;
+<i>241</i>&nbsp;        public synchronized boolean isEnoughPendingJoins(int pendingMasterJoins) {
+<i>242</i>&nbsp;            final boolean hasEnough;
+<i>243</i>&nbsp;            if (requiredMasterJoins &lt; 0) {
+<i>244</i>&nbsp;                // requiredMasterNodes is unknown yet, return false and keep on waiting
+<i>245</i>&nbsp;                hasEnough = false;
+<i>246</i>&nbsp;            } else {
+<i>247</i>&nbsp;                assert callback != null : &quot;requiredMasterJoins is set but not the callback&quot;;
+<i>248</i>&nbsp;                hasEnough = pendingMasterJoins &gt;= requiredMasterJoins;
+<i>249</i>&nbsp;            }
+<i>250</i>&nbsp;            return hasEnough;
+<i>251</i>&nbsp;        }
+<i>252</i>&nbsp;
+<i>253</i>&nbsp;        private Map&lt;JoinTaskExecutor.Task, ClusterStateTaskListener&gt; getPendingAsTasks(String reason) {
+<i>254</i>&nbsp;            Map&lt;JoinTaskExecutor.Task, ClusterStateTaskListener&gt; tasks = new HashMap&lt;&gt;();
+<i>255</i>&nbsp;            joinRequestAccumulator.entrySet().stream().forEach(e -&gt; tasks.put(
+<i>256</i>&nbsp;                new JoinTaskExecutor.Task(e.getKey(), reason), new JoinTaskListener(e.getValue(), logger)));
+<i>257</i>&nbsp;            return tasks;
+<i>258</i>&nbsp;        }
+<i>259</i>&nbsp;
+<i>260</i>&nbsp;        public synchronized int getPendingMasterJoinsCount() {
+<i>261</i>&nbsp;            int pendingMasterJoins = 0;
+<i>262</i>&nbsp;            for (DiscoveryNode node : joinRequestAccumulator.keySet()) {
+<i>263</i>&nbsp;                if (node.isMasterNode()) {
+<i>264</i>&nbsp;                    pendingMasterJoins++;
+<i>265</i>&nbsp;                }
+<i>266</i>&nbsp;            }
+<i>267</i>&nbsp;            return pendingMasterJoins;
+<i>268</i>&nbsp;        }
+<i>269</i>&nbsp;
+<i>270</i>&nbsp;        public synchronized void closeAndBecomeMaster() {
+<i>271</i>&nbsp;            assert callback != null : &quot;becoming a master but the callback is not yet set&quot;;
+<i>272</i>&nbsp;            assert isEnoughPendingJoins(getPendingMasterJoinsCount()) : &quot;becoming a master but pending joins of &quot;
+<i>273</i>&nbsp;                + getPendingMasterJoinsCount() + &quot; are not enough. needs [&quot; + requiredMasterJoins + &quot;];&quot;;
+<i>274</i>&nbsp;
+<i>275</i>&nbsp;            innerClose();
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;            Map&lt;JoinTaskExecutor.Task, ClusterStateTaskListener&gt; tasks = getPendingAsTasks(&quot;become master&quot;);
+<i>278</i>&nbsp;            final String source = &quot;zen-disco-elected-as-master ([&quot; + tasks.size() + &quot;] nodes joined)&quot;;
+<i>279</i>&nbsp;
+<i>280</i>&nbsp;            // noop listener, the election finished listener determines result
+<i>281</i>&nbsp;            tasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source1, e) -&gt; {});
+<i>282</i>&nbsp;            tasks.put(JoinTaskExecutor.newFinishElectionTask(), electionFinishedListener);
+<i>283</i>&nbsp;            masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+<i>284</i>&nbsp;        }
+<i>285</i>&nbsp;
+<i>286</i>&nbsp;        public synchronized void closeAndProcessPending(String reason) {
+<i>287</i>&nbsp;            innerClose();
+<i>288</i>&nbsp;            Map&lt;JoinTaskExecutor.Task, ClusterStateTaskListener&gt; tasks = getPendingAsTasks(reason);
+<i>289</i>&nbsp;            final String source = &quot;zen-disco-election-stop [&quot; + reason + &quot;]&quot;;
+<i>290</i>&nbsp;            tasks.put(JoinTaskExecutor.newFinishElectionTask(), electionFinishedListener);
+<i>291</i>&nbsp;            masterService.submitStateUpdateTasks(source, tasks, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+<i>292</i>&nbsp;        }
+<i>293</i>&nbsp;
+<i>294</i>&nbsp;        private void innerClose() {
+<i>295</i>&nbsp;            if (closed.getAndSet(true)) {
+<i>296</i>&nbsp;                throw new AlreadyClosedException(&quot;election context is already closed&quot;);
+<i>297</i>&nbsp;            }
+<i>298</i>&nbsp;        }
+<i>299</i>&nbsp;
+<i>300</i>&nbsp;        private void ensureOpen() {
+<i>301</i>&nbsp;            if (closed.get()) {
+<i>302</i>&nbsp;                throw new AlreadyClosedException(&quot;election context is already closed&quot;);
+<i>303</i>&nbsp;            }
+<i>304</i>&nbsp;        }
+<i>305</i>&nbsp;
+<i>306</i>&nbsp;        private synchronized ElectionCallback getCallback() {
+<i>307</i>&nbsp;            return callback;
+<i>308</i>&nbsp;        }
+<i>309</i>&nbsp;
+<i>310</i>&nbsp;        private void onElectedAsMaster(ClusterState state) {
+<i>311</i>&nbsp;            assert MasterService.assertMasterUpdateThread();
+<i>312</i>&nbsp;            assert state.nodes().isLocalNodeElectedMaster() : &quot;onElectedAsMaster called but local node is not master&quot;;
+<i>313</i>&nbsp;            ElectionCallback callback = getCallback(); // get under lock
+<i>314</i>&nbsp;            if (callback != null) {
+<i>315</i>&nbsp;                callback.onElectedAsMaster(state);
+<i>316</i>&nbsp;            }
+<i>317</i>&nbsp;        }
+<i>318</i>&nbsp;
+<i>319</i>&nbsp;        private void onFailure(Throwable t) {
+<i>320</i>&nbsp;            assert MasterService.assertMasterUpdateThread();
+<i>321</i>&nbsp;            ElectionCallback callback = getCallback(); // get under lock
+<i>322</i>&nbsp;            if (callback != null) {
+<i>323</i>&nbsp;                callback.onFailure(t);
+<i>324</i>&nbsp;            }
+<i>325</i>&nbsp;        }
+<i>326</i>&nbsp;
+<i>327</i>&nbsp;        private final ClusterStateTaskListener electionFinishedListener = new ClusterStateTaskListener() {
+<i>328</i>&nbsp;
+<i>329</i>&nbsp;            @Override
+<i>330</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>331</i>&nbsp;                if (newState.nodes().isLocalNodeElectedMaster()) {
+<i>332</i>&nbsp;                    ElectionContext.this.onElectedAsMaster(newState);
+<i>333</i>&nbsp;                } else {
+<i>334</i>&nbsp;                    onFailure(source, new NotMasterException(&quot;election stopped [&quot; + source + &quot;]&quot;));
+<i>335</i>&nbsp;                }
+<i>336</i>&nbsp;            }
+<i>337</i>&nbsp;
+<i>338</i>&nbsp;            @Override
+<i>339</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>340</i>&nbsp;                ElectionContext.this.onFailure(e);
+<i>341</i>&nbsp;            }
+<i>342</i>&nbsp;        };
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    }
+<i>345</i>&nbsp;
+<i>346</i>&nbsp;    static class JoinTaskListener implements ClusterStateTaskListener {
+<i>347</i>&nbsp;        final List&lt;MembershipAction.JoinCallback&gt; callbacks;
+<i>348</i>&nbsp;        private final Logger logger;
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;        JoinTaskListener(MembershipAction.JoinCallback callback, Logger logger) {
+<i>351</i>&nbsp;            this(Collections.singletonList(callback), logger);
+<i>352</i>&nbsp;        }
+<i>353</i>&nbsp;
+<i>354</i>&nbsp;        JoinTaskListener(List&lt;MembershipAction.JoinCallback&gt; callbacks, Logger logger) {
+<i>355</i>&nbsp;            this.callbacks = callbacks;
+<i>356</i>&nbsp;            this.logger = logger;
+<i>357</i>&nbsp;        }
+<i>358</i>&nbsp;
+<i>359</i>&nbsp;        @Override
+<i>360</i>&nbsp;        public void onFailure(String source, Exception e) {
+<i>361</i>&nbsp;            for (MembershipAction.JoinCallback callback : callbacks) {
+<i>362</i>&nbsp;                try {
+<i>363</i>&nbsp;                    callback.onFailure(e);
+<i>364</i>&nbsp;                } catch (Exception inner) {
+<i>365</i>&nbsp;                    logger.error(() -&gt; new ParameterizedMessage(&quot;error handling task failure [{}]&quot;, e), inner);
+<i>366</i>&nbsp;                }
+<i>367</i>&nbsp;            }
+<i>368</i>&nbsp;        }
+<i>369</i>&nbsp;
+<i>370</i>&nbsp;        @Override
+<i>371</i>&nbsp;        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>372</i>&nbsp;            for (MembershipAction.JoinCallback callback : callbacks) {
+<i>373</i>&nbsp;                try {
+<i>374</i>&nbsp;                    callback.onSuccess();
+<i>375</i>&nbsp;                } catch (Exception e) {
+<i>376</i>&nbsp;                    logger.error(() -&gt; new ParameterizedMessage(&quot;unexpected error during [{}]&quot;, source), e);
+<i>377</i>&nbsp;                }
+<i>378</i>&nbsp;            }
+<i>379</i>&nbsp;        }
+<i>380</i>&nbsp;    }
+<i>381</i>&nbsp;
+<i>382</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:45</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,670 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: RemoteClusterService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.transport</a> ]
+</div>
+
+<h1>Coverage Summary for Class: RemoteClusterService (org.elasticsearch.transport)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">RemoteClusterService</td>
+<td class="coverageStat">
+  <span class="percent">
+    33.3%
+  </span>
+  <span class="absValue">
+    (13/ 39)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.2%
+  </span>
+  <span class="absValue">
+    (67/ 222)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">RemoteClusterService$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (2/ 3)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    35.7%
+  </span>
+  <span class="absValue">
+    (15/ 42)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    30.7%
+  </span>
+  <span class="absValue">
+    (69/ 225)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.transport;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.Version;
+<i>25</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>26</i>&nbsp;import org.elasticsearch.action.OriginalIndices;
+<i>27</i>&nbsp;import org.elasticsearch.action.support.IndicesOptions;
+<i>28</i>&nbsp;import org.elasticsearch.action.support.PlainActionFuture;
+<i>29</i>&nbsp;import org.elasticsearch.client.Client;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNode;
+<i>31</i>&nbsp;import org.elasticsearch.common.Booleans;
+<i>32</i>&nbsp;import org.elasticsearch.common.Strings;
+<i>33</i>&nbsp;import org.elasticsearch.common.collect.Tuple;
+<i>34</i>&nbsp;import org.elasticsearch.common.settings.ClusterSettings;
+<i>35</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>36</i>&nbsp;import org.elasticsearch.common.settings.SettingUpgrader;
+<i>37</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>38</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>39</i>&nbsp;import org.elasticsearch.common.util.concurrent.CountDown;
+<i>40</i>&nbsp;import org.elasticsearch.core.internal.io.IOUtils;
+<i>41</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>42</i>&nbsp;
+<i>43</i>&nbsp;import java.io.Closeable;
+<i>44</i>&nbsp;import java.io.IOException;
+<i>45</i>&nbsp;import java.util.Collection;
+<i>46</i>&nbsp;import java.util.Collections;
+<i>47</i>&nbsp;import java.util.HashMap;
+<i>48</i>&nbsp;import java.util.List;
+<i>49</i>&nbsp;import java.util.Map;
+<i>50</i>&nbsp;import java.util.Objects;
+<i>51</i>&nbsp;import java.util.Set;
+<i>52</i>&nbsp;import java.util.concurrent.CountDownLatch;
+<i>53</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>54</i>&nbsp;import java.util.concurrent.TimeoutException;
+<i>55</i>&nbsp;import java.util.function.BiFunction;
+<i>56</i>&nbsp;import java.util.function.Function;
+<i>57</i>&nbsp;import java.util.function.Predicate;
+<i>58</i>&nbsp;import java.util.function.Supplier;
+<i>59</i>&nbsp;import java.util.stream.Collectors;
+<i>60</i>&nbsp;import java.util.stream.Stream;
+<i>61</i>&nbsp;
+<i>62</i>&nbsp;import static org.elasticsearch.common.settings.Setting.boolSetting;
+<i>63</i>&nbsp;import static org.elasticsearch.common.settings.Setting.timeSetting;
+<i>64</i>&nbsp;
+<i>65</i>&nbsp;/**
+<i>66</i>&nbsp; * Basic service for accessing remote clusters via gateway nodes
+<i>67</i>&nbsp; */
+<b class="fc"><i>68</i>&nbsp;public final class RemoteClusterService extends RemoteClusterAware implements Closeable {</b>
+<i>69</i>&nbsp;
+<b class="fc"><i>70</i>&nbsp;    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);</b>
+<i>71</i>&nbsp;
+<b class="fc"><i>72</i>&nbsp;    private static final ActionListener&lt;Void&gt; noopListener = ActionListener.wrap((x) -&gt; {}, (x) -&gt; {});</b>
+<i>73</i>&nbsp;
+<i>74</i>&nbsp;    static {
+<i>75</i>&nbsp;        // remove search.remote.* settings in 8.0.0
+<b class="fc"><i>76</i>&nbsp;        assert Version.CURRENT.major &lt; 8;</b>
+<i>77</i>&nbsp;    }
+<i>78</i>&nbsp;
+<b class="fc"><i>79</i>&nbsp;    public static final Setting&lt;Integer&gt; SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =</b>
+<b class="fc"><i>80</i>&nbsp;            Setting.intSetting(&quot;search.remote.connections_per_cluster&quot;, 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);</b>
+<i>81</i>&nbsp;
+<i>82</i>&nbsp;    /**
+<i>83</i>&nbsp;     * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
+<i>84</i>&nbsp;     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
+<i>85</i>&nbsp;     */
+<b class="fc"><i>86</i>&nbsp;    public static final Setting&lt;Integer&gt; REMOTE_CONNECTIONS_PER_CLUSTER =</b>
+<b class="fc"><i>87</i>&nbsp;            Setting.intSetting(</b>
+<i>88</i>&nbsp;                    &quot;cluster.remote.connections_per_cluster&quot;,
+<i>89</i>&nbsp;                    SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER, // the default needs to three when fallback is removed
+<i>90</i>&nbsp;                    1,
+<i>91</i>&nbsp;                    Setting.Property.NodeScope);
+<i>92</i>&nbsp;
+<b class="fc"><i>93</i>&nbsp;    public static final Setting&lt;TimeValue&gt; SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING =</b>
+<b class="fc"><i>94</i>&nbsp;            Setting.positiveTimeSetting(</b>
+<i>95</i>&nbsp;                    &quot;search.remote.initial_connect_timeout&quot;,
+<b class="fc"><i>96</i>&nbsp;                    TimeValue.timeValueSeconds(30),</b>
+<i>97</i>&nbsp;                    Setting.Property.NodeScope,
+<i>98</i>&nbsp;                    Setting.Property.Deprecated);
+<i>99</i>&nbsp;
+<i>100</i>&nbsp;    /**
+<i>101</i>&nbsp;     * The initial connect timeout for remote cluster connections
+<i>102</i>&nbsp;     */
+<b class="fc"><i>103</i>&nbsp;    public static final Setting&lt;TimeValue&gt; REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING =</b>
+<b class="fc"><i>104</i>&nbsp;            Setting.positiveTimeSetting(</b>
+<i>105</i>&nbsp;                    &quot;cluster.remote.initial_connect_timeout&quot;,
+<i>106</i>&nbsp;                    SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING, // the default needs to be thirty seconds when fallback is removed
+<b class="fc"><i>107</i>&nbsp;                    TimeValue.timeValueSeconds(30),</b>
+<i>108</i>&nbsp;                    Setting.Property.NodeScope);
+<i>109</i>&nbsp;
+<b class="fc"><i>110</i>&nbsp;    public static final Setting&lt;String&gt; SEARCH_REMOTE_NODE_ATTRIBUTE =</b>
+<b class="fc"><i>111</i>&nbsp;            Setting.simpleString(&quot;search.remote.node.attr&quot;, Setting.Property.NodeScope, Setting.Property.Deprecated);</b>
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    /**
+<i>114</i>&nbsp;     * The name of a node attribute to select nodes that should be connected to in the remote cluster.
+<i>115</i>&nbsp;     * For instance a node can be configured with {@code node.attr.gateway: true} in order to be eligible as a gateway node between
+<i>116</i>&nbsp;     * clusters. In that case {@code search.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
+<i>117</i>&nbsp;     * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
+<i>118</i>&nbsp;     */
+<b class="fc"><i>119</i>&nbsp;    public static final Setting&lt;String&gt; REMOTE_NODE_ATTRIBUTE =</b>
+<b class="fc"><i>120</i>&nbsp;            Setting.simpleString(</b>
+<i>121</i>&nbsp;                    &quot;cluster.remote.node.attr&quot;,
+<i>122</i>&nbsp;                    SEARCH_REMOTE_NODE_ATTRIBUTE, // no default is needed when fallback is removed, use simple string which gives empty
+<i>123</i>&nbsp;                    Setting.Property.NodeScope);
+<i>124</i>&nbsp;
+<b class="fc"><i>125</i>&nbsp;    public static final Setting&lt;Boolean&gt; SEARCH_ENABLE_REMOTE_CLUSTERS =</b>
+<b class="fc"><i>126</i>&nbsp;            Setting.boolSetting(&quot;search.remote.connect&quot;, true, Setting.Property.NodeScope, Setting.Property.Deprecated);</b>
+<i>127</i>&nbsp;
+<i>128</i>&nbsp;    /**
+<i>129</i>&nbsp;     * If &lt;code&gt;true&lt;/code&gt; connecting to remote clusters is supported on this node. If &lt;code&gt;false&lt;/code&gt; this node will not establish
+<i>130</i>&nbsp;     * connections to any remote clusters configured. Search requests executed against this node (where this node is the coordinating node)
+<i>131</i>&nbsp;     * will fail if remote cluster syntax is used as an index pattern. The default is &lt;code&gt;true&lt;/code&gt;
+<i>132</i>&nbsp;     */
+<b class="fc"><i>133</i>&nbsp;    public static final Setting&lt;Boolean&gt; ENABLE_REMOTE_CLUSTERS =</b>
+<b class="fc"><i>134</i>&nbsp;            Setting.boolSetting(</b>
+<i>135</i>&nbsp;                    &quot;cluster.remote.connect&quot;,
+<i>136</i>&nbsp;                    SEARCH_ENABLE_REMOTE_CLUSTERS, // the default needs to be true when fallback is removed
+<i>137</i>&nbsp;                    Setting.Property.NodeScope);
+<i>138</i>&nbsp;
+<b class="fc"><i>139</i>&nbsp;    public static final Setting.AffixSetting&lt;Boolean&gt; SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE =</b>
+<b class="fc"><i>140</i>&nbsp;            Setting.affixKeySetting(</b>
+<i>141</i>&nbsp;                    &quot;search.remote.&quot;,
+<i>142</i>&nbsp;                    &quot;skip_unavailable&quot;,
+<b class="fc"><i>143</i>&nbsp;                    key -&gt; boolSetting(key, false, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope),</b>
+<i>144</i>&nbsp;                    REMOTE_CLUSTERS_SEEDS);
+<i>145</i>&nbsp;
+<b class="fc"><i>146</i>&nbsp;    public static final SettingUpgrader&lt;Boolean&gt; SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER = new SettingUpgrader&lt;Boolean&gt;() {</b>
+<i>147</i>&nbsp;
+<i>148</i>&nbsp;        @Override
+<i>149</i>&nbsp;        public Setting&lt;Boolean&gt; getSetting() {
+<b class="fc"><i>150</i>&nbsp;            return SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;</b>
+<i>151</i>&nbsp;        }
+<i>152</i>&nbsp;
+<i>153</i>&nbsp;        @Override
+<i>154</i>&nbsp;        public String getKey(final String key) {
+<b class="nc"><i>155</i>&nbsp;            return key.replaceFirst(&quot;^search&quot;, &quot;cluster&quot;);</b>
+<i>156</i>&nbsp;        }
+<i>157</i>&nbsp;
+<i>158</i>&nbsp;    };
+<i>159</i>&nbsp;
+<b class="fc"><i>160</i>&nbsp;    public static final Setting.AffixSetting&lt;Boolean&gt; REMOTE_CLUSTER_SKIP_UNAVAILABLE =</b>
+<b class="fc"><i>161</i>&nbsp;            Setting.affixKeySetting(</b>
+<i>162</i>&nbsp;                    &quot;cluster.remote.&quot;,
+<i>163</i>&nbsp;                    &quot;skip_unavailable&quot;,
+<b class="fc"><i>164</i>&nbsp;                    key -&gt; boolSetting(</b>
+<i>165</i>&nbsp;                            key,
+<i>166</i>&nbsp;                            // the default needs to be false when fallback is removed
+<b class="fc"><i>167</i>&nbsp;                            &quot;_na_&quot;.equals(key)</b>
+<b class="fc"><i>168</i>&nbsp;                                    ? SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(key)</b>
+<b class="nc"><i>169</i>&nbsp;                                    : SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSetting(key.replaceAll(&quot;^cluster&quot;, &quot;search&quot;)),</b>
+<i>170</i>&nbsp;                            Setting.Property.Dynamic,
+<i>171</i>&nbsp;                            Setting.Property.NodeScope),
+<i>172</i>&nbsp;                    REMOTE_CLUSTERS_SEEDS);
+<i>173</i>&nbsp;
+<b class="fc"><i>174</i>&nbsp;    public static final Setting.AffixSetting&lt;TimeValue&gt; REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(</b>
+<i>175</i>&nbsp;            &quot;cluster.remote.&quot;,
+<i>176</i>&nbsp;            &quot;transport.ping_schedule&quot;,
+<b class="fc"><i>177</i>&nbsp;            key -&gt; timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),</b>
+<i>178</i>&nbsp;            REMOTE_CLUSTERS_SEEDS);
+<i>179</i>&nbsp;
+<b class="fc"><i>180</i>&nbsp;    public static final Setting.AffixSetting&lt;Boolean&gt; REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(</b>
+<i>181</i>&nbsp;        &quot;cluster.remote.&quot;,
+<i>182</i>&nbsp;        &quot;transport.compress&quot;,
+<b class="fc"><i>183</i>&nbsp;        key -&gt; boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),</b>
+<i>184</i>&nbsp;        REMOTE_CLUSTERS_SEEDS);
+<i>185</i>&nbsp;
+<b class="fc"><i>186</i>&nbsp;    private static final Predicate&lt;DiscoveryNode&gt; DEFAULT_NODE_PREDICATE = (node) -&gt; Version.CURRENT.isCompatible(node.getVersion())</b>
+<b class="nc"><i>187</i>&nbsp;            &amp;&amp; (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());</b>
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    private final TransportService transportService;
+<i>190</i>&nbsp;    private final int numRemoteConnections;
+<b class="fc"><i>191</i>&nbsp;    private volatile Map&lt;String, RemoteClusterConnection&gt; remoteClusters = Collections.emptyMap();</b>
+<b class="fc"><i>192</i>&nbsp;    private volatile Map&lt;String, ConnectionProfile&gt; remoteClusterConnectionProfiles = Collections.emptyMap();</b>
+<i>193</i>&nbsp;
+<i>194</i>&nbsp;    RemoteClusterService(Settings settings, TransportService transportService) {
+<b class="fc"><i>195</i>&nbsp;        super(settings);</b>
+<b class="fc"><i>196</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>197</i>&nbsp;        numRemoteConnections = REMOTE_CONNECTIONS_PER_CLUSTER.get(settings);</b>
+<b class="fc"><i>198</i>&nbsp;    }</b>
+<i>199</i>&nbsp;
+<i>200</i>&nbsp;    /**
+<i>201</i>&nbsp;     * This method updates the list of remote clusters. It&#39;s intended to be used as an update consumer on the settings infrastructure
+<i>202</i>&nbsp;     * @param seeds a cluster alias to discovery node mapping representing the remote clusters seeds nodes
+<i>203</i>&nbsp;     * @param connectionListener a listener invoked once every configured cluster has been connected to
+<i>204</i>&nbsp;     */
+<i>205</i>&nbsp;    private synchronized void updateRemoteClusters(Map&lt;String, Tuple&lt;String, List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt;&gt;&gt; seeds,
+<i>206</i>&nbsp;                                                   ActionListener&lt;Void&gt; connectionListener) {
+<b class="fc"><i>207</i>&nbsp;        if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {</b>
+<b class="nc"><i>208</i>&nbsp;            throw new IllegalArgumentException(&quot;remote clusters must not have the empty string as its key&quot;);</b>
+<i>209</i>&nbsp;        }
+<b class="fc"><i>210</i>&nbsp;        Map&lt;String, RemoteClusterConnection&gt; remoteClusters = new HashMap&lt;&gt;();</b>
+<b class="fc"><i>211</i>&nbsp;        if (seeds.isEmpty()) {</b>
+<b class="fc"><i>212</i>&nbsp;            connectionListener.onResponse(null);</b>
+<i>213</i>&nbsp;        } else {
+<b class="nc"><i>214</i>&nbsp;            CountDown countDown = new CountDown(seeds.size());</b>
+<b class="nc"><i>215</i>&nbsp;            remoteClusters.putAll(this.remoteClusters);</b>
+<b class="nc"><i>216</i>&nbsp;            for (Map.Entry&lt;String, Tuple&lt;String, List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt;&gt;&gt; entry : seeds.entrySet()) {</b>
+<b class="nc"><i>217</i>&nbsp;                List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt; seedList = entry.getValue().v2();</b>
+<b class="nc"><i>218</i>&nbsp;                String proxyAddress = entry.getValue().v1();</b>
+<i>219</i>&nbsp;
+<b class="nc"><i>220</i>&nbsp;                String clusterAlias = entry.getKey();</b>
+<b class="nc"><i>221</i>&nbsp;                RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);</b>
+<b class="nc"><i>222</i>&nbsp;                ConnectionProfile connectionProfile = this.remoteClusterConnectionProfiles.get(clusterAlias);</b>
+<b class="nc"><i>223</i>&nbsp;                if (seedList.isEmpty()) { // with no seed nodes we just remove the connection</b>
+<i>224</i>&nbsp;                    try {
+<b class="nc"><i>225</i>&nbsp;                        IOUtils.close(remote);</b>
+<b class="nc"><i>226</i>&nbsp;                    } catch (IOException e) {</b>
+<b class="nc"><i>227</i>&nbsp;                        logger.warn(&quot;failed to close remote cluster connections for cluster: &quot; + clusterAlias, e);</b>
+<b class="nc"><i>228</i>&nbsp;                    }</b>
+<b class="nc"><i>229</i>&nbsp;                    remoteClusters.remove(clusterAlias);</b>
+<b class="nc"><i>230</i>&nbsp;                    continue;</b>
+<i>231</i>&nbsp;                }
+<i>232</i>&nbsp;
+<b class="nc"><i>233</i>&nbsp;                if (remote == null) { // this is a new cluster we have to add a new representation</b>
+<b class="nc"><i>234</i>&nbsp;                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,</b>
+<b class="nc"><i>235</i>&nbsp;                        getNodePredicate(settings), proxyAddress, connectionProfile);</b>
+<b class="nc"><i>236</i>&nbsp;                    remoteClusters.put(clusterAlias, remote);</b>
+<b class="nc"><i>237</i>&nbsp;                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)</b>
+<b class="nc"><i>238</i>&nbsp;                        || seedsChanged(remote.getSeedNodes(), seedList)) {</b>
+<i>239</i>&nbsp;                    // New ConnectionProfile. Must tear down existing connection
+<i>240</i>&nbsp;                    try {
+<b class="nc"><i>241</i>&nbsp;                        IOUtils.close(remote);</b>
+<b class="nc"><i>242</i>&nbsp;                    } catch (IOException e) {</b>
+<b class="nc"><i>243</i>&nbsp;                        logger.warn(&quot;failed to close remote cluster connections for cluster: &quot; + clusterAlias, e);</b>
+<b class="nc"><i>244</i>&nbsp;                    }</b>
+<b class="nc"><i>245</i>&nbsp;                    remoteClusters.remove(clusterAlias);</b>
+<b class="nc"><i>246</i>&nbsp;                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,</b>
+<b class="nc"><i>247</i>&nbsp;                        getNodePredicate(settings), proxyAddress, connectionProfile);</b>
+<b class="nc"><i>248</i>&nbsp;                    remoteClusters.put(clusterAlias, remote);</b>
+<i>249</i>&nbsp;                }
+<i>250</i>&nbsp;
+<i>251</i>&nbsp;                // now update the seed nodes no matter if it&#39;s new or already existing
+<b class="nc"><i>252</i>&nbsp;                RemoteClusterConnection finalRemote = remote;</b>
+<b class="nc"><i>253</i>&nbsp;                remote.updateSeedNodes(proxyAddress, seedList, ActionListener.wrap(</b>
+<i>254</i>&nbsp;                        response -&gt; {
+<b class="nc"><i>255</i>&nbsp;                            if (countDown.countDown()) {</b>
+<b class="nc"><i>256</i>&nbsp;                                connectionListener.onResponse(response);</b>
+<i>257</i>&nbsp;                            }
+<b class="nc"><i>258</i>&nbsp;                        },</b>
+<i>259</i>&nbsp;                        exception -&gt; {
+<b class="nc"><i>260</i>&nbsp;                            if (countDown.fastForward()) {</b>
+<b class="nc"><i>261</i>&nbsp;                                connectionListener.onFailure(exception);</b>
+<i>262</i>&nbsp;                            }
+<b class="nc"><i>263</i>&nbsp;                            if (finalRemote.isClosed() == false) {</b>
+<b class="nc"><i>264</i>&nbsp;                                logger.warn(&quot;failed to update seed list for cluster: &quot; + clusterAlias, exception);</b>
+<i>265</i>&nbsp;                            }
+<b class="nc"><i>266</i>&nbsp;                        }));</b>
+<b class="nc"><i>267</i>&nbsp;            }</b>
+<i>268</i>&nbsp;        }
+<b class="fc"><i>269</i>&nbsp;        this.remoteClusters = Collections.unmodifiableMap(remoteClusters);</b>
+<b class="fc"><i>270</i>&nbsp;    }</b>
+<i>271</i>&nbsp;
+<i>272</i>&nbsp;    static Predicate&lt;DiscoveryNode&gt; getNodePredicate(Settings settings) {
+<b class="nc"><i>273</i>&nbsp;        if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {</b>
+<i>274</i>&nbsp;            // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
+<b class="nc"><i>275</i>&nbsp;            String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);</b>
+<b class="nc"><i>276</i>&nbsp;            return DEFAULT_NODE_PREDICATE.and((node) -&gt; Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, &quot;false&quot;)));</b>
+<i>277</i>&nbsp;        }
+<b class="nc"><i>278</i>&nbsp;        return DEFAULT_NODE_PREDICATE;</b>
+<i>279</i>&nbsp;    }
+<i>280</i>&nbsp;
+<i>281</i>&nbsp;    /**
+<i>282</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; if at least one remote cluster is configured
+<i>283</i>&nbsp;     */
+<i>284</i>&nbsp;    public boolean isCrossClusterSearchEnabled() {
+<b class="nc"><i>285</i>&nbsp;        return remoteClusters.isEmpty() == false;</b>
+<i>286</i>&nbsp;    }
+<i>287</i>&nbsp;
+<i>288</i>&nbsp;    boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
+<b class="nc"><i>289</i>&nbsp;        return remoteClusters.get(remoteCluster).isNodeConnected(node);</b>
+<i>290</i>&nbsp;    }
+<i>291</i>&nbsp;
+<i>292</i>&nbsp;    public Map&lt;String, OriginalIndices&gt; groupIndices(IndicesOptions indicesOptions, String[] indices, Predicate&lt;String&gt; indexExists) {
+<b class="nc"><i>293</i>&nbsp;        Map&lt;String, OriginalIndices&gt; originalIndicesMap = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>294</i>&nbsp;        if (isCrossClusterSearchEnabled()) {</b>
+<b class="nc"><i>295</i>&nbsp;            final Map&lt;String, List&lt;String&gt;&gt; groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices, indexExists);</b>
+<b class="nc"><i>296</i>&nbsp;            if (groupedIndices.isEmpty()) {</b>
+<i>297</i>&nbsp;                //search on _all in the local cluster if neither local indices nor remote indices were specified
+<b class="nc"><i>298</i>&nbsp;                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));</b>
+<i>299</i>&nbsp;            } else {
+<b class="nc"><i>300</i>&nbsp;                for (Map.Entry&lt;String, List&lt;String&gt;&gt; entry : groupedIndices.entrySet()) {</b>
+<b class="nc"><i>301</i>&nbsp;                    String clusterAlias = entry.getKey();</b>
+<b class="nc"><i>302</i>&nbsp;                    List&lt;String&gt; originalIndices = entry.getValue();</b>
+<b class="nc"><i>303</i>&nbsp;                    originalIndicesMap.put(clusterAlias,</b>
+<b class="nc"><i>304</i>&nbsp;                        new OriginalIndices(originalIndices.toArray(new String[0]), indicesOptions));</b>
+<b class="nc"><i>305</i>&nbsp;                }</b>
+<i>306</i>&nbsp;            }
+<b class="nc"><i>307</i>&nbsp;        } else {</b>
+<b class="nc"><i>308</i>&nbsp;            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(indices, indicesOptions));</b>
+<i>309</i>&nbsp;        }
+<b class="nc"><i>310</i>&nbsp;        return originalIndicesMap;</b>
+<i>311</i>&nbsp;    }
+<i>312</i>&nbsp;
+<i>313</i>&nbsp;    /**
+<i>314</i>&nbsp;     * Returns &lt;code&gt;true&lt;/code&gt; iff the given cluster is configured as a remote cluster. Otherwise &lt;code&gt;false&lt;/code&gt;
+<i>315</i>&nbsp;     */
+<i>316</i>&nbsp;    boolean isRemoteClusterRegistered(String clusterName) {
+<b class="nc"><i>317</i>&nbsp;        return remoteClusters.containsKey(clusterName);</b>
+<i>318</i>&nbsp;    }
+<i>319</i>&nbsp;
+<i>320</i>&nbsp;    /**
+<i>321</i>&nbsp;     * Returns the registered remote cluster names.
+<i>322</i>&nbsp;     */
+<i>323</i>&nbsp;    public Set&lt;String&gt; getRegisteredRemoteClusterNames() {
+<i>324</i>&nbsp;        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+<b class="nc"><i>325</i>&nbsp;        return remoteClusters.keySet();</b>
+<i>326</i>&nbsp;    }
+<i>327</i>&nbsp;
+<i>328</i>&nbsp;    /**
+<i>329</i>&nbsp;     * Returns a connection to the given node on the given remote cluster
+<i>330</i>&nbsp;     * @throws IllegalArgumentException if the remote cluster is unknown
+<i>331</i>&nbsp;     */
+<i>332</i>&nbsp;    public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
+<b class="nc"><i>333</i>&nbsp;        return getRemoteClusterConnection(cluster).getConnection(node);</b>
+<i>334</i>&nbsp;    }
+<i>335</i>&nbsp;
+<i>336</i>&nbsp;    /**
+<i>337</i>&nbsp;     * Ensures that the given cluster alias is connected. If the cluster is connected this operation
+<i>338</i>&nbsp;     * will invoke the listener immediately.
+<i>339</i>&nbsp;     */
+<i>340</i>&nbsp;    void ensureConnected(String clusterAlias, ActionListener&lt;Void&gt; listener) {
+<b class="nc"><i>341</i>&nbsp;        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);</b>
+<b class="nc"><i>342</i>&nbsp;    }</b>
+<i>343</i>&nbsp;
+<i>344</i>&nbsp;    /**
+<i>345</i>&nbsp;     * Returns whether the cluster identified by the provided alias is configured to be skipped when unavailable
+<i>346</i>&nbsp;     */
+<i>347</i>&nbsp;    public boolean isSkipUnavailable(String clusterAlias) {
+<b class="nc"><i>348</i>&nbsp;        return getRemoteClusterConnection(clusterAlias).isSkipUnavailable();</b>
+<i>349</i>&nbsp;    }
+<i>350</i>&nbsp;
+<i>351</i>&nbsp;    public Transport.Connection getConnection(String cluster) {
+<b class="nc"><i>352</i>&nbsp;        return getRemoteClusterConnection(cluster).getConnection();</b>
+<i>353</i>&nbsp;    }
+<i>354</i>&nbsp;
+<i>355</i>&nbsp;    RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+<b class="nc"><i>356</i>&nbsp;        RemoteClusterConnection connection = remoteClusters.get(cluster);</b>
+<b class="nc"><i>357</i>&nbsp;        if (connection == null) {</b>
+<b class="nc"><i>358</i>&nbsp;            throw new NoSuchRemoteClusterException(cluster);</b>
+<i>359</i>&nbsp;        }
+<b class="nc"><i>360</i>&nbsp;        return connection;</b>
+<i>361</i>&nbsp;    }
+<i>362</i>&nbsp;
+<i>363</i>&nbsp;    Set&lt;String&gt; getRemoteClusterNames() {
+<b class="nc"><i>364</i>&nbsp;        return this.remoteClusters.keySet();</b>
+<i>365</i>&nbsp;    }
+<i>366</i>&nbsp;
+<i>367</i>&nbsp;    @Override
+<i>368</i>&nbsp;    public void listenForUpdates(ClusterSettings clusterSettings) {
+<b class="fc"><i>369</i>&nbsp;        super.listenForUpdates(clusterSettings);</b>
+<b class="fc"><i>370</i>&nbsp;        clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -&gt; {});</b>
+<b class="fc"><i>371</i>&nbsp;        clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -&gt; {});</b>
+<b class="fc"><i>372</i>&nbsp;    }</b>
+<i>373</i>&nbsp;
+<i>374</i>&nbsp;    private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+<b class="nc"><i>375</i>&nbsp;        RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);</b>
+<b class="nc"><i>376</i>&nbsp;        if (remote != null) {</b>
+<b class="nc"><i>377</i>&nbsp;            remote.updateSkipUnavailable(skipUnavailable);</b>
+<i>378</i>&nbsp;        }
+<b class="nc"><i>379</i>&nbsp;    }</b>
+<i>380</i>&nbsp;
+<i>381</i>&nbsp;    @Override
+<i>382</i>&nbsp;    protected void updateRemoteCluster(String clusterAlias, List&lt;String&gt; addresses, String proxyAddress, boolean compressionEnabled,
+<i>383</i>&nbsp;                                       TimeValue pingSchedule) {
+<b class="nc"><i>384</i>&nbsp;        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {</b>
+<b class="nc"><i>385</i>&nbsp;            throw new IllegalArgumentException(&quot;remote clusters must not have the empty string as its key&quot;);</b>
+<i>386</i>&nbsp;        }
+<b class="nc"><i>387</i>&nbsp;        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);</b>
+<i>388</i>&nbsp;        ConnectionProfile newProfile;
+<b class="nc"><i>389</i>&nbsp;        if (oldProfile != null) {</b>
+<b class="nc"><i>390</i>&nbsp;            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);</b>
+<b class="nc"><i>391</i>&nbsp;            builder.setCompressionEnabled(compressionEnabled);</b>
+<b class="nc"><i>392</i>&nbsp;            builder.setPingInterval(pingSchedule);</b>
+<b class="nc"><i>393</i>&nbsp;            newProfile = builder.build();</b>
+<b class="nc"><i>394</i>&nbsp;        } else {</b>
+<b class="nc"><i>395</i>&nbsp;            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));</b>
+<b class="nc"><i>396</i>&nbsp;            builder.setCompressionEnabled(compressionEnabled);</b>
+<b class="nc"><i>397</i>&nbsp;            builder.setPingInterval(pingSchedule);</b>
+<b class="nc"><i>398</i>&nbsp;            newProfile = builder.build();</b>
+<i>399</i>&nbsp;        }
+<i>400</i>&nbsp;
+<b class="nc"><i>401</i>&nbsp;        if (remoteClusters.containsKey(clusterAlias) == false) {</b>
+<b class="nc"><i>402</i>&nbsp;            CountDownLatch latch = new CountDownLatch(1);</b>
+<b class="nc"><i>403</i>&nbsp;            updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, ActionListener.wrap(latch::countDown));</b>
+<i>404</i>&nbsp;
+<i>405</i>&nbsp;            try {
+<i>406</i>&nbsp;                // Wait 10 seconds for a new cluster. We must use a latch instead of a future because we
+<i>407</i>&nbsp;                // are on the cluster state thread and our custom future implementation will throw an
+<i>408</i>&nbsp;                // assertion.
+<b class="nc"><i>409</i>&nbsp;                if (latch.await(10, TimeUnit.SECONDS) == false) {</b>
+<b class="nc"><i>410</i>&nbsp;                    logger.warn(&quot;failed to connect to new remote cluster {} within {}&quot;, clusterAlias, TimeValue.timeValueSeconds(10));</b>
+<i>411</i>&nbsp;                }
+<b class="nc"><i>412</i>&nbsp;            } catch (InterruptedException e) {</b>
+<b class="nc"><i>413</i>&nbsp;                Thread.currentThread().interrupt();</b>
+<b class="nc"><i>414</i>&nbsp;            }</b>
+<b class="nc"><i>415</i>&nbsp;        } else {</b>
+<b class="nc"><i>416</i>&nbsp;            updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);</b>
+<i>417</i>&nbsp;        }
+<b class="nc"><i>418</i>&nbsp;    }</b>
+<i>419</i>&nbsp;
+<i>420</i>&nbsp;    void updateRemoteCluster(final String clusterAlias, final List&lt;String&gt; addresses, final String proxyAddress,
+<i>421</i>&nbsp;                             final ConnectionProfile connectionProfile, final ActionListener&lt;Void&gt; connectionListener) {
+<b class="nc"><i>422</i>&nbsp;        HashMap&lt;String, ConnectionProfile&gt; connectionProfiles = new HashMap&lt;&gt;(remoteClusterConnectionProfiles);</b>
+<b class="nc"><i>423</i>&nbsp;        connectionProfiles.put(clusterAlias, connectionProfile);</b>
+<b class="nc"><i>424</i>&nbsp;        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);</b>
+<b class="nc"><i>425</i>&nbsp;        final List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt; nodes =</b>
+<b class="nc"><i>426</i>&nbsp;            addresses.stream().&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt;map(address -&gt; Tuple.tuple(address, () -&gt;</b>
+<b class="nc"><i>427</i>&nbsp;                buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))</b>
+<b class="nc"><i>428</i>&nbsp;            ).collect(Collectors.toList());</b>
+<b class="nc"><i>429</i>&nbsp;        updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple&lt;&gt;(proxyAddress, nodes)), connectionListener);</b>
+<b class="nc"><i>430</i>&nbsp;    }</b>
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;    /**
+<i>433</i>&nbsp;     * Connects to all remote clusters in a blocking fashion. This should be called on node startup to establish an initial connection
+<i>434</i>&nbsp;     * to all configured seed nodes.
+<i>435</i>&nbsp;     */
+<i>436</i>&nbsp;    void initializeRemoteClusters() {
+<b class="fc"><i>437</i>&nbsp;        final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);</b>
+<b class="fc"><i>438</i>&nbsp;        final PlainActionFuture&lt;Void&gt; future = new PlainActionFuture&lt;&gt;();</b>
+<b class="fc"><i>439</i>&nbsp;        Map&lt;String, Tuple&lt;String, List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt;&gt;&gt; seeds =</b>
+<b class="fc"><i>440</i>&nbsp;                RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);</b>
+<b class="fc"><i>441</i>&nbsp;        initializeConnectionProfiles(seeds.keySet());</b>
+<b class="fc"><i>442</i>&nbsp;        updateRemoteClusters(seeds, future);</b>
+<i>443</i>&nbsp;        try {
+<b class="fc"><i>444</i>&nbsp;            future.get(timeValue.millis(), TimeUnit.MILLISECONDS);</b>
+<b class="nc"><i>445</i>&nbsp;        } catch (InterruptedException e) {</b>
+<b class="nc"><i>446</i>&nbsp;            Thread.currentThread().interrupt();</b>
+<b class="nc"><i>447</i>&nbsp;        } catch (TimeoutException ex) {</b>
+<b class="nc"><i>448</i>&nbsp;            logger.warn(&quot;failed to connect to remote clusters within {}&quot;, timeValue.toString());</b>
+<b class="nc"><i>449</i>&nbsp;        } catch (Exception e) {</b>
+<b class="nc"><i>450</i>&nbsp;            throw new IllegalStateException(&quot;failed to connect to remote clusters&quot;, e);</b>
+<b class="fc"><i>451</i>&nbsp;        }</b>
+<b class="fc"><i>452</i>&nbsp;    }</b>
+<i>453</i>&nbsp;
+<i>454</i>&nbsp;    private synchronized void initializeConnectionProfiles(Set&lt;String&gt; remoteClusters) {
+<b class="fc"><i>455</i>&nbsp;        Map&lt;String, ConnectionProfile&gt; connectionProfiles = new HashMap&lt;&gt;(remoteClusters.size());</b>
+<b class="fc"><i>456</i>&nbsp;        for (String clusterName : remoteClusters) {</b>
+<b class="nc"><i>457</i>&nbsp;            connectionProfiles.put(clusterName, buildConnectionProfileFromSettings(clusterName));</b>
+<b class="nc"><i>458</i>&nbsp;        }</b>
+<b class="fc"><i>459</i>&nbsp;        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);</b>
+<b class="fc"><i>460</i>&nbsp;    }</b>
+<i>461</i>&nbsp;
+<i>462</i>&nbsp;    private ConnectionProfile buildConnectionProfileFromSettings(String clusterName) {
+<b class="nc"><i>463</i>&nbsp;        return buildConnectionProfileFromSettings(settings, clusterName);</b>
+<i>464</i>&nbsp;    }
+<i>465</i>&nbsp;
+<i>466</i>&nbsp;    static ConnectionProfile buildConnectionProfileFromSettings(Settings settings, String clusterName) {
+<b class="nc"><i>467</i>&nbsp;        return new ConnectionProfile.Builder()</b>
+<b class="nc"><i>468</i>&nbsp;            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))</b>
+<b class="nc"><i>469</i>&nbsp;            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))</b>
+<b class="nc"><i>470</i>&nbsp;            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?</b>
+<i>471</i>&nbsp;            // we don&#39;t want this to be used for anything else but search
+<b class="nc"><i>472</i>&nbsp;            .addConnections(0, TransportRequestOptions.Type.BULK,</b>
+<i>473</i>&nbsp;                TransportRequestOptions.Type.STATE,
+<i>474</i>&nbsp;                TransportRequestOptions.Type.RECOVERY)
+<b class="nc"><i>475</i>&nbsp;            .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))</b>
+<b class="nc"><i>476</i>&nbsp;            .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings))</b>
+<b class="nc"><i>477</i>&nbsp;            .build();</b>
+<i>478</i>&nbsp;    }
+<i>479</i>&nbsp;
+<i>480</i>&nbsp;    @Override
+<i>481</i>&nbsp;    public void close() throws IOException {
+<b class="fc"><i>482</i>&nbsp;        IOUtils.close(remoteClusters.values());</b>
+<b class="fc"><i>483</i>&nbsp;    }</b>
+<i>484</i>&nbsp;
+<i>485</i>&nbsp;    public Stream&lt;RemoteConnectionInfo&gt; getRemoteConnectionInfos() {
+<b class="nc"><i>486</i>&nbsp;        return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);</b>
+<i>487</i>&nbsp;    }
+<i>488</i>&nbsp;
+<i>489</i>&nbsp;    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+<b class="nc"><i>490</i>&nbsp;        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false</b>
+<b class="nc"><i>491</i>&nbsp;            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;</b>
+<i>492</i>&nbsp;    }
+<i>493</i>&nbsp;
+<i>494</i>&nbsp;    private boolean seedsChanged(final List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt; oldSeedNodes,
+<i>495</i>&nbsp;                                 final List&lt;Tuple&lt;String, Supplier&lt;DiscoveryNode&gt;&gt;&gt; newSeedNodes) {
+<b class="nc"><i>496</i>&nbsp;        if (oldSeedNodes.size() != newSeedNodes.size()) {</b>
+<b class="nc"><i>497</i>&nbsp;            return true;</b>
+<i>498</i>&nbsp;        }
+<b class="nc"><i>499</i>&nbsp;        Set&lt;String&gt; oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());</b>
+<b class="nc"><i>500</i>&nbsp;        Set&lt;String&gt; newSeeds = newSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());</b>
+<b class="nc"><i>501</i>&nbsp;        return oldSeeds.equals(newSeeds) == false;</b>
+<i>502</i>&nbsp;    }
+<i>503</i>&nbsp;
+<i>504</i>&nbsp;    /**
+<i>505</i>&nbsp;     * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
+<i>506</i>&nbsp;     * function on success.
+<i>507</i>&nbsp;     */
+<i>508</i>&nbsp;    public void collectNodes(Set&lt;String&gt; clusters, ActionListener&lt;BiFunction&lt;String, String, DiscoveryNode&gt;&gt; listener) {
+<b class="nc"><i>509</i>&nbsp;        Map&lt;String, RemoteClusterConnection&gt; remoteClusters = this.remoteClusters;</b>
+<b class="nc"><i>510</i>&nbsp;        for (String cluster : clusters) {</b>
+<b class="nc"><i>511</i>&nbsp;            if (remoteClusters.containsKey(cluster) == false) {</b>
+<b class="nc"><i>512</i>&nbsp;                listener.onFailure(new NoSuchRemoteClusterException(cluster));</b>
+<b class="nc"><i>513</i>&nbsp;                return;</b>
+<i>514</i>&nbsp;            }
+<b class="nc"><i>515</i>&nbsp;        }</b>
+<i>516</i>&nbsp;
+<b class="nc"><i>517</i>&nbsp;        final Map&lt;String, Function&lt;String, DiscoveryNode&gt;&gt; clusterMap = new HashMap&lt;&gt;();</b>
+<b class="nc"><i>518</i>&nbsp;        CountDown countDown = new CountDown(clusters.size());</b>
+<b class="nc"><i>519</i>&nbsp;        Function&lt;String, DiscoveryNode&gt; nullFunction = s -&gt; null;</b>
+<b class="nc"><i>520</i>&nbsp;        for (final String cluster : clusters) {</b>
+<b class="nc"><i>521</i>&nbsp;            RemoteClusterConnection connection = remoteClusters.get(cluster);</b>
+<b class="nc"><i>522</i>&nbsp;            connection.collectNodes(new ActionListener&lt;Function&lt;String, DiscoveryNode&gt;&gt;() {</b>
+<i>523</i>&nbsp;                @Override
+<i>524</i>&nbsp;                public void onResponse(Function&lt;String, DiscoveryNode&gt; nodeLookup) {
+<i>525</i>&nbsp;                    synchronized (clusterMap) {
+<i>526</i>&nbsp;                        clusterMap.put(cluster, nodeLookup);
+<i>527</i>&nbsp;                    }
+<i>528</i>&nbsp;                    if (countDown.countDown()) {
+<i>529</i>&nbsp;                        listener.onResponse((clusterAlias, nodeId)
+<i>530</i>&nbsp;                                -&gt; clusterMap.getOrDefault(clusterAlias, nullFunction).apply(nodeId));
+<i>531</i>&nbsp;                    }
+<i>532</i>&nbsp;                }
+<i>533</i>&nbsp;
+<i>534</i>&nbsp;                @Override
+<i>535</i>&nbsp;                public void onFailure(Exception e) {
+<i>536</i>&nbsp;                    if (countDown.fastForward()) { // we need to check if it&#39;s true since we could have multiple failures
+<i>537</i>&nbsp;                        listener.onFailure(e);
+<i>538</i>&nbsp;                    }
+<i>539</i>&nbsp;                }
+<i>540</i>&nbsp;            });
+<b class="nc"><i>541</i>&nbsp;        }</b>
+<b class="nc"><i>542</i>&nbsp;    }</b>
+<i>543</i>&nbsp;
+<i>544</i>&nbsp;    /**
+<i>545</i>&nbsp;     * Returns a client to the remote cluster if the given cluster alias exists.
+<i>546</i>&nbsp;     * @param threadPool the {@link ThreadPool} for the client
+<i>547</i>&nbsp;     * @param clusterAlias the cluster alias the remote cluster is registered under
+<i>548</i>&nbsp;     *
+<i>549</i>&nbsp;     * @throws IllegalArgumentException if the given clusterAlias doesn&#39;t exist
+<i>550</i>&nbsp;     */
+<i>551</i>&nbsp;    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+<b class="nc"><i>552</i>&nbsp;        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {</b>
+<b class="nc"><i>553</i>&nbsp;            throw new NoSuchRemoteClusterException(clusterAlias);</b>
+<i>554</i>&nbsp;        }
+<b class="nc"><i>555</i>&nbsp;        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);</b>
+<i>556</i>&nbsp;    }
+<i>557</i>&nbsp;
+<i>558</i>&nbsp;    Collection&lt;RemoteClusterConnection&gt; getConnections() {
+<b class="nc"><i>559</i>&nbsp;        return remoteClusters.values();</b>
+<i>560</i>&nbsp;    }
+<i>561</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

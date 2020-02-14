@@ -1,0 +1,292 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: BytesRefFieldComparatorSource</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.index.fielddata.fieldcomparator</a> ]
+</div>
+
+<h1>Coverage Summary for Class: BytesRefFieldComparatorSource (org.elasticsearch.index.fielddata.fieldcomparator)</h1>
+
+<table class="coverageStats">
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Class, %
+</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">BytesRefFieldComparatorSource</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 1)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 7)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    0%
+  </span>
+  <span class="absValue">
+    (0/ 18)
+  </span>
+</td>
+</tr>
+
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.index.fielddata.fieldcomparator;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.lucene.index.BinaryDocValues;
+<i>23</i>&nbsp;import org.apache.lucene.index.LeafReaderContext;
+<i>24</i>&nbsp;import org.apache.lucene.index.SortedDocValues;
+<i>25</i>&nbsp;import org.apache.lucene.index.SortedSetDocValues;
+<i>26</i>&nbsp;import org.apache.lucene.search.DocIdSetIterator;
+<i>27</i>&nbsp;import org.apache.lucene.search.FieldComparator;
+<i>28</i>&nbsp;import org.apache.lucene.search.Scorable;
+<i>29</i>&nbsp;import org.apache.lucene.search.SortField;
+<i>30</i>&nbsp;import org.apache.lucene.util.BitSet;
+<i>31</i>&nbsp;import org.apache.lucene.util.BytesRef;
+<i>32</i>&nbsp;import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+<i>33</i>&nbsp;import org.elasticsearch.index.fielddata.IndexFieldData;
+<i>34</i>&nbsp;import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+<i>35</i>&nbsp;import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+<i>36</i>&nbsp;import org.elasticsearch.search.MultiValueMode;
+<i>37</i>&nbsp;
+<i>38</i>&nbsp;import java.io.IOException;
+<i>39</i>&nbsp;
+<i>40</i>&nbsp;/**
+<i>41</i>&nbsp; * Comparator source for string/binary values.
+<i>42</i>&nbsp; */
+<b class="nc"><i>43</i>&nbsp;public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {</b>
+<i>44</i>&nbsp;
+<i>45</i>&nbsp;    private final IndexFieldData&lt;?&gt; indexFieldData;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;    public BytesRefFieldComparatorSource(IndexFieldData&lt;?&gt; indexFieldData, Object missingValue, MultiValueMode sortMode, Nested nested) {
+<b class="nc"><i>48</i>&nbsp;        super(missingValue, sortMode, nested);</b>
+<b class="nc"><i>49</i>&nbsp;        this.indexFieldData = indexFieldData;</b>
+<b class="nc"><i>50</i>&nbsp;    }</b>
+<i>51</i>&nbsp;
+<i>52</i>&nbsp;    @Override
+<i>53</i>&nbsp;    public SortField.Type reducedType() {
+<b class="nc"><i>54</i>&nbsp;        return SortField.Type.STRING;</b>
+<i>55</i>&nbsp;    }
+<i>56</i>&nbsp;
+<i>57</i>&nbsp;    @Override
+<i>58</i>&nbsp;    public Object missingValue(boolean reversed) {
+<b class="nc"><i>59</i>&nbsp;        if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {</b>
+<b class="nc"><i>60</i>&nbsp;            if (sortMissingLast(missingValue) ^ reversed) {</b>
+<b class="nc"><i>61</i>&nbsp;                return SortField.STRING_LAST;</b>
+<i>62</i>&nbsp;            } else {
+<b class="nc"><i>63</i>&nbsp;                return SortField.STRING_FIRST;</b>
+<i>64</i>&nbsp;            }
+<i>65</i>&nbsp;        }
+<i>66</i>&nbsp;        // otherwise we fill missing values ourselves
+<b class="nc"><i>67</i>&nbsp;        return null;</b>
+<i>68</i>&nbsp;    }
+<i>69</i>&nbsp;
+<i>70</i>&nbsp;    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
+<b class="nc"><i>71</i>&nbsp;        return indexFieldData.load(context).getBytesValues();</b>
+<i>72</i>&nbsp;    }
+<i>73</i>&nbsp;
+<b class="nc"><i>74</i>&nbsp;    protected void setScorer(Scorable scorer) {}</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    @Override
+<i>77</i>&nbsp;    public FieldComparator&lt;?&gt; newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+<b class="nc"><i>78</i>&nbsp;        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());</b>
+<i>79</i>&nbsp;
+<b class="nc"><i>80</i>&nbsp;        final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;</b>
+<b class="nc"><i>81</i>&nbsp;        final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);</b>
+<b class="nc"><i>82</i>&nbsp;        if (indexFieldData instanceof IndexOrdinalsFieldData) {</b>
+<b class="nc"><i>83</i>&nbsp;            return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {</b>
+<i>84</i>&nbsp;
+<i>85</i>&nbsp;                @Override
+<i>86</i>&nbsp;                protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
+<i>87</i>&nbsp;                    final SortedSetDocValues values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
+<i>88</i>&nbsp;                    final SortedDocValues selectedValues;
+<i>89</i>&nbsp;                    if (nested == null) {
+<i>90</i>&nbsp;                        selectedValues = sortMode.select(values);
+<i>91</i>&nbsp;                    } else {
+<i>92</i>&nbsp;                        final BitSet rootDocs = nested.rootDocs(context);
+<i>93</i>&nbsp;                        final DocIdSetIterator innerDocs = nested.innerDocs(context);
+<i>94</i>&nbsp;                        final int maxChildren = nested.getNestedSort() != null ?
+<i>95</i>&nbsp;                            nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
+<i>96</i>&nbsp;                        selectedValues = sortMode.select(values, rootDocs, innerDocs, maxChildren);
+<i>97</i>&nbsp;                    }
+<i>98</i>&nbsp;                    if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
+<i>99</i>&nbsp;                        return selectedValues;
+<i>100</i>&nbsp;                    } else {
+<i>101</i>&nbsp;                        return new ReplaceMissing(selectedValues, missingBytes);
+<i>102</i>&nbsp;                    }
+<i>103</i>&nbsp;                }
+<i>104</i>&nbsp;
+<i>105</i>&nbsp;                @Override
+<i>106</i>&nbsp;                public void setScorer(Scorable scorer) {
+<i>107</i>&nbsp;                    BytesRefFieldComparatorSource.this.setScorer(scorer);
+<i>108</i>&nbsp;                }
+<i>109</i>&nbsp;
+<i>110</i>&nbsp;            };
+<i>111</i>&nbsp;        }
+<i>112</i>&nbsp;
+<b class="nc"><i>113</i>&nbsp;        return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {</b>
+<i>114</i>&nbsp;
+<i>115</i>&nbsp;            @Override
+<i>116</i>&nbsp;            protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {
+<i>117</i>&nbsp;                final SortedBinaryDocValues values = getValues(context);
+<i>118</i>&nbsp;                final BinaryDocValues selectedValues;
+<i>119</i>&nbsp;                if (nested == null) {
+<i>120</i>&nbsp;                    selectedValues = sortMode.select(values, missingBytes);
+<i>121</i>&nbsp;                } else {
+<i>122</i>&nbsp;                    final BitSet rootDocs = nested.rootDocs(context);
+<i>123</i>&nbsp;                    final DocIdSetIterator innerDocs = nested.innerDocs(context);
+<i>124</i>&nbsp;                    final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
+<i>125</i>&nbsp;                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+<i>126</i>&nbsp;                }
+<i>127</i>&nbsp;                return selectedValues;
+<i>128</i>&nbsp;            }
+<i>129</i>&nbsp;
+<i>130</i>&nbsp;            @Override
+<i>131</i>&nbsp;            public void setScorer(Scorable scorer) {
+<i>132</i>&nbsp;                BytesRefFieldComparatorSource.this.setScorer(scorer);
+<i>133</i>&nbsp;            }
+<i>134</i>&nbsp;
+<i>135</i>&nbsp;        };
+<i>136</i>&nbsp;    }
+<i>137</i>&nbsp;
+<i>138</i>&nbsp;    /**
+<i>139</i>&nbsp;     * A view of a SortedDocValues where missing values
+<i>140</i>&nbsp;     * are replaced with the specified term
+<i>141</i>&nbsp;     */
+<i>142</i>&nbsp;    // TODO: move this out if we need it for other reasons
+<i>143</i>&nbsp;    static class ReplaceMissing extends AbstractSortedDocValues {
+<i>144</i>&nbsp;        final SortedDocValues in;
+<i>145</i>&nbsp;        final int substituteOrd;
+<i>146</i>&nbsp;        final BytesRef substituteTerm;
+<i>147</i>&nbsp;        final boolean exists;
+<i>148</i>&nbsp;        boolean hasValue;
+<i>149</i>&nbsp;
+<i>150</i>&nbsp;        ReplaceMissing(SortedDocValues in, BytesRef term) throws IOException {
+<i>151</i>&nbsp;            this.in = in;
+<i>152</i>&nbsp;            this.substituteTerm = term;
+<i>153</i>&nbsp;            int sub = in.lookupTerm(term);
+<i>154</i>&nbsp;            if (sub &lt; 0) {
+<i>155</i>&nbsp;                substituteOrd = -sub-1;
+<i>156</i>&nbsp;                exists = false;
+<i>157</i>&nbsp;            } else {
+<i>158</i>&nbsp;                substituteOrd = sub;
+<i>159</i>&nbsp;                exists = true;
+<i>160</i>&nbsp;            }
+<i>161</i>&nbsp;        }
+<i>162</i>&nbsp;
+<i>163</i>&nbsp;        @Override
+<i>164</i>&nbsp;        public int ordValue() throws IOException {
+<i>165</i>&nbsp;            if (hasValue == false) {
+<i>166</i>&nbsp;                return substituteOrd;
+<i>167</i>&nbsp;            }
+<i>168</i>&nbsp;            int ord = in.ordValue();
+<i>169</i>&nbsp;            if (exists == false &amp;&amp; ord &gt;= substituteOrd) {
+<i>170</i>&nbsp;                return ord + 1;
+<i>171</i>&nbsp;            } else {
+<i>172</i>&nbsp;                return ord;
+<i>173</i>&nbsp;            }
+<i>174</i>&nbsp;        }
+<i>175</i>&nbsp;
+<i>176</i>&nbsp;        @Override
+<i>177</i>&nbsp;        public boolean advanceExact(int target) throws IOException {
+<i>178</i>&nbsp;            hasValue = in.advanceExact(target);
+<i>179</i>&nbsp;            return true;
+<i>180</i>&nbsp;        }
+<i>181</i>&nbsp;
+<i>182</i>&nbsp;        @Override
+<i>183</i>&nbsp;        public int docID() {
+<i>184</i>&nbsp;            return in.docID();
+<i>185</i>&nbsp;        }
+<i>186</i>&nbsp;
+<i>187</i>&nbsp;        @Override
+<i>188</i>&nbsp;        public int getValueCount() {
+<i>189</i>&nbsp;            if (exists) {
+<i>190</i>&nbsp;                return in.getValueCount();
+<i>191</i>&nbsp;            } else {
+<i>192</i>&nbsp;                return in.getValueCount() + 1;
+<i>193</i>&nbsp;            }
+<i>194</i>&nbsp;        }
+<i>195</i>&nbsp;
+<i>196</i>&nbsp;        @Override
+<i>197</i>&nbsp;        public BytesRef lookupOrd(int ord) throws IOException {
+<i>198</i>&nbsp;            if (ord == substituteOrd) {
+<i>199</i>&nbsp;                return substituteTerm;
+<i>200</i>&nbsp;            } else if (exists == false &amp;&amp; ord &gt; substituteOrd) {
+<i>201</i>&nbsp;                return in.lookupOrd(ord-1);
+<i>202</i>&nbsp;            } else {
+<i>203</i>&nbsp;                return in.lookupOrd(ord);
+<i>204</i>&nbsp;            }
+<i>205</i>&nbsp;        }
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;        // we let termsenum etc fall back to the default implementation
+<i>208</i>&nbsp;    }
+<i>209</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

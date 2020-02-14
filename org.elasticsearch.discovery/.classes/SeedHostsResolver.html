@@ -1,0 +1,360 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: SeedHostsResolver</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.discovery</a> ]
+</div>
+
+<h1>Coverage Summary for Class: SeedHostsResolver (org.elasticsearch.discovery)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">SeedHostsResolver</td>
+<td class="coverageStat">
+  <span class="percent">
+    83.3%
+  </span>
+  <span class="absValue">
+    (10/ 12)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.4%
+  </span>
+  <span class="absValue">
+    (58/ 93)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">SeedHostsResolver$1</td>
+<td class="coverageStat">
+  <span class="percent">
+    66.7%
+  </span>
+  <span class="absValue">
+    (4/ 6)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    64.3%
+  </span>
+  <span class="absValue">
+    (9/ 14)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    77.8%
+  </span>
+  <span class="absValue">
+    (14/ 18)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    62.6%
+  </span>
+  <span class="absValue">
+    (67/ 107)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.discovery;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.apache.lucene.util.SetOnce;
+<i>25</i>&nbsp;import org.elasticsearch.common.component.AbstractLifecycleComponent;
+<i>26</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>27</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>28</i>&nbsp;import org.elasticsearch.common.transport.TransportAddress;
+<i>29</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>30</i>&nbsp;import org.elasticsearch.common.util.CancellableThreads;
+<i>31</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+<i>32</i>&nbsp;import org.elasticsearch.common.util.concurrent.EsExecutors;
+<i>33</i>&nbsp;import org.elasticsearch.discovery.PeerFinder.ConfiguredHostsResolver;
+<i>34</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>35</i>&nbsp;import org.elasticsearch.transport.TransportService;
+<i>36</i>&nbsp;
+<i>37</i>&nbsp;import java.util.ArrayList;
+<i>38</i>&nbsp;import java.util.Arrays;
+<i>39</i>&nbsp;import java.util.Collections;
+<i>40</i>&nbsp;import java.util.HashSet;
+<i>41</i>&nbsp;import java.util.Iterator;
+<i>42</i>&nbsp;import java.util.List;
+<i>43</i>&nbsp;import java.util.Objects;
+<i>44</i>&nbsp;import java.util.Set;
+<i>45</i>&nbsp;import java.util.concurrent.Callable;
+<i>46</i>&nbsp;import java.util.concurrent.ExecutionException;
+<i>47</i>&nbsp;import java.util.concurrent.ExecutorService;
+<i>48</i>&nbsp;import java.util.concurrent.Future;
+<i>49</i>&nbsp;import java.util.concurrent.ThreadFactory;
+<i>50</i>&nbsp;import java.util.concurrent.TimeUnit;
+<i>51</i>&nbsp;import java.util.concurrent.atomic.AtomicBoolean;
+<i>52</i>&nbsp;import java.util.function.Consumer;
+<i>53</i>&nbsp;import java.util.stream.Collectors;
+<i>54</i>&nbsp;
+<b class="fc"><i>55</i>&nbsp;public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {</b>
+<b class="fc"><i>56</i>&nbsp;    public static final Setting&lt;Integer&gt; LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =</b>
+<b class="fc"><i>57</i>&nbsp;        Setting.intSetting(&quot;discovery.zen.ping.unicast.concurrent_connects&quot;, 10, 0, Setting.Property.NodeScope,</b>
+<i>58</i>&nbsp;            Setting.Property.Deprecated);
+<b class="fc"><i>59</i>&nbsp;    public static final Setting&lt;TimeValue&gt; LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =</b>
+<b class="fc"><i>60</i>&nbsp;        Setting.positiveTimeSetting(&quot;discovery.zen.ping.unicast.hosts.resolve_timeout&quot;, TimeValue.timeValueSeconds(5),</b>
+<i>61</i>&nbsp;            Setting.Property.NodeScope, Setting.Property.Deprecated);
+<b class="fc"><i>62</i>&nbsp;    public static final Setting&lt;Integer&gt; DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING =</b>
+<b class="fc"><i>63</i>&nbsp;        Setting.intSetting(&quot;discovery.seed_resolver.max_concurrent_resolvers&quot;, 10, 0, Setting.Property.NodeScope);</b>
+<b class="fc"><i>64</i>&nbsp;    public static final Setting&lt;TimeValue&gt; DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING =</b>
+<b class="fc"><i>65</i>&nbsp;        Setting.positiveTimeSetting(&quot;discovery.seed_resolver.timeout&quot;, TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);</b>
+<i>66</i>&nbsp;
+<b class="fc"><i>67</i>&nbsp;    private static final Logger logger = LogManager.getLogger(SeedHostsResolver.class);</b>
+<i>68</i>&nbsp;
+<i>69</i>&nbsp;    private final Settings settings;
+<b class="fc"><i>70</i>&nbsp;    private final AtomicBoolean resolveInProgress = new AtomicBoolean();</b>
+<i>71</i>&nbsp;    private final TransportService transportService;
+<i>72</i>&nbsp;    private final SeedHostsProvider hostsProvider;
+<b class="fc"><i>73</i>&nbsp;    private final SetOnce&lt;ExecutorService&gt; executorService = new SetOnce&lt;&gt;();</b>
+<i>74</i>&nbsp;    private final TimeValue resolveTimeout;
+<i>75</i>&nbsp;    private final String nodeName;
+<i>76</i>&nbsp;    private final int concurrentConnects;
+<b class="fc"><i>77</i>&nbsp;    private final CancellableThreads cancellableThreads = new CancellableThreads();</b>
+<i>78</i>&nbsp;
+<i>79</i>&nbsp;    public SeedHostsResolver(String nodeName, Settings settings, TransportService transportService,
+<b class="fc"><i>80</i>&nbsp;                             SeedHostsProvider seedProvider) {</b>
+<b class="fc"><i>81</i>&nbsp;        this.settings = settings;</b>
+<b class="fc"><i>82</i>&nbsp;        this.nodeName = nodeName;</b>
+<b class="fc"><i>83</i>&nbsp;        this.transportService = transportService;</b>
+<b class="fc"><i>84</i>&nbsp;        this.hostsProvider = seedProvider;</b>
+<b class="fc"><i>85</i>&nbsp;        resolveTimeout = getResolveTimeout(settings);</b>
+<b class="fc"><i>86</i>&nbsp;        concurrentConnects = getMaxConcurrentResolvers(settings);</b>
+<b class="fc"><i>87</i>&nbsp;    }</b>
+<i>88</i>&nbsp;
+<i>89</i>&nbsp;    public static int getMaxConcurrentResolvers(Settings settings) {
+<b class="fc"><i>90</i>&nbsp;        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.exists(settings)) {</b>
+<b class="nc"><i>91</i>&nbsp;            if (DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.exists(settings)) {</b>
+<b class="nc"><i>92</i>&nbsp;                throw new IllegalArgumentException(&quot;it is forbidden to set both [&quot;</b>
+<b class="nc"><i>93</i>&nbsp;                    + DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.getKey() + &quot;] and [&quot;</b>
+<b class="nc"><i>94</i>&nbsp;                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey() + &quot;]&quot;);</b>
+<i>95</i>&nbsp;            }
+<b class="nc"><i>96</i>&nbsp;            return LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);</b>
+<i>97</i>&nbsp;        }
+<b class="fc"><i>98</i>&nbsp;        return DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING.get(settings);</b>
+<i>99</i>&nbsp;    }
+<i>100</i>&nbsp;
+<i>101</i>&nbsp;    public static TimeValue getResolveTimeout(Settings settings) {
+<b class="fc"><i>102</i>&nbsp;        if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.exists(settings)) {</b>
+<b class="nc"><i>103</i>&nbsp;            if (DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.exists(settings)) {</b>
+<b class="nc"><i>104</i>&nbsp;                throw new IllegalArgumentException(&quot;it is forbidden to set both [&quot;</b>
+<b class="nc"><i>105</i>&nbsp;                    + DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey() + &quot;] and [&quot;</b>
+<b class="nc"><i>106</i>&nbsp;                    + LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey() + &quot;]&quot;);</b>
+<i>107</i>&nbsp;            }
+<b class="nc"><i>108</i>&nbsp;            return LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);</b>
+<i>109</i>&nbsp;        }
+<b class="fc"><i>110</i>&nbsp;        return DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.get(settings);</b>
+<i>111</i>&nbsp;    }
+<i>112</i>&nbsp;
+<i>113</i>&nbsp;    /**
+<i>114</i>&nbsp;     * Resolves a list of hosts to a list of transport addresses. Each host is resolved into a transport address (or a collection of
+<i>115</i>&nbsp;     * addresses if the number of ports is greater than one). Host lookups are done in parallel using specified executor service up
+<i>116</i>&nbsp;     * to the specified resolve timeout.
+<i>117</i>&nbsp;     *
+<i>118</i>&nbsp;     * @param executorService  the executor service used to parallelize hostname lookups
+<i>119</i>&nbsp;     * @param logger           logger used for logging messages regarding hostname lookups
+<i>120</i>&nbsp;     * @param hosts            the hosts to resolve
+<i>121</i>&nbsp;     * @param transportService the transport service
+<i>122</i>&nbsp;     * @param resolveTimeout   the timeout before returning from hostname lookups
+<i>123</i>&nbsp;     * @return a list of resolved transport addresses
+<i>124</i>&nbsp;     */
+<i>125</i>&nbsp;    public static List&lt;TransportAddress&gt; resolveHostsLists(
+<i>126</i>&nbsp;        final CancellableThreads cancellableThreads,
+<i>127</i>&nbsp;        final ExecutorService executorService,
+<i>128</i>&nbsp;        final Logger logger,
+<i>129</i>&nbsp;        final List&lt;String&gt; hosts,
+<i>130</i>&nbsp;        final TransportService transportService,
+<i>131</i>&nbsp;        final TimeValue resolveTimeout) {
+<b class="fc"><i>132</i>&nbsp;        Objects.requireNonNull(executorService);</b>
+<b class="fc"><i>133</i>&nbsp;        Objects.requireNonNull(logger);</b>
+<b class="fc"><i>134</i>&nbsp;        Objects.requireNonNull(hosts);</b>
+<b class="fc"><i>135</i>&nbsp;        Objects.requireNonNull(transportService);</b>
+<b class="fc"><i>136</i>&nbsp;        Objects.requireNonNull(resolveTimeout);</b>
+<b class="fc"><i>137</i>&nbsp;        if (resolveTimeout.nanos() &lt; 0) {</b>
+<b class="nc"><i>138</i>&nbsp;            throw new IllegalArgumentException(&quot;resolve timeout must be non-negative but was [&quot; + resolveTimeout + &quot;]&quot;);</b>
+<i>139</i>&nbsp;        }
+<i>140</i>&nbsp;        // create tasks to submit to the executor service; we will wait up to resolveTimeout for these tasks to complete
+<b class="fc"><i>141</i>&nbsp;        final List&lt;Callable&lt;TransportAddress[]&gt;&gt; callables =</b>
+<i>142</i>&nbsp;            hosts
+<b class="fc"><i>143</i>&nbsp;                .stream()</b>
+<b class="fc"><i>144</i>&nbsp;                .map(hn -&gt; (Callable&lt;TransportAddress[]&gt;) () -&gt; transportService.addressesFromString(hn))</b>
+<b class="fc"><i>145</i>&nbsp;                .collect(Collectors.toList());</b>
+<b class="fc"><i>146</i>&nbsp;        final SetOnce&lt;List&lt;Future&lt;TransportAddress[]&gt;&gt;&gt; futures = new SetOnce&lt;&gt;();</b>
+<i>147</i>&nbsp;        try {
+<b class="fc"><i>148</i>&nbsp;            cancellableThreads.execute(() -&gt;</b>
+<b class="fc"><i>149</i>&nbsp;                futures.set(executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS)));</b>
+<b class="nc"><i>150</i>&nbsp;        } catch (CancellableThreads.ExecutionCancelledException e) {</b>
+<b class="nc"><i>151</i>&nbsp;            return Collections.emptyList();</b>
+<b class="fc"><i>152</i>&nbsp;        }</b>
+<b class="fc"><i>153</i>&nbsp;        final List&lt;TransportAddress&gt; transportAddresses = new ArrayList&lt;&gt;();</b>
+<b class="fc"><i>154</i>&nbsp;        final Set&lt;TransportAddress&gt; localAddresses = new HashSet&lt;&gt;();</b>
+<b class="fc"><i>155</i>&nbsp;        localAddresses.add(transportService.boundAddress().publishAddress());</b>
+<b class="fc"><i>156</i>&nbsp;        localAddresses.addAll(Arrays.asList(transportService.boundAddress().boundAddresses()));</b>
+<i>157</i>&nbsp;        // ExecutorService#invokeAll guarantees that the futures are returned in the iteration order of the tasks so we can associate the
+<i>158</i>&nbsp;        // hostname with the corresponding task by iterating together
+<b class="fc"><i>159</i>&nbsp;        final Iterator&lt;String&gt; it = hosts.iterator();</b>
+<b class="fc"><i>160</i>&nbsp;        for (final Future&lt;TransportAddress[]&gt; future : futures.get()) {</b>
+<b class="nc"><i>161</i>&nbsp;            assert future.isDone();</b>
+<b class="nc"><i>162</i>&nbsp;            final String hostname = it.next();</b>
+<b class="nc"><i>163</i>&nbsp;            if (!future.isCancelled()) {</b>
+<i>164</i>&nbsp;                try {
+<b class="nc"><i>165</i>&nbsp;                    final TransportAddress[] addresses = future.get();</b>
+<b class="nc"><i>166</i>&nbsp;                    logger.trace(&quot;resolved host [{}] to {}&quot;, hostname, addresses);</b>
+<b class="nc"><i>167</i>&nbsp;                    for (int addressId = 0; addressId &lt; addresses.length; addressId++) {</b>
+<b class="nc"><i>168</i>&nbsp;                        final TransportAddress address = addresses[addressId];</b>
+<i>169</i>&nbsp;                        // no point in pinging ourselves
+<b class="nc"><i>170</i>&nbsp;                        if (localAddresses.contains(address) == false) {</b>
+<b class="nc"><i>171</i>&nbsp;                            transportAddresses.add(address);</b>
+<i>172</i>&nbsp;                        }
+<i>173</i>&nbsp;                    }
+<b class="nc"><i>174</i>&nbsp;                } catch (final ExecutionException e) {</b>
+<b class="nc"><i>175</i>&nbsp;                    assert e.getCause() != null;</b>
+<b class="nc"><i>176</i>&nbsp;                    final String message = &quot;failed to resolve host [&quot; + hostname + &quot;]&quot;;</b>
+<b class="nc"><i>177</i>&nbsp;                    logger.warn(message, e.getCause());</b>
+<b class="nc"><i>178</i>&nbsp;                } catch (InterruptedException e) {</b>
+<b class="nc"><i>179</i>&nbsp;                    Thread.currentThread().interrupt();</b>
+<i>180</i>&nbsp;                    // ignore
+<b class="nc"><i>181</i>&nbsp;                }</b>
+<i>182</i>&nbsp;            } else {
+<b class="nc"><i>183</i>&nbsp;                logger.warn(&quot;timed out after [{}] resolving host [{}]&quot;, resolveTimeout, hostname);</b>
+<i>184</i>&nbsp;            }
+<b class="nc"><i>185</i>&nbsp;        }</b>
+<b class="fc"><i>186</i>&nbsp;        return Collections.unmodifiableList(transportAddresses);</b>
+<i>187</i>&nbsp;    }
+<i>188</i>&nbsp;
+<i>189</i>&nbsp;    @Override
+<i>190</i>&nbsp;    protected void doStart() {
+<b class="fc"><i>191</i>&nbsp;        logger.debug(&quot;using max_concurrent_resolvers [{}], resolver timeout [{}]&quot;, concurrentConnects, resolveTimeout);</b>
+<b class="fc"><i>192</i>&nbsp;        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, &quot;[unicast_configured_hosts_resolver]&quot;);</b>
+<b class="fc"><i>193</i>&nbsp;        executorService.set(EsExecutors.newScaling(nodeName + &quot;/&quot; + &quot;unicast_configured_hosts_resolver&quot;,</b>
+<b class="fc"><i>194</i>&nbsp;            0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory, transportService.getThreadPool().getThreadContext()));</b>
+<b class="fc"><i>195</i>&nbsp;    }</b>
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;    @Override
+<i>198</i>&nbsp;    protected void doStop() {
+<b class="fc"><i>199</i>&nbsp;        cancellableThreads.cancel(&quot;stopping SeedHostsResolver&quot;);</b>
+<b class="fc"><i>200</i>&nbsp;        ThreadPool.terminate(executorService.get(), 10, TimeUnit.SECONDS);</b>
+<b class="fc"><i>201</i>&nbsp;    }</b>
+<i>202</i>&nbsp;
+<i>203</i>&nbsp;    @Override
+<i>204</i>&nbsp;    protected void doClose() {
+<b class="nc"><i>205</i>&nbsp;    }</b>
+<i>206</i>&nbsp;
+<i>207</i>&nbsp;    @Override
+<i>208</i>&nbsp;    public void resolveConfiguredHosts(Consumer&lt;List&lt;TransportAddress&gt;&gt; consumer) {
+<b class="fc"><i>209</i>&nbsp;        if (lifecycle.started() == false) {</b>
+<b class="nc"><i>210</i>&nbsp;            logger.debug(&quot;resolveConfiguredHosts: lifecycle is {}, not proceeding&quot;, lifecycle);</b>
+<b class="nc"><i>211</i>&nbsp;            return;</b>
+<i>212</i>&nbsp;        }
+<i>213</i>&nbsp;
+<b class="fc"><i>214</i>&nbsp;        if (resolveInProgress.compareAndSet(false, true)) {</b>
+<b class="fc"><i>215</i>&nbsp;            transportService.getThreadPool().generic().execute(new AbstractRunnable() {</b>
+<i>216</i>&nbsp;                @Override
+<i>217</i>&nbsp;                public void onFailure(Exception e) {
+<b class="nc"><i>218</i>&nbsp;                    logger.debug(&quot;failure when resolving unicast hosts list&quot;, e);</b>
+<b class="nc"><i>219</i>&nbsp;                }</b>
+<i>220</i>&nbsp;
+<i>221</i>&nbsp;                @Override
+<i>222</i>&nbsp;                protected void doRun() {
+<b class="fc"><i>223</i>&nbsp;                    if (lifecycle.started() == false) {</b>
+<b class="nc"><i>224</i>&nbsp;                        logger.debug(&quot;resolveConfiguredHosts.doRun: lifecycle is {}, not proceeding&quot;, lifecycle);</b>
+<b class="nc"><i>225</i>&nbsp;                        return;</b>
+<i>226</i>&nbsp;                    }
+<i>227</i>&nbsp;
+<b class="fc"><i>228</i>&nbsp;                    List&lt;TransportAddress&gt; providedAddresses</b>
+<b class="fc"><i>229</i>&nbsp;                        = hostsProvider.getSeedAddresses(hosts -&gt;</b>
+<b class="fc"><i>230</i>&nbsp;                            resolveHostsLists(cancellableThreads, executorService.get(), logger, hosts, transportService, resolveTimeout));</b>
+<i>231</i>&nbsp;
+<b class="fc"><i>232</i>&nbsp;                    consumer.accept(providedAddresses);</b>
+<b class="fc"><i>233</i>&nbsp;                }</b>
+<i>234</i>&nbsp;
+<i>235</i>&nbsp;                @Override
+<i>236</i>&nbsp;                public void onAfter() {
+<b class="fc"><i>237</i>&nbsp;                    resolveInProgress.set(false);</b>
+<b class="fc"><i>238</i>&nbsp;                }</b>
+<i>239</i>&nbsp;
+<i>240</i>&nbsp;                @Override
+<i>241</i>&nbsp;                public String toString() {
+<b class="nc"><i>242</i>&nbsp;                    return &quot;SeedHostsResolver resolving unicast hosts list&quot;;</b>
+<i>243</i>&nbsp;                }
+<i>244</i>&nbsp;            });
+<i>245</i>&nbsp;        }
+<b class="fc"><i>246</i>&nbsp;    }</b>
+<i>247</i>&nbsp;
+<i>248</i>&nbsp;    List&lt;TransportAddress&gt; resolveHosts(List&lt;String&gt; hosts) {
+<b class="nc"><i>249</i>&nbsp;        return resolveHostsLists(cancellableThreads, executorService.get(), logger, hosts, transportService, resolveTimeout);</b>
+<i>250</i>&nbsp;    }
+<i>251</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>

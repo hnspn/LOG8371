@@ -1,0 +1,589 @@
+
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html id="htmlId">
+<head>
+  <title>Coverage Report :: PersistentTasksClusterService</title>
+  <style type="text/css">
+    @import "../../.css/coverage.css";
+  </style>
+</head>
+
+<body>
+<div class="header"></div>
+
+<div class="content">
+<div class="breadCrumbs">
+    [ <a href="../../index.html">all classes</a> ]
+    [ <a href="../index.html">org.elasticsearch.persistent</a> ]
+</div>
+
+<h1>Coverage Summary for Class: PersistentTasksClusterService (org.elasticsearch.persistent)</h1>
+
+<table class="coverageStats">
+
+<tr>
+  <th class="name">Class</th>
+<th class="coverageStat 
+">
+  Method, %
+</th>
+<th class="coverageStat 
+">
+  Line, %
+</th>
+</tr>
+<tr>
+  <td class="name">PersistentTasksClusterService</td>
+<td class="coverageStat">
+  <span class="percent">
+    23.8%
+  </span>
+  <span class="absValue">
+    (5/ 21)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    22.7%
+  </span>
+  <span class="absValue">
+    (20/ 88)
+  </span>
+</td>
+</tr>
+  <tr>
+    <td class="name">PersistentTasksClusterService$PeriodicRechecker</td>
+<td class="coverageStat">
+  <span class="percent">
+    25%
+  </span>
+  <span class="absValue">
+    (1/ 4)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    27.3%
+  </span>
+  <span class="absValue">
+    (3/ 11)
+  </span>
+</td>
+  </tr>
+<tr>
+  <td class="name"><strong>total</strong></td>
+<td class="coverageStat">
+  <span class="percent">
+    24%
+  </span>
+  <span class="absValue">
+    (6/ 25)
+  </span>
+</td>
+<td class="coverageStat">
+  <span class="percent">
+    23.2%
+  </span>
+  <span class="absValue">
+    (23/ 99)
+  </span>
+</td>
+</tr>
+</table>
+
+<br/>
+<br/>
+
+
+<div class="sourceCode"><i>1</i>&nbsp;/*
+<i>2</i>&nbsp; * Licensed to Elasticsearch under one or more contributor
+<i>3</i>&nbsp; * license agreements. See the NOTICE file distributed with
+<i>4</i>&nbsp; * this work for additional information regarding copyright
+<i>5</i>&nbsp; * ownership. Elasticsearch licenses this file to you under
+<i>6</i>&nbsp; * the Apache License, Version 2.0 (the &quot;License&quot;); you may
+<i>7</i>&nbsp; * not use this file except in compliance with the License.
+<i>8</i>&nbsp; * You may obtain a copy of the License at
+<i>9</i>&nbsp; *
+<i>10</i>&nbsp; *    http://www.apache.org/licenses/LICENSE-2.0
+<i>11</i>&nbsp; *
+<i>12</i>&nbsp; * Unless required by applicable law or agreed to in writing,
+<i>13</i>&nbsp; * software distributed under the License is distributed on an
+<i>14</i>&nbsp; * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+<i>15</i>&nbsp; * KIND, either express or implied.  See the License for the
+<i>16</i>&nbsp; * specific language governing permissions and limitations
+<i>17</i>&nbsp; * under the License.
+<i>18</i>&nbsp; */
+<i>19</i>&nbsp;
+<i>20</i>&nbsp;package org.elasticsearch.persistent;
+<i>21</i>&nbsp;
+<i>22</i>&nbsp;import org.apache.logging.log4j.LogManager;
+<i>23</i>&nbsp;import org.apache.logging.log4j.Logger;
+<i>24</i>&nbsp;import org.elasticsearch.ResourceAlreadyExistsException;
+<i>25</i>&nbsp;import org.elasticsearch.ResourceNotFoundException;
+<i>26</i>&nbsp;import org.elasticsearch.action.ActionListener;
+<i>27</i>&nbsp;import org.elasticsearch.cluster.ClusterChangedEvent;
+<i>28</i>&nbsp;import org.elasticsearch.cluster.ClusterState;
+<i>29</i>&nbsp;import org.elasticsearch.cluster.ClusterStateListener;
+<i>30</i>&nbsp;import org.elasticsearch.cluster.ClusterStateUpdateTask;
+<i>31</i>&nbsp;import org.elasticsearch.cluster.metadata.MetaData;
+<i>32</i>&nbsp;import org.elasticsearch.cluster.node.DiscoveryNodes;
+<i>33</i>&nbsp;import org.elasticsearch.cluster.service.ClusterService;
+<i>34</i>&nbsp;import org.elasticsearch.common.settings.Setting;
+<i>35</i>&nbsp;import org.elasticsearch.common.settings.Settings;
+<i>36</i>&nbsp;import org.elasticsearch.common.unit.TimeValue;
+<i>37</i>&nbsp;import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+<i>38</i>&nbsp;import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+<i>39</i>&nbsp;import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+<i>40</i>&nbsp;import org.elasticsearch.persistent.decider.AssignmentDecision;
+<i>41</i>&nbsp;import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
+<i>42</i>&nbsp;import org.elasticsearch.threadpool.ThreadPool;
+<i>43</i>&nbsp;
+<i>44</i>&nbsp;import java.io.Closeable;
+<i>45</i>&nbsp;import java.util.Objects;
+<i>46</i>&nbsp;
+<i>47</i>&nbsp;/**
+<i>48</i>&nbsp; * Component that runs only on the master node and is responsible for assigning running tasks to nodes
+<i>49</i>&nbsp; */
+<b class="fc"><i>50</i>&nbsp;public class PersistentTasksClusterService implements ClusterStateListener, Closeable {</b>
+<i>51</i>&nbsp;
+<b class="fc"><i>52</i>&nbsp;    public static final Setting&lt;TimeValue&gt; CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING =</b>
+<b class="fc"><i>53</i>&nbsp;        Setting.timeSetting(&quot;cluster.persistent_tasks.allocation.recheck_interval&quot;, TimeValue.timeValueSeconds(30),</b>
+<b class="fc"><i>54</i>&nbsp;            TimeValue.timeValueSeconds(10), Setting.Property.Dynamic, Setting.Property.NodeScope);</b>
+<i>55</i>&nbsp;
+<b class="fc"><i>56</i>&nbsp;    private static final Logger logger = LogManager.getLogger(PersistentTasksClusterService.class);</b>
+<i>57</i>&nbsp;
+<i>58</i>&nbsp;    private final ClusterService clusterService;
+<i>59</i>&nbsp;    private final PersistentTasksExecutorRegistry registry;
+<i>60</i>&nbsp;    private final EnableAssignmentDecider decider;
+<i>61</i>&nbsp;    private final ThreadPool threadPool;
+<i>62</i>&nbsp;    private final PeriodicRechecker periodicRechecker;
+<i>63</i>&nbsp;
+<i>64</i>&nbsp;    public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService,
+<b class="fc"><i>65</i>&nbsp;                                         ThreadPool threadPool) {</b>
+<b class="fc"><i>66</i>&nbsp;        this.clusterService = clusterService;</b>
+<b class="fc"><i>67</i>&nbsp;        this.registry = registry;</b>
+<b class="fc"><i>68</i>&nbsp;        this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());</b>
+<b class="fc"><i>69</i>&nbsp;        this.threadPool = threadPool;</b>
+<b class="fc"><i>70</i>&nbsp;        this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));</b>
+<b class="fc"><i>71</i>&nbsp;        clusterService.addListener(this);</b>
+<b class="fc"><i>72</i>&nbsp;        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,</b>
+<i>73</i>&nbsp;            this::setRecheckInterval);
+<b class="fc"><i>74</i>&nbsp;    }</b>
+<i>75</i>&nbsp;
+<i>76</i>&nbsp;    // visible for testing only
+<i>77</i>&nbsp;    public void setRecheckInterval(TimeValue recheckInterval) {
+<b class="nc"><i>78</i>&nbsp;        periodicRechecker.setInterval(recheckInterval);</b>
+<b class="nc"><i>79</i>&nbsp;    }</b>
+<i>80</i>&nbsp;
+<i>81</i>&nbsp;    @Override
+<i>82</i>&nbsp;    public void close() {
+<b class="nc"><i>83</i>&nbsp;        periodicRechecker.close();</b>
+<b class="nc"><i>84</i>&nbsp;    }</b>
+<i>85</i>&nbsp;
+<i>86</i>&nbsp;    /**
+<i>87</i>&nbsp;     * Creates a new persistent task on master node
+<i>88</i>&nbsp;     *
+<i>89</i>&nbsp;     * @param taskId     the task&#39;s id
+<i>90</i>&nbsp;     * @param taskName   the task&#39;s name
+<i>91</i>&nbsp;     * @param taskParams the task&#39;s parameters
+<i>92</i>&nbsp;     * @param listener   the listener that will be called when task is started
+<i>93</i>&nbsp;     */
+<i>94</i>&nbsp;    public &lt;Params extends PersistentTaskParams&gt; void createPersistentTask(String taskId, String taskName, Params taskParams,
+<i>95</i>&nbsp;                                                                           ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>96</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;create persistent task&quot;, new ClusterStateUpdateTask() {</b>
+<i>97</i>&nbsp;            @Override
+<i>98</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>99</i>&nbsp;                PersistentTasksCustomMetaData.Builder builder = builder(currentState);
+<i>100</i>&nbsp;                if (builder.hasTask(taskId)) {
+<i>101</i>&nbsp;                    throw new ResourceAlreadyExistsException(&quot;task with id {&quot; + taskId + &quot;} already exist&quot;);
+<i>102</i>&nbsp;                }
+<i>103</i>&nbsp;
+<i>104</i>&nbsp;                PersistentTasksExecutor&lt;Params&gt; taskExecutor = registry.getPersistentTaskExecutorSafe(taskName);
+<i>105</i>&nbsp;                taskExecutor.validate(taskParams, currentState);
+<i>106</i>&nbsp;
+<i>107</i>&nbsp;                Assignment assignment = createAssignment(taskName, taskParams, currentState);
+<i>108</i>&nbsp;                return update(currentState, builder.addTask(taskId, taskName, taskParams, assignment));
+<i>109</i>&nbsp;            }
+<i>110</i>&nbsp;
+<i>111</i>&nbsp;            @Override
+<i>112</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>113</i>&nbsp;                listener.onFailure(e);
+<i>114</i>&nbsp;            }
+<i>115</i>&nbsp;
+<i>116</i>&nbsp;            @Override
+<i>117</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>118</i>&nbsp;                PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+<i>119</i>&nbsp;                if (tasks != null) {
+<i>120</i>&nbsp;                    PersistentTask&lt;?&gt; task = tasks.getTask(taskId);
+<i>121</i>&nbsp;                    listener.onResponse(task);
+<i>122</i>&nbsp;                    if (task != null &amp;&amp; task.isAssigned() == false &amp;&amp; periodicRechecker.isScheduled() == false) {
+<i>123</i>&nbsp;                        periodicRechecker.rescheduleIfNecessary();
+<i>124</i>&nbsp;                    }
+<i>125</i>&nbsp;                } else {
+<i>126</i>&nbsp;                    listener.onResponse(null);
+<i>127</i>&nbsp;                }
+<i>128</i>&nbsp;            }
+<i>129</i>&nbsp;        });
+<b class="nc"><i>130</i>&nbsp;    }</b>
+<i>131</i>&nbsp;
+<i>132</i>&nbsp;    /**
+<i>133</i>&nbsp;     * Restarts a record about a running persistent task from cluster state
+<i>134</i>&nbsp;     *
+<i>135</i>&nbsp;     * @param id           the id of the persistent task
+<i>136</i>&nbsp;     * @param allocationId the allocation id of the persistent task
+<i>137</i>&nbsp;     * @param failure      the reason for restarting the task or null if the task completed successfully
+<i>138</i>&nbsp;     * @param listener     the listener that will be called when task is removed
+<i>139</i>&nbsp;     */
+<i>140</i>&nbsp;    public void completePersistentTask(String id, long allocationId, Exception failure, ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<i>141</i>&nbsp;        final String source;
+<b class="nc"><i>142</i>&nbsp;        if (failure != null) {</b>
+<b class="nc"><i>143</i>&nbsp;            logger.warn(&quot;persistent task &quot; + id + &quot; failed&quot;, failure);</b>
+<b class="nc"><i>144</i>&nbsp;            source = &quot;finish persistent task (failed)&quot;;</b>
+<i>145</i>&nbsp;        } else {
+<b class="nc"><i>146</i>&nbsp;            source = &quot;finish persistent task (success)&quot;;</b>
+<i>147</i>&nbsp;        }
+<b class="nc"><i>148</i>&nbsp;        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {</b>
+<i>149</i>&nbsp;            @Override
+<i>150</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>151</i>&nbsp;                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+<i>152</i>&nbsp;                if (tasksInProgress.hasTask(id, allocationId)) {
+<i>153</i>&nbsp;                    tasksInProgress.removeTask(id);
+<i>154</i>&nbsp;                    return update(currentState, tasksInProgress);
+<i>155</i>&nbsp;                } else {
+<i>156</i>&nbsp;                    if (tasksInProgress.hasTask(id)) {
+<i>157</i>&nbsp;                        logger.warn(&quot;The task [{}] with id [{}] was found but it has a different allocation id [{}], status is not updated&quot;,
+<i>158</i>&nbsp;                                PersistentTasksCustomMetaData.getTaskWithId(currentState, id).getTaskName(), id, allocationId);
+<i>159</i>&nbsp;                    } else {
+<i>160</i>&nbsp;                        logger.warn(&quot;The task [{}] wasn&#39;t found, status is not updated&quot;, id);
+<i>161</i>&nbsp;                    }
+<i>162</i>&nbsp;                    throw new ResourceNotFoundException(&quot;the task with id [&quot; + id + &quot;] and allocation id [&quot; + allocationId + &quot;] not found&quot;);
+<i>163</i>&nbsp;                }
+<i>164</i>&nbsp;            }
+<i>165</i>&nbsp;
+<i>166</i>&nbsp;            @Override
+<i>167</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>168</i>&nbsp;                listener.onFailure(e);
+<i>169</i>&nbsp;            }
+<i>170</i>&nbsp;
+<i>171</i>&nbsp;            @Override
+<i>172</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>173</i>&nbsp;                // Using old state since in the new state the task is already gone
+<i>174</i>&nbsp;                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(oldState, id));
+<i>175</i>&nbsp;            }
+<i>176</i>&nbsp;        });
+<b class="nc"><i>177</i>&nbsp;    }</b>
+<i>178</i>&nbsp;
+<i>179</i>&nbsp;    /**
+<i>180</i>&nbsp;     * Removes the persistent task
+<i>181</i>&nbsp;     *
+<i>182</i>&nbsp;     * @param id       the id of a persistent task
+<i>183</i>&nbsp;     * @param listener the listener that will be called when task is removed
+<i>184</i>&nbsp;     */
+<i>185</i>&nbsp;    public void removePersistentTask(String id, ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>186</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;remove persistent task&quot;, new ClusterStateUpdateTask() {</b>
+<i>187</i>&nbsp;            @Override
+<i>188</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>189</i>&nbsp;                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+<i>190</i>&nbsp;                if (tasksInProgress.hasTask(id)) {
+<i>191</i>&nbsp;                    return update(currentState, tasksInProgress.removeTask(id));
+<i>192</i>&nbsp;                } else {
+<i>193</i>&nbsp;                    throw new ResourceNotFoundException(&quot;the task with id {} doesn&#39;t exist&quot;, id);
+<i>194</i>&nbsp;                }
+<i>195</i>&nbsp;            }
+<i>196</i>&nbsp;
+<i>197</i>&nbsp;            @Override
+<i>198</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>199</i>&nbsp;                listener.onFailure(e);
+<i>200</i>&nbsp;            }
+<i>201</i>&nbsp;
+<i>202</i>&nbsp;            @Override
+<i>203</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>204</i>&nbsp;                // Using old state since in the new state the task is already gone
+<i>205</i>&nbsp;                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(oldState, id));
+<i>206</i>&nbsp;            }
+<i>207</i>&nbsp;        });
+<b class="nc"><i>208</i>&nbsp;    }</b>
+<i>209</i>&nbsp;
+<i>210</i>&nbsp;    /**
+<i>211</i>&nbsp;     * Update the state of a persistent task
+<i>212</i>&nbsp;     *
+<i>213</i>&nbsp;     * @param taskId           the id of a persistent task
+<i>214</i>&nbsp;     * @param taskAllocationId the expected allocation id of the persistent task
+<i>215</i>&nbsp;     * @param taskState        new state
+<i>216</i>&nbsp;     * @param listener         the listener that will be called when task is removed
+<i>217</i>&nbsp;     */
+<i>218</i>&nbsp;    public void updatePersistentTaskState(final String taskId,
+<i>219</i>&nbsp;                                          final long taskAllocationId,
+<i>220</i>&nbsp;                                          final PersistentTaskState taskState,
+<i>221</i>&nbsp;                                          final ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>222</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;update task state [&quot; + taskId + &quot;]&quot;, new ClusterStateUpdateTask() {</b>
+<i>223</i>&nbsp;            @Override
+<i>224</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>225</i>&nbsp;                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+<i>226</i>&nbsp;                if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
+<i>227</i>&nbsp;                    return update(currentState, tasksInProgress.updateTaskState(taskId, taskState));
+<i>228</i>&nbsp;                } else {
+<i>229</i>&nbsp;                    if (tasksInProgress.hasTask(taskId)) {
+<i>230</i>&nbsp;                        logger.warn(&quot;trying to update state on task {} with unexpected allocation id {}&quot;, taskId, taskAllocationId);
+<i>231</i>&nbsp;                    } else {
+<i>232</i>&nbsp;                        logger.warn(&quot;trying to update state on non-existing task {}&quot;, taskId);
+<i>233</i>&nbsp;                    }
+<i>234</i>&nbsp;                    throw new ResourceNotFoundException(&quot;the task with id {} and allocation id {} doesn&#39;t exist&quot;, taskId, taskAllocationId);
+<i>235</i>&nbsp;                }
+<i>236</i>&nbsp;            }
+<i>237</i>&nbsp;
+<i>238</i>&nbsp;            @Override
+<i>239</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>240</i>&nbsp;                listener.onFailure(e);
+<i>241</i>&nbsp;            }
+<i>242</i>&nbsp;
+<i>243</i>&nbsp;            @Override
+<i>244</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>245</i>&nbsp;                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, taskId));
+<i>246</i>&nbsp;            }
+<i>247</i>&nbsp;        });
+<b class="nc"><i>248</i>&nbsp;    }</b>
+<i>249</i>&nbsp;
+<i>250</i>&nbsp;    /**
+<i>251</i>&nbsp;     * This unassigns a task from any node, i.e. it is assigned to a {@code null} node with the provided reason.
+<i>252</i>&nbsp;     *
+<i>253</i>&nbsp;     * Since the assignment executor node is null, the {@link PersistentTasksClusterService} will attempt to reassign it to a valid
+<i>254</i>&nbsp;     * node quickly.
+<i>255</i>&nbsp;     *
+<i>256</i>&nbsp;     * @param taskId           the id of a persistent task
+<i>257</i>&nbsp;     * @param taskAllocationId the expected allocation id of the persistent task
+<i>258</i>&nbsp;     * @param reason           the reason for unassigning the task from any node
+<i>259</i>&nbsp;     * @param listener         the listener that will be called when task is unassigned
+<i>260</i>&nbsp;     */
+<i>261</i>&nbsp;    public void unassignPersistentTask(final String taskId,
+<i>262</i>&nbsp;                                       final long taskAllocationId,
+<i>263</i>&nbsp;                                       final String reason,
+<i>264</i>&nbsp;                                       final ActionListener&lt;PersistentTask&lt;?&gt;&gt; listener) {
+<b class="nc"><i>265</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;unassign persistent task from any node&quot;, new ClusterStateUpdateTask() {</b>
+<i>266</i>&nbsp;            @Override
+<i>267</i>&nbsp;            public ClusterState execute(ClusterState currentState) throws Exception {
+<i>268</i>&nbsp;                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+<i>269</i>&nbsp;                if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
+<i>270</i>&nbsp;                    logger.trace(&quot;Unassigning task {} with allocation id {}&quot;, taskId, taskAllocationId);
+<i>271</i>&nbsp;                    return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason)));
+<i>272</i>&nbsp;                } else {
+<i>273</i>&nbsp;                    throw new ResourceNotFoundException(&quot;the task with id {} and allocation id {} doesn&#39;t exist&quot;, taskId, taskAllocationId);
+<i>274</i>&nbsp;                }
+<i>275</i>&nbsp;            }
+<i>276</i>&nbsp;
+<i>277</i>&nbsp;            @Override
+<i>278</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>279</i>&nbsp;                listener.onFailure(e);
+<i>280</i>&nbsp;            }
+<i>281</i>&nbsp;
+<i>282</i>&nbsp;            @Override
+<i>283</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>284</i>&nbsp;                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, taskId));
+<i>285</i>&nbsp;            }
+<i>286</i>&nbsp;        });
+<b class="nc"><i>287</i>&nbsp;    }</b>
+<i>288</i>&nbsp;
+<i>289</i>&nbsp;    /**
+<i>290</i>&nbsp;     * Creates a new {@link Assignment} for the given persistent task.
+<i>291</i>&nbsp;     *
+<i>292</i>&nbsp;     * @param taskName the task&#39;s name
+<i>293</i>&nbsp;     * @param taskParams the task&#39;s parameters
+<i>294</i>&nbsp;     * @param currentState the current {@link ClusterState}
+<i>295</i>&nbsp;
+<i>296</i>&nbsp;     * @return a new {@link Assignment}
+<i>297</i>&nbsp;     */
+<i>298</i>&nbsp;    private &lt;Params extends PersistentTaskParams&gt; Assignment createAssignment(final String taskName,
+<i>299</i>&nbsp;                                                                              final Params taskParams,
+<i>300</i>&nbsp;                                                                              final ClusterState currentState) {
+<b class="nc"><i>301</i>&nbsp;        PersistentTasksExecutor&lt;Params&gt; persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);</b>
+<i>302</i>&nbsp;
+<b class="nc"><i>303</i>&nbsp;        AssignmentDecision decision = decider.canAssign();</b>
+<b class="nc"><i>304</i>&nbsp;        if (decision.getType() == AssignmentDecision.Type.NO) {</b>
+<b class="nc"><i>305</i>&nbsp;            return unassignedAssignment(&quot;persistent task [&quot; + taskName + &quot;] cannot be assigned [&quot; + decision.getReason() + &quot;]&quot;);</b>
+<i>306</i>&nbsp;        }
+<i>307</i>&nbsp;
+<b class="nc"><i>308</i>&nbsp;        return persistentTasksExecutor.getAssignment(taskParams, currentState);</b>
+<i>309</i>&nbsp;    }
+<i>310</i>&nbsp;
+<i>311</i>&nbsp;    @Override
+<i>312</i>&nbsp;    public void clusterChanged(ClusterChangedEvent event) {
+<b class="fc"><i>313</i>&nbsp;        if (event.localNodeMaster()) {</b>
+<b class="fc"><i>314</i>&nbsp;            if (shouldReassignPersistentTasks(event)) {</b>
+<i>315</i>&nbsp;                // We want to avoid a periodic check duplicating this work
+<b class="nc"><i>316</i>&nbsp;                periodicRechecker.cancel();</b>
+<b class="nc"><i>317</i>&nbsp;                logger.trace(&quot;checking task reassignment for cluster state {}&quot;, event.state().getVersion());</b>
+<b class="nc"><i>318</i>&nbsp;                reassignPersistentTasks();</b>
+<i>319</i>&nbsp;            }
+<i>320</i>&nbsp;        }
+<b class="fc"><i>321</i>&nbsp;    }</b>
+<i>322</i>&nbsp;
+<i>323</i>&nbsp;    /**
+<i>324</i>&nbsp;     * Submit a cluster state update to reassign any persistent tasks that need reassigning
+<i>325</i>&nbsp;     */
+<i>326</i>&nbsp;    private void reassignPersistentTasks() {
+<b class="nc"><i>327</i>&nbsp;        clusterService.submitStateUpdateTask(&quot;reassign persistent tasks&quot;, new ClusterStateUpdateTask() {</b>
+<i>328</i>&nbsp;            @Override
+<i>329</i>&nbsp;            public ClusterState execute(ClusterState currentState) {
+<i>330</i>&nbsp;                return reassignTasks(currentState);
+<i>331</i>&nbsp;            }
+<i>332</i>&nbsp;
+<i>333</i>&nbsp;            @Override
+<i>334</i>&nbsp;            public void onFailure(String source, Exception e) {
+<i>335</i>&nbsp;                logger.warn(&quot;failed to reassign persistent tasks&quot;, e);
+<i>336</i>&nbsp;                // There must be a task that&#39;s worth rechecking because there was one
+<i>337</i>&nbsp;                // that caused this method to be called and the method failed to assign it
+<i>338</i>&nbsp;                periodicRechecker.rescheduleIfNecessary();
+<i>339</i>&nbsp;            }
+<i>340</i>&nbsp;
+<i>341</i>&nbsp;            @Override
+<i>342</i>&nbsp;            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+<i>343</i>&nbsp;                if (isAnyTaskUnassigned(newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE))) {
+<i>344</i>&nbsp;                    periodicRechecker.rescheduleIfNecessary();
+<i>345</i>&nbsp;                }
+<i>346</i>&nbsp;            }
+<i>347</i>&nbsp;        });
+<b class="nc"><i>348</i>&nbsp;    }</b>
+<i>349</i>&nbsp;
+<i>350</i>&nbsp;    /**
+<i>351</i>&nbsp;     * Returns true if the cluster state change(s) require to reassign some persistent tasks. It can happen in the following
+<i>352</i>&nbsp;     * situations: a node left or is added, the routing table changed, the master node changed, the metadata changed or the
+<i>353</i>&nbsp;     * persistent tasks changed.
+<i>354</i>&nbsp;     */
+<i>355</i>&nbsp;    boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {
+<b class="fc"><i>356</i>&nbsp;        final PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);</b>
+<b class="fc"><i>357</i>&nbsp;        if (tasks == null) {</b>
+<b class="fc"><i>358</i>&nbsp;            return false;</b>
+<i>359</i>&nbsp;        }
+<i>360</i>&nbsp;
+<b class="nc"><i>361</i>&nbsp;        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;</b>
+<i>362</i>&nbsp;
+<b class="nc"><i>363</i>&nbsp;        if (persistentTasksChanged(event)</b>
+<b class="nc"><i>364</i>&nbsp;            || event.nodesChanged()</b>
+<b class="nc"><i>365</i>&nbsp;            || event.routingTableChanged()</b>
+<b class="nc"><i>366</i>&nbsp;            || event.metaDataChanged()</b>
+<i>367</i>&nbsp;            || masterChanged) {
+<i>368</i>&nbsp;
+<b class="nc"><i>369</i>&nbsp;            for (PersistentTask&lt;?&gt; task : tasks.tasks()) {</b>
+<b class="nc"><i>370</i>&nbsp;                if (needsReassignment(task.getAssignment(), event.state().nodes())) {</b>
+<b class="nc"><i>371</i>&nbsp;                    Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), event.state());</b>
+<b class="nc"><i>372</i>&nbsp;                    if (Objects.equals(assignment, task.getAssignment()) == false) {</b>
+<b class="nc"><i>373</i>&nbsp;                        return true;</b>
+<i>374</i>&nbsp;                    }
+<i>375</i>&nbsp;                }
+<b class="nc"><i>376</i>&nbsp;            }</b>
+<i>377</i>&nbsp;        }
+<b class="nc"><i>378</i>&nbsp;        return false;</b>
+<i>379</i>&nbsp;    }
+<i>380</i>&nbsp;
+<i>381</i>&nbsp;    /**
+<i>382</i>&nbsp;     * Returns true if any persistent task is unassigned.
+<i>383</i>&nbsp;     */
+<i>384</i>&nbsp;    private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetaData tasks) {
+<b class="nc"><i>385</i>&nbsp;        return tasks != null &amp;&amp; tasks.tasks().stream().anyMatch(task -&gt; task.getAssignment().isAssigned() == false);</b>
+<i>386</i>&nbsp;    }
+<i>387</i>&nbsp;
+<i>388</i>&nbsp;    /**
+<i>389</i>&nbsp;     * Evaluates the cluster state and tries to assign tasks to nodes.
+<i>390</i>&nbsp;     *
+<i>391</i>&nbsp;     * @param currentState the cluster state to analyze
+<i>392</i>&nbsp;     * @return an updated version of the cluster state
+<i>393</i>&nbsp;     */
+<i>394</i>&nbsp;    ClusterState reassignTasks(final ClusterState currentState) {
+<b class="nc"><i>395</i>&nbsp;        ClusterState clusterState = currentState;</b>
+<i>396</i>&nbsp;
+<b class="nc"><i>397</i>&nbsp;        final PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);</b>
+<b class="nc"><i>398</i>&nbsp;        if (tasks != null) {</b>
+<b class="nc"><i>399</i>&nbsp;            logger.trace(&quot;reassigning {} persistent tasks&quot;, tasks.tasks().size());</b>
+<b class="nc"><i>400</i>&nbsp;            final DiscoveryNodes nodes = currentState.nodes();</b>
+<i>401</i>&nbsp;
+<i>402</i>&nbsp;            // We need to check if removed nodes were running any of the tasks and reassign them
+<b class="nc"><i>403</i>&nbsp;            for (PersistentTask&lt;?&gt; task : tasks.tasks()) {</b>
+<b class="nc"><i>404</i>&nbsp;                if (needsReassignment(task.getAssignment(), nodes)) {</b>
+<b class="nc"><i>405</i>&nbsp;                    Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState);</b>
+<b class="nc"><i>406</i>&nbsp;                    if (Objects.equals(assignment, task.getAssignment()) == false) {</b>
+<b class="nc"><i>407</i>&nbsp;                        logger.trace(&quot;reassigning task {} from node {} to node {}&quot;, task.getId(),</b>
+<b class="nc"><i>408</i>&nbsp;                                task.getAssignment().getExecutorNode(), assignment.getExecutorNode());</b>
+<b class="nc"><i>409</i>&nbsp;                        clusterState = update(clusterState, builder(clusterState).reassignTask(task.getId(), assignment));</b>
+<i>410</i>&nbsp;                    } else {
+<b class="nc"><i>411</i>&nbsp;                        logger.trace(&quot;ignoring task {} because assignment is the same {}&quot;, task.getId(), assignment);</b>
+<i>412</i>&nbsp;                    }
+<b class="nc"><i>413</i>&nbsp;                } else {</b>
+<b class="nc"><i>414</i>&nbsp;                    logger.trace(&quot;ignoring task {} because it is still running&quot;, task.getId());</b>
+<i>415</i>&nbsp;                }
+<b class="nc"><i>416</i>&nbsp;            }</b>
+<i>417</i>&nbsp;        }
+<b class="nc"><i>418</i>&nbsp;        return clusterState;</b>
+<i>419</i>&nbsp;    }
+<i>420</i>&nbsp;
+<i>421</i>&nbsp;    /** Returns true if the persistent tasks are not equal between the previous and the current cluster state **/
+<i>422</i>&nbsp;    static boolean persistentTasksChanged(final ClusterChangedEvent event) {
+<b class="nc"><i>423</i>&nbsp;        String type = PersistentTasksCustomMetaData.TYPE;</b>
+<b class="nc"><i>424</i>&nbsp;        return Objects.equals(event.state().metaData().custom(type), event.previousState().metaData().custom(type)) == false;</b>
+<i>425</i>&nbsp;    }
+<i>426</i>&nbsp;
+<i>427</i>&nbsp;    /** Returns true if the task is not assigned or is assigned to a non-existing node */
+<i>428</i>&nbsp;    public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
+<b class="nc"><i>429</i>&nbsp;        return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);</b>
+<i>430</i>&nbsp;    }
+<i>431</i>&nbsp;
+<i>432</i>&nbsp;    private static PersistentTasksCustomMetaData.Builder builder(ClusterState currentState) {
+<b class="nc"><i>433</i>&nbsp;        return PersistentTasksCustomMetaData.builder(currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));</b>
+<i>434</i>&nbsp;    }
+<i>435</i>&nbsp;
+<i>436</i>&nbsp;    private static ClusterState update(ClusterState currentState, PersistentTasksCustomMetaData.Builder tasksInProgress) {
+<b class="nc"><i>437</i>&nbsp;        if (tasksInProgress.isChanged()) {</b>
+<b class="nc"><i>438</i>&nbsp;            return ClusterState.builder(currentState).metaData(</b>
+<b class="nc"><i>439</i>&nbsp;                    MetaData.builder(currentState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasksInProgress.build())</b>
+<b class="nc"><i>440</i>&nbsp;            ).build();</b>
+<i>441</i>&nbsp;        } else {
+<b class="nc"><i>442</i>&nbsp;            return currentState;</b>
+<i>443</i>&nbsp;        }
+<i>444</i>&nbsp;    }
+<i>445</i>&nbsp;
+<i>446</i>&nbsp;    private static Assignment unassignedAssignment(String reason) {
+<b class="nc"><i>447</i>&nbsp;        return new Assignment(null, reason);</b>
+<i>448</i>&nbsp;    }
+<i>449</i>&nbsp;
+<i>450</i>&nbsp;    /**
+<i>451</i>&nbsp;     * Class to periodically try to reassign unassigned persistent tasks.
+<i>452</i>&nbsp;     */
+<i>453</i>&nbsp;    private class PeriodicRechecker extends AbstractAsyncTask {
+<i>454</i>&nbsp;
+<b class="fc"><i>455</i>&nbsp;        PeriodicRechecker(TimeValue recheckInterval) {</b>
+<b class="fc"><i>456</i>&nbsp;            super(logger, threadPool, recheckInterval, false);</b>
+<b class="fc"><i>457</i>&nbsp;        }</b>
+<i>458</i>&nbsp;
+<i>459</i>&nbsp;        @Override
+<i>460</i>&nbsp;        protected boolean mustReschedule() {
+<b class="nc"><i>461</i>&nbsp;            return true;</b>
+<i>462</i>&nbsp;        }
+<i>463</i>&nbsp;
+<i>464</i>&nbsp;        @Override
+<i>465</i>&nbsp;        public void runInternal() {
+<b class="nc"><i>466</i>&nbsp;            if (clusterService.localNode().isMasterNode()) {</b>
+<b class="nc"><i>467</i>&nbsp;                final ClusterState state = clusterService.state();</b>
+<b class="nc"><i>468</i>&nbsp;                logger.trace(&quot;periodic persistent task assignment check running for cluster state {}&quot;, state.getVersion());</b>
+<b class="nc"><i>469</i>&nbsp;                if (isAnyTaskUnassigned(state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE))) {</b>
+<b class="nc"><i>470</i>&nbsp;                    reassignPersistentTasks();</b>
+<i>471</i>&nbsp;                }
+<i>472</i>&nbsp;            }
+<b class="nc"><i>473</i>&nbsp;        }</b>
+<i>474</i>&nbsp;
+<i>475</i>&nbsp;        @Override
+<i>476</i>&nbsp;        public String toString() {
+<b class="nc"><i>477</i>&nbsp;            return &quot;persistent_task_recheck&quot;;</b>
+<i>478</i>&nbsp;        }
+<i>479</i>&nbsp;    }
+<i>480</i>&nbsp;}
+</div>
+</div>
+
+<div class="footer">
+    
+    <div style="float:right;">generated on 2020-02-09 18:46</div>
+</div>
+</body>
+</html>
